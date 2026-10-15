@@ -31,11 +31,11 @@ import shutil
 import threading
 import time
 
-READ_OPS = frozenset({"info", "ls", "read", "find", "download"})
+READ_OPS = frozenset({"info", "ls", "read", "find", "download", "sessions", "session_read"})
 # Bez ptaní povolené i při „jen čtení“: seznam procesů a oznámení v okně appky.
 SAFE_OPS = frozenset({"ps", "notify"})
 # Mění počítač nebo vidí, co má člověk na obrazovce a ve schránce.
-ASK_OPS = frozenset({"write", "edit", "upload", "run", "screenshot", "clipboard_get",
+ASK_OPS = frozenset({"write", "edit", "upload", "run", "session_send", "screenshot", "clipboard_get",
                      "clipboard_set", "open"})
 ALL_OPS = READ_OPS | SAFE_OPS | ASK_OPS
 # „ptat“ = čtení bez ptaní, vše ostatní jen po souhlasu člověka (appka na počítači
@@ -87,6 +87,9 @@ def summary(op, args):
         return {"screenshot": "snímek obrazovky", "clipboard_get": "schránka", "ps": "procesy"}[op]
     if op == "notify":
         return _text(args.get("message"), 160)
+    if op in ("sessions", "session_read", "session_send"):
+        return {"sessions": "sessions", "session_read": f"čtení tabu {_text(args.get('tab'), 10)}",
+                "session_send": f"zpráva do tabu {_text(args.get('tab'), 10)}"}[op]
     return _text(args.get("path"), 160)
 
 

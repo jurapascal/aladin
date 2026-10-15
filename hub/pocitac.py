@@ -51,11 +51,11 @@ import time
 from . import __version__, account, core
 
 LEVELS = ("", "cteni", "ptat", "vse")
-READ_OPS = frozenset({"info", "ls", "read", "find", "download"})
+READ_OPS = frozenset({"info", "ls", "read", "find", "download", "sessions", "session_read"})
 # Nic nemění a nic citlivého neukazuje: seznam procesů, oznámení v okně appky.
 SAFE_OPS = frozenset({"ps", "notify"})
 # Mění počítač nebo vidí obrazovku a schránku — při „ptát se“ jen po souhlasu člověka.
-ASK_OPS = frozenset({"write", "edit", "upload", "run", "screenshot", "clipboard_get",
+ASK_OPS = frozenset({"write", "edit", "upload", "run", "session_send", "screenshot", "clipboard_get",
                      "clipboard_set", "open"})
 ALL_OPS = READ_OPS | SAFE_OPS | ASK_OPS
 ALLOWED = {"cteni": READ_OPS | SAFE_OPS, "ptat": ALL_OPS, "vse": ALL_OPS}
@@ -365,12 +365,14 @@ def _preview(op, args):
         return f"{args.get('path') or ''} ({args.get('name') or 'soubor'})"
     if op == "open":
         return str(args.get("target") or "")
+    if op == "session_send":
+        return f"tab {args.get('tab')}: {str(args.get('text') or '')[:400]}"
     if op == "clipboard_set":
         return str(args.get("text") or "")[:300]
     return ""
 
 
-_OP_TEXT = {"run": "spustit příkaz", "write": "zapsat soubor", "edit": "upravit soubor",
+_OP_TEXT = {"session_send": "napsat do běžící session", "run": "spustit příkaz", "write": "zapsat soubor", "edit": "upravit soubor",
             "upload": "nahrát soubor na počítač", "open": "otevřít",
             "screenshot": "udělat snímek obrazovky", "clipboard_get": "přečíst schránku",
             "clipboard_set": "zapsat do schránky"}
@@ -1011,7 +1013,90 @@ def op_open(args):
     return {"opened": what}
 
 
-OPS = {"info": op_info, "ls": op_ls, "read": op_read, "find": op_find,
+def _tab_session(args):
+    from . import server
+    try:
+        sid = int(args.get("tab"))
+    except (TypeError, ValueError):
+        raise TaskError("Chybí číslo tabu (z nástroje `sessions`).") from None
+    session = server.HUB.sessions.get(sid)
+    if not session:
+        raise TaskError(f"Tab {sid} na počítači není otevřený.")
+    return session
+
+
+def op_sessions(_args):
+    """Otevřené taby s Claude Code: číslo, název, složka, jestli právě pracuje."""
+    from . import mcp_tools, server
+    out = []
+    for s in list(server.HUB.sessions.values()):
+        if not (s.kind == "project" or s.kind.startswith("slash:")):
+            continue
+        path = ""
+        try:
+            path = core.transcript_for(s)
+        except Exception:
+            pass
+        out.append({"tab": s.id, "title": s.title, "path": s.path, "agent": s.agent or "claude",
+                    "exited": s.exited, "chat": getattr(s, "chat_id", "") or s.resume or "",
+                    "working": bool(path and not s.exited and mcp_tools._pracuje(path)),
+                    "started": int(s.started)})
+    return {"sessions": out}
+
+
+def op_session_read(args):
+    """Poslední zprávy konverzace v tabu (od konce), nebo dál od offsetu `from`."""
+    from . import cteni, mcp_tools
+    session = _tab_session(args)
+    path = core.transcript_for(session)
+    if not path or not os.path.isfile(path):
+        raise TaskError("Tab zatím nemá přepis konverzace (Claude ještě nic nezapsal).")
+    try:
+        start = max(0, int(args.get("from") or 0))
+    except (TypeError, ValueError):
+        start = 0
+    try:
+        last = max(1, min(int(args.get("last") or 30), 200))
+    except (TypeError, ValueError):
+        last = 30
+    data = cteni.read(path, start, tail=not start)
+    lines = []
+    for b in (data.get("blocks") or [])[-last:]:
+        kind = b.get("kind")
+        if kind == "me":
+            lines.append("## Uživatel\n" + (b.get("text") or ""))
+        elif kind == "say":
+            lines.append("## Claude\n" + (b.get("text") or ""))
+        elif kind == "tool":
+            lines.append(f"- nástroj {b.get('name', '')}: {(b.get('title') or '')[:200]}")
+    text = "\n\n".join(lines)
+    if len(text) > 100 * 1024:
+        text = "… (začátek vynechán)\n\n" + text[-100 * 1024:]
+    return {"tab": session.id, "title": session.title, "text": text, "next": data.get("next", 0),
+            "working": mcp_tools._pracuje(path) and not session.exited, "exited": session.exited}
+
+
+def op_session_send(args):
+    """Napíše zprávu do běžícího tabu jako člověk (Enter až po chvíli, jako bublina)."""
+    session = _tab_session(args)
+    if session.exited:
+        raise TaskError("Claude v tabu už neběží.")
+    if not (session.kind == "project" or session.kind.startswith("slash:")):
+        raise TaskError("Psát jde jen do tabů s Claude Code.")
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", str(args.get("text") or "")).strip()
+    if not text:
+        raise TaskError("Zpráva je prázdná.")
+    if len(text) > 20000:
+        raise TaskError("Zpráva je moc dlouhá.")
+    body = "[ze serveru] " + text
+    data = ("\x1b[200~" + body + "\x1b[201~") if "\n" in body else body
+    session.pty.write(data.encode("utf-8"))
+    threading.Timer(0.25, lambda: None if session.exited else session.pty.write(b"\r")).start()
+    return {"sent": True, "tab": session.id}
+
+
+OPS = {"sessions": op_sessions, "session_read": op_session_read, "session_send": op_session_send,
+       "info": op_info, "ls": op_ls, "read": op_read, "find": op_find,
        "download": op_download, "write": op_write, "edit": op_edit,
        "upload": op_upload, "run": op_run, "ps": op_ps, "notify": op_notify,
        "screenshot": op_screenshot, "clipboard_get": op_clipboard_get,

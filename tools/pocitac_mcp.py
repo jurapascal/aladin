@@ -25,7 +25,7 @@ import urllib.error
 import urllib.request
 
 NAME = "pocitac"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 UKOLY_OD = "2.15.0"                   # appka na počítači, která úkoly na později umí
 MAX_TRANSFER = 15 * 1024 * 1024       # stejný strop jako na počítači
 MAX_TEXT = 80 * 1024                  # víc textu naráz Claudovi nepomůže
@@ -57,6 +57,9 @@ v prostoru uživatele.
   než je nutné.
 - Když počítač není připojený, řekni uživateli, ať má na počítači otevřenou appku
   Paluba a v Nastavení → Účet zapnutý přístup pro Clauda ze serveru.
+- Běžící sessions (taby s Claude Code) na počítači: `sessions` je vypíše, `session_cist`
+  ukáže, co se v nich děje (a `dal` vrátí jen novinky), `session_napsat` jim pošle zprávu.
+  Do cizí rozdělané práce piš jen na přání uživatele.
 - Když připojený není a má se na něm něco udělat, nemusí se čekat: co jde, připrav
   tady na serveru a nech počítači úkol přes `nechat_ukol`. Až se počítač připojí,
   otevře se na něm tab s Claude Code, který úkol podle tvého zadání dodělá. Jak
@@ -66,6 +69,29 @@ _PC = {"type": "string",
        "description": "Na kterém počítači (jméno z `pocitace`). Stačí vynechat, když je připojený jen jeden."}
 
 TOOLS = [
+    {"name": "sessions",
+     "description": "Běžící sessions (taby s Claude Code) na počítači uživatele: číslo tabu, název, "
+                    "složka a jestli Claude právě pracuje. Zavolej, než do nějaké session "
+                    "nahlédneš nebo jí něco napíšeš.",
+     "inputSchema": {"type": "object", "properties": {"pocitac": _PC}}},
+    {"name": "session_cist",
+     "description": "Přečte konverzaci běžící session na počítači (poslední zprávy, kroky nástrojů "
+                    "a jestli Claude právě pracuje). `dal` = offset z minulého čtení, vrátí jen "
+                    "novinky — tak session sleduješ.",
+     "inputSchema": {"type": "object", "required": ["tab"], "properties": {
+         "tab": {"type": "integer", "description": "Číslo tabu ze `sessions`."},
+         "poslednich": {"type": "integer", "description": "Kolik posledních bloků (výchozí 30)."},
+         "dal": {"type": "integer", "description": "Offset `next` z minulého čtení."},
+         "pocitac": _PC}}},
+    {"name": "session_napsat",
+     "description": "Napíše zprávu do běžící session na počítači, jako by ji uživatel napsal do "
+                    "tabu (zpráva dostane předponu [ze serveru]). Session ji vezme, až dokončí "
+                    "rozdělaný krok. Odpověď si přečti přes `session_cist`. Při „ptá se na "
+                    "souhlas“ čeká na kliknutí uživatele.",
+     "inputSchema": {"type": "object", "required": ["tab", "text"], "properties": {
+         "tab": {"type": "integer"},
+         "text": {"type": "string"},
+         "pocitac": _PC}}},
     {"name": "pocitace",
      "description": "Počítače uživatele připojené k prostoru: jméno, systém, domovská složka, "
                     "shell a povolený přístup (jen čtení / plný). Zavolej, než s počítačem "
@@ -522,7 +548,36 @@ def t_procesy(a):
             + "\n" + (res.get("text") or "(nic)"))
 
 
-HANDLERS = {"pocitace": t_pocitace, "slozka": t_slozka, "precist": t_precist,
+def t_sessions(a):
+    res, pc = on_pc("sessions", {}, a.get("pocitac"))
+    rows = res.get("sessions") or []
+    if not rows:
+        return f"Na počítači {pc} neběží žádná session s Claude Code."
+    return f"Sessions na počítači {pc}:\n" + "\n".join(
+        f"- tab {r['tab']}: {r['title']} ({r['path']})"
+        + (" — PRACUJE" if r.get("working") else "") + (" — skončila" if r.get("exited") else "")
+        for r in rows)
+
+
+def t_session_cist(a):
+    args = {"tab": a.get("tab")}
+    if a.get("poslednich"):
+        args["last"] = a["poslednich"]
+    if a.get("dal"):
+        args["from"] = a["dal"]
+    res, pc = on_pc("session_read", args, a.get("pocitac"))
+    state = "PRACUJE" if res.get("working") else ("skončila" if res.get("exited") else "čeká na zprávu")
+    return (f"Tab {res.get('tab')} „{res.get('title')}“ na {pc} — {state}. next={res.get('next')}\n\n"
+            + (res.get("text") or "(zatím nic)"))
+
+
+def t_session_napsat(a):
+    on_pc("session_send", {"tab": a.get("tab"), "text": a.get("text") or ""}, a.get("pocitac"))
+    return "Zpráva je v session. Odpověď sleduj přes `session_cist`."
+
+
+HANDLERS = {"sessions": t_sessions, "session_cist": t_session_cist,
+            "session_napsat": t_session_napsat, "pocitace": t_pocitace, "slozka": t_slozka, "precist": t_precist,
             "hledat": t_hledat, "zapsat": t_zapsat, "upravit": t_upravit,
             "spustit": t_spustit, "stahnout": t_stahnout, "nahrat": t_nahrat,
             "nechat_ukol": t_nechat_ukol, "ukoly_pro_pocitac": t_ukoly,

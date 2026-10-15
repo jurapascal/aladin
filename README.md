@@ -550,6 +550,8 @@ k prostoru přihlašuješ.
 | `zapsat`, `upravit` | zápis souboru, nahrazení přesného textu | plný |
 | `spustit` | příkaz v bashi (na Windows Git Bash, jinak cmd), limit až 10 minut | plný |
 | `nahrat` | zkopíruje soubor ze serveru na počítač | plný |
+| `sessions`, `session_cist` | běžící taby s Claude Code na počítači a co se v nich děje (jen novinky přes `dal`) | jen čtení |
+| `session_napsat` | zpráva do běžící session, jako by ji napsal člověk | plný nebo souhlas |
 | `procesy`, `oznameni` | seznam běžících programů; oznámení uživateli (okno appky + systém) | jen čtení |
 | `snimek_obrazovky`, `schranka_cist`, `schranka_zapsat`, `otevrit` | obrazovka jako obrázek, schránka, otevření souboru / adresy ve výchozí aplikaci | plný nebo souhlas |
 

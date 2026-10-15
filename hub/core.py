@@ -75,6 +75,11 @@ CONFIG_PATH = os.path.join(CLAUDE_DIR, "hub-config.json")
 
 # Everything machine-specific lives in hub-config.json — see hub-config.example.json.
 # Missing file or missing keys → these defaults, all of them optional at runtime.
+# Výchozí klíč tlačítka Nahlásit chybu: každý hub hlásí do portálu Verxee Debug
+# sám, bez nastavování. Klíč je veřejný, chrání ho seznam domén (127.0.0.1,
+# localhost, test.alba-rosa.cz). Prázdný řetězec v hub-config.json tlačítko vypne.
+VERXEE_KLIC_VYCHOZI = "vxd_acc213c5649c28723f438849"
+
 DEFAULTS = {
     "project_dirs": ["~/Desktop", "~/Projects", "~/dev", "/opt/lampp/htdocs"],
     "brain_dir": "~/Obsidian/Claude-Brain",
@@ -119,7 +124,7 @@ DEFAULTS = {
     # veřejný klíč `vxd_…` z https://alba-rosa.cz/debug/ → Klíče a domény.
     # Prázdný = tlačítko se neukáže a skript se vůbec nenačte. Na bráně ho
     # do prostorů píše správce (`claude-hub-admin verxee set`).
-    "verxee_debug_klic": "",
+    "verxee_debug_klic": VERXEE_KLIC_VYCHOZI,
 }
 
 VERXEE_KLIC = re.compile(r"vxd_[a-f0-9]{24}")

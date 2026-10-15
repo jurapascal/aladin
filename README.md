@@ -916,7 +916,7 @@ curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get
 | `memory_autosave` | paměť se ukládá sama (přepíná se v ⚙ → Paměť) | `true` |
 | `memory_autosave_idle` | po kolika minutách ticha se session uloží | `20` |
 | `memory_autosave_model` | model pro ukládání na pozadí | `sonnet` |
-| `verxee_debug_klic` | tlačítko Nahlásit chybu / Podat návrh ([Verxee Debug](https://alba-rosa.cz/debug/)); veřejný klíč `vxd_…` z portálu → Klíče a domény, mezi doménami `127.0.0.1` a `localhost` (na serveru adresa brány, klíč tam nastaví `claude-hub-admin verxee set`). Hlásí se jménem a e-mailem účtu na serveru, na počítači bez něj účtu claude.ai. Prázdné = tlačítko se neukáže. Přepíná se v ⚙ → Ostatní | `""` |
+| `verxee_debug_klic` | tlačítko Nahlásit chybu / Podat návrh ([Verxee Debug](https://alba-rosa.cz/debug/)); veřejný klíč `vxd_…` z portálu → Klíče a domény, mezi doménami `127.0.0.1` a `localhost` (na serveru adresa brány, klíč tam nastaví `claude-hub-admin verxee set`). Hlásí se jménem a e-mailem účtu na serveru, na počítači bez něj účtu claude.ai. Ve výchozím stavu je v hubu klíč, který hlásí do portálu správce; prázdný řetězec tlačítko vypne. Přepíná se v ⚙ → Ostatní | výchozí klíč hubu |
 
 Projekt se do panelu dostane, když ve složce je `.git`, `package.json`, `composer.json`,
 soubor `*.php` nebo Shopify struktura (`sections/`, `templates/`) — podle toho se pozná

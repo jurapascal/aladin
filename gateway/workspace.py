@@ -538,8 +538,8 @@ def verxee_klic():
         with open(config.VERXEE_KLIC_FILE, encoding="ascii") as fh:
             klic = fh.read().strip()
     except (OSError, ValueError):
-        return ""
-    return klic if VERXEE_KLIC.fullmatch(klic) else ""
+        return "vxd_acc213c5649c28723f438849"     # výchozí klíč hubu, soubor správce ho přebije
+    return klic if VERXEE_KLIC.fullmatch(klic) else "vxd_acc213c5649c28723f438849"
 
 
 def _hub_config(user, home):

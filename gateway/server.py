@@ -1023,6 +1023,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._pocitac_schvaleni(method)
             if route == "/gw/pocitac/volani":
                 return self._pocitac_call(method)
+            if route == "/gw/prostor/volani":
+                return self._prostor_volani(method)
             if route == "/gw/pocitac/ukol":
                 return self._pocitac_ukol(method)
             # Sdílená napojení: most v prostoru (tools/sdilene_mcp.py) posílá
@@ -2528,6 +2530,31 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             # Počítač mezitím spojení zavřel — úkoly nesmí propadnout.
             broker.requeue(user["id"], info.get("id"), tasks)
             raise
+
+    # Co smí Claude z počítače v prostoru téhož člověka: vidět sessions, číst je a psát
+    # do nich. Nic dalšího — soubory a příkazy v prostoru jdou přes jeho vlastní cestu.
+    _PROSTOR_NASTROJE = frozenset({"session_seznam", "sdilet_cteni", "sdilet_poslat"})
+
+    def _prostor_volani(self, method):
+        """Claude na počítači (tools/server_mcp.py přes hub) sahá do sessions v prostoru
+        svého majitele. Token zařízení = jeho účet, jiný prostor tudy nedosáhne."""
+        if method != "POST":
+            return self._json({"error": "Jen POST."}, 405)
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Neplatný token."}, 401)
+        form = self._read_form()
+        tool = str(form.get("tool") or "")
+        if tool not in self._PROSTOR_NASTROJE:
+            return self._json({"ok": False, "error": "Tohle z počítače nejde."}, 400)
+        args = form.get("args") if isinstance(form.get("args"), dict) else {}
+        if tool == "sdilet_poslat":
+            args = {**args, "kdo": "z počítače"}
+        try:
+            result = mcp._hub_call(self, user, tool, args, timeout=30)
+        except mcp.ToolError as exc:
+            return self._json({"ok": False, "error": str(exc)})
+        return self._json({"ok": True, "result": result})
 
     def _pocitac_schvaleni(self, method):
         """Počítač hlásí, na co čeká od člověka (žádost o souhlas) — ať se to

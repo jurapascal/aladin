@@ -321,6 +321,25 @@ def _pracuje(path):
     return False
 
 
+def session_seznam(_args):
+    """Otevřené taby s Claude Code v prostoru — pro Clauda z počítače (hub/pocitac.py,
+    tools/server_mcp.py): číslo konverzace, název, složka a jestli Claude pracuje."""
+    from . import server
+    out = []
+    for s in list(server.HUB.sessions.values()):
+        if s.exited or not (s.kind == "project" or s.kind.startswith("slash:")):
+            continue
+        chat = getattr(s, "chat_id", "") or s.resume or ""
+        path = ""
+        try:
+            path = core.transcript_for(s)
+        except Exception:
+            pass
+        out.append({"chat": chat, "tab": s.id, "title": s.title, "path": s.path,
+                    "working": bool(path and _pracuje(path))})
+    return {"sessions": out}
+
+
 def sdilet_cteni(args):
     cid = str(args.get("chat") or "")
     if not cteni.je_id(cid):
@@ -452,6 +471,7 @@ TOOLS = {
     "soubor_cti": soubor_cti,
     "soubor_zapis": soubor_zapis,
     "prikaz": prikaz,
+    "session_seznam": session_seznam,
     "sdilet_cteni": sdilet_cteni,
     "sdilet_poslat": sdilet_poslat,
     "sdilet_otevrit": sdilet_otevrit,

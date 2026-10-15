@@ -225,6 +225,8 @@ def start():
         _STARTED = True
     target = register_mcp if core.on_gateway() else _loop
     threading.Thread(target=target, daemon=True, name="pocitac").start()
+    if not core.on_gateway():
+        threading.Thread(target=register_server_mcp, daemon=True, name="pocitac-mcp").start()
 
 
 def stop():
@@ -1722,6 +1724,32 @@ def _session_answer(entry, choice, odpovedi):
 
 
 # ── v prostoru na serveru ────────────────────────────────────────────────────
+def register_server_mcp():
+    """Na počítači napojí MCP `server` (tools/server_mcp.py): Claude Code tu vidí
+    sessions v prostoru na serveru. Jen když je appka k serveru přihlášená."""
+    if not (core.CONFIG.get("gw_token") and account._base()):
+        return
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    script = os.path.join(root, "tools", "server_mcp.py")
+    claude = shutil.which("claude")
+    if not os.path.isfile(script) or not claude:
+        return
+    python = sys.executable or "python3"
+    have = (core._claude_json().get("mcpServers") or {}).get("server") or {}
+    if have.get("command") == python and have.get("args") == [script]:
+        return
+    if have:
+        core.run([claude, "mcp", "remove", "server", "-s", "user"], cwd=core.HOME, timeout=60)
+    try:
+        r = subprocess.run([claude, "mcp", "add", "server", "-s", "user", "--", python, script],
+                           capture_output=True, text=True, cwd=core.HOME, timeout=60)
+        ok, detail = r.returncode == 0, (r.stderr or r.stdout or "").strip()[:200]
+    except Exception as exc:
+        ok, detail = False, str(exc)
+    core.log("server: MCP most pro Clauda na počítači napojen" if ok
+             else f"server: MCP most se nepodařilo napojit — {detail}", "info" if ok else "warn")
+
+
 def register_mcp():
     """Napojí MCP server tools/pocitac_mcp.py pro Claude Code v prostoru.
 

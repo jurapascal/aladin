@@ -591,6 +591,15 @@ Jak to drží pohromadě:
 Na počítač tak dosáhne i ten, kdo spravuje server. Zapínej to jen u serveru,
 kterému věříš.
 
+#### Z počítače do sessions na serveru
+
+Opačný směr: Claude Code na počítači dostane nástroje `mcp__server__*`
+(`tools/server_mcp.py`, hub je napojí sám, když je appka přihlášená k serveru).
+`sessions` ukáže běžící taby v tvém prostoru a jestli Claude pracuje,
+`session_cist` jejich konverzaci (s `dal` jen novinky) a `session_napsat` pošle
+zprávu jako člověk (s předponou `[z počítače]`). Jde jen do prostoru téhož
+člověka (token zařízení, `/gw/prostor/volani`); jiné operace brána odmítne.
+
 #### Úkoly na později
 
 Počítač nemusí být zapnutý. Zadáš práci v prostoru, Claude tam připraví, co

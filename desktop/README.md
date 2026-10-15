@@ -46,6 +46,8 @@ v Chromu — na téže instanci, taby i rozdělaná práce Clauda běží dál.
 - Odkazy a cizí stránky jdou do systémového prohlížeče. Okno ukazuje jen
   lokální hub (`127.0.0.1`) a prostor na serveru z nastavení (`gw_server`).
 - Mikrofon (diktování), schránka a upozornění jsou povolené jen hubu.
+- „Přesný snímek“ tlačítka Nahlásit chybu (Verxee Debug, `getDisplayMedia`)
+  dostane jen obsah vlastního okna — na klik a jen hubu nebo prostoru, bez zvuku.
 
 ## Vývoj a zkouška
 

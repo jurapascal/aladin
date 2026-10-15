@@ -18,13 +18,30 @@
   let nacteno = false;
 
   // Kdo hlásí: host v cizím prostoru, člověk v prostoru na serveru, nebo na
-  // počítači e-mail účtu na serveru a jméno uživatele systému. Tlačítko se
-  // ukazuje, jen dokud je jméno neprázdné.
+  // počítači účet claude.ai (Nastavení → Účet), e-mail účtu na serveru
+  // a jméno uživatele systému. Tlačítko se ukazuje, jen dokud je jméno neprázdné.
+  let ucet = null;              // účet claude.ai na počítači; načte se jednou
   function kdo(state) {
     const cfg = state.config || {};
     const g = state.guest || cfg.gateway_user;
     if (g) return {jmeno: g.name || g.email || 'Paluba', email: g.email || ''};
-    return {jmeno: state.user || cfg.gw_email || 'Paluba', email: cfg.gw_email || ''};
+    const a = ucet || {};
+    return {jmeno: a.name || state.user || cfg.gw_email || a.email || 'Paluba',
+            email: cfg.gw_email || a.email || ''};
+  }
+
+  // Na počítači hub jinak zná jen jméno uživatele systému (a e-mail účtu na
+  // serveru, když je s ním spojený). debug.js jméno i e-mail čte až při
+  // odeslání, stačí je doplnit, až účet přijde.
+  let zapnuto = false;
+  function nactiUcet(state) {
+    const cfg = state.config || {};
+    if (ucet || state.guest || cfg.gateway_user || typeof global.api !== 'function') return;
+    ucet = {};
+    global.api('claude-ucet').then((r) => {
+      ucet = (r && r.account) || {};
+      if (zapnuto) Object.assign(global.VerxeeDebug, kdo(state));
+    }, () => {});
   }
 
   // debug.js kreslí velké tlačítko do pravého dolního rohu — v hubu přesně
@@ -53,6 +70,7 @@
     const klic = String((state.config || {}).verxee_debug_klic || '').trim();
     const d = global.VerxeeDebug = global.VerxeeDebug || {};
     const host = document.getElementById('verxee-chyby');
+    zapnuto = !!klic;
     if (!klic) {
       // debug.js se ptá na jméno při každém kreslení; host schováme hned.
       d.jmeno = '';
@@ -60,6 +78,7 @@
       return;
     }
     Object.assign(d, {klic, web: 'claude-code-hub'}, kdo(state));
+    nactiUcet(state);
     if (host) host.style.display = '';
     if (nacteno) return;
     nacteno = true;

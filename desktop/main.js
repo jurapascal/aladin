@@ -418,6 +418,16 @@ function povoleni() {
   const ses = session.defaultSession;
   ses.setPermissionRequestHandler((wc, permission, cb, d) => cb(ok(permission, d.requestingUrl)));
   ses.setPermissionCheckHandler((wc, permission, origin) => ok(permission, origin));
+  // „Přesný snímek“ tlačítka Nahlásit chybu (Verxee Debug) volá getDisplayMedia.
+  // Bez obsluhy ho Electron odmítne (NotSupportedError) a snímek tiše nevznikne.
+  // Chrome se ptá, co sdílet — tady dostane jen obsah vlastního okna (rámec,
+  // který se ptá), jen na klik a jen stránka hubu nebo prostoru; zvuk nikdy.
+  ses.setDisplayMediaRequestHandler((req, cb) => {
+    const frame = req.frame;
+    const url = (frame && frame.url) || req.securityOrigin;
+    if (!frame || !req.userGesture || !req.videoRequested || !duveryhodne(url)) return cb({});
+    cb({ video: frame });
+  });
 }
 
 // Na novějších Linuxech (Ubuntu 24.04+, AppArmor) neumí Chromium sandbox

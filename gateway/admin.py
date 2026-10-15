@@ -499,6 +499,35 @@ def cmd_predplatne(a, args):
           " patří jednomu člověku — nesdílej ho mezi účty.")
 
 
+def cmd_verxee(a, args):
+    """Tlačítko Nahlásit chybu / Podat návrh (Verxee Debug) v prostorech. Klíč je
+    veřejný (skončí ve stránce); v portálu alba-rosa.cz/debug → Klíče a domény
+    musí mít mezi doménami adresu brány."""
+    path = config.VERXEE_KLIC_FILE
+    if args.action == "status":
+        klic = workspace.verxee_klic()
+        print(("Klíč: " + klic) if klic else "Tlačítko je vypnuté (klíč není nastavený).")
+        return
+    if args.action == "remove":
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        print("Klíč smazán. Tlačítko zmizí s dalším startem prostoru.")
+        return
+    klic = (args.klic or "").strip()
+    if not workspace.VERXEE_KLIC.fullmatch(klic):
+        raise ValueError("Klíč vypadá jako vxd_ a 24 znaků 0–9 a a–f.")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="ascii") as fh:
+        fh.write(klic + "\n")
+    os.chmod(tmp, 0o644)
+    os.replace(tmp, path)
+    print("Klíč uložen. Tlačítko se v prostoru ukáže s jeho dalším startem "
+          "(stop <e-mail> to uspíší).")
+
+
 def cmd_disable(a, args):
     a.set_disabled(args.email, True)
     print(f"{args.email} zablokován (a odhlášen).")
@@ -773,6 +802,11 @@ def build_parser():
     pp.add_argument("action", choices=("status", "set", "remove"))
     pp.add_argument("email", nargs="?", default="", help="e-mail účtu")
     pp.set_defaults(func=cmd_predplatne)
+
+    vx = sub.add_parser("verxee", help="tlačítko Nahlásit chybu / Podat návrh (klíč vxd_…)")
+    vx.add_argument("action", choices=("status", "set", "remove"))
+    vx.add_argument("klic", nargs="?", default="", help="klíč vxd_… z alba-rosa.cz/debug")
+    vx.set_defaults(func=cmd_verxee)
 
     di = sub.add_parser("disable", help="zablokovat účet")
     di.add_argument("email")

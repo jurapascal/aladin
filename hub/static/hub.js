@@ -3140,6 +3140,7 @@ async function reload() {
   applyProstor();
   for (const t of TABS) paintAgent(t);
   applyMotiv(STATE.motiv);           // motiv (barvy + CSS) a s ním applyTheme
+  HubVerxee.apply(STATE);            // Nahlásit chybu / Podat návrh, jen s klíčem
 }
 
 /* ── agenti ───────────────────────────────────────────────────────────────── */
@@ -4665,7 +4666,7 @@ function hubIO() {
     open: openLink,
     pickFolder,
     reload,
-    refreshState: async () => { STATE = await api('state'); markAdvanced(); renderBranding(); applyMotiv(STATE.motiv); },
+    refreshState: async () => { STATE = await api('state'); markAdvanced(); renderBranding(); applyMotiv(STATE.motiv); HubVerxee.apply(STATE); },
     // Motiv přepnutý v Nastavení → Paluba Market → Motivy, bez obnovení okna.
     setMotiv: applyMotiv,
     openWizard: () => HubOnboarding.open({...hubIO(), state: STATE}),

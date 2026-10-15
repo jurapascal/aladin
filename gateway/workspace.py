@@ -529,6 +529,19 @@ def pwa_id(user):
     return hmac.new(key, str(user["id"]).encode(), hashlib.sha256).hexdigest()[:24]
 
 
+VERXEE_KLIC = re.compile(r"vxd_[a-f0-9]{24}")
+
+
+def verxee_klic():
+    """Klíč tlačítka Nahlásit chybu / Podat návrh, nebo "" (claude-hub-admin verxee)."""
+    try:
+        with open(config.VERXEE_KLIC_FILE, encoding="ascii") as fh:
+            klic = fh.read().strip()
+    except (OSError, ValueError):
+        return ""
+    return klic if VERXEE_KLIC.fullmatch(klic) else ""
+
+
 def _hub_config(user, home):
     vault = vault_dir(user, home)
     return {
@@ -547,6 +560,9 @@ def _hub_config(user, home):
         "gateway_user": {"email": user.get("email", ""),
                          "name": user.get("name", ""),
                          "role": user.get("role", "user")},
+        # Tlačítko Nahlásit chybu / Podat návrh — klíč pro celou bránu, prostor
+        # si ho sám nemění (hub/server.py to na bráně odmítne).
+        "verxee_debug_klic": verxee_klic(),
         # Společný firemní Obsidian — hub ho ukáže v panelu. Kdo k němu
         # přístup nemá, tomu se neukáže vůbec (a do sandboxu se nepřiváže).
         "company_vault": config.COMPANY_VAULT if company_level(user) != "none" else "",

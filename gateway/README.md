@@ -123,6 +123,11 @@ Dokumenty, Tabulky, Prezentace, Formuláře, Úkoly, Kontakty a aplikaci
 ho: `claude-hub-admin google set`. Google běží přes workspace-mcp na `uv`,
 který doinstaluje `install.sh`.
 
+**Tlačítko Nahlásit chybu / Podat návrh** (Verxee Debug) v prostorech zapne
+`claude-hub-admin verxee set vxd_…` (klíč z https://alba-rosa.cz/debug/ →
+Klíče a domény; mezi doménami klíče musí být adresa brány). Prostor ho dostane
+při dalším startu; `verxee remove` ho vypne, `verxee status` ukáže klíč.
+
 ## Přihlášení a dvoufázové ověření
 
 Po hesle brána chce ještě šesticiferný kód z aplikace v mobilu (TOTP,

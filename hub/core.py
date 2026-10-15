@@ -115,7 +115,14 @@ DEFAULTS = {
     # Claude v prostoru na vlastním předplatném (hub/predplatne.py): true = člověk
     # automatické propojení před vstupem do prostoru odmítl, už se samo neptá.
     "predplatne_skip": False,
+    # Tlačítko Nahlásit chybu / Podat návrh (Verxee Debug, hub/static/verxee.js):
+    # veřejný klíč `vxd_…` z https://alba-rosa.cz/debug/ → Klíče a domény.
+    # Prázdný = tlačítko se neukáže a skript se vůbec nenačte. Na bráně ho
+    # do prostorů píše správce (`claude-hub-admin verxee set`).
+    "verxee_debug_klic": "",
 }
+
+VERXEE_KLIC = re.compile(r"vxd_[a-f0-9]{24}")
 
 
 def load_config():

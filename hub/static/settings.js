@@ -549,7 +549,54 @@
       io.toast('Appka se ukončuje…');
     };
     box.appendChild(konec);
+    box.appendChild(verxee());
     return box;
+  }
+
+  /* Tlačítko Nahlásit chybu / Podat návrh (hub/static/verxee.js). Klíč je
+     veřejný (stejně skončí ve stránce), na serveru ho nastavuje správce. */
+  function verxee() {
+    const wrap = el('div');
+    wrap.style.marginTop = '18px';
+    wrap.appendChild(el('div', 'set-title', 'Nahlásit chybu / Podat návrh'));
+    const klic = (state.config && state.config.verxee_debug_klic) || '';
+    if (state.config && state.config.gateway_user) {
+      wrap.appendChild(el('div', 'set-note', klic
+        ? 'Tlačítko vpravo dole posílá hlášení správci Paluby (Verxee Debug).'
+        : 'Tlačítko na hlášení chyb a návrhů na tomhle serveru zapíná správce.'));
+      return wrap;
+    }
+    wrap.appendChild(el('div', 'set-note',
+      'Tlačítko vpravo dole — červená půlka chyba, modrá návrh. Hlášení jdou do ' +
+      'portálu Verxee Debug a Claude je přečte příkazem „chyby". Klíč vxd_… najdeš ' +
+      'na alba-rosa.cz/debug v Klíče a domény; mezi doménami klíče musí být 127.0.0.1 ' +
+      'a localhost. Bez klíče se tlačítko neukáže.'));
+    const row = el('label', 'mcp-field');
+    row.appendChild(el('span', null, 'Klíč'));
+    const i = el('input');
+    i.type = 'text';
+    i.placeholder = 'vxd_…';
+    i.autocomplete = 'off';
+    i.spellcheck = false;
+    i.value = klic;
+    row.appendChild(i);
+    wrap.appendChild(row);
+    const ulozit = el('button', 'btn ghost', 'Uložit klíč');
+    ulozit.onclick = async () => {
+      const v = i.value.trim();
+      if (v && !/^vxd_[a-f0-9]{24}$/.test(v)) {
+        io.toast('Klíč vypadá jako vxd_ a 24 znaků 0–9 a a–f.');
+        return;
+      }
+      await save({verxee_debug_klic: v});
+      io.toast(v ? 'Tlačítko na hlášení je zapnuté.' : 'Tlačítko na hlášení je vypnuté.');
+    };
+    const portal = el('button', 'btn ghost', 'Otevřít portál');
+    portal.onclick = () => io.open('https://alba-rosa.cz/debug/');
+    const radek = el('div', 'onb-row');
+    radek.append(ulozit, portal);
+    wrap.appendChild(radek);
+    return wrap;
   }
 
   function projekty() {

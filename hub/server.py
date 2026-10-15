@@ -1003,6 +1003,10 @@ class Handler(BaseHTTPRequestHandler):
                            "pocitac_asked": bool(core.CONFIG.get("pocitac_asked")),
                            # Claude v prostoru na vlastním předplatném (hub/predplatne.py).
                            "predplatne_skip": bool(core.CONFIG.get("predplatne_skip")),
+                           # Tlačítko Nahlásit chybu / Podat návrh (verxee.js).
+                           # Klíč je veřejný (stejně skončí ve stránce), bez
+                           # něj se tlačítko neukáže.
+                           "verxee_debug_klic": core.CONFIG.get("verxee_debug_klic") or "",
                            # Vyplněné jen na instanci běžící na bráně — podle
                            # toho nastavení pozná, že je na serveru.
                            "gateway_user": core.CONFIG.get("gateway_user") or None},
@@ -1348,8 +1352,17 @@ class Handler(BaseHTTPRequestHandler):
                        "agents", "default_agent", "project_agents",
                        "remote_keep_running", "dev_mode", "memory_autosave",
                        "hlas_model", "theme", "prohlizec_okno", "na_pozadi", "bez_spanku", "tray",
-                       "auto_update")
+                       "auto_update", "verxee_debug_klic")
             updates = {k: v for k, v in payload.items() if k in allowed}
+            if "verxee_debug_klic" in updates:
+                # Na bráně klíč do prostorů píše správce — prostor by si ho
+                # přepsal jen do příštího startu.
+                if core.on_gateway():
+                    return self._json({"error": "Klíč na serveru nastavuje správce."}, 403)
+                klic = str(updates["verxee_debug_klic"] or "").strip()
+                if klic and not core.VERXEE_KLIC.fullmatch(klic):
+                    return self._json({"error": "Klíč vypadá jako vxd_ a 24 znaků 0–9 a a–f."}, 400)
+                updates["verxee_debug_klic"] = klic
             if "theme" in updates and updates["theme"] not in ("", "dark", "light"):
                 return self._json({"error": "Neznámé téma."}, 400)
             if "hlas_model" in updates and updates["hlas_model"] not in ("turbo", "small"):

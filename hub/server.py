@@ -759,6 +759,11 @@ class Handler(BaseHTTPRequestHandler):
                 body = vzhled.uprav_stranku(body)
             except Exception as exc:
                 core.log_error("vlastní vzhled stránky", exc)
+            if core.on_gateway():
+                # Prostor na serveru je modrý od první vteřiny — JS (applyPlace)
+                # to jinak dopíše až po načtení stavu a stránka by chvíli
+                # blikala jantarově.
+                body = body.replace(b'<html lang="cs">', b'<html lang="cs" data-place="server">', 1)
             body = _verzuj(body)
         if (len(body) >= _GZIP_MIN and ctype.startswith(_GZIP_TYPES)
                 and "gzip" in self.headers.get("Accept-Encoding", "")):

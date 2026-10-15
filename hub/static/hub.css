@@ -3711,10 +3711,9 @@ button.pr-radek:hover { background: var(--card-hover); color: var(--fg-bright); 
 }
 .br-okno.br-cela .br-roh { display: none; }
 .br-pilulka {
-  position: fixed; z-index: 60; right: 18px; bottom: 18px; display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 16px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
-  background: var(--bg-card); color: var(--fg-bright); font: inherit; font-size: 13px;
-  box-shadow: 0 6px 22px rgba(0, 0, 0, .4);
+  position: static; flex: none; display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; cursor: pointer;
+  background: var(--bg-card); color: var(--fg-bright); font: inherit; font-size: 12px;
 }
 .br-pilulka .ico { width: 15px; height: 15px; color: var(--accent); }
 .br-pilulka:hover { background: var(--card-hover); }
@@ -3749,7 +3748,7 @@ button.pr-radek:hover { background: var(--card-hover); color: var(--fg-bright); 
   .br-okno.br-cela { top: 6px !important; height: calc(100vh - 12px) !important; }
   .br-hlava { cursor: default; }
   .br-roh { display: none; }
-  .br-pilulka { bottom: calc(76px + env(safe-area-inset-bottom)); right: 12px; }
+  .br-pilulka span { display: none; }
 }
 
 .dul-nadpis { flex: 1 0 100%; color: var(--dim); font-size: 11.5px; padding: 0 0 2px; }

@@ -363,7 +363,11 @@
     pill.innerHTML = ico('i-globe') + '<span>Prohlížeč</span>';
     pill.title = 'Znovu otevřít prohlížeč';
     pill.onclick = () => nastav('okno');
-    document.body.appendChild(pill);
+    // Zmenšený prohlížeč bydlí v horní liště (dřív plaval vpravo dole a kryl
+    // se s pole zprávy a dalšími plovoucími prvky).
+    const lista = document.getElementById('btn-refresh');
+    (lista && lista.parentNode ? lista.parentNode : document.body)
+      .insertBefore(pill, lista || null);
     return pill;
   }
 

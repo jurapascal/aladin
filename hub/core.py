@@ -3246,7 +3246,7 @@ def firma_tab_prompt(vault="firma", path=""):
 
 
 def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vault="",
-              prompt=""):
+              prompt="", launch=None):
     """(příkaz pro tab, proměnné prostředí) — tudy se spouští každý agent.
     `resume` = pokračovat v uložené konverzaci (seznam konverzací), `fork` =
     jako její kopie, `prompt` = úvodní zpráva (úkol ze serveru, hub/pocitac.py)."""
@@ -3254,13 +3254,19 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
     # Možnost bypassu jen po potvrzeném varování (bypass_accepted) — jinak by
     # se Claude Code při každém startu ptal a Enter by ho ukončil.
     bypass = bool(agents.bypass_arg(spec)) and bypass_accepted()
+    # Tab s úkolem ze serveru (hub/pocitac.py, tab_launch): hook pro souhlas
+    # ze serveru, mimo plný přístup bez bypassu a v režimu `default`.
+    if launch and (spec.get("id") or "") == "claude":
+        bypass = bypass and launch["bypass"]
+    else:
+        launch = None
     resume = str(resume or "") if SESSION_ID.fullmatch(str(resume or "")) else ""
     # Id nové konverzace si volí hub. Pak ví hned, do kterého přepisu tab píše,
     # a čtení (hub/cteni.py) ho nemusí hádat podle času souborů. U pokračování
     # i kopie si id volí Claude Code sám, tam se nic nevnucuje.
     session = "" if resume else str(uuid.uuid4())
     argv = agents.launch_args(spec, model, slash or prompt, bypass=bypass, resume=resume,
-                              fork=fork, session=session)
+                              fork=fork, session=session, extra=(launch or {}).get("args"))
     # Firemní tab: agent dostane pokyn pro tohle sezení a nástroj firma.py podle
     # HUB_VAULT pozná, že se nahrává rovnou.
     firma = (vault == "firma" and bool(company_vault())) or (
@@ -3308,6 +3314,8 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
         env["HUB_VAULT"] = vault
     if session and spec.get("session_arg"):
         env["HUB_SESSION_ID"] = session
+    if launch:
+        env.update(launch["env"])
     return script, env
 
 

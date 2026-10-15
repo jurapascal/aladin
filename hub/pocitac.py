@@ -27,9 +27,14 @@ Pravidla, na kterých to stojí:
 **Úkoly na později.** Když tenhle počítač připojený nebyl, mohl mu Claude
 z prostoru nechat zadání a soubory (MCP nástroj `nechat_ukol`). Brána je
 nabídne v odpovědi na dotaz; hub si je stáhne do `~/.claude/hub-ukoly/<id>`
-a úkol dodělá Claude Code v novém tabu tady. S plným přístupem se tab otevře
-sám, s přístupem jen ke čtení čeká úkol na potvrzení v okně appky — prostor
-na serveru ho spustit neumí, stejně jako neumí změnit přístup.
+a úkol dodělá Claude Code v novém tabu tady. S plným přístupem a s „ptát se“
+se tab otevře sám, s přístupem jen ke čtení čeká úkol na potvrzení v okně
+appky — prostor na serveru ho spustit neumí, stejně jako neumí změnit přístup.
+
+**Souhlas ze serveru.** Když Claude v tabu s úkolem potřebuje souhlas
+(oprávnění, otázka, plán), hook `tools/povoleni_hook.py` žádost ohlásí hubu
+a ten ji pošle bráně — člověk odpoví v prostoru na serveru nebo v terminálu
+tady, platí první odpověď (`povoleni_*`, `tab_launch`).
 """
 import base64
 import collections
@@ -88,8 +93,17 @@ UKOL_REPORT = {"ceka": "prevzato", "spusteno": "spusteno", "zahozeno": "zahozeno
 _WIN_RESERVED = re.compile(r"(?i)(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?")
 
 # Háčky, které nastaví server.py (tenhle modul o tabech ani oknech neví):
-OPEN_TAB = None      # (title, path, prompt) -> info otevřeného tabu
+OPEN_TAB = None      # (title, path, prompt, ukol=) -> info otevřeného tabu
 NOTIFY = None        # (zpráva) -> pošle ji všem otevřeným oknům
+HOOK_URL = ""        # http://127.0.0.1:<port> hubu — tam se hlásí povoleni_hook.py
+
+# Souhlas ze serveru v tabu s úkolem (povoleni_*): žádost, na kterou se hook
+# tak dlouho neptal, už nikdo nečeká. Timeout hooku = jak dlouho může karta
+# na serveru viset (Claude Code ho pak zruší bez rozhodnutí).
+SESSION_SEEN = 90
+HOOK_TIMEOUT = 24 * 3600
+TAB_TOKENS = {}                     # žeton tabu -> {"tab", "ukol", "title"}
+_ANSWERED = collections.OrderedDict()   # (id žádosti, žeton) -> odpověď pro hook
 
 STATE = {"state": "off", "note": "", "since": 0.0}
 RECENT = collections.deque(maxlen=12)
@@ -379,9 +393,22 @@ _OP_TEXT = {"session_send": "napsat do běžící session", "run": "spustit př�
 
 
 def pending_public():
+    now = time.time()
     with _LOCK:
-        return [{"id": rid, "op": p["op"], "summary": p["summary"], "preview": p["preview"],
-                 "at": int(p["at"])} for rid, p in PENDING.items()]
+        # Žádost z tabu, na kterou se hook dlouho neptal (skončil, tab zavřený),
+        # už nikdo nečeká — dialog v terminálu případně dál visí jen tady.
+        for rid in [r for r, p in PENDING.items()
+                    if p.get("kind") == "session" and now - p["seen"] > SESSION_SEEN]:
+            PENDING.pop(rid)["event"].set()
+        out = []
+        for rid, p in PENDING.items():
+            item = {"id": rid, "op": p["op"], "summary": p["summary"], "preview": p["preview"],
+                    "at": int(p["at"])}
+            if p.get("kind") == "session":
+                item.update(kind="session", tool=p["tool"], tab=p["tab"], ukol=p["ukol"],
+                            otazky=p["otazky"])
+            out.append(item)
+        return out
 
 
 def grants_public():
@@ -432,14 +459,30 @@ def _need_approval(op, args, rid):
                     "v prostoru v Nastavení → Účet → Tvůj počítač — a pak to zkus znovu.")
 
 
-def decide(rid, choice, via="počítač"):
+def decide(rid, choice, via="počítač", odpovedi=None):
     """Rozhodnutí o žádosti: z appky na počítači, nebo z prostoru přes bránu."""
-    if choice not in DECISIONS:
-        raise ValueError("Neznámá volba.")
     with _LOCK:
         entry = PENDING.get(str(rid or ""))
+        if entry and entry.get("kind") == "session":
+            # Žádost z tabu platí jednou: kdo ji vyřídí první, tomu patří.
+            answer = _session_answer(entry, choice, odpovedi)
+            PENDING.pop(str(rid))
+    if entry and entry.get("kind") == "session":
+        entry["reply"] = answer
+        with _LOCK:
+            # Hook může být zrovna mezi dvěma dotazy — odpověď si vyzvedne.
+            _ANSWERED[(str(rid), entry["token"])] = answer
+            while len(_ANSWERED) > 50:
+                _ANSWERED.popitem(last=False)
+        core.log(f"počítač: tab {entry['tab_id']} — {entry['op']} {entry['summary']!r}: "
+                 f"{answer['behavior']} ({via})")
+        entry["event"].set()
+        threading.Thread(target=_push_pending, daemon=True).start()
+        return status()
     if not entry:
         raise ValueError("Tuhle žádost už nikdo nečeká (vypršela nebo je vyřízená).")
+    if choice not in DECISIONS:
+        raise ValueError("Neznámá volba.")
     entry["volba"] = choice
     if choice == "30min":
         GRANT["until"] = time.time() + GRANT_SECONDS
@@ -459,7 +502,8 @@ def _directive(task):
     kind = str(task.get("typ") or "")
     try:
         if kind == "rozhodnuti":
-            decide(task.get("id"), str(task.get("volba") or ""), via="prostor")
+            decide(task.get("id"), str(task.get("volba") or ""), via="prostor",
+                   odpovedi=task.get("odpovedi"))
         elif kind == "pristup":
             level = str(task.get("level") or "")
             before = access_level()
@@ -1139,7 +1183,10 @@ def _fetch_ukol(tid, token):
             if meta.get("kind") == "chat":
                 _chat_ze_serveru(meta, token)
                 return
-            if meta["state"] == "ceka" and access_level() == "vse" and OPEN_TAB:
+            # Plný přístup i „ptát se“ spustí úkol sám: při „ptát se“ běží tab
+            # v režimu, kdy se Claude Code na zápis a příkazy ptá, a žádosti
+            # jdou i na server (tab_launch). Jen čtení čeká na člověka tady.
+            if meta["state"] == "ceka" and access_level() in ("vse", "ptat") and OPEN_TAB:
                 try:
                     start_ukol(tid, auto=True)
                     return
@@ -1323,7 +1370,7 @@ def start_ukol(tid, auto=False):
                 f"v domovské složce {core.HOME}.")
         path = core.HOME
     try:
-        tab = OPEN_TAB(meta["title"][:40], path, ukol_prompt(meta, note))
+        tab = OPEN_TAB(meta["title"][:40], path, ukol_prompt(meta, note), ukol=meta["id"])
     except Exception as exc:
         _set_state(tid, "ceka", expect="spusteno")
         raise ValueError(f"Tab se nepodařilo otevřít: {exc}") from None
@@ -1364,6 +1411,314 @@ def ukol_prompt(meta, note=""):
               "tady najdeš, nebo by šlo o mazání či přepsání něčeho, co zadání výslovně "
               "nezmiňuje, zeptej se uživatele."]
     return "\n".join(lines)
+
+
+# ── souhlas ze serveru v tabu s úkolem ze serveru ────────────────────────────
+# Tab, který hub otevřel kvůli úkolu ze serveru, dostane hook PermissionRequest
+# (tools/povoleni_hook.py). Když se Claude v něm chystá zeptat — oprávnění
+# k nástroji, otázka, schválení plánu —, hook to ohlásí sem (`/povoleni`) a hub
+# žádost pošle bráně jako ostatní žádosti o souhlas: člověk ji v prostoru na
+# serveru uvidí jako kartu. Dialog v terminálu přitom visí taky a platí první
+# odpověď. Odpověď v terminálu se pozná z přepisu konverzace (tool_result
+# k témuž volání) a karta na serveru zmizí. Ručně otevřené taby nic z toho
+# nemají — žeton i hook dostane jen tab s úkolem.
+def ukol_for_tab(ukol="", resume=""):
+    """Úkol ze serveru, ke kterému tab patří: rovnou (start_ukol), nebo podle
+    konverzace, ve které se pokračuje (restart hubu, seznam konverzací)."""
+    ukol, resume = str(ukol or ""), str(resume or "")
+    if ukol:
+        meta = _read_ukol(ukol) if UKOL_ID.fullmatch(ukol) else None
+        return meta if meta and meta.get("kind") != "chat" else None
+    if resume:
+        for meta in ukoly():
+            if meta.get("chat") == resume and meta["state"] == "spusteno":
+                return meta
+    return None
+
+
+def _hook_settings():
+    """Soubor s hookem pro `claude --settings` (jen pro taby s úkolem)."""
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    script = os.path.join(root, "tools", "povoleni_hook.py")
+    if not os.path.isfile(script):
+        return ""
+    python = sys.executable or "python3"
+    if core.IS_WINDOWS:
+        python, script = python.replace("\\", "/"), script.replace("\\", "/")
+    # Timeout hooku = jak dlouho může karta na serveru čekat. Po něm Claude
+    # Code hook zruší bez rozhodnutí a dialog čeká jen na počítači.
+    body = json.dumps({"hooks": {"PermissionRequest": [{"hooks": [
+        {"type": "command", "command": f'"{python}" "{script}"', "timeout": HOOK_TIMEOUT}]}]}},
+        ensure_ascii=False, indent=1)
+    path = os.path.join(core.CLAUDE_DIR, "hub-povoleni-ze-serveru.json")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            same = fh.read() == body
+    except OSError:
+        same = False
+    if not same:
+        _atomic_write(path, body.encode("utf-8"))
+    return path
+
+
+def tab_launch(meta):
+    """Co tab s úkolem ze serveru dostane navíc. Plný přístup = jako každý tab
+    tady (režim oprávnění podle nastavení Claude Code, bypass v nabídce). Jinak
+    tab startuje v režimu `default` a bez bypassu: zápis i příkazy se ptají a
+    žádost jde i na server — jedno Shift+Tab by souhlas jinak obešlo."""
+    full = access_level() == "vse"
+    args, env = [], {}
+    settings = _hook_settings() if HOOK_URL else ""
+    token = secrets.token_urlsafe(24)
+    # Tvar `--x=hodnota`: agent-wrapper.sh po pádu (SIGKILL) pokračuje
+    # s přepínači bez hodnot — samostatná hodnota by se mu ztratila.
+    if settings:
+        args.append("--settings=" + settings)
+        env = {"HUB_POVOLENI_URL": HOOK_URL, "HUB_POVOLENI_TOKEN": token}
+    if not full:
+        args.append("--permission-mode=default")
+    return {"args": args, "env": env, "bypass": full, "token": token, "ukol": meta["id"]}
+
+
+def bind_tab(launch, session, meta):
+    """Žeton z `tab_launch` patří tomuhle tabu. Úkol si pamatuje konverzaci,
+    ať tab po restartu hubu zůstane tabem s úkolem."""
+    session.ukol = meta["id"]
+    with _LOCK:
+        TAB_TOKENS[launch["token"]] = {"tab": session.id, "ukol": meta["id"],
+                                       "title": meta["title"]}
+        chat = getattr(session, "chat_id", "") or ""
+        fresh = _read_ukol(meta["id"])
+        if chat and fresh and fresh.get("chat") != chat:
+            fresh["chat"] = chat
+            _write_ukol(fresh)
+
+
+def _tab_for_token(token):
+    from . import server
+    token = str(token or "")
+    with _LOCK:
+        hit = next((b for t, b in TAB_TOKENS.items()
+                    if token and secrets.compare_digest(t, token)), None)
+    session = server.HUB.sessions.get(hit["tab"]) if hit else None
+    if not session or session.exited:
+        return None, None
+    return hit, session
+
+
+def _cut(text, limit):
+    text = str(text or "")
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def _describe_request(tool, inp):
+    """(op, krátký popis, náhled, otázky) pro kartu na serveru."""
+    if tool == "AskUserQuestion":
+        otazky = []
+        for q in (inp.get("questions") or [])[:4]:
+            if not isinstance(q, dict):
+                continue
+            opts = [{"label": _cut(o.get("label"), 120), "description": _cut(o.get("description"), 300)}
+                    for o in (q.get("options") or [])[:6] if isinstance(o, dict) and o.get("label")]
+            otazky.append({"question": _cut(q.get("question"), 500), "header": _cut(q.get("header"), 40),
+                           "multi": q.get("multiSelect") is True, "options": opts})
+        first = otazky[0]["question"] if otazky else "otázka"
+        return "otazka", _cut(first, 160), "", otazky
+    if tool == "ExitPlanMode":
+        return "plan", "schválit plán", _cut(inp.get("plan"), 3000), []
+    if tool == "Bash":
+        cmd = str(inp.get("command") or "")
+        note = str(inp.get("description") or "")
+        return "povoleni", _cut(cmd, 160), _cut(cmd, 1500) + (f"\n({_cut(note, 200)})" if note else ""), []
+    path = str(inp.get("file_path") or inp.get("notebook_path") or inp.get("path") or "")
+    if tool == "Write":
+        return "povoleni", _cut(path, 160), f"{path}\n({len(str(inp.get('content') or ''))} znaků)", []
+    if tool == "Edit":
+        return "povoleni", _cut(path, 160), (f"{path}\n− {_cut(inp.get('old_string'), 300)}"
+                                             f"\n+ {_cut(inp.get('new_string'), 300)}"), []
+    if path:
+        return "povoleni", _cut(path, 160), path, []
+    url = str(inp.get("url") or inp.get("query") or "")
+    if url:
+        return "povoleni", _cut(url, 160), url, []
+    raw = json.dumps(inp, ensure_ascii=False) if inp else ""
+    return "povoleni", _cut(tool, 160), _cut(raw, 600), []
+
+
+def _transcript_tail(path, limit=512 * 1024):
+    """Konec přepisu jako JSON záznamy a velikost souboru."""
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            size = fh.tell()
+            fh.seek(max(0, size - limit))
+            data = fh.read()
+    except OSError:
+        return [], 0
+    out = []
+    for line in data.splitlines():
+        try:
+            entry = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(entry, dict):
+            out.append(entry)
+    return out, size
+
+
+def _content(entry):
+    msg = entry.get("message") if isinstance(entry.get("message"), dict) else {}
+    content = msg.get("content")
+    return [c for c in content if isinstance(c, dict)] if isinstance(content, list) else []
+
+
+def _find_tool_use(path, tool, inp):
+    """Id volání nástroje, na které se Claude Code ptá — poslední tool_use
+    se stejným jménem a vstupem, ke kterému ještě není tool_result."""
+    entries, size = _transcript_tail(path)
+    done = {c.get("tool_use_id") for e in entries for c in _content(e) if c.get("type") == "tool_result"}
+    found = ""
+    for e in entries:
+        if e.get("type") != "assistant":
+            continue
+        for c in _content(e):
+            if c.get("type") == "tool_use" and c.get("name") == tool and c.get("input") == inp \
+                    and c.get("id") not in done:
+                found = str(c.get("id") or "")
+    return found, size
+
+
+def _resolved_elsewhere(entry, session):
+    """Vyřídil to někdo v terminálu (nebo tab skončil)? Pozná se podle
+    tool_result k volání, na které se Claude Code ptal. Volání se do přepisu
+    může zapsat až chvíli po hooku — hledá se proto i v nových řádcích."""
+    if session is None or session.exited:
+        return True
+    path = entry["transcript"]
+    if not path:
+        return False
+    try:
+        with open(path, "rb") as fh:
+            fh.seek(entry["offset"])
+            data = fh.read(4 * 1024 * 1024)
+    except OSError:
+        return False
+    end = data.rfind(b"\n")
+    if end >= 0:
+        entry["offset"] += end + 1
+    for line in (data[:end].splitlines() if end >= 0 else []):
+        try:
+            e = json.loads(line)
+        except ValueError:
+            continue
+        if not isinstance(e, dict):
+            continue
+        for c in _content(e):
+            if not entry["use_id"] and c.get("type") == "tool_use" and \
+                    c.get("name") == entry["tool_name"] and c.get("input") == entry["input"]:
+                entry["use_id"] = str(c.get("id") or "")
+            elif entry["use_id"] and c.get("type") == "tool_result" and \
+                    c.get("tool_use_id") == entry["use_id"]:
+                return True
+        # Volání se v přepisu nenašlo ani po půl minutě (jiný formát přepisu):
+        # Claude, který pokračuje dál, už na dialog nečeká.
+        if not entry["use_id"] and e.get("type") == "assistant" and time.time() - entry["at"] > 30:
+            return True
+    return False
+
+
+def povoleni_new(token, event):
+    """Hook z tabu ohlásil dialog. Vrací id žádosti, nebo None (cizí žeton)."""
+    bind, session = _tab_for_token(token)
+    if not bind:
+        return None
+    event = event if isinstance(event, dict) else {}
+    tool = str(event.get("tool_name") or "")[:80]
+    inp = event.get("tool_input") if isinstance(event.get("tool_input"), dict) else {}
+    op, summary, preview, otazky = _describe_request(tool, inp)
+    path = ""
+    try:
+        path = core.transcript_for(session) or ""
+    except Exception:
+        pass
+    hinted = str(event.get("transcript_path") or "")
+    if (not path or not os.path.isfile(path)) and hinted.endswith(".jsonl") and \
+            os.path.realpath(hinted).startswith(os.path.realpath(core.CLAUDE_DIR) + os.sep):
+        path = hinted                   # přepis, který udal sám Claude Code v tabu
+    use_id, offset = _find_tool_use(path, tool, inp) if path else ("", 0)
+    rid = secrets.token_hex(8)
+    now = time.time()
+    entry = {"kind": "session", "op": op, "tool": tool, "summary": summary or tool,
+             "preview": preview, "otazky": otazky, "tab": _cut(session.title, 80),
+             "tab_id": session.id, "ukol": bind["title"], "token": token, "at": now, "seen": now,
+             "event": threading.Event(), "reply": None, "transcript": path,
+             "use_id": use_id, "offset": offset, "tool_name": tool, "input": inp}
+    with _LOCK:
+        PENDING[rid] = entry
+    core.log(f"počítač: tab {session.id} čeká na souhlas — {tool} {summary!r}")
+    threading.Thread(target=_push_pending, daemon=True).start()
+    return rid
+
+
+def povoleni_wait(token, rid, wait=25):
+    """Hook čeká na odpověď. None = žádost nezná (cizí žeton, vyřízená, vypršelá)."""
+    from . import server
+    with _LOCK:
+        entry = PENDING.get(str(rid or ""))
+    if not entry or entry.get("kind") != "session" or \
+            not secrets.compare_digest(entry["token"], str(token or "")):
+        # Vyřízená mezitím: odpověď si hook ještě vyzvedne.
+        with _LOCK:
+            return _ANSWERED.pop((str(rid or ""), str(token or "")), None)
+    entry["seen"] = time.time()
+    deadline = time.time() + max(1.0, min(float(wait), 25.0))
+    while not entry["event"].wait(1.0):
+        session = server.HUB.sessions.get(entry["tab_id"])
+        if _resolved_elsewhere(entry, session):
+            with _LOCK:
+                gone = PENDING.pop(str(rid), None)
+            if gone:
+                core.log(f"počítač: tab {entry['tab_id']} — {entry['op']} vyřízeno na počítači")
+                threading.Thread(target=_push_pending, daemon=True).start()
+            return {"hotovo": True}
+        entry["seen"] = time.time()
+        if time.time() >= deadline:
+            return {"cekej": True}
+    with _LOCK:
+        _ANSWERED.pop((str(rid), entry["token"]), None)
+    return entry["reply"] or {"hotovo": True}
+
+
+def _session_answer(entry, choice, odpovedi):
+    """Volba z karty → odpověď pro hook. ValueError, když nesedí na žádost."""
+    if entry["op"] == "otazka" and choice in ("odpoved", "jednou", "povolit") and odpovedi is not None:
+        if not isinstance(odpovedi, dict):
+            raise ValueError("Odpovědi nejsou čitelné.")
+        answers = {}
+        for q in entry["otazky"]:
+            raw = odpovedi.get(q["question"])
+            if isinstance(raw, list):
+                parts = [str(x).strip()[:500] for x in raw if str(x).strip()][:6]
+                if not parts or not q["multi"]:
+                    raise ValueError("Odpověď nesedí na otázku.")
+                answers[q["question"]] = ", ".join(parts)
+            elif isinstance(raw, str) and raw.strip():
+                answers[q["question"]] = raw.strip()[:500]
+            else:
+                raise ValueError("Chybí odpověď na otázku: " + q["question"][:80])
+        return {"behavior": "allow", "answers": answers}
+    if choice == "zamitnout":
+        msg = {"otazka": "Uživatel na otázku v prostoru na serveru neodpověděl a zamítl ji. "
+                         "Zeptej se ho jinak, nebo pokračuj bez toho.",
+               "plan": "Uživatel plán v prostoru na serveru neschválil. Zeptej se ho, co změnit."}
+        return {"behavior": "deny", "message": msg.get(entry["op"],
+                "Uživatel to v prostoru na serveru zamítl. Zeptej se ho, co by mu vyhovovalo, "
+                "nebo to udělej jinak.")}
+    if entry["op"] == "otazka":
+        raise ValueError("Na otázku je potřeba vybrat odpověď.")
+    if choice in ("povolit", "jednou", "30min"):
+        return {"behavior": "allow"}
+    raise ValueError("Neznámá volba.")
 
 
 # ── v prostoru na serveru ────────────────────────────────────────────────────

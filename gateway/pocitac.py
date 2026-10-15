@@ -45,6 +45,10 @@ ACCESS_LABEL = {"cteni": "jen čtení", "ptat": "ptá se na souhlas", "vse": "pl
 LEVELS = ("", "cteni", "ptat", "vse")
 APPROVE_WAIT = 120      # jak dlouho počítač čeká na souhlas člověka (hub/pocitac.py)
 DECISIONS = ("jednou", "30min", "zamitnout")
+# Žádost z tabu s úkolem ze serveru (hub/pocitac.py, povoleni_*): Claude Code
+# na počítači chce souhlas s nástrojem, ptá se (AskUserQuestion) nebo chce
+# schválit plán. Čeká, dokud neodpoví člověk tady nebo v terminálu.
+SESSION_DECISIONS = ("povolit", "zamitnout", "odpoved")
 
 POLL_WAIT = 25          # jak dlouho brána drží dotaz počítače, když nemá úkol
 ONLINE_GRACE = 40       # počítač, který se tak dlouho neozval, je pryč
@@ -146,6 +150,41 @@ def decode_files(raw, limit=None):
     return out, ""
 
 
+def _questions(raw):
+    """Otázky z AskUserQuestion, jak je poslal počítač — jen co karta ukáže."""
+    out = []
+    for q in (raw if isinstance(raw, list) else [])[:4]:
+        if not isinstance(q, dict) or not _text(q.get("question"), 500):
+            continue
+        opts = [{"label": _text(o.get("label"), 120), "description": _text(o.get("description"), 300)}
+                for o in (q.get("options") if isinstance(q.get("options"), list) else [])[:6]
+                if isinstance(o, dict) and _text(o.get("label"), 120)]
+        out.append({"question": _text(q.get("question"), 500), "header": _text(q.get("header"), 40),
+                    "multi": q.get("multi") is True, "options": opts})
+    return out
+
+
+def _answers(questions, raw):
+    """Odpovědi z karty → {text otázky: volba | [volby]}, nebo chyba."""
+    if not questions:
+        return None, "Na tuhle žádost se neodpovídá výběrem."
+    if not isinstance(raw, dict):
+        return None, "Vyber odpověď."
+    out = {}
+    for q in questions:
+        value = raw.get(q["question"])
+        if isinstance(value, list) and q["multi"]:
+            value = [_text(v, 500) for v in value if _text(v, 500)][:6]
+        elif isinstance(value, str):
+            value = _text(value, 500)
+        else:
+            value = None
+        if not value:
+            return None, "Chybí odpověď na otázku: " + q["question"][:80]
+        out[q["question"]] = value
+    return out, ""
+
+
 class Computer:
     """Jeden počítač jednoho účtu, jak ho brána zná z jeho dotazů."""
 
@@ -237,10 +276,16 @@ class Broker:
         out = []
         for item in (pending if isinstance(pending, list) else [])[:12]:
             if isinstance(item, dict) and _ID.fullmatch(str(item.get("id") or "")):
-                out.append({"id": str(item["id"]), "op": _text(item.get("op"), 20),
-                            "summary": _text(item.get("summary"), 200),
-                            "preview": _text(item.get("preview"), 600),
-                            "at": int(item.get("at") or 0)})
+                session = item.get("kind") == "session"
+                entry = {"id": str(item["id"]), "op": _text(item.get("op"), 20),
+                         "summary": _text(item.get("summary"), 200),
+                         "preview": _text(item.get("preview"), 3000 if session else 600),
+                         "at": int(item.get("at") or 0)}
+                if session:
+                    entry.update(kind="session", tool=_text(item.get("tool"), 80),
+                                 tab=_text(item.get("tab"), 80), ukol=_text(item.get("ukol"), 120),
+                                 otazky=_questions(item.get("otazky")))
+                out.append(entry)
         comp.pending = out
         comp.grants = [{"until": int(g.get("until") or 0)}
                        for g in (grants if isinstance(grants, list) else [])[:4]
@@ -263,17 +308,31 @@ class Broker:
             out, comp.directives = comp.directives, []
             return out
 
-    def decide(self, uid, cid, rid, choice):
-        """Člověk v prostoru (cookie, ne žeton prostoru) rozhodl o žádosti počítače."""
-        if choice not in DECISIONS:
-            return {"ok": False, "error": "Neznámá volba."}
+    def decide(self, uid, cid, rid, choice, odpovedi=None):
+        """Člověk v prostoru (cookie, ne žeton prostoru) rozhodl o žádosti počítače.
+        Platí jednou — žádost se hned vyřadí, druhé rozhodnutí už nic nenajde."""
         with self._cond:
             comp = self._find(uid, cid)
             if not comp:
                 return {"ok": False, "error": "Takový počítač tu není připojený."}
-            if not any(p["id"] == str(rid or "") for p in comp.pending):
-                return {"ok": False, "error": "Tuhle žádost už počítač nečeká (vypršela nebo už je vyřízená)."}
-            comp.directives.append({"typ": "rozhodnuti", "id": str(rid), "volba": choice})
+            req = next((p for p in comp.pending if p["id"] == str(rid or "")), None)
+            if not req:
+                return {"ok": False, "error": "Tuhle žádost už počítač nečeká (vyřízená tady, "
+                                              "na počítači, nebo vypršela)."}
+            directive = {"typ": "rozhodnuti", "id": str(rid), "volba": choice}
+            if req.get("kind") == "session":
+                if choice not in SESSION_DECISIONS:
+                    return {"ok": False, "error": "Neznámá volba."}
+                if choice == "povolit" and req.get("op") == "otazka":
+                    return {"ok": False, "error": "Na otázku vyber odpověď."}
+                if choice == "odpoved":
+                    answers, error = _answers(req.get("otazky") or [], odpovedi)
+                    if error:
+                        return {"ok": False, "error": error}
+                    directive["odpovedi"] = answers
+            elif choice not in DECISIONS:
+                return {"ok": False, "error": "Neznámá volba."}
+            comp.directives.append(directive)
             comp.pending = [p for p in comp.pending if p["id"] != str(rid)]
             self._cond.notify_all()
         return {"ok": True}

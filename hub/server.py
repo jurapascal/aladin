@@ -360,8 +360,17 @@ class Hub:
         return running
 
     def open(self, kind, path, title, cols, rows, agent="", model="", resume="", fork=False,
-             vault="", prompt=""):
-        script, cwd, env = self._command_for(kind, path, agent, model, resume, fork, vault, prompt)
+             vault="", prompt="", ukol=""):
+        # Tab s úkolem ze serveru (hub/pocitac.py): otevřený kvůli úkolu, nebo
+        # pokračování jeho konverzace. Dostane hook, přes který žádosti
+        # o souhlas jdou i na server; ručně otevřený tab nic z toho nemá.
+        launch = meta = None
+        if kind == "project" and (agent or core.default_agent()) == "claude" \
+                and not core.on_gateway():
+            meta = pocitac.ukol_for_tab(ukol, resume)
+            launch = pocitac.tab_launch(meta) if meta else None
+        script, cwd, env = self._command_for(kind, path, agent, model, resume, fork, vault, prompt,
+                                             launch)
         # Agent si model mohl doplnit sám (Ollama bez modelu nespustíš) —
         # ať se to dozví i tab, jinak by chip v bublině hlásil „výchozí".
         model = env.get("HUB_AGENT_MODEL") or model
@@ -372,10 +381,13 @@ class Hub:
         session = Session(sid, title, kind, path, core.bash_argv(script), cwd,
                           cols, rows, agent=agent, model=model, env=env, vault=vault)
         self.sessions[sid] = session
+        if launch:
+            pocitac.bind_tab(launch, session, meta)
         return session
 
     @staticmethod
-    def _command_for(kind, path, agent="", model="", resume="", fork=False, vault="", prompt=""):
+    def _command_for(kind, path, agent="", model="", resume="", fork=False, vault="", prompt="",
+                     launch=None):
         """(příkaz, pracovní složka, prostředí navíc) pro daný druh tabu."""
         if kind == "shell":
             return core.cmd_shell(), (path or core.HOME), {}
@@ -402,7 +414,7 @@ class Hub:
             except Exception as exc:
                 core.log_error("důvěra ke složce", exc)
         script, env = core.cmd_agent(path, agent, model=model, resume=resume, fork=fork,
-                                     vault=vault, prompt=prompt)
+                                     vault=vault, prompt=prompt, launch=launch)
         return script, path, env
 
     def prenacti_chaty(self, cekat=6 * 3600):
@@ -434,10 +446,15 @@ class Hub:
                         chat = restart._resume_for(self, s)
                         if not chat:
                             continue
+                        meta = pocitac.ukol_for_tab("", chat)
+                        launch = pocitac.tab_launch(meta) if meta else None
                         script, cwd, env = self._command_for("project", s.path, s.agent, s.model,
-                                                             resume=chat, vault=s.vault)
+                                                             resume=chat, vault=s.vault,
+                                                             launch=launch)
                         env = {**env, "HUB_TAB": core.tab_tag(s.id)}
                         s.relaunch(core.bash_argv(script), cwd, env)
+                        if launch:
+                            pocitac.bind_tab(launch, s, meta)
                         core.log(f"tab {s.id}: Claude s novým přihlášením (pokračuje v {chat[:8]})")
                     except Exception as exc:
                         core.log_error("přenačtení chatu s novým přihlášením", exc)
@@ -615,6 +632,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if route == "/ws":
             return self._websocket(query)
+        if route == "/povoleni":
+            return self._povoleni(query)
         if route == "/":
             if not self._authorised(query):
                 if self.server.remote:
@@ -645,6 +664,8 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urllib.parse.urlparse(self.path)
         query = urllib.parse.parse_qs(parsed.query)
+        if parsed.path == "/povoleni":
+            return self._povoleni(query)
         if not parsed.path.startswith("/api/") or not self._authorised(query):
             return self._send(403, b"Neplatny token.")
         # Změny jen ze stránky hubu. Stránka prostoru na serveru token hubu na
@@ -667,6 +688,32 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             payload = {}
         return self._api(parsed.path[5:], query, payload)
+
+    def _povoleni(self, query):
+        """Hook PermissionRequest z tabu s úkolem ze serveru (tools/povoleni_hook.py).
+
+        Bez tokenu hubu — jen se žetonem, který dostal ten jediný tab v prostředí.
+        Žeton umí žádost ohlásit a počkat na odpověď, rozhodnout ne: to smí jen
+        člověk (okno hubu, nebo karta v prostoru přes bránu). Jen na loopbacku."""
+        if self.server.remote or self.headers.get("Origin"):
+            return self._send(404, b"404")
+        token = self.headers.get("X-Hub-Povoleni", "")
+        if self.command == "POST":
+            length = int(self.headers.get("Content-Length") or 0)
+            if length > 1024 * 1024:
+                return self._send(413, b"")
+            try:
+                event = json.loads(self.rfile.read(length) or b"{}")
+            except ValueError:
+                return self._send(400, b"")
+            rid = pocitac.povoleni_new(token, event)
+            return self._json({"id": rid}) if rid else self._send(403, b"")
+        try:
+            wait = float(query.get("wait", ["25"])[0])
+        except ValueError:
+            wait = 25.0
+        reply = pocitac.povoleni_wait(token, query.get("id", [""])[0], wait)
+        return self._json(reply) if reply is not None else self._send(404, b"")
 
     def _static(self, relpath, extra=None):
         # posixpath.normpath + strip leading separators keeps this inside STATIC_DIR
@@ -1303,7 +1350,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     if action == "zrusit-povoleni":
                         return self._json(pocitac.revoke_grant())
-                    return self._json(pocitac.decide(payload.get("id"), str(payload.get("volba") or "")))
+                    return self._json(pocitac.decide(payload.get("id"), str(payload.get("volba") or ""),
+                                                      odpovedi=payload.get("odpovedi")))
                 except ValueError as exc:
                     return self._json({"error": str(exc)}, 400)
             if "access" in payload:
@@ -1993,6 +2041,7 @@ def start():
     # zapnutý), v prostoru na serveru napojí Claude Code jeho MCP server.
     pocitac.OPEN_TAB = open_ukol_tab
     pocitac.NOTIFY = HUB.broadcast
+    pocitac.HOOK_URL = f"http://127.0.0.1:{port}"
     pocitac.start()
     connect.start_shared_sync()
     if core.on_gateway():
@@ -2002,12 +2051,12 @@ def start():
 
 
 
-def open_ukol_tab(title, path, prompt):
+def open_ukol_tab(title, path, prompt, ukol=""):
     """Tab s Claude Code pro úkol, který nechal Claude ze serveru (hub/pocitac.py).
 
     Otevírá ho hub, ne okno — okno může být zrovna v prostoru na serveru, nebo
     zavřené. Otevřená okna tab dostanou jako každý tab z jiného okna."""
-    session = HUB.open("project", path, title, 120, 32, agent="claude", prompt=prompt)
+    session = HUB.open("project", path, title, 120, 32, agent="claude", prompt=prompt, ukol=ukol)
     core.log(f"tab otevřen: úkol ze serveru {session.path or '~'} [claude]")
     HUB.broadcast({"t": "tab-opened", **session.info()})
     return session.info()

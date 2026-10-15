@@ -598,9 +598,9 @@ jde, a počítači nechá **úkol**: zadání a přílohy (nástroj `nechat_ukol
 Brána ho podrží, a jakmile otevřeš appku na počítači:
 
 1. Appka si úkol stáhne do `~/.claude/hub-ukoly/<id>/` (zadání a `soubory/`).
-2. **S plným přístupem** se hned otevře tab s Claude Code, který dostane
-   zadání jako první zprávu a úkol dodělá. **S přístupem jen ke čtení** se
-   ukáže karta se zadáním a úkol se spustí, až klikneš na *Spustit*.
+2. **S plným přístupem a s „ptát se“** se hned otevře tab s Claude Code, který
+   dostane zadání jako první zprávu a úkol dodělá. **S přístupem jen ke čtení**
+   se ukáže karta se zadáním a úkol se spustí, až klikneš na *Spustit*.
 3. V prostoru na serveru naskočí karta *Úkol běží na počítači* (nebo *čeká na
    počítači*) s tlačítkem, které okno přepne na počítač, přímo k úkolu.
 
@@ -620,6 +620,36 @@ Brána ho podrží, a jakmile otevřeš appku na počítači:
 - Úkol může mířit na konkrétní počítač (jméno); bez něj ho dostane první,
   který se připojí. Potřebuje appku 2.15.0 nebo novější — na starší Claude
   v prostoru upozorní.
+
+#### Souhlas ze serveru u úkolů ze serveru (od 2.85)
+
+Když Claude v tabu s úkolem ze serveru potřebuje souhlas — oprávnění k příkazu
+nebo zápisu, odpověď na otázku (AskUserQuestion), schválení plánu
+(ExitPlanMode) —, ukáže se ti to i **v prostoru na serveru jako karta**:
+počítač, úkol a tab, co chce Claude udělat (příkaz, soubor, plán) a tlačítka
+**Povolit / Zamítnout**, u otázky výběr odpovědi (i vlastní text). Funguje
+i v telefonu. Dialog v terminálu na počítači visí zároveň a **platí první
+odpověď** — odpovíš-li na počítači, karta na serveru do pár vteřin zmizí,
+a naopak. Nic se samo nezamítá: dokud neodpovíš, Claude čeká (karta na
+serveru vydrží den, dialog na počítači napořád).
+
+- **Jak:** tab s úkolem startuje s `claude --settings=~/.claude/hub-povoleni-ze-serveru.json`
+  — hook `PermissionRequest` (`tools/povoleni_hook.py`). Hook žádost ohlásí hubu
+  na loopbacku (`/povoleni`, žeton jen pro ten jeden tab) a hub ji pošle bráně
+  stejnou cestou jako ostatní žádosti o souhlas. Odpověď v terminálu hub pozná
+  z přepisu konverzace (`tool_result` k témuž volání). `--permission-prompt-tool`
+  se nehodí — Claude Code ho bere jen v neinteraktivním režimu (`-p`).
+- **Režim oprávnění:** s **plným přístupem** běží tab jako každý jiný tady
+  (režim podle nastavení Claude Code, bypass v nabídce Shift+Tab) — ptá se
+  jen na otázky a plán. **S „ptát se“ a „jen čtení“** startuje v režimu
+  `default` a **bez** `--allow-dangerously-skip-permissions`: zápis a příkazy
+  se ptají a jedno Shift+Tab souhlas neobejde.
+- **Kdo smí potvrdit:** jen přihlášený vlastník prostoru, se kterým je počítač
+  spárovaný (cookie a stránka hubu, `/gw/pocitac/rozhodnout`). Claude v prostoru
+  ani v tabu to neumí — žeton tabu žádost jen ohlásí a čeká. Každá žádost má
+  náhodné id, patří jednomu tabu a platí jednou; druhá odpověď už nic nenajde.
+- Po restartu hubu nebo pokračování v konverzaci zůstává tab tabem s úkolem
+  (úkol si pamatuje id konverzace). Ručně otevřené taby se nemění.
 
 ## Playwright MCP (volitelné)
 

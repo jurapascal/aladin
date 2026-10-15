@@ -2378,7 +2378,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                            "version": __version__,
                            # Co brána umí navíc — appka podle toho pozná, jestli
                            # se má ptát třeba na most na počítač.
-                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani"],
+                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni"],
                            "host": self._public_host()})
 
     def _gw_me(self):
@@ -2556,7 +2556,8 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         broker = self.server.pocitac
         if route.endswith("/rozhodnout"):
             out = broker.decide(user["id"], str(form.get("computer") or ""),
-                                form.get("id"), str(form.get("volba") or ""))
+                                form.get("id"), str(form.get("volba") or ""),
+                                form.get("odpovedi"))
         else:
             out = broker.set_access(user["id"], str(form.get("computer") or ""),
                                     str(form.get("level") or ""))

@@ -17,6 +17,8 @@
  *  - `ukol(io, msg)`   na počítači: hláška od hubu o úkolu ze serveru (převzatý
  *                      čeká na potvrzení → karta, spuštěný → hláška).
  *  - `pending(io)`     na počítači po načtení: čekající úkoly ze serveru.
+ *  - karty souhlasu (`showApproval`): v prostoru i žádosti z tabu s úkolem ze
+ *                      serveru — Povolit / Zamítnout, u otázky výběr odpovědi.
  *
  * Volba přístupu se ukládá jen na počítači (POST /api/pocitac). Prostor na
  * serveru ji změnit neumí — tlačítko tam jen vrátí okno sem.
@@ -138,8 +140,124 @@
     return host;
   }
 
+  /* Žádost z tabu s úkolem ze serveru (hub/pocitac.py, povoleni_*): Claude
+     Code na počítači chce souhlas s nástrojem, ptá se, nebo chce schválit plán.
+     Čeká, dokud neodpoví člověk tady nebo v terminálu na počítači — platí
+     první odpověď, druhá karta pak zmizí sama (pruneApprovals). */
+  const TOOL_ASK = {Bash: 'spustit příkaz', Write: 'zapsat soubor', Edit: 'upravit soubor',
+                    MultiEdit: 'upravit soubor', NotebookEdit: 'upravit notebook',
+                    WebFetch: 'otevřít web', WebSearch: 'hledat na webu'};
+
+  function sessionCard(io, req, decide, where) {
+    const card = el('div', 'pc-ask-card pc-ask-session');
+    const head = el('div', 'pc-ask-head');
+    head.appendChild(icon('i-laptop'));
+    const title = req.op === 'otazka' ? 'Claude se ptá'
+      : req.op === 'plan' ? 'Claude chce schválit plán'
+      : 'Claude chce ' + (TOOL_ASK[req.tool] || ('použít nástroj ' + (req.tool || '')));
+    head.appendChild(el('b', null, title));
+    if (where) head.appendChild(el('span', 'set-dim', ' · ' + where));
+    card.appendChild(head);
+    card.appendChild(el('div', 'pc-ask-sub',
+      'Úkol „' + (req.ukol || 'ze serveru') + '“' + (req.tab ? ' · tab ' + req.tab : '')));
+    const what = req.op === 'otazka' ? '' : (req.preview || req.summary || '');
+    if (what) card.appendChild(el('pre', 'pc-ask-what' + (req.op === 'plan' ? ' plan' : ''), what));
+
+    const btns = el('div', 'pc-ask-btns');
+    const lock = (on) => card.querySelectorAll('button, input').forEach((x) => { x.disabled = on; });
+    const send = async (volba, odpovedi) => {
+      lock(true);
+      try {
+        await decide(req.id, volba, odpovedi);
+        io.toast(volba === 'zamitnout' ? 'Zamítnuto — Claude na počítači to dostane.'
+                                        : 'Odesláno — Claude na počítači pokračuje.');
+        closeApproval(req.id);
+      } catch (e) {
+        io.toast('Nepovedlo se: ' + friendly('rozhodnout', e));
+        lock(false);
+      }
+    };
+
+    if (req.op === 'otazka' && (req.otazky || []).length) {
+      const picks = new Map();          // otázka -> Set vybraných voleb
+      const other = new Map();          // otázka -> vlastní odpověď
+      for (const q of req.otazky) {
+        const box = el('div', 'pc-ask-q');
+        box.appendChild(el('div', 'pc-ask-qt', q.question));
+        if (q.multi) box.appendChild(el('div', 'set-dim', 'Můžeš vybrat víc možností.'));
+        const chosen = new Set();
+        picks.set(q.question, chosen);
+        const opts = el('div', 'pc-ask-opts');
+        for (const o of q.options || []) {
+          const b = el('button', 'pc-ask-opt');
+          b.type = 'button';
+          b.appendChild(el('span', 'pc-ask-ol', o.label));
+          if (o.description) b.appendChild(el('span', 'pc-ask-od', o.description));
+          b.onclick = () => {
+            if (!q.multi) {
+              chosen.clear();
+              opts.querySelectorAll('.pc-ask-opt').forEach((x) => x.classList.remove('on'));
+              other.get(q.question).value = '';
+            }
+            if (chosen.has(o.label)) chosen.delete(o.label); else chosen.add(o.label);
+            b.classList.toggle('on', chosen.has(o.label));
+          };
+          opts.appendChild(b);
+        }
+        box.appendChild(opts);
+        const own = el('input', 'pc-ask-own');
+        own.type = 'text';
+        own.maxLength = 500;
+        own.placeholder = 'Jiná odpověď…';
+        own.oninput = () => {
+          if (own.value.trim() && !q.multi) {
+            chosen.clear();
+            opts.querySelectorAll('.pc-ask-opt').forEach((x) => x.classList.remove('on'));
+          }
+        };
+        other.set(q.question, own);
+        box.appendChild(own);
+        card.appendChild(box);
+      }
+      const ok = el('button', 'btn primary', 'Odeslat odpověď');
+      ok.onclick = () => {
+        const odpovedi = {};
+        for (const q of req.otazky) {
+          const own = other.get(q.question).value.trim();
+          const list = [...picks.get(q.question)];
+          if (own) list.push(own);
+          if (!list.length) {
+            io.toast('Vyber odpověď na: ' + q.question);
+            return;
+          }
+          odpovedi[q.question] = q.multi ? list : list[list.length - 1];
+        }
+        send('odpoved', odpovedi);
+      };
+      const no = el('button', 'btn ghost', 'Neodpovídat');
+      no.onclick = () => send('zamitnout');
+      btns.append(ok, no);
+    } else {
+      const ok = el('button', 'btn primary', req.op === 'plan' ? 'Schválit plán' : 'Povolit');
+      ok.onclick = () => send('povolit');
+      const no = el('button', 'btn ghost', 'Zamítnout');
+      no.onclick = () => send('zamitnout');
+      btns.append(ok, no);
+    }
+    card.appendChild(el('div', 'pc-ask-note',
+      'Čeká, dokud neodpovíš — tady, nebo v terminálu na počítači. Platí první odpověď.'));
+    card.appendChild(btns);
+    return card;
+  }
+
   function showApproval(io, req, decide, where) {
     if (askCards.has(req.id)) return;
+    if (req.kind === 'session') {
+      const card = sessionCard(io, req, decide, where);
+      askHost().appendChild(card);
+      askCards.set(req.id, card);
+      return;
+    }
     const card = el('div', 'pc-ask-card');
     const head = el('div', 'pc-ask-head');
     head.appendChild(icon('i-laptop'));
@@ -179,6 +297,11 @@
     askCards.delete(id);
     const host = document.querySelector('.pc-asks');
     if (host && !host.children.length) host.remove();
+  }
+
+  // Na počítači: žádost z tabu má dialog přímo v tabu, karta by byla navíc.
+  function localPending(list) {
+    return (list || []).filter((p) => p.kind !== 'session');
   }
 
   // Karty žádostí, které už nikdo nečeká, zmizí.
@@ -228,10 +351,11 @@
       try {
         if (!document.hidden) {
           const st = await io.api('pocitac');
-          if (st.access === 'ptat' || (st.pending || []).length) {
-            for (const p of st.pending || []) showApproval(io, p, decide, 'z prostoru na serveru');
-            pruneApprovals(st.pending);
-            if ((st.pending || []).length) wait = 2000;
+          const mine = localPending(st.pending);
+          if (st.access === 'ptat' || mine.length) {
+            for (const p of mine) showApproval(io, p, decide, 'z prostoru na serveru');
+            pruneApprovals(mine);
+            if (mine.length) wait = 2000;
           } else {
             wait = 15000;
           }
@@ -321,13 +445,13 @@
         row.appendChild(off);
         line.appendChild(row);
       }
-      for (const p of st.pending || []) {
+      for (const p of localPending(st.pending)) {
         showApproval(io, p, async (id, volba) => {
           const r = await io.api('pocitac', {action: 'rozhodnout', id, volba});
           if (r && r.error) throw new Error(r.error);
         }, 'z prostoru na serveru');
       }
-      pruneApprovals(st.pending);
+      pruneApprovals(localPending(st.pending));
       recent.textContent = '';
       const rows = st.recent || [];
       if (!rows.length) return;
@@ -566,8 +690,8 @@
   function serverApprovals(io, list) {
     for (const c of list) {
       for (const p of c.pending || []) {
-        showApproval(io, p, (id, volba) => gwPost('/gw/pocitac/rozhodnout',
-          {computer: c.id, id, volba}), 'počítač ' + c.name);
+        showApproval(io, p, (id, volba, odpovedi) => gwPost('/gw/pocitac/rozhodnout',
+          {computer: c.id, id, volba, odpovedi}), 'počítač ' + c.name);
       }
     }
     pruneApprovals(list.flatMap((c) => c.pending || []));
@@ -622,7 +746,7 @@
     body.appendChild(el('div', 'pc-ukol-name', u.title));
     body.appendChild(el('p', 'onb-lead', started
       ? 'Počítač ' + (u.by || '') + ' si úkol převzal a Claude na něm pracuje v novém rozhovoru. ' +
-        'Když bude potřebovat souhlas, zeptá se tam.'
+        'Když bude potřebovat souhlas, ukáže se to i tady jako karta.'
       : 'Počítač ' + (u.by || '') + ' si úkol převzal. Má zapnutý přístup jen ke čtení, ' +
         'takže se nespustí sám — potvrď ho v aplikaci na počítači.'));
     box.appendChild(body);

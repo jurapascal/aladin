@@ -533,6 +533,14 @@ bráně k tomu patří `gateway/pocitac.py` a tři adresy (tabulka níž):
   čekající dotaz probudí hned. Počítač si úkol stáhne (`/gw/pocitac/ukol`,
   `take`) a hlásí stav (`prevzato` → `spusteno` / `zahozeno`). Přílohy se smažou
   po převzetí, nevyzvednutý úkol po 30 dnech, záznam o vyřízeném po 14.
+- **Souhlas u úkolů ze serveru** (`features: ["povoleni"]`). Tab s úkolem na
+  počítači hlásí žádosti Claude Code (oprávnění, otázka, plán) mezi ostatními
+  žádostmi o souhlas (`/gw/pocitac/schvaleni`, `kind: "session"` s tabem, úkolem
+  a otázkami). Člověk rozhodne v prostoru (`/gw/pocitac/rozhodnout`, cookie +
+  stránka hubu): `povolit` / `zamitnout` / `odpoved` s `odpovedi` — brána je
+  zkontroluje proti otázkám, žádost hned vyřadí (platí jednou) a počítači ji
+  předá v `prikazy`. Čeká se bez limitu; vyřízení v terminálu počítač ohlásí
+  a karta zmizí.
 - **Limity:** soubor do 15 MB (nginx má `client_max_body_size 25m`, base64
   přidá třetinu), příkaz nejvýš 10 minut, 32 čekajících úkolů na počítač.
   Úkol na později: zadání 8 000 znaků, přílohy 15 MB a 20 souborů, 20

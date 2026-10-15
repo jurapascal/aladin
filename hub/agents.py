@@ -667,7 +667,7 @@ def bypass_arg(spec):
 
 
 def launch_args(spec, model="", prompt="", bypass=True, resume="", fork=False,
-                session=""):
+                session="", extra=None):
     """Argumenty za jméno binárky: bypass v nabídce (když `bypass` a agent ho
     umí), pokračování v konverzaci (`resume`, s `fork` jako kopie), model
     a úvodní prompt. `session` = id nové konverzace, které si hub zvolil sám."""
@@ -686,6 +686,8 @@ def launch_args(spec, model="", prompt="", bypass=True, resume="", fork=False,
         if template:
             args += [part.replace("{model}", model)
                      for part in template.split(" ") if part]
+    # Přepínače navíc (tab s úkolem ze serveru: --settings, --permission-mode).
+    args += list(extra or [])
     if prompt:
         args.append(prompt)
     return args

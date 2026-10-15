@@ -754,15 +754,54 @@ def _google_default():
     return (ok or [a["name"] for a in accounts] or [""])[0]
 
 
+def _google_command():
+    """Command + leading args of workspace-mcp. `uvx workspace-mcp` resolves PyPI on every start and on a slow
+    network overruns Claude Code's 30 s MCP connect limit (the tools then vanish for the whole session), so the
+    package is installed once as a uv tool and started from disk. Falls back to uvx when the install fails."""
+    uv = shutil.which("uv")
+    if uv:
+        try:
+            subprocess.run([uv, "tool", "install", "--quiet", "workspace-mcp"], capture_output=True, timeout=180)
+        except Exception:
+            pass
+    exe = shutil.which("workspace-mcp") or os.path.expanduser("~/.local/bin/workspace-mcp")
+    if os.path.isfile(exe) and os.access(exe, os.X_OK):
+        return exe, []
+    return "uvx", ["workspace-mcp"]
+
+
+def _ensure_mcp_timeout():
+    """Give MCP servers 2 minutes to connect (default 30 s) so one slow start (npx/uvx cold cache) does not
+    leave a session without that server's tools."""
+    path = os.path.expanduser("~/.claude/settings.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            cfg = json.load(f)
+    except FileNotFoundError:
+        cfg = {}
+    except Exception:
+        return
+    env = cfg.setdefault("env", {})
+    if str(env.get("MCP_TIMEOUT", "")) not in ("", "30000") and int(str(env.get("MCP_TIMEOUT")) or 0) >= 120000:
+        return
+    env["MCP_TIMEOUT"] = "120000"
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, path)
+
+
 def _ensure_google_server():
     """Server workspace-mcp v Claude Code — jeden pro všechny Google účty."""
     claude = _claude()
     cid, secret, _ = google_client()
-    args = ["workspace-mcp", "--tool-tier", "extended", "--tools", *GOOGLE_TOOLS]
+    _ensure_mcp_timeout()
+    cmd, lead = _google_command()
+    args = [*lead, "--tool-tier", "extended", "--tools", *GOOGLE_TOOLS]
     default = _google_default()
     entry = _user_servers().get(GOOGLE_MCP_NAME)
     env = (entry.get("env") or {}) if isinstance(entry, dict) else {}
-    if isinstance(entry, dict) and entry.get("args") == args and \
+    if isinstance(entry, dict) and entry.get("command") == cmd and entry.get("args") == args and \
             env.get("GOOGLE_OAUTH_CLIENT_ID") == cid and \
             env.get("USER_GOOGLE_EMAIL", "") == default and \
             env.get("ALLOWED_FILE_DIRS") == GOOGLE_FILE_DIRS:
@@ -774,7 +813,7 @@ def _ensure_google_server():
               "-e", f"GOOGLE_OAUTH_CLIENT_ID={cid}",
               "-e", f"GOOGLE_OAUTH_CLIENT_SECRET={secret}",
               "-e", f"ALLOWED_FILE_DIRS={GOOGLE_FILE_DIRS}", *extra,
-              "--", "uvx", *args])
+              "--", cmd, *args])
     if r.returncode != 0:
         return {"ok": False, "detail": (r.stderr or r.stdout or "nepovedlo se").strip()[:300]}
     return {"ok": True}

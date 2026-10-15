@@ -30,7 +30,7 @@
 
 /* Prostor na serveru je modrý až po drobnosti — je to jiné místo než počítač
    a nemá se splést, ve kterém se zrovna píše. */
-html[data-place="server"] { --accent: var(--cloud); }
+html[data-place="server"] { --accent: var(--cloud); --sun: var(--cloud); }
 
 * { box-sizing: border-box; }
 

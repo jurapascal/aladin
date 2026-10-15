@@ -44,15 +44,10 @@
     }, () => {});
   }
 
-  // debug.js kreslí velké tlačítko do pravého dolního rohu — v hubu přesně
-  // na odesílací tlačítko bubliny (composer) a na vstupní pole Claude Code.
-  // Jeho shadow root je otevřený: menší, výš a poloprůhledné, dokud na něj
-  // člověk nenajede. Formulář (overlay) zůstává, jak ho debug.js nakreslí.
-  const STYL = '.fab{right:12px;bottom:88px;opacity:.55;transition:opacity .15s}' +
-    '.fab:hover,.fab:focus-within{opacity:1}' +
-    '.fab button{height:34px;min-width:34px}' +
-    '.fab .f-chyba{padding:0 7px 0 10px}.fab .f-navrh{padding:0 10px 0 7px}' +
-    '.fab svg{width:17px;height:17px}';
+  // debug.js kreslí plovoucí tlačítko do rohu a to se v hubu kryje s ostatními
+  // plovoucími prvky (Prohlížeč, panely). Schováme ho (shadow root je otevřený)
+  // a formulář otevírá ikonka v horní liště; Alt+Shift+B / N fungují dál.
+  const STYL = '.fab{display:none!important}';
 
   function uprav() {
     const host = document.getElementById('verxee-chyby');
@@ -65,6 +60,17 @@
     return true;
   }
 
+  // Ikonka v horní liště; klik = stejný zkratkový klávesový vstup jako Alt+Shift+B.
+  function lista(ukazat) {
+    const b = document.getElementById('btn-verxee');
+    if (!b) return;
+    b.hidden = !ukazat;
+    if (b.dataset.v) return;
+    b.dataset.v = '1';
+    b.addEventListener('click', () => document.dispatchEvent(new KeyboardEvent('keydown',
+      {key: 'B', code: 'KeyB', altKey: true, shiftKey: true, bubbles: true})));
+  }
+
   function apply(state) {
     if (!state) return;
     const klic = String((state.config || {}).verxee_debug_klic || '').trim();
@@ -74,11 +80,13 @@
     if (!klic) {
       // debug.js se ptá na jméno při každém kreslení; host schováme hned.
       d.jmeno = '';
+      lista(false);
       if (host) host.style.display = 'none';
       return;
     }
     Object.assign(d, {klic, web: 'claude-code-hub'}, kdo(state));
     nactiUcet(state);
+    lista(true);
     if (host) host.style.display = '';
     if (nacteno) return;
     nacteno = true;

@@ -3225,7 +3225,10 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
     fontFamily: '"Cascadia Mono","JetBrains Mono","DejaVu Sans Mono",Menlo,Consolas,monospace',
     // Na telefonu je 13 px na 80 sloupců moc — Claude Code pak láme rámečky.
     fontSize: window.matchMedia('(max-width: 820px)').matches ? 11 : 13,
-    scrollback: 100000,
+    /* Server přehrává po reloadu jen 256 kB (server.py SCROLLBACK), víc
+       historie tedy stejně nepřežije. 100 000 řádků bylo ~150 MB na tab —
+       u dvaceti tabů stránka tuhla a padala. */
+    scrollback: 10000,
     cursorBlink: true,
     allowProposedApi: true,
     theme: termTheme({vault}),   // firemní tab je fialový od prvního znaku
@@ -4701,6 +4704,66 @@ window.addEventListener('error', (ev) => {
 window.addEventListener('unhandledrejection', (ev) => {
   reportToLog('neodchycené odmítnutí: ' + (ev.reason && ev.reason.message || ev.reason));
 });
+
+/* Zamrznutí stránky („Tato stránka neodpovídá") do stejného logu. Chyba se
+   sama nehlásí — stránka jen stojí, a pak ji člověk zavře. Dvě cesty:
+   - Long Animation Frames (Chromium 123+): snímek delší než 3 s, a v něm
+     skripty, které ho držely (soubor:pozice a funkce). Přijde, až se stránka
+     rozhýbe — třeba po „Vyčkat".
+   - Hlídač ve workeru: stránka mu každou vteřinu kývne. Když 10 s mlčí, pošle
+     záznam sám — worker běží ve vlastním vlákně, takže to jde, i když stránka
+     visí natrvalo a člověk ji pak ukončí. */
+function popisStranky() {
+  const viditelny = ACTIVE ? (ACTIVE.kind + (ACTIVE.cteni ? '/čtení' : '')) : 'domů';
+  const mb = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) + ' MB' : '?';
+  return `tabů ${TABS.length}, vidět ${viditelny}, paměť stránky ${mb}, prvků ${document.getElementsByTagName('*').length}`;
+}
+
+function hlidejZamrznuti() {
+  let posledni = 0;
+  try {
+    new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        if (e.duration < 3000 || Date.now() - posledni < 30000) continue;
+        posledni = Date.now();
+        const skripty = (e.scripts || []).slice().sort((a, b) => b.duration - a.duration).slice(0, 3)
+          .map((s) => `${Math.round(s.duration)} ms ${s.sourceFunctionName || '?'} @ ${(s.sourceURL || '').split('/').pop()}:${s.sourceCharPosition} (${s.invoker || s.invokerType || ''})`);
+        reportToLog(`zamrznutí ${(e.duration / 1000).toFixed(1)} s — ${skripty.join(' | ') || 'bez skriptu (vykreslování, paměť)'} — ${popisStranky()}`);
+      }
+    }).observe({type: 'long-animation-frame', buffered: false});
+  } catch (_) { /* starší prohlížeč — zbude hlídač */ }
+
+  if (typeof Worker !== 'function' || typeof Blob !== 'function') return;
+  const url = new URL(`/api/log?t=${encodeURIComponent(TOKEN)}`, location.href).href;
+  const kod = `
+    let posledni = Date.now(), popis = '', videt = true, nahlaseno = false;
+    onmessage = (ev) => {
+      if (nahlaseno && videt) {
+        fetch(${JSON.stringify(url)}, {method: 'POST', headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({level: 'warn', text: 'stránka se po ' + Math.round((Date.now() - posledni) / 1000) + ' s rozhýbala'})}).catch(() => {});
+      }
+      posledni = Date.now(); popis = ev.data.popis; videt = ev.data.videt; nahlaseno = false;
+    };
+    setInterval(() => {
+      if (nahlaseno || !videt || Date.now() - posledni < 10000) return;
+      nahlaseno = true;
+      fetch(${JSON.stringify(url)}, {method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({level: 'error', text: 'stránka neodpovídá 10 s — naposledy: ' + popis})}).catch(() => {});
+    }, 2000);`;
+  let worker;
+  try {
+    worker = new Worker(URL.createObjectURL(new Blob([kod], {type: 'text/javascript'})));
+  } catch (_) { return; }
+  let popis = '', popisOd = 0;
+  setInterval(() => {
+    // Počet prvků stojí pár ms — stačí jednou za půl minuty.
+    if (Date.now() - popisOd > 30000) { popis = popisStranky(); popisOd = Date.now(); }
+    // Schovaná stránka má časovače přiškrcené — mlčení tam nic neznamená.
+    worker.postMessage({popis, videt: !document.hidden});
+  }, 1000);
+  document.addEventListener('visibilitychange', () => worker.postMessage({popis, videt: !document.hidden}));
+}
+hlidejZamrznuti();
 
 /* ── Menu samostatné appky (desktop/, Electron) ────────────────────────────
    Nativní menu Electronu kreslí na Linuxu a Windows Chromium a rozbalené

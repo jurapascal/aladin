@@ -21,6 +21,10 @@
   const POLL_KLID = 4000;     // a jak, když se dlouho nic nezměnilo
   const KLID_PO = 6;          // po kolika prázdných dotazech zpomalit
   const U_DNA = 90;           // px od spodku, dokud se ještě roluje samo
+  // Kolik řádků konverzace stránka drží. Tab otevřený celý den přidává
+  // stovky nástrojů za hodinu a při desítkách tabů pak stránka tuhne;
+  // první načtení je stejně jen konec přepisu (hub/cteni.py, MAX_BLOCKS).
+  const MAX_RADKU = 1200;
 
   const ZNAK = {
     Read: '◉', Edit: '✎', Write: '✎', NotebookEdit: '✎',
@@ -1369,6 +1373,15 @@
         for (const b of bloky) pridej(b);
         naKonec();                          // nové bloky nad řádek práce a frontu
       },
+      // Nejstarší řádky pryč, ať stránka s časem nebobtná. Jen u dna —
+      // kdo čte výš, tomu text pod rukama neodjede.
+      orez() {
+        let navic = mount.childElementCount - MAX_RADKU;
+        while (navic-- > 0 && mount.firstElementChild &&
+               ![prace, pozadi, ulohy, fronta].includes(mount.firstElementChild)) {
+          mount.firstElementChild.remove();
+        }
+      },
       prazdny() {
         return !mount.querySelector(':scope > :not(.cteni-prace):not(.cteni-pozadi):not(.cteni-ulohy):not(.cteni-fronta):not(.cteni-pozor)') &&
                !fronta.firstChild;
@@ -1514,7 +1527,7 @@
           proud.add(blocks);
           prazdno.hidden = true;
           prazdnych = 0;
-          if (uDna) scroll.scrollTop = scroll.scrollHeight;
+          if (uDna) { proud.orez(); scroll.scrollTop = scroll.scrollHeight; }
           else hlidejDno();          // přibylo pod rukama — šipka se ukáže
           // Nový agent: hned zjistit, co dělá, ne až za dvě vteřiny.
           if (proud.agentu() !== agentu) hlidejAgenty(true);

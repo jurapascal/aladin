@@ -849,6 +849,42 @@ EOF
     fi
 }
 
+setup_zdravi() {
+    step "Hlídač zdraví brány"
+    local src="$REPO_DIR/gateway/zdravi.py"
+    [ -f "$src" ] || src="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/zdravi.py"
+    if [ ! -f "$src" ]; then
+        warn "zdravi.py nenalezen — hlídač nenastaven"
+        return 0
+    fi
+    install -m 755 "$src" /usr/local/sbin/claude-hub-zdravi
+    cat >/etc/systemd/system/claude-hub-zdravi.service <<'EOF'
+[Unit]
+Description=Claude Code Hub - hlidac zdravi brany
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/claude-hub-zdravi
+EOF
+    cat >/etc/systemd/system/claude-hub-zdravi.timer <<'EOF'
+[Unit]
+Description=Claude Code Hub - hlidac zdravi brany
+
+[Timer]
+# Disk, paměť, záloha, brána, zabití kvůli paměti a zamrzání stránek
+# v prostorech — problém jde jako hlášení do Verxee Debug (nejvýš 1× za den).
+OnCalendar=hourly
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+    quiet systemctl daemon-reload
+    quiet systemctl enable --now claude-hub-zdravi.timer
+    ok "každou hodinu, hlášení do Verxee Debug (ručně: claude-hub-zdravi --vypis)"
+}
+
 main() {
     parse_args "$@"
     echo ""
@@ -874,6 +910,7 @@ main() {
     setup_updater
     setup_ucty
     setup_zaloha
+    setup_zdravi
     setup_nginx
     create_admin
     summary

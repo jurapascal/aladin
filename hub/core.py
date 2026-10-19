@@ -2231,6 +2231,56 @@ def hlidej_pamet(notify, every=30, warn=0.85):
             warned = False
 
 
+# Komu jádro sáhne první, když prostor narazí na strop paměti. Rozhoduje
+# oom_score_adj (+ kolik proces zabírá); prostor ho má všude stejný (200),
+# takže padal i Claude v otevřeném tabu, zatímco skript s desítkami
+# `claude -p` jel dál. Zvednout hodnotu smí proces sám sobě bez práv.
+OOM_SKRIPT = 900
+
+
+def chran_taby():
+    """Claude, který neběží přímo v tabu (`claude -p` ze skriptu, z Bash
+    nástroje jiného Clauda), dostane vysoké oom_score_adj — při nedostatku
+    paměti jde první on, ne rozdělaná práce v tabu. Tab se pozná podle rodiče:
+    v tabu Clauda spouští agent-wrapper.sh. Vrací, kolik procesů označil."""
+    n = 0
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            with open(f"/proc/{pid}/comm", encoding="utf-8") as fh:
+                if fh.read().strip() != "claude":
+                    continue
+            with open(f"/proc/{pid}/oom_score_adj", encoding="ascii") as fh:
+                if int(fh.read().strip() or 0) >= OOM_SKRIPT:
+                    continue
+            with open(f"/proc/{pid}/stat", encoding="utf-8") as fh:
+                ppid = fh.read().rsplit(")", 1)[1].split()[1]
+            with open(f"/proc/{ppid}/cmdline", "rb") as fh:
+                if b"agent-wrapper.sh" in fh.read():
+                    continue
+            with open(f"/proc/{pid}/oom_score_adj", "w", encoding="ascii") as fh:
+                fh.write(str(OOM_SKRIPT))
+            n += 1
+        except (OSError, ValueError, IndexError):
+            continue
+    return n
+
+
+def hlidej_skripty(every=5):
+    """Smyčka na pozadí (jen v prostoru na serveru): chran_taby() každých
+    pár vteřin — skript jich pustí desítky za minutu."""
+    import time
+    while True:
+        try:
+            n = chran_taby()
+            if n:
+                log(f"pamet: {n}× claude mimo tab má přednost při nedostatku paměti (oom_score_adj {OOM_SKRIPT})")
+        except Exception as exc:
+            log_error("ochrana tabů před skripty", exc)
+        time.sleep(every)
+
+
 # Kam noční aktualizace brány zapisuje, jak dopadla. /etc je v sandboxu vidět
 # ke čtení, takže to prostor přečte, i když na nic jiného mimo domov nedosáhne.
 GATEWAY_UPDATE_STATUS = "/etc/claude-hub/update.json"

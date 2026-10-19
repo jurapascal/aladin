@@ -3874,13 +3874,22 @@ function escapeHtml(text) {
 /* `remote` = zavřelo ho jiné okno: server už o tom ví, tady se jen uklidí. */
 function closeTab(tab, {remote = false} = {}) {
   if (tab.id && !remote) send({t: 'close', id: tab.id});
-  if (tab.releaseIME) tab.releaseIME();
-  if (tab.releaseClipboard) tab.releaseClipboard();
-  if (tab.composer) tab.composer.release();
-  if (tab.cteni) tab.cteni.release();
-  if (tab.keys) tab.keys.release();
-  if (tab.links) tab.links.release();
-  tab.term.dispose();
+  /* Úklid nesmí uprostřed spadnout — tab by zůstal napůl: terminál bez
+     vykreslování v okně a každý pohyb myši nad ním by házel chybu. */
+  const uklid = (f) => { try { f(); } catch (e) { reportToLog('zavření tabu: ' + (e && e.message || e)); } };
+  if (tab.releaseIME) uklid(tab.releaseIME);
+  if (tab.releaseClipboard) uklid(tab.releaseClipboard);
+  if (tab.composer) uklid(() => tab.composer.release());
+  if (tab.cteni) uklid(() => tab.cteni.release());
+  if (tab.keys) uklid(() => tab.keys.release());
+  if (tab.links) uklid(() => tab.links.release());
+  /* Claude Code zapíná v terminálu režim myši. xterm pak při tažení poslouchá
+     pohyb a puštění tlačítka na celém dokumentu — a když se puštění ztratí
+     (pustil jsi ho mimo okno), visí to dál. Po zavření tabu by každý pohyb myši
+     kdekoli na stránce hodil chybu (`dimensions`, až stovky za vteřinu).
+     Puštění tlačítka mu proto pošleme, dokud terminál ještě žije. */
+  uklid(() => { if (tab.term.element) tab.term.element.dispatchEvent(new MouseEvent('mouseup', {bubbles: true})); });
+  uklid(() => tab.term.dispose());
   tab.el.remove();
   tab.pane.remove();
   TABS = TABS.filter(t => t !== tab);
@@ -4689,17 +4698,35 @@ function hubIO() {
 /* ── boot ─────────────────────────────────────────────────────────────────── */
 /* Chyby ze stránky posíláme do stejného logu jako ty ze serveru — jinak by se
    problém hledal na dvou místech a jedno z nich by nikdo neotevřel. */
+/* Chyba ve smyčce (pohyb myši, snímek) jich umí poslat stovky za vteřinu —
+   a každá je požadavek na server, což stránku dusí víc než chyba sama.
+   Stejná zpráva jde nejvýš jednou za minutu (s počtem, kolikrát mezitím
+   přišla) a všech dohromady nejvýš 30 za minutu. */
+const logPocty = new Map();      // zpráva → {kdy, zamlceno}
+let logOkno = 0, logVOkne = 0;
 function reportToLog(text) {
   try {
+    text = String(text).slice(0, 500);
+    const ted = Date.now();
+    const z = logPocty.get(text);
+    if (z && ted - z.kdy < 60000) { z.zamlceno++; return; }
+    if (ted - logOkno > 60000) { logOkno = ted; logVOkne = 0; }
+    if (++logVOkne > 30) return;
+    if (logPocty.size > 200) logPocty.clear();
+    logPocty.set(text, {kdy: ted, zamlceno: 0});
+    const navic = z && z.zamlceno ? ` (za poslední minutu ještě ${z.zamlceno}×)` : '';
     fetch(`/api/log?t=${encodeURIComponent(TOKEN)}`, {
       method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({text: String(text).slice(0, 500), level: 'error'}),
+      body: JSON.stringify({text: text + navic, level: 'error'}),
     }).catch(() => {});
   } catch (_) { /* logování nesmí být důvod další chyby */ }
 }
 
 window.addEventListener('error', (ev) => {
-  reportToLog(`${ev.message} @ ${ev.filename}:${ev.lineno}`);
+  // Z minifikovaného souboru je řádek vždycky 1 — sloupec a první rámce
+  // zásobníku teprve řeknou, odkud chyba je.
+  const kde = ev.error && ev.error.stack ? ' | ' + String(ev.error.stack).split('\n').slice(1, 4).map((r) => r.trim()).join(' < ') : '';
+  reportToLog(`${ev.message} @ ${ev.filename}:${ev.lineno}:${ev.colno}${kde}`);
 });
 window.addEventListener('unhandledrejection', (ev) => {
   reportToLog('neodchycené odmítnutí: ' + (ev.reason && ev.reason.message || ev.reason));

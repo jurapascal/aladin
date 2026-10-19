@@ -2054,6 +2054,7 @@ def start():
     if core.on_gateway():
         threading.Thread(target=core.hlidej_pamet, args=(HUB.broadcast,),
                          daemon=True).start()
+        threading.Thread(target=core.hlidej_skripty, daemon=True).start()
     return httpd, f"http://127.0.0.1:{port}/?t={urllib.parse.quote(token)}"
 
 

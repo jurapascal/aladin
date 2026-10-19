@@ -10,8 +10,10 @@ Most (tools/playwright_bridge.py) proto Playwright MCP nepřipojí na Chromium
 přímo, ale přes tenhle proxy. Ten pustí k Playwrightu jen karty, které si
 session sama otevřela (a okna, která z nich vyskočila); cizí karty před ní
 schová. Co komu patří, zapisuje do `~/.claude/browser-sessions/<pid>.json`
-spolu se značkou tabu z hubu (HUB_TAB), takže hub ví, ke kterému chatu karta
-patří, a dá se mezi nimi přepínat.
+spolu se značkou tabu z hubu (HUB_TAB) a id konverzace, takže hub ví, ke
+kterému chatu karta patří, a dá se mezi nimi přepínat. Po restartu appky
+karty převezme ta session, která pokračuje v téže konverzaci — ne první,
+která naběhne ve stejné složce.
 
 Jen standardní knihovna. Poslouchá jen na loopbacku a jen na adrese s náhodným
 tokenem. `Browser.close` od session nepustí — prohlížeč je společný.
@@ -122,8 +124,9 @@ def _odmaskuj(data, mask):
 class Evidence:
     """Které karty patří téhle session — sdílené všemi jejími spojeními."""
 
-    def __init__(self, znacka):
+    def __init__(self, znacka, chat=""):
         self.znacka = znacka
+        self.chat = chat
         self.karty = set()
         self._lock = threading.Lock()
         self.soubor = os.path.join(slozka(), f"{os.getpid()}.json")
@@ -147,8 +150,8 @@ class Evidence:
             os.makedirs(slozka(), exist_ok=True)
             tmp = self.soubor + ".tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
-                json.dump({"tab": self.znacka, "pid": os.getpid(), "pages": sorted(self.karty),
-                           "cwd": os.getcwd(), "ts": time.time()}, fh)
+                json.dump({"tab": self.znacka, "chat": self.chat, "pid": os.getpid(),
+                           "pages": sorted(self.karty), "cwd": os.getcwd(), "ts": time.time()}, fh)
             os.replace(tmp, self.soubor)
         except OSError:
             pass
@@ -173,8 +176,11 @@ class Evidence:
         self.uloz()
 
     def adoptuj(self):
-        """Převezme karty osiřelých zápisů ze stejné složky (po restartu appky
-        se session otevře znovu a prohlížeč pokračuje tam, kde skončil)."""
+        """Převezme karty osiřelých zápisů téže konverzace (po restartu appky
+        se session otevře znovu a prohlížeč pokračuje tam, kde skončil).
+        Zápis bez id konverzace (starší verze, Claude mimo hub) se páruje
+        podle složky jako dřív — jen když ani tahle session id nemá. Podle
+        složky si dřív první chat v ~ vzal karty všech ostatních chatů v ~."""
         try:
             zive = {p["id"] for p in prohlizec._get("/json/list", 1.5) if p.get("type") == "page"}
             names = os.listdir(slozka())
@@ -191,7 +197,12 @@ class Evidence:
             except (OSError, ValueError):
                 continue
             pid = d.get("pid")
-            if not isinstance(pid, int) or _zije(pid) or os.path.abspath(d.get("cwd") or "") != moje:
+            if not isinstance(pid, int) or _zije(pid):
+                continue
+            if self.chat or d.get("chat"):
+                if d.get("chat") != self.chat:
+                    continue
+            elif os.path.abspath(d.get("cwd") or "") != moje:
                 continue
             for tid in d.get("pages") or []:
                 if tid in zive:
@@ -403,8 +414,8 @@ class Spojeni:
 class Proxy:
     """Naslouchá na 127.0.0.1 na náhodném portu, adresa s tokenem v cestě."""
 
-    def __init__(self, znacka=""):
-        self.ev = Evidence(znacka)
+    def __init__(self, znacka="", chat=""):
+        self.ev = Evidence(znacka, chat)
         self.token = secrets.token_hex(16)
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.bind((prohlizec.HOST, 0))
@@ -505,7 +516,7 @@ def vlastnici():
 
 
 def sirotci():
-    """[(cwd, [targetId…])] ze zápisů mostů, které už neběží (po restartu appky).
+    """[(cwd, [targetId…], chat)] ze zápisů mostů, které už neběží (po restartu appky).
     Karty tam čekají na novou session; hub je do té doby přiřadí tabu ve stejné
     složce, ať je ikonka a lišta vidět hned a ne až po startu Clauda."""
     out = []
@@ -523,7 +534,7 @@ def sirotci():
             continue
         pid = d.get("pid")
         if isinstance(pid, int) and not _zije(pid) and d.get("pages"):
-            out.append((os.path.abspath(d.get("cwd") or ""), list(d["pages"])))
+            out.append((os.path.abspath(d.get("cwd") or ""), list(d["pages"]), d.get("chat") or ""))
     return out
 
 

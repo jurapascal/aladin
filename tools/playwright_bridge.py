@@ -133,10 +133,12 @@ def main():
     if ok:
         # Každá session vidí jen své karty (hub/prohlizec_proxy.py); profil
         # a přihlášení zůstávají společné. HUB_TAB řekne hubu, ke kterému
-        # tabu karty patří (Claude Code ho MCP serveru předá v prostředí).
+        # tabu karty patří (Claude Code ho MCP serveru předá v prostředí),
+        # id konverzace, která session karty po restartu appky převezme.
         from hub import prohlizec_proxy
+        chat = os.environ.get("HUB_SESSION_ID") or os.environ.get("HUB_AGENT_RESUME") or ""
         try:
-            proxy = prohlizec_proxy.Proxy(os.environ.get("HUB_TAB", "")).start()
+            proxy = prohlizec_proxy.Proxy(os.environ.get("HUB_TAB", ""), chat).start()
         except OSError as exc:
             print(f"playwright_bridge: proxy nejde spustit ({exc}) — připojuji se přímo", file=sys.stderr)
             proxy = None

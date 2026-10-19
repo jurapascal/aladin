@@ -33,6 +33,7 @@ import urllib.parse
 import urllib.request
 
 CESTY = lambda: {}         # nastaví hub: id tabu → složka (osiřelé karty se přiřadí podle ní)
+CHATY = lambda: {}         # nastaví hub: id tabu → id konverzace (přednost před složkou)
 INSTANCE = ""              # nastaví hub (core.INSTANCE) — podle ní pozná své taby v HUB_TAB
 IS_WINDOWS = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
@@ -386,6 +387,7 @@ class Okno:
         self._vlastnici_cas = 0.0
         self._potreby = {}         # id karty → důvod ('heslo' | 'kod' | 'captcha')
         self._potreby_pocet = {}   # id karty → (důvod, kolik kontrol po sobě)
+        self._bez_majitele = {}    # id nové karty → kdy se objevila (most ji ještě nezapsal)
         self._hlidac = None
 
     # -- pohledy
@@ -453,15 +455,20 @@ class Okno:
                 out[tid] = znacka[len(pre):]
             elif znacka:
                 out[tid] = "?"                         # jiná instance hubu / terminál
-        # Osiřelé karty (most po restartu ještě nenaběhl) → tab ve stejné složce,
-        # jen když je takový jediný.
+        # Osiřelé karty (most po restartu ještě nenaběhl) → tab, který pokračuje
+        # v téže konverzaci; zápis bez id konverzace → tab ve stejné složce,
+        # jen když je takový jediný. Id tabu jako text — stejně jako z HUB_TAB.
         try:
             cesty = CESTY() or {}
-            for cwd, pages in px.sirotci():
-                shoda = [sid for sid, c in cesty.items() if os.path.abspath(c or "") == cwd]
+            chaty = CHATY() or {}
+            for cwd, pages, chat in px.sirotci():
+                if chat:
+                    shoda = [sid for sid, c in chaty.items() if c == chat]
+                else:
+                    shoda = [sid for sid, c in cesty.items() if os.path.abspath(c or "") == cwd]
                 if len(shoda) == 1:
                     for tid in pages:
-                        out.setdefault(tid, shoda[0])
+                        out.setdefault(tid, str(shoda[0]))
         except Exception:
             pass
         if out != self._vlastnici:
@@ -766,12 +773,27 @@ class Okno:
         nove = [p for p in strany if p["id"] not in self._videne]
         if self._sleduj is not None:
             # Karta jiného chatu okno nepřepne — jen se objeví u svého tabu.
-            cizi = [p for p in nove if self._majitel(p["id"]) != self._sleduj]
+            # Most zapisuje vlastníka až chvilku po vzniku karty: bez majitele
+            # se na ni ~3 s počká, jinak by se Claudova nová karta brala jako
+            # cizí a okno by za ní nikdy nešlo.
+            ted = time.time()
+            for tid in [t for t in self._bez_majitele if t not in ids]:
+                self._bez_majitele.pop(tid, None)      # karta mezitím zavřená
+            for p in nove:
+                if self._majitel(p["id"]):
+                    self._bez_majitele.pop(p["id"], None)
+                else:
+                    self._bez_majitele.setdefault(p["id"], ted)
+            cekaji = [p for p in nove if not self._majitel(p["id"])
+                      and ted - self._bez_majitele.get(p["id"], ted) < 3.0]
+            cizi = [p for p in nove if p not in cekaji and self._majitel(p["id"]) != self._sleduj]
             if cizi and vzit:
                 self._videne |= {p["id"] for p in cizi}
-            nove = [p for p in nove if p not in cizi]
+            nove = [p for p in nove if p not in cizi and p not in cekaji]
         if nove and vzit:
-            self._videne |= set(ids)
+            # Viděné jsou všechny kromě těch, na jejichž majitele se ještě čeká.
+            cekaji_ids = {tid for tid in self._bez_majitele if not self._majitel(tid)}
+            self._videne |= set(ids) - cekaji_ids
             self._target = nove[0]["id"]
         return nove[0] if nove else None
 
@@ -871,8 +893,17 @@ class Okno:
                     cdp.close()      # smyčka se znovu připojí na novou záložku
         elif a == "newtab":
             tid = nova_karta()
-            if tid and self._sleduj:
-                self._rucni[tid] = self._sleduj        # patří k chatu, který je v okně vybraný
+            if tid:
+                if self._sleduj:
+                    self._rucni[tid] = self._sleduj    # patří k chatu, který je v okně vybraný
+                # Okno hned na novou kartu (jako Ctrl+T v Chromu) — dřív ji smyčka
+                # mohla vzít za cizí a okno zůstalo na staré.
+                self._target = tid
+                if self._videne is not None:
+                    self._videne.add(tid)
+                cdp = self._cdp
+                if cdp:
+                    cdp.close()
                 self._info = None
         elif a == "sleduj":
             tab = msg.get("tab")

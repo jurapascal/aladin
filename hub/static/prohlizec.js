@@ -49,6 +49,11 @@
   let mapaTabu = {};                 // sid tabu → {karet, potreba} (co hlásí server)
   let zavrelJsi = false;             // okno jsi zavřel sám — lišta se sama nevrací, dokud Claude prohlížeč znovu nepoužije
   let aktivniTab = null;             // tab, na kterém zrovna stojíš
+  const posledniKarta = {};          // sid chatu → karta, na které jsi v něm naposledy byl
+  /* Id tabu hubu je číslo, vlastník karty ze serveru text ("4") — porovnává
+     se přes `===`, takže všechno jako text, jinak se karty chatu nikdy
+     nenajdou (okno pak neukáže jeho karty a přepnutí chatu nic neudělá). */
+  const sidOf = (x) => (x === null || x === undefined || x === '' ? null : String(x));
   const DUVODY = {
     heslo: 'Claude potřebuje, aby ses tu přihlásil.',
     kod: 'Claude potřebuje ověřovací kód — opiš ho sem.',
@@ -541,6 +546,8 @@
       obraz.src = 'data:image/jpeg;base64,' + msg.d;
     } else if (msg.t === 'br-info') {
       info = msg;
+      const akt = (msg.pages || []).find((p) => p.id === msg.active);
+      if (akt && akt.tab && akt.tab !== '?') posledniKarta[akt.tab] = akt.id;
       ukazUrl();
       kresliKarty(msg);
       tlZpet.disabled = !msg.back;
@@ -595,12 +602,21 @@
     for (const sid of chaty) chip(sid, tabTitle(sid) || 'Chat');
   }
 
+  /* Karta, na kterou se má okno u chatu přepnout: ta, na které jsi v něm
+     naposledy byl (ne vždycky ta nejnovější), jinak jeho poslední. '' = nic
+     se přepínat nemusí (aktivní karta už je jeho), nebo chat žádné nemá. */
+  function kartaChatu(sid) {
+    const moje = (info.pages || []).filter((p) => !sid || p.tab === sid);
+    if (!moje.length || moje.some((p) => p.id === info.active)) return '';
+    const minule = sid && posledniKarta[sid];
+    return (moje.find((p) => p.id === minule) || moje[moje.length - 1]).id;
+  }
+
   /* Okno přepne na karty daného chatu (null = všechny) a na jeho poslední kartu. */
   function vyberChat(sid, karta) {
-    vyber = sid || null;
+    vyber = sidOf(sid);
     send({t: 'br', a: 'sleduj', tab: vyber});
-    const moje = (info.pages || []).filter((p) => !vyber || p.tab === vyber);
-    const cil = karta || (moje.some((p) => p.id === info.active) ? '' : (moje[moje.length - 1] || {}).id);
+    const cil = karta || kartaChatu(vyber);
     if (cil) send({t: 'br', a: 'tab', id: cil});
     kresliKarty(info);
     kresliChaty(info);
@@ -668,7 +684,7 @@
     posledniNastroj = ted;
     if (stav === 'zavreno') nastav('mini', true);
     // Zamrká jen u chatu, ve kterém Claude prohlížeč používá — jinde by to rušilo.
-    if (stav === 'mini' && dlouho && pill && (!sid || sid === aktivniTab)) {
+    if (stav === 'mini' && dlouho && pill && (!sid || sidOf(sid) === aktivniTab)) {
       pill.classList.remove('br-mrk');
       void pill.offsetWidth;
       pill.classList.add('br-mrk');
@@ -693,14 +709,14 @@
     setTimeout(pozoruj, 1500);
     setInterval(pozoruj, 15000);
     document.addEventListener('hub-tab', (ev) => {
-      aktivniTab = (ev.detail && ev.detail.id) || null;
+      aktivniTab = sidOf(ev.detail && ev.detail.id);
       pozoruj();
       vyber = aktivniTab;
       samo = false;
       if (otevrene) {
         send({t: 'br', a: 'sleduj', tab: vyber});
-        const moje = (info.pages || []).filter((p) => p.tab === vyber);
-        if (moje.length && !moje.some((p) => p.id === info.active)) send({t: 'br', a: 'tab', id: moje[moje.length - 1].id});
+        const cil = kartaChatu(vyber);
+        if (cil) send({t: 'br', a: 'tab', id: cil});
         if (root) { kresliKarty(info); kresliChaty(info); }
       }
       usadViditelnost();
@@ -725,7 +741,7 @@
     install, naZpravu, potreba,
     otevri: () => nastav('okno'),
     /* Ikonka u tabu: prohlížeč s kartami toho chatu. */
-    ukaz: (sid) => { aktivniTab = sid; samo = false; nastav('okno'); vyberChat(sid); usadViditelnost(); },
+    ukaz: (sid) => { aktivniTab = sidOf(sid); samo = false; nastav('okno'); vyberChat(sid); usadViditelnost(); },
     get stav() { return stav; },
   };
 })(window);

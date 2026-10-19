@@ -68,7 +68,11 @@
   // Klik na projekt otevře tab — šuplík už jen překáží.
   for (const id of ['projects', 'chats', 'memory', 'actions']) {
     const box = $(id);
-    if (box) box.addEventListener('click', () => setTimeout(closeDrawer, 60));
+    // Kromě tlačítek, která jen rozbalují seznam (Zobrazit starší, celá historie).
+    if (box) box.addEventListener('click', (ev) => {
+      if (ev.target.closest && ev.target.closest('.keep-drawer')) return;
+      setTimeout(closeDrawer, 60);
+    });
   }
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape') closeDrawer();

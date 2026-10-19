@@ -643,8 +643,19 @@ a dokončené nastavení Claude Code předvyplní hub uvnitř sandboxu
 
 Každou noc v 1:30 běží `claude-hub-zaloha` (systemd timer, nastaví ho
 `install.sh`): zabalí `/home/hub` — domovy prostorů, firemní vault, databázi
-účtů — a uloží do `/var/backups/claude-hub/`. Cache se vynechávají, takže
-z 3,2 GB je ~71 MB. Drží se posledních 14 kusů.
+účtů — a uloží do `/var/backups/claude-hub/`. Cache, `node_modules`
+a virtuální prostředí Pythonu se vynechávají.
+
+**Plná a rozdílová.** Plná záloha (`hub-RRRRMMDD-HHMM.tar.zst.gpg`) se dělá
+jednou za týden (`HUB_ZALOHA_PLNA_PO`, dny) a jen když se na disk vejde vedle
+té předchozí; ostatní noci rozdílová
+(`hub-…-rozdil-od-RRRRMMDD-HHMM.tar.zst.gpg`) — jen soubory změněné od
+začátku poslední plné. Drží se `HUB_ZALOHA_KEEP` plných (výchozí 14, na
+bráně drop-in 2) a `HUB_ZALOHA_ROZDILY` rozdílových (3). Během zápisu se
+hlídá volné místo: pod `HUB_ZALOHA_MIN_MB` (polovina rezervy, 1,5 GB) se
+zápis utne a rozepsaný soubor smaže, ať plný disk neshodí práci v prostorech.
+Když se plná nevejde, udělá se místo ní rozdílová; hlídač zdraví
+(`claude-hub-zdravi`) se ozve, když je plná starší než 14 dní.
 
 **Šifruje se veřejným klíčem.** Server má jen ten a zálohu proto umí zabalit,
 ale rozbalit ne — ověřeno, hlásí `No secret key`. Soukromý klíč patří mimo
@@ -664,7 +675,11 @@ Obnova (na stroji, kde je soukromý klíč):
 
 ```bash
 gpg --decrypt hub-RRRRMMDD-HHMM.tar.zst.gpg | zstd -d | tar -xf - -C /kam
+# a přes ni nejnovější rozdílovou, která z ní vychází (stačí ta jedna):
+gpg --decrypt hub-…-rozdil-od-RRRRMMDD-HHMM.tar.zst.gpg | zstd -d | tar -xf - -C /kam
 ```
+
+Rozdílová neeviduje smazání — soubory smazané po plné záloze se obnovou vrátí.
 
 ⚠️ Zálohy leží na stejném disku jako data — dokud si je někdo nestáhne pryč,
 neochrání to proti ztrátě disku. Stahování patří na stroj správce, ne sem.

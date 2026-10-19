@@ -365,7 +365,10 @@ def main():
         # Samostatná appka: stáhnout/aktualizovat na pozadí, okno na to nečeká.
         threading.Thread(target=_appka_na_pozadi, args=(url,), daemon=True).start()
     # Celý doctor() tu nevolat — ptá se agentů (CLI) a okno by na to čekalo.
-    core.log(f"start: port {httpd.server_address[1]}, platforma {sys.platform}")
+    # Verze v logu: hlídač brány (gateway/zdravi.py) podle ní pozná, jestli
+    # chyby stránky v prostoru nejsou už opravené v novější verzi.
+    from hub import __version__ as verze
+    core.log(f"start: port {httpd.server_address[1]}, platforma {sys.platform}, verze {verze}")
     if core.CONFIG.get("remote_enabled"):
         # Tailscale se ptáme přes CLI, což trvá — okno na to nesmí čekat.
         threading.Thread(target=server.start_remote, daemon=True).start()

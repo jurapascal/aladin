@@ -225,7 +225,23 @@ body { display: flex; flex-direction: column; }
 .chat-meta { color: var(--dim); font-size: 10.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chat-item.running .chat-title::before { content: "● "; color: var(--green); }
 .chat-item.gone { opacity: .55; }
-.chats-more { margin: 6px 12px; align-self: flex-start; }
+.chats-more, .chats-toggle {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+  margin: 6px 8px; padding: 10px 12px; min-height: 44px; box-sizing: border-box;
+  border: 1px dashed var(--border); border-radius: var(--radius);
+  background: none; color: var(--fg); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  touch-action: manipulation;
+}
+.chats-more:hover, .chats-toggle:hover { background: var(--card-hover); color: var(--accent); }
+.chats-toggle-main { color: var(--accent); font-weight: 600; }
+.chats-toggle-sub { color: var(--dim); font-size: 11px; }
+/* Chat z jiného prostoru (celá historie): kam klepnutí přepne. */
+.chat-prostor {
+  display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 8px; vertical-align: 1px;
+  font-size: 10px; font-weight: 600; line-height: 16px; color: var(--dim);
+  border: 1px solid var(--border);
+}
+.chat-prostor.firma { color: var(--firma); border-color: color-mix(in srgb, var(--firma) 45%, transparent); }
 .section-count {
   color: var(--dim); font-size: 10px; font-weight: 600; letter-spacing: 0;
 }

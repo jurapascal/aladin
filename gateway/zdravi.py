@@ -11,10 +11,12 @@ v prostorech) — tam ho vidí správce a zpracuje skill /chyby.
     disk      volné místo na disku
     paměť     dostupná paměť stroje
     záloha    poslední záloha starší než 36 h (nebo chyba v jejím logu)
+    zaloha-plna  poslední plná záloha starší než 14 dní (nevejde se)
     brána     služba claude-hub-gateway neběží
     paměť:X   jádro v prostoru X za den zabilo Clauda kvůli paměti
     zamrzá:X  stránka v prostoru X za den zamrzla (hlídač v hub.js)
-    chyby:X   stránka v prostoru X za den nahlásila stovky chyb
+    chyby:X   stránka v prostoru X za den nahlásila stovky chyb (bez těch, které
+              už novější verze opravuje — viz OPRAVENE)
 
 Stejný problém se znovu hlásí nejdřív za 24 h, ať hlídač neotravuje.
 
@@ -47,6 +49,7 @@ API = "https://alba-rosa.cz/debug/api.php?a=nahlasit"
 DISK_MIN_GB = 8            # pod tolik volného místa (nebo pod 10 %) je to problém
 PAMET_MIN = 0.10           # dostupná paměť pod 10 % celkové
 ZALOHA_MAX_H = 36
+PLNA_MAX_DNI = 14         # plná záloha starší než tohle (rozdílové se zvětšují)
 OOM_MIN = 3                # zabití za den v jednom prostoru
 ZAMRZA_MIN = 3             # zamrznutí stránky za den v jednom prostoru
 CHYBY_MIN = 300            # chyb stránky za den v jednom prostoru
@@ -118,6 +121,20 @@ def zaloha():
     return [("zaloha", f"Poslední záloha brány: {kdy}." + (f" Poslední chyba: {duvod}" if duvod else ""))]
 
 
+def zaloha_plna():
+    """Plná záloha se dělá jednou za týden a jen když se na disk vejde; mezi
+    tím rozdílové. Když se dlouho nevejde, rozdílové rostou — chce to místo."""
+    plne = [f for f in glob.glob(os.path.join(ZALOHY, "hub-*.tar.zst.gpg")) if "-rozdil-od-" not in f]
+    if not plne:
+        return []
+    posledni = max(os.path.getmtime(f) for f in plne)
+    dni = int((time.time() - posledni) // 86400)
+    if dni < PLNA_MAX_DNI:
+        return []
+    return [("zaloha-plna", f"Poslední plná záloha je stará {dni} dní — nová se nevejde na disk, "
+                            "noci jedou jen rozdílové a ty rostou. Uvolni místo nebo zvětši disk.")]
+
+
 def brana():
     try:
         r = subprocess.run(["systemctl", "--user", "-M", "hub@", "is-active", "claude-hub-gateway"],
@@ -149,37 +166,74 @@ def oom():
     return out
 
 
+# Chyby stránky, které jsou opravené: (kus zprávy, verze s opravou). Prostor,
+# který jede na starší verzi, je hlásí dál, dokud ho někdo neaktualizuje —
+# to není nový problém, oprava k němu dorazí s „Aktualizovat". Hlídač je
+# proto nepočítá; kdyby se objevily i na verzi s opravou, počítají se.
+OPRAVENE = [
+    ("reading 'dimensions'", (2, 88, 0)),          # myš po zavření tabu (xterm)
+    ("_renderer.value.dimensions", (2, 88, 0)),    # totéž v Safari
+]
+START_VERZE = re.compile(r"\bstart: .*\bverze (\d+)\.(\d+)\.(\d+)")
+# Od 2.88.0 posílá stránka stejnou chybu nejvýš 1× za minutu a připíše, kolikrát
+# mezitím přišla — skutečný počet je i s tímhle.
+ZAMLCENO = re.compile(r"\(za poslední minutu ještě (\d+)×\)")
+
+
+def _zprava(radek):
+    """Zpráva chyby bez času, čísel verzí v adrese a zásobníku — ať se stejné shluknou."""
+    text = radek.split("stránka:", 1)[-1].strip()
+    text = ZAMLCENO.sub("", text).split(" | ", 1)[0]
+    text = re.sub(r"\?v=[0-9a-f]+", "", text)
+    return re.sub(r":\d+(:\d+)?$", "", text.strip())[:160]
+
+
 def stranky():
     """Zamrznutí a chyby stránky za den z hub.log každého prostoru."""
     od = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
     out = []
     for domov in sorted(glob.glob(os.path.join(USERS, "*"))):
         kdo = os.path.basename(domov)
-        zamrzlo = chyb = 0
+        zamrzlo = chyb = opravenych = 0
+        verze = None                     # verze prostoru při chybě (z řádku start:)
+        zpravy = {}
         for log in (os.path.join(domov, ".claude", "hub.log.1"), os.path.join(domov, ".claude", "hub.log")):
             try:
                 with open(log, encoding="utf-8", errors="replace") as fh:
                     for radek in fh:
+                        if "start: port" in radek:
+                            m = START_VERZE.search(radek)
+                            verze = tuple(int(x) for x in m.groups()) if m else None
                         if radek[:19] < od or "stránka:" not in radek:
                             continue
                         if "stránka neodpovídá" in radek:
                             zamrzlo += 1
                         elif " ERROR " in radek[19:27]:
-                            chyb += 1
+                            m = ZAMLCENO.search(radek)
+                            n = 1 + (int(m.group(1)) if m else 0)
+                            opravena = next((v for kus, v in OPRAVENE if kus in radek), None)
+                            if opravena and (verze is None or verze < opravena):
+                                opravenych += n
+                                continue
+                            chyb += n
+                            z = _zprava(radek)
+                            zpravy[z] = zpravy.get(z, 0) + n
             except OSError:
                 continue
         if zamrzlo >= ZAMRZA_MIN:
             out.append((f"zamrza:{kdo}", f"Prostor {kdo}: stránka za den {zamrzlo}× přestala odpovídat "
                                          f"(podrobnosti v {domov}/.claude/hub.log, řádky „stránka neodpovídá\")."))
         if chyb >= CHYBY_MIN:
-            out.append((f"chyby:{kdo}", f"Prostor {kdo}: stránka za den nahlásila {chyb} chyb "
+            nej = sorted(zpravy.items(), key=lambda kv: -kv[1])[:3]
+            vypis = "; ".join(f"{n}× {z}" for z, n in nej)
+            out.append((f"chyby:{kdo}", f"Prostor {kdo}: stránka za den nahlásila {chyb} chyb — nejčastější: {vypis} "
                                         f"(grep \"ERROR stránka\" {domov}/.claude/hub.log)."))
     return out
 
 
 def zkontroluj():
     problemy = []
-    for kontrola in (disk, pamet, zaloha, brana, oom, stranky):
+    for kontrola in (disk, pamet, zaloha, zaloha_plna, brana, oom, stranky):
         try:
             problemy += kontrola()
         except Exception as exc:           # jedna rozbitá kontrola nesmí shodit ostatní

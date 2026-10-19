@@ -1417,31 +1417,97 @@ async function loadChats() {
     note.className = 'empty';
     note.textContent = 'Konverzace se nenačetly: ' + err.message;
     box.appendChild(note);
+    chatsSig = '';
     return;
   }
   CHATS = res.chats || [];
+  /* Seznam se načítá každých 20 s. Překreslit ho celý pokaždé znamená, že
+     tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
+     „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
+  const sig = JSON.stringify(CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd]));
+  if (sig === chatsSig) return;
+  chatsSig = sig;
+  renderChatsSoon();
+}
+
+/* Kdy se seznam chatů smí překreslit: ne, dokud na něm leží prst (myš), ať
+   klepnutí nespadne do prázdna. Odložené překreslení doběhne po puštění. */
+let chatsSig = '';
+let chatsTouch = 0;               // kdy prst dosedl (0 = nikdo nesahá)
+let chatsPending = false;
+function renderChatsSoon() {
+  // Pojistka: ztracené puštění nesmí seznam zmrazit napořád.
+  if (chatsTouch && Date.now() - chatsTouch < 10000) { chatsPending = true; return; }
+  chatsPending = false;
   renderChats();
+}
+function chatsTouchEnd() {
+  if (!chatsTouch) return;
+  // Click přijde až po puštění — překreslit o chvilku později.
+  setTimeout(() => {
+    chatsTouch = 0;
+    if (chatsPending) renderChatsSoon();
+  }, 400);
+}
+
+/* Celá historie: ve firmě panel ukazuje jen její chaty (a v osobním prostoru
+   jen osobní). Kdo hledá starší konverzaci z druhého prostoru, rozbalí si
+   všechny — volba se pamatuje. */
+function chatsVse() {
+  try { return localStorage.getItem('hub-chats-vse') === '1'; } catch (_) { return false; }
+}
+function setChatsVse(on) {
+  try { localStorage.setItem('hub-chats-vse', on ? '1' : '0'); } catch (_) { /* bez úložiště */ }
+  chatsShown = CHATS_PAGE;
+  renderChats();
+}
+function prostorNazev(slug) {
+  if (!slug) return 'Osobní';
+  const f = firmyList().find((x) => x.zkratka === slug);
+  return f ? (f.nazev || f.zkratka) : slug;
 }
 
 function renderChats() {
   const box = $('chats');
   const words = foldText($('chats-search').value.trim()).split(/\s+/).filter(Boolean);
-  // Jen chaty prostoru okna: ve firmě její, v osobním prostoru osobní.
-  const here = STATE && STATE.config ? CHATS.filter((c) => prostorCesty(c.cwd) === prostor()) : CHATS;
+  // Jen chaty prostoru okna: ve firmě její, v osobním prostoru osobní —
+  // pokud si člověk nerozbalil celou historii.
+  const filtrovat = !!(STATE && STATE.config && hasFirma());
+  const ted = prostor();
+  const here = filtrovat ? CHATS.filter((c) => prostorCesty(c.cwd) === ted) : CHATS;
+  const others = CHATS.length - here.length;
+  const vse = filtrovat && others > 0 && chatsVse();
+  const scope = vse ? CHATS : here;
   const list = words.length
-    ? here.filter((c) => {
+    ? scope.filter((c) => {
       const hay = foldText([c.title, c.prompt, c.project].join(' '));
       return words.every((w) => hay.includes(w));
     })
-    : here;
-  $('chats-count').textContent = here.length ? String(here.length) : '';
+    : scope;
+  $('chats-count').textContent = scope.length ? String(scope.length) : '';
   box.textContent = '';
+  const toggle = () => {
+    if (!filtrovat || !others) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chats-toggle keep-drawer';
+    if (vse) {
+      b.textContent = 'Jen chaty tohoto prostoru';
+    } else {
+      b.innerHTML = '<span class="chats-toggle-main">Zobrazit celou historii</span><span class="chats-toggle-sub"></span>';
+      b.querySelector('.chats-toggle-sub').textContent =
+        `další ${others} ${others === 1 ? 'chat' : others < 5 ? 'chaty' : 'chatů'} z ${ted ? 'ostatních prostorů' : 'firem'}`;
+    }
+    b.onclick = (ev) => { ev.stopPropagation(); setChatsVse(!vse); };
+    box.appendChild(b);
+  };
   if (!list.length) {
     const note = document.createElement('div');
     note.className = 'empty';
     note.textContent = words.length ? 'Nic takového jsem nenašel.'
       : 'Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.';
     box.appendChild(note);
+    toggle();
     return;
   }
   const now = new Date();
@@ -1465,7 +1531,15 @@ function renderChats() {
     item.className = 'chat-item' + (c.tab ? ' running' : '') + (c.exists ? '' : ' gone');
     item.dataset.id = c.id;
     item.innerHTML = '<span class="chat-title"></span><span class="chat-meta"></span>';
-    item.querySelector('.chat-title').textContent = c.title;
+    const kde = vse ? prostorCesty(c.cwd) : ted;
+    if (kde !== ted) {
+      // Chat z jiného prostoru: štítek, ať je jasné, kam klepnutí přepne.
+      const tag = document.createElement('span');
+      tag.className = 'chat-prostor' + (kde ? ' firma' : '');
+      tag.textContent = prostorNazev(kde);
+      item.querySelector('.chat-title').appendChild(tag);
+    }
+    item.querySelector('.chat-title').appendChild(document.createTextNode(c.title));
     const at = new Date(c.updated * 1000);
     const when = c.updated >= today
       ? at.toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'})
@@ -1487,12 +1561,15 @@ function renderChats() {
     box.appendChild(item);
   }
   if (list.length > chatsShown) {
+    const zbyva = list.length - chatsShown;
     const more = document.createElement('button');
-    more.className = 'linkbtn chats-more';
-    more.textContent = `Zobrazit další (${list.length - chatsShown})`;
-    more.onclick = () => { chatsShown += CHATS_PAGE; renderChats(); };
+    more.type = 'button';
+    more.className = 'chats-more keep-drawer';
+    more.textContent = zbyva > CHATS_PAGE ? `Zobrazit starší (dalších ${CHATS_PAGE} z ${zbyva})` : `Zobrazit starší (${zbyva})`;
+    more.onclick = (ev) => { ev.stopPropagation(); chatsShown += CHATS_PAGE; renderChats(); };
     box.appendChild(more);
   }
+  toggle();
 }
 
 /* Zavřít šuplík s panelem (telefon). Ne jen sundat třídu: mobile.js drží i
@@ -1553,6 +1630,9 @@ async function resumeChat(c, prompt, preneseny) {
 function initChats() {
   for (const b of document.querySelectorAll('.side-tab')) b.onclick = () => sidebarView(b.dataset.view);
   $('chats-search').addEventListener('input', () => { chatsShown = CHATS_PAGE; renderChats(); });
+  const box = $('chats');
+  box.addEventListener('pointerdown', () => { chatsTouch = Date.now(); });
+  for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) box.addEventListener(ev, chatsTouchEnd);
   // V panelu jsou jen chaty — projekty mají vlastní stránku (showProjekty).
   sidebarView('chats');
 }

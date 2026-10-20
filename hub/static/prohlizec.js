@@ -793,20 +793,33 @@
     return out;
   }
 
+  /* Jedno tlačítko „Vše ▾" / název chatu s nabídkou místo řady pilulek —
+     pilulky se v úzkém okně tlačily přes poměr stran a přes sebe. */
+  let chatyVolby = [];
   function kresliChaty(msg) {
     if (!chatyEl) return;
     const chaty = chatyKaret(msg.pages);
     chatyEl.textContent = '';
+    chatyVolby = [];
     if (chaty.length < 2 && !(chaty.length === 1 && (msg.pages || []).some((p) => p.tab !== chaty[0]))) return;
-    const chip = (sid, text) => {
-      const b = el('button', 'br-chat' + ((vyber || null) === sid ? ' on' : ''), text);
-      if (sid && (msg.pages || []).some((p) => p.tab === sid && p.potreba)) b.classList.add('br-chat-pomoc');
-      b.title = sid ? 'Karty chatu „' + text + '“' : 'Karty všech chatů';
-      b.onclick = (ev) => { ev.stopPropagation(); vyberChat(sid); };
-      chatyEl.appendChild(b);
+    const pomoc = (sid) => !!sid && (msg.pages || []).some((p) => p.tab === sid && p.potreba);
+    chatyVolby = [{sid: null, text: 'Vše', pomoc: false}]
+      .concat(chaty.map((sid) => ({sid, text: tabTitle(sid) || 'Chat', pomoc: pomoc(sid)})));
+    const ted = chatyVolby.find((v) => v.sid === (vyber || null)) || chatyVolby[0];
+    const b = el('button', 'br-chat on' + (chatyVolby.some((v) => v.pomoc) ? ' br-chat-pomoc' : ''));
+    b.appendChild(el('span', 'br-chat-text', ted.text));
+    b.insertAdjacentHTML('beforeend', ico('i-chevron').replace('class="ico"', 'class="ico br-chat-caret"'));
+    b.title = 'Karty kterého chatu ukázat';
+    b.onclick = (ev) => {
+      ev.stopPropagation();
+      const r = b.getBoundingClientRect();
+      const polozky = chatyVolby.map((v) => ({
+        icon: 'i-terminal', label: v.text + (v.pomoc ? ' — potřebuje pomoc' : ''),
+        on: v.sid === (vyber || null), run: () => vyberChat(v.sid)}));
+      if (typeof global.showMenu === 'function') global.showMenu(r.left, r.bottom, polozky);
+      else vyberChat(null);
     };
-    chip(null, 'Vše');
-    for (const sid of chaty) chip(sid, tabTitle(sid) || 'Chat');
+    chatyEl.appendChild(b);
   }
 
   /* Karta, na kterou se má okno u chatu přepnout: ta, na které jsi v něm

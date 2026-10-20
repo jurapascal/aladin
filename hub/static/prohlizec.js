@@ -7,7 +7,13 @@
  * Claude v něm pracuje přes Playwright a ty mu můžeš do toho sáhnout: kliknout,
  * přihlásit se, vyřešit captchu.
  *
- * Okno jde přesunout za záhlaví, změnit mu velikost za pravý dolní roh,
+ * Rozložení jako Chrome: nahoře pruh karet (za jeho prázdné místo se okno
+ * přesouvá, vpravo poměr stran, minimalizace, maximalizace, zavření), pod ním
+ * adresní řádek a pod ním stránka — nic se přes ni nepřekrývá. Plocha stránky
+ * má zvolený poměr stran (16:9, 4:3, 9:16 = stránka jako na telefonu, nebo
+ * volně) a prohlížeč na serveru dostane přesně tuhle velikost.
+ *
+ * Okno jde přesunout, změnit mu velikost za pravý dolní roh,
  * minimalizovat do lišty „Prohlížeč“ a zavřít. Když Claude prohlížeč použije,
  * okno zůstane jen jako lišta; samo se otevře, až je potřeba člověk —
  * přihlášení, kód z SMS/e-mailu, captcha — a po vyřízení se zase složí.
@@ -17,19 +23,26 @@
  * ukáže prohlížeč s kartami toho chatu. V záhlaví okna se mezi chaty přepíná.
  *
  * Obraz a vstup jdou přes websocket hubu (hub/prohlizec.py): server posílá
- * snímky stránky, tady se kreslí a zpátky jde myš, kolečko a klávesy.
+ * snímky stránky binárně (JPEG), tady se dekódují mimo hlavní vlákno
+ * (createImageBitmap), kreslí na plátno a každý vykreslený snímek se potvrdí
+ * — server pak pošle další. Nic se nehromadí: snímek, který nestihl přijít
+ * na řadu, se zahodí, a schovaný panel nepotvrzuje, takže obraz stojí.
+ * Zpátky jde myš, kolečko (sloučené po snímcích obrazovky) a klávesy.
  */
 'use strict';
 
 (function (global) {
   const KEY = 'hub-prohlizec';
-  const MIN_W = 360, MIN_H = 260;
+  const KEY_POMER = 'hub-prohlizec-pomer';   // poměr stran — na každém zařízení svůj
+  const MIN_W = 260, MIN_H = 200;
+  const POMERY = {'16:9': 16 / 9, '4:3': 4 / 3, '9:16': 9 / 16};   // + 'volne'
+  const UZKE = '(max-width: 820px)';
   const POP_PAUZA = 25000;          // po jak dlouhé pauze mezi nástroji vyskočí znovu
 
   let send = () => {};
   let copyText = null;
   let root = null, canvas = null, ctx = null, urlInput = null, tabsBox = null, stavEl = null;
-  let kb = null, scena = null, zamek = null, titulek = null, dialogEl = null;
+  let kb = null, scena = null, zamek = null, dialogEl = null, pomerEl = null, tlMax = null;
   let tlZpet = null, tlVpred = null, tlZnovu = null;
   let pill = null;
   let frame = {w: 1280, h: 800};
@@ -39,6 +52,8 @@
   let posledniNastroj = 0;
   let info = {pages: [], active: '', url: '', back: false, fwd: false, loading: false};
   let sizeTimer = null, odeslanaVelikost = '';
+  let pomer = '16:9';
+  let odeslaneVidi = '';              // co jsme serveru naposledy řekli o viditelnosti
   const taby = new Map();            // id karty → její prvek
   let tabTitle = () => '';           // sid tabu hubu → jeho název (hub.js)
   let vyber = null;                  // sid chatu, jehož karty okno ukazuje (null = všechny)
@@ -79,13 +94,73 @@
       try { g = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) { g = null; }
     }
     const vw = window.innerWidth, vh = window.innerHeight;
-    const w = Math.min(g && g.w || Math.round(vw * 0.62), vw - 16), h = Math.min(g && g.h || Math.round(vh * 0.72), vh - 16);
-    return {
-      w: Math.max(MIN_W, w), h: Math.max(MIN_H, h),
-      x: Math.max(0, Math.min(g ? g.x : vw - w - 24, vw - 120)),
-      y: Math.max(0, Math.min(g ? g.y : vh - h - 90, vh - 60)),
-      stav: g && g.stav, cela: !!(g && g.cela),
-    };
+    pomer = nactiPomer();
+    const w = Math.min(g && g.w || vychoziSirka(pomer), vw - 16);
+    const out = {w: Math.max(MIN_W, w), h: Math.max(MIN_H, Math.min(g && g.h || Math.round(vh * 0.72), vh - 16)),
+                 stav: g && g.stav, cela: !!(g && g.cela)};
+    prizpusob(out);
+    out.x = Math.max(0, Math.min(g ? g.x : vw - out.w - 24, vw - 120));
+    out.y = Math.max(0, Math.min(g ? g.y : vh - out.h - 24, vh - 60));
+    return out;
+  }
+
+  /* ── poměr stran plochy stránky ────────────────────────────────────────── */
+  function nactiPomer() {
+    let p = null;
+    try { p = localStorage.getItem(KEY_POMER); } catch (_) { p = null; }
+    if (p && (POMERY[p] || p === 'volne')) return p;
+    return window.matchMedia(UZKE).matches ? '9:16' : '16:9';
+  }
+  function vychoziSirka(p) {
+    const vw = window.innerWidth;
+    // 9:16 = telefon; na šířku tak, ať stránka dostane aspoň 1024 px (bez zmenšení).
+    if (p === '9:16') return Math.min(400, vw - 16);
+    return Math.max(MIN_W, Math.min(Math.max(1060, Math.round(vw * 0.5)), 1200, vw - 48));
+  }
+  /* Výška záhlaví (karty + adresní řádek + rámeček) — vše kromě stránky. */
+  function ramecek() {
+    if (root && !root.hidden) {
+      const h = root.querySelector('.br-hlava'), l = root.querySelector('.br-lista');
+      const v = (h ? h.offsetHeight : 0) + (l ? l.offsetHeight : 0);
+      if (v > 0) return v + 2;
+    }
+    return 84;
+  }
+  /* Rozměr okna podle poměru stran: plocha stránky má přesně zvolený poměr;
+     když se nevejde na výšku, zúží se. `podleVysky` = táhne se za výšku. */
+  function prizpusob(g, podleVysky) {
+    const r = POMERY[pomer];
+    const vw = window.innerWidth, vh = window.innerHeight;
+    if (!r) { g.w = Math.max(MIN_W, Math.min(g.w, vw - 8)); g.h = Math.max(MIN_H, Math.min(g.h, vh - 8)); return g; }
+    const ram = ramecek();
+    if (podleVysky) g.w = Math.round((g.h - ram) * r) + 2;
+    g.w = Math.max(MIN_W, Math.min(g.w, vw - 8));
+    g.h = Math.round((g.w - 2) / r) + ram;
+    if (g.h > vh - 8) {
+      g.h = vh - 8;
+      g.w = Math.max(MIN_W, Math.round((g.h - ram) * r) + 2);
+    }
+    return g;
+  }
+  function zmenPomer(p) {
+    if (!(POMERY[p] || p === 'volne')) return;
+    const pred = pomer;
+    pomer = p;
+    try { localStorage.setItem(KEY_POMER, p); } catch (_) { /* soukromé okno */ }
+    if (pomerEl && pomerEl.value !== p) pomerEl.value = p;
+    if (!geo) return;
+    // Otočení (na výšku ↔ na šířku) = rozumná výchozí šířka; pravý dolní roh zůstane.
+    const vys = (x) => x === '9:16';
+    const pravy = geo.x + geo.w, dolni = geo.y + geo.h;
+    if (vys(p) !== vys(pred) && p !== 'volne') geo.w = vychoziSirka(p);
+    prizpusob(geo);
+    geo.x = Math.max(0, Math.min(pravy - geo.w, window.innerWidth - geo.w));
+    geo.y = Math.max(0, Math.min(dolni - geo.h, window.innerHeight - geo.h));
+    if (root) root.classList.remove('br-cela');
+    usad();
+    ulozGeo();
+    odeslanaVelikost = '';
+    posliVelikost();
   }
   let ulozTimer = null;
   function ulozGeo() {
@@ -93,28 +168,50 @@
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (_) { /* soukromé okno */ }
     // Hubu se to řekne se zpožděním (tažení okna volá ulozGeo pořád dokola).
     clearTimeout(ulozTimer);
+    // Telefon (úzká obrazovka) má okno dané CSS — jeho rozměr by počítači
+    // přepsal tvoje okno (hub drží jedno nastavení pro všechna zařízení).
+    if (window.matchMedia(UZKE).matches) return;
     ulozTimer = setTimeout(() => { if (io_.uloz) io_.uloz(data); }, 600);
   }
 
+  /* Maximalizované okno vyplní plochu appky pod horní lištou (vedle panelu
+     chatů) — horní lišta a chaty zůstanou vidět, nic se nepřekrývá. */
+  function plochaMax() {
+    const m = document.querySelector('.main');
+    const r = m && m.getBoundingClientRect();
+    if (!r || r.width < 300 || r.height < 200 || window.matchMedia(UZKE).matches) {
+      return {x: 0, y: 0, w: window.innerWidth, h: window.innerHeight};
+    }
+    return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+  }
   function usad() {
     if (!root) return;
-    root.style.left = geo.x + 'px';
-    root.style.top = geo.y + 'px';
-    root.style.width = geo.w + 'px';
-    root.style.height = geo.h + 'px';
+    const g = root.classList.contains('br-cela') ? plochaMax() : geo;
+    root.style.left = g.x + 'px';
+    root.style.top = g.y + 'px';
+    root.style.width = g.w + 'px';
+    root.style.height = g.h + 'px';
+    if (tlMax) tlMax.title = root.classList.contains('br-cela') ? 'Obnovit velikost' : 'Maximalizovat';
+  }
+  function maximalizuj(on) {
+    root.classList.toggle('br-cela', on === undefined ? !root.classList.contains('br-cela') : !!on);
+    usad();
+    ulozGeo();
   }
 
   function sestav() {
     root = el('div', 'br-okno');
     root.innerHTML =
       '<div class="br-hlava">' +
-        '<span class="br-nazev">' + ico('i-globe') + '<b>Prohlížeč</b></span>' +
+        '<div class="br-taby"></div>' +
         '<span class="br-chaty"></span>' +
-        '<span class="br-spacer"></span>' +
+        '<select class="br-pomer" title="Poměr stran stránky">' +
+          '<option value="16:9">16:9</option><option value="4:3">4:3</option>' +
+          '<option value="9:16">9:16 mobil</option><option value="volne">Volně</option></select>' +
         '<button class="br-btn br-mini" title="Minimalizovat">' + ico('i-minus') + '</button>' +
+        '<button class="br-btn br-max" title="Maximalizovat"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/></svg></button>' +
         '<button class="br-btn br-zavri" title="Zavřít okno">' + ico('i-close') + '</button>' +
       '</div>' +
-      '<div class="br-taby"></div>' +
       '<div class="br-lista">' +
         '<button class="br-btn br-zpet br-otoc" title="Zpět (Alt+←)">' + ico('i-chevron') + '</button>' +
         '<button class="br-btn br-vpred" title="Vpřed (Alt+→)">' + ico('i-chevron') + '</button>' +
@@ -122,10 +219,12 @@
         '<div class="br-urlbox"><span class="br-zamek"></span>' +
           '<input class="br-url" type="text" spellcheck="false" autocomplete="off" placeholder="Adresa nebo hledání"></div>' +
       '</div>' +
+      // Pruh „Claude potřebuje pomoc“ je mezi lištou a stránkou (jako lišta
+      // s oznámením v Chromu) — stránku posune, nepřekryje.
+      '<div class="br-pomoc" hidden><span></span><button class="br-pomoc-ok">Hotovo</button></div>' +
       '<div class="br-scena"><canvas class="br-platno"></canvas>' +
         '<textarea class="br-kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" tabindex="0"></textarea>' +
-        '<div class="br-stav"></div><div class="br-dialog" hidden></div>' +
-        '<div class="br-pomoc" hidden><span></span><button class="br-pomoc-ok">Hotovo</button></div></div>' +
+        '<div class="br-stav"></div><div class="br-dialog" hidden></div></div>' +
       '<div class="br-roh" title="Změnit velikost"></div>';
     document.body.appendChild(root);
     canvas = $('.br-platno');
@@ -136,7 +235,12 @@
     stavEl.textContent = 'Připojuji prohlížeč…';
     scena = $('.br-scena');
     zamek = $('.br-zamek');
-    titulek = $('.br-nazev b');
+    pomerEl = $('.br-pomer');
+    pomerEl.value = pomer;
+    pomerEl.addEventListener('change', () => zmenPomer(pomerEl.value));
+    pomerEl.addEventListener('keydown', (ev) => ev.stopPropagation());
+    tlMax = $('.br-max');
+    tlMax.onclick = () => maximalizuj();
     dialogEl = $('.br-dialog');
     chatyEl = $('.br-chaty');
     pomocEl = $('.br-pomoc');
@@ -161,6 +265,8 @@
     platno();
     // Změna plochy okna = stránka dostane novou velikost (jako když tažíš za okraj v Chromu).
     new ResizeObserver(() => { rozloz(); posliVelikost(); }).observe(scena);
+    // Schovaný panel (jiná karta prohlížeče, zamknutá obrazovka) obraz nechce.
+    document.addEventListener('visibilitychange', () => { posliVidi(); if (!document.hidden) pumpuj(); });
     root.addEventListener('pointerdown', (ev) => {
       root.classList.add('br-nahore');
       // Zkratky (Ctrl+T, Ctrl+Tab…) mají fungovat i po kliknutí na kartu nebo lištu.
@@ -193,16 +299,19 @@
       const w = scena.clientWidth, h = scena.clientHeight;
       // Hustota pixelů displeje: stránka se pak kreslí ostře i na HiDPI.
       const dpr = Math.round((window.devicePixelRatio || 1) * 100) / 100;
-      const sig = w + 'x' + h + '@' + dpr;
+      // 9:16 = stránka jako na telefonu (mobilní viewport přesně o velikosti plochy).
+      const mobil = pomer === '9:16' && (!root.classList.contains('br-cela') || window.matchMedia(UZKE).matches);
+      const sig = w + 'x' + h + '@' + dpr + (mobil ? 'm' : '');
       if (!w || !h || sig === odeslanaVelikost) return;
       odeslanaVelikost = sig;
-      send({t: 'br', a: 'size', w, h, dpr});
+      send({t: 'br', a: 'size', w, h, dpr, mobil});
     }, 250);
   }
 
   function tahni(hlava) {
+    const neni = (t) => t.closest('.br-btn, .br-tab, .br-tab-plus, .br-chat, .br-pomer, button, select');
     hlava.addEventListener('pointerdown', (ev) => {
-      if (ev.target.closest('.br-btn') || root.classList.contains('br-cela')) return;
+      if (neni(ev.target) || root.classList.contains('br-cela')) return;
       ev.preventDefault();
       const x0 = ev.clientX - geo.x, y0 = ev.clientY - geo.y;
       hlava.setPointerCapture(ev.pointerId);
@@ -220,9 +329,8 @@
       hlava.addEventListener('pointerup', up);
     });
     hlava.addEventListener('dblclick', (ev) => {
-      if (ev.target.closest('.br-btn')) return;
-      root.classList.toggle('br-cela');
-      ulozGeo();
+      if (neni(ev.target)) return;
+      maximalizuj();
     });
   }
 
@@ -234,6 +342,15 @@
       const move = (e) => {
         geo.w = Math.max(MIN_W, Math.min(w0 + e.clientX - x0, window.innerWidth - geo.x));
         geo.h = Math.max(MIN_H, Math.min(h0 + e.clientY - y0, window.innerHeight - geo.y));
+        if (POMERY[pomer]) {
+          // Pevný poměr: rozhoduje směr, kterým se táhne víc.
+          const zVysky = Math.round((geo.h - ramecek()) * POMERY[pomer]) + 2;
+          prizpusob(geo, zVysky > geo.w);
+          if (geo.x + geo.w > window.innerWidth || geo.y + geo.h > window.innerHeight) {
+            geo.w = Math.min(geo.w, window.innerWidth - geo.x);
+            prizpusob(geo);
+          }
+        }
         usad();
       };
       const up = () => {
@@ -283,7 +400,14 @@
       return {x: (ev.clientX - r.left) * frame.w / (r.width || 1), y: (ev.clientY - r.top) * frame.h / (r.height || 1)};
     };
     const mod = (ev) => (ev.altKey ? 1 : 0) | (ev.ctrlKey ? 2 : 0) | (ev.metaKey ? 4 : 0) | (ev.shiftKey ? 8 : 0);
-    let posl = 0;
+    let posl = 0, pohybTimer = null, pohyb = null;
+    const posliPohyb = () => {
+      pohybTimer = null;
+      if (!pohyb) return;
+      posl = Date.now();
+      send(pohyb);
+      pohyb = null;
+    };
     canvas.addEventListener('pointerdown', (ev) => {
       kb.focus();
       canvas.setPointerCapture(ev.pointerId);
@@ -292,15 +416,30 @@
     canvas.addEventListener('pointerup', (ev) => {
       send({t: 'br', a: 'mouse', type: 'up', ...bod(ev), button: ev.button, clicks: ev.detail || 1, mod: mod(ev)});
     });
+    // Pohyb nejvýš ~30× za vteřinu, ale poslední poloha vždycky dojde
+    // (jinak by po zastavení myši zůstal hover na špatném místě).
     canvas.addEventListener('pointermove', (ev) => {
-      const now = Date.now();
-      if (now - posl < 40) return;           // ~25× za vteřinu stačí
-      posl = now;
-      send({t: 'br', a: 'mouse', type: 'move', ...bod(ev), button: 0, clicks: 0, mod: mod(ev)});
+      pohyb = {t: 'br', a: 'mouse', type: 'move', ...bod(ev), button: 0, clicks: 0, mod: mod(ev)};
+      if (pohybTimer) return;
+      const zbyva = 33 - (Date.now() - posl);
+      if (zbyva <= 0) posliPohyb(); else pohybTimer = setTimeout(posliPohyb, zbyva);
     });
+    // Kolečko: události za jeden snímek obrazovky se sečtou do jedné zprávy
+    // (touchpad jich posílá desítky za vteřinu). Řádky/stránky → pixely.
+    let kolecko = null;
     canvas.addEventListener('wheel', (ev) => {
       ev.preventDefault();
-      send({t: 'br', a: 'wheel', ...bod(ev), dx: ev.deltaX, dy: ev.deltaY});
+      const k = ev.deltaMode === 1 ? 40 : ev.deltaMode === 2 ? (scena.clientHeight || 600) : 1;
+      if (!kolecko) {
+        kolecko = {...bod(ev), dx: 0, dy: 0};
+        requestAnimationFrame(() => {
+          const w = kolecko;
+          kolecko = null;
+          if (w && (w.dx || w.dy)) send({t: 'br', a: 'wheel', x: w.x, y: w.y, dx: w.dx, dy: w.dy});
+        });
+      }
+      kolecko.dx += ev.deltaX * k;
+      kolecko.dy += ev.deltaY * k;
     }, {passive: false});
     canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 
@@ -351,10 +490,25 @@
     if (otevrene) return;
     otevrene = true;
     odeslanaVelikost = '';
-    send({t: 'br', a: 'open', pasivne: !!pasivne});
+    odeslaneVidi = '';
+    send({t: 'br', a: 'open', pasivne: !!pasivne, bin: true});
     send({t: 'br', a: 'sleduj', tab: vyber});
-    send({t: 'br', a: 'vidi', on: stav === 'okno'});
+    posliVidi();
     posliVelikost();
+  }
+
+  /* Obraz jen tehdy, když je okno opravdu vidět: rozbalené, ne schované
+     (chat bez karet) a stránka appky není na pozadí. Schované = `pauza`:
+     stránka si nechá velikost okna, po návratu se nic nepřeskládá;
+     minimalizované = stránka se vrátí do svého okna. */
+  function posliVidi() {
+    if (!otevrene) return;
+    const on = stav === 'okno' && !!root && !root.hidden && !document.hidden;
+    const pauza = !on && stav === 'okno';
+    const sig = on ? '1' : pauza ? 'p' : '0';
+    if (sig === odeslaneVidi) return;
+    odeslaneVidi = sig;
+    send({t: 'br', a: 'vidi', on, pauza});
   }
   function zavriSpojeni() {
     if (!otevrene) return;
@@ -384,6 +538,7 @@
     if (root) root.hidden = stav !== 'okno' || !ma;
     if (pill) pill.hidden = stav !== 'mini' || !ma;
     document.body.classList.toggle('br-otevren', stav === 'okno' && ma);
+    posliVidi();
   }
 
   /* `zavreno` = pryč a server neposílá nic; `mini` = jen lišta (obraz se dál
@@ -396,9 +551,10 @@
     usadViditelnost();
     if (novy === 'zavreno') zavriSpojeni(); else otevriSpojeni();
     // Minimalizované okno obraz nestahuje — jen ví, co je v kartách.
-    if (otevrene) send({t: 'br', a: 'vidi', on: novy === 'okno'});
+    posliVidi();
     if (pomocEl && novy !== 'okno') pomocEl.hidden = true;
     if (novy === 'okno') {
+      if (geo && !root.hidden) prizpusob(geo);
       usad();
       rozloz();
       posliVelikost();
@@ -407,21 +563,70 @@
     ulozGeo();
   }
 
-  /* ── vykreslení stavu ze serveru ─────────────────────────────────────────── */
-  const obraz = new Image();
-  /* Plátno má tolik pixelů, kolik jich má snímek (velikost plochy × hustota
-     displeje), a CSS ho kreslí na velikost plochy — 1:1, nic se nepřevzorkuje. */
-  obraz.onload = () => {
-    if (!canvas) return;
-    const w = obraz.naturalWidth || frame.w, h = obraz.naturalHeight || frame.h;
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-      ctx.imageSmoothingQuality = 'high';
-      rozloz();
+  /* ── obraz: příjem, dekódování, kreslení, potvrzení ──────────────────────
+     Čeká nejvýš jeden snímek; přijde-li novější, starší se zahodí (a potvrdí,
+     ať server ví, že je vyřízený). Dekóduje se mimo hlavní vlákno a kreslí
+     se jen celý obrázek — žádné <img> s base64, žádné přeskládání stránky.
+     Plátno má tolik pixelů, kolik snímek (Chrome ho posílá už ve velikosti
+     plochy), a CSS ho kreslí na velikost plochy — 1:1, nic se nepřevzorkuje. */
+  let cekaSnimek = null, dekoduji = false;
+  const potvrd = () => send({t: 'br', a: 'ack'});
+
+  function prijmi(hdr, zdroj) {
+    if (cekaSnimek) potvrd();             // nestihl se vykreslit — zahozený
+    cekaSnimek = {hdr, zdroj};
+    pumpuj();
+  }
+
+  function dekoduj(zdroj) {
+    if (zdroj instanceof Blob && global.createImageBitmap) return createImageBitmap(zdroj);
+    return new Promise((ok, chyba) => {
+      const url = zdroj instanceof Blob ? URL.createObjectURL(zdroj) : zdroj;
+      const img = new Image();
+      const uklid = () => { if (zdroj instanceof Blob) URL.revokeObjectURL(url); };
+      img.onload = () => { uklid(); img.close = () => {}; ok(img); };
+      img.onerror = () => { uklid(); chyba(new Error('snímek')); };
+      img.src = url;
+    });
+  }
+
+  async function pumpuj() {
+    // Schovaná stránka nedekóduje ani nepotvrzuje — server pak nic neposílá.
+    if (dekoduji || !cekaSnimek || document.hidden) return;
+    const f = cekaSnimek;
+    cekaSnimek = null;
+    dekoduji = true;
+    let bmp = null;
+    try { bmp = await dekoduj(f.zdroj); } catch (_) { bmp = null; }
+    dekoduji = false;
+    if (bmp && canvas) {
+      const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+      const zmena = f.hdr.w && f.hdr.h && (f.hdr.w !== frame.w || f.hdr.h !== frame.h);
+      if (f.hdr.w && f.hdr.h) frame = {w: f.hdr.w, h: f.hdr.h};
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        ctx.imageSmoothingQuality = 'high';
+        rozloz();
+      } else if (zmena) rozloz();
+      ctx.drawImage(bmp, 0, 0, w, h);
+      if (!stavEl.hidden && !stavEl.textContent.startsWith('Prázdná')) stavEl.hidden = true;
     }
-    ctx.drawImage(obraz, 0, 0, w, h);
-  };
+    if (bmp && bmp.close) bmp.close();
+    potvrd();
+    pumpuj();
+  }
+
+  /* Binární zpráva ze serveru: "BR", délka hlavičky (2 B), JSON hlavička, JPEG. */
+  function naSnimek(buf) {
+    if (!root || !(buf instanceof ArrayBuffer) || buf.byteLength < 4) return;
+    const dv = new DataView(buf);
+    if (dv.getUint8(0) !== 66 || dv.getUint8(1) !== 82) return;       // "BR"
+    const n = dv.getUint16(2);
+    let hdr = {};
+    try { hdr = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 4, n))); } catch (_) { hdr = {}; }
+    prijmi(hdr, new Blob([new Uint8Array(buf, 4 + n)], {type: 'image/jpeg'}));
+  }
 
   function hostitel(url) {
     try { return new URL(url).host.replace(/^www\./, ''); } catch (_) { return ''; }
@@ -541,9 +746,8 @@
       nastav('mini', true);
     }
     if (msg.t === 'br-frame') {
-      if (msg.w && msg.h) frame = {w: msg.w, h: msg.h};
-      if (!stavEl.textContent.startsWith('Prázdná')) stavEl.hidden = true;
-      obraz.src = 'data:image/jpeg;base64,' + msg.d;
+      // Starý tvar (base64 v JSONu) — jen kdyby server ještě neuměl binární.
+      prijmi({w: msg.w, h: msg.h}, 'data:image/jpeg;base64,' + msg.d);
     } else if (msg.t === 'br-info') {
       info = msg;
       const akt = (msg.pages || []).find((p) => p.id === msg.active);
@@ -554,7 +758,6 @@
       tlVpred.disabled = !msg.fwd;
       tlZnovu.innerHTML = msg.loading ? ico('i-close') : ico('i-refresh');
       tlZnovu.title = msg.loading ? 'Zastavit načítání (Esc)' : 'Načíst znovu (Ctrl+R)';
-      titulek.textContent = msg.title && msg.title !== msg.url ? msg.title : 'Prohlížeč';
       // Prázdná karta je v Chromiu černá — vypadá to jako porucha, tak se řekne, co to je.
       const prazdna = !msg.url || msg.url === 'about:blank';
       if (prazdna) { stavEl.textContent = 'Prázdná karta — napiš nahoře adresu, nebo počkej, až tam Claude něco otevře.'; stavEl.hidden = false; }
@@ -566,7 +769,10 @@
       // kdy se žádný nástroj naživo nespustil) — ukáže se lišta.
       if (stav === 'zavreno' && !zavrelJsi && aktivniTab && mapaTabu[aktivniTab]) nastav('mini', true);
     } else if (msg.t === 'br-nic') {
-      if (stav === 'zavreno') otevrene = false;       // prohlížeč neběží, zkusí se později
+      // Prohlížeč neběží (pasivní dotaz). Když mezitím okno otevřel člověk,
+      // požádá se o něj hned naostro — jinak by zůstalo „Připojuji…“ navždy.
+      otevrene = false;
+      if (stav !== 'zavreno') otevriSpojeni();
     } else if (msg.t === 'br-dialog') {
       dialog(msg);
     } else if (msg.t === 'br-copy') {
@@ -701,7 +907,7 @@
     if (g.stav === 'okno' || g.stav === 'mini') {
       geo = g;
       nastav(g.stav, true);
-      if (g.cela && root) root.classList.add('br-cela');
+      if (g.cela && root) { root.classList.add('br-cela'); usad(); }
     }
     // Sledování bez otevírání: appka zjišťuje, jestli mají chaty v prohlížeči karty
     // (i po restartu), a ukáže lištu tam, kde mají. Prohlížeč se kvůli tomu nespouští.
@@ -728,17 +934,23 @@
       if (!geo || !root) return;
       geo.w = Math.min(geo.w, window.innerWidth - 8);
       geo.h = Math.min(geo.h, window.innerHeight - 8);
+      prizpusob(geo);
       geo.x = Math.max(0, Math.min(geo.x, window.innerWidth - 100));
       geo.y = Math.max(0, Math.min(geo.y, window.innerHeight - 40));
       usad();
       posliVelikost();       // přesun na jiný monitor / zoom mění hustotu pixelů
     });
+    // Maximalizované okno drží plochu appky i při zasunutí panelu chatů.
+    const plocha = document.querySelector('.main');
+    if (plocha && global.ResizeObserver) {
+      new ResizeObserver(() => { if (root && root.classList.contains('br-cela')) usad(); }).observe(plocha);
+    }
     // Nové spojení hubu (reconnect) — okno si o obraz řekne znovu.
     document.addEventListener('hub-ws-open', () => { otevrene = false; if (stav !== 'zavreno') otevriSpojeni(); });
   }
 
   global.HubProhlizec = {
-    install, naZpravu, potreba,
+    install, naZpravu, naSnimek, potreba,
     otevri: () => nastav('okno'),
     /* Ikonka u tabu: prohlížeč s kartami toho chatu. */
     ukaz: (sid) => { aktivniTab = sidOf(sid); samo = false; nastav('okno'); vyberChat(sid); usadViditelnost(); },

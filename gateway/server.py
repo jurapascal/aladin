@@ -1077,6 +1077,8 @@ class Handler(BaseHTTPRequestHandler):
                 if method == "POST":
                     return self._gw_shared_change(user)
                 return self._gw_shared(user)
+            if route == "/gw/relace/soubor":
+                return self._relace_soubor(method, user)
             if route in ("/gw/relace", "/gw/relace/cteni", "/gw/relace/poslat", "/gw/relace/pokracovat",
                         "/gw/relace/zapnout", "/gw/relace/pritomnost"):
                 return self._gw_relace(route, method, user)
@@ -1981,6 +1983,57 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             relace.pridej_stav(result, relace.verejne(user, rid, entry), _role, user)
         return self._json(result)
 
+    def _relace_soubor(self, method, user):
+        """Soubor ze sdíleného chatu ke stažení (cteni.js → „Stáhnout“).
+
+        Smí každý, kdo chat smí číst (relace.ziskat), a jen soubor, který Claude
+        v tom chatu zapsal — to hlídá hub majitele podle přepisu (`chat`,
+        hub/server.py _soubor_ke_stazeni), ani ze skrytých složek. Odpověď jde
+        proudem rovnou z majitelova hubu, prohlížeč kolegy k němu přístup nemá."""
+        if method not in ("GET", "HEAD"):
+            return self._json({"error": "Jen GET."}, 405)
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        rid = str((query.get("id") or [""])[0])
+        try:
+            entry, _role = relace.ziskat(user, rid)
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 403)
+        proc = self.hubs.procs.get(entry.get("owner")) if self.hubs else None
+        if not proc or not proc.alive():
+            return self._json({"error": "Majitel má prostor vypnutý — stáhnout to půjde, až ho zapne."}, 409)
+        dotaz = urllib.parse.urlencode({"path": str((query.get("path") or [""])[0])[:2000],
+                                        "chat": str(entry.get("chat") or ""),
+                                        "info": "1" if (query.get("info") or [""])[0] == "1" else ""})
+        conn = http.client.HTTPConnection("127.0.0.1", proc.port, timeout=60)
+        try:
+            conn.request(method, "/api/soubor?" + dotaz,
+                         headers={"X-Hub-Token": proc.token, "Host": f"127.0.0.1:{proc.port}"})
+            resp = conn.getresponse()
+            self.send_response(resp.status)
+            for key in ("Content-Type", "Content-Length", "Content-Disposition", "Content-Security-Policy",
+                        "X-Content-Type-Options", "Cache-Control"):
+                if resp.getheader(key):
+                    self.send_header(key, resp.getheader(key))
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            if method == "HEAD":
+                return None
+            if resp.status == 200 and "info=1" not in dotaz:
+                relace._log(user, "stazeno", rid, soubor=str((query.get("path") or [""])[0])[-120:])
+            while True:
+                kus = resp.read1(65536)
+                if not kus:
+                    break
+                self.wfile.write(kus)
+        except (OSError, http.client.HTTPException) as exc:
+            _errlog("relace soubor", exc)
+        finally:
+            conn.close()
+        return None
+
     def _relace_zapnout(self, method, user):
         """Zapnout sdílený chat znovu: spustí majiteli prostor, když spal, a otevře
         v něm chat, který zavřel. Smí každý, kdo chat sdílený vidí — spuštění
@@ -2793,6 +2846,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                         and resp.getheader("Content-Length") is None:
                     proud, data = conn, b""
                     break
+                # Soubor ke stažení (hub /api/soubor, až 200 MB) taky proudem —
+                # celý v paměti brány by ji při pár stahováních najednou dusil.
+                if (resp.getheader("Content-Disposition") or "").startswith("attachment"):
+                    proud, data = conn, b""
+                    break
                 data = resp.read()
                 conn.close()
                 break
@@ -2834,6 +2892,9 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                              "default-src 'none'; img-src 'self' data:; "
                              "style-src 'unsafe-inline'; sandbox")
         if proud is not None:
+            delka = resp.getheader("Content-Length")
+            if delka and delka.isdigit():
+                self.send_header("Content-Length", delka)     # průběh stahování
             self.send_header("X-Accel-Buffering", "no")
             self.send_header("Connection", "close")
             self.end_headers()

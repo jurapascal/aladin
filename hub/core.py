@@ -1631,6 +1631,69 @@ def _prune_images():
         pass
 
 
+# ── Soubory z prostoru ke stažení (čtení → „Stáhnout") ─────────────────────
+# Co Claude vytvoří v prostoru na serveru, si člověk stáhne rovnou z chatu
+# (/api/soubor). Jen z domova a složek projektů, nikdy tajemství.
+MAX_STAHNOUT = 200 * 1024 * 1024
+# Složka, kam ukládá stažené vestavěný prohlížeč (hub/stazene.py).
+STAZENE_DIR = os.path.join(HOME, "Stažené")
+# Tohle se nestáhne nikdy, ani vlastníkem: klíče, hesla, přihlášení Clauda
+# a token hubu. Porovnává se po složkách cesty i se jménem souboru.
+_TAJNE = {".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".netrc", ".git-credentials",
+          ".pgpass", ".npmrc", ".pypirc", ".credentials.json", ".claude.json", ".config/gh",
+          "hub-config.json", "hub-token", "browser-profile", "keyrings", ".password-store"}
+
+
+def koreny_stahovani(extra=()):
+    """Složky, ze kterých se smí stahovat: domov, projekty a složky tabů."""
+    out = []
+    for p in [HOME, *PROJECT_DIRS, *(extra or ())]:
+        if p and os.path.isdir(p):
+            r = os.path.realpath(p)
+            if r not in out and r != os.path.sep:
+                out.append(r)
+    return out
+
+
+def soubor_ke_stazeni(path, extra_roots=(), prisne=False):
+    """(plná cesta, velikost, "") souboru ke stažení, nebo ("", 0, proč ne).
+
+    `prisne` (host z jiného účtu, sdílený chat): ani skryté složky
+    (.claude, .config…). Odkaz, který vede ven z povolených složek,
+    se posuzuje podle cíle — realpath, ne podle toho, jak se jmenuje."""
+    raw = str(path or "").strip()
+    if not raw or "\0" in raw:
+        return "", 0, "Chybí cesta."
+    raw = os.path.expanduser(raw)
+    if not os.path.isabs(raw):
+        return "", 0, "Cesta musí být celá."
+    real = os.path.realpath(raw)
+    koren = None
+    for r in koreny_stahovani(extra_roots):
+        try:
+            if os.path.commonpath([real, r]) == r:
+                koren = r
+                break
+        except ValueError:
+            continue
+    if not koren:
+        return "", 0, "Soubor je mimo složky prostoru."
+    casti = [c for c in os.path.relpath(real, koren).replace("\\", "/").split("/") if c not in ("", ".")]
+    spojene = "/".join(casti)
+    if any(c in _TAJNE for c in casti) or any(("/" + t + "/") in ("/" + spojene + "/") for t in _TAJNE if "/" in t):
+        return "", 0, "Tenhle soubor se nestahuje."
+    if prisne and any(c.startswith(".") for c in casti):
+        return "", 0, "Ze skrytých složek se tu nestahuje."
+    if os.path.isdir(real):
+        return "", 0, "Je to složka."
+    if not os.path.isfile(real):
+        return "", 0, "Soubor už není."
+    velikost = os.path.getsize(real)
+    if velikost > MAX_STAHNOUT:
+        return "", 0, f"Soubor je větší než {MAX_STAHNOUT // (1024 * 1024)} MB."
+    return real, velikost, ""
+
+
 # ── Konfigurace za běhu ──────────────────────────────────────────────────────
 def refresh():
     """Načte hub-config.json znovu a přepočítá, co z něj plyne.

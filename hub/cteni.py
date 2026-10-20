@@ -294,9 +294,64 @@ def _do_prehledu(name, vstup):
         return {"ukol_zmena": {"id": str(v.get("taskId") or ""),
                                "stav": str(v.get("status") or ""),
                                "text": str(v.get("subject") or "")[:200]}}
-    if name in ("Edit", "Write", "NotebookEdit") and v.get("file_path"):
+    if name in ("Edit", "Write", "NotebookEdit") and (v.get("file_path") or v.get("notebook_path")):
         return {"soubor": str(v.get("file_path") or v.get("notebook_path"))[:500]}
+    if name == "Bash":
+        vystupy = vystupy_prikazu(v.get("command"))
+        return {"vystupy": vystupy} if vystupy else {}
     return {}
+
+
+# Soubory, které vznikají pro člověka (dokumenty, tabulky, archivy, média) —
+# u příkazu se hledají v textu, protože Bash nikde neříká, co zapsal. Jen celé
+# cesty (/… nebo ~/…); stránka si pak ověří, že soubor opravdu je.
+VYSTUP_PRIPONY = ("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "csv",
+                  "tsv", "zip", "7z", "rar", "tgz", "tar", "gz", "mp3", "mp4", "wav", "m4a", "webm",
+                  "mov", "ics", "vcf", "epub", "rtf", "stl", "3mf", "gcode", "glb")
+_VYSTUP_RE = re.compile(r"(?<![\w.~/-])((?:~|/)[^\s'\"`<>|;&(){}*?$]*\.(?:" + "|".join(VYSTUP_PRIPONY)
+                        + r"))(?![\w.])", re.IGNORECASE)
+
+
+def vystupy_prikazu(prikaz):
+    """Celé cesty k výstupním souborům zmíněné v příkazu (nejvýš 10)."""
+    out = []
+    for m in _VYSTUP_RE.finditer(str(prikaz or "")[:20000]):
+        cesta = m.group(1)[:500]
+        if cesta not in out and len(cesta) > 2:
+            out.append(cesta)
+        if len(out) >= 10:
+            break
+    return out
+
+
+def soubory_chatu(path):
+    """Co Claude v chatu zapsal nebo upravil (Edit/Write) a výstupy příkazů —
+    víc se ze sdíleného chatu stáhnout nedá (gateway/server.py /gw/relace/soubor)."""
+    out = set()
+    try:
+        fh = open(path, "rb")
+    except OSError:
+        return out
+    with fh:
+        for line in fh:
+            if b'"tool_use"' not in line or (b"file_path" not in line and b"notebook_path" not in line
+                                              and b'"Bash"' not in line):
+                continue
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            obsah = ((entry.get("message") or {}).get("content")
+                     if isinstance(entry, dict) and isinstance(entry.get("message"), dict) else None)
+            if not isinstance(obsah, list):
+                continue
+            for cast in obsah:
+                if isinstance(cast, dict) and cast.get("type") == "tool_use":
+                    p = _do_prehledu(cast.get("name"), cast.get("input"))
+                    if p.get("soubor"):
+                        out.add(p["soubor"])
+                    out.update(p.get("vystupy") or ())
+    return out
 
 
 def _popis(name, vstup):

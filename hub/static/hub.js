@@ -575,6 +575,66 @@ function imageUrl(path) {
   return `/api/image?t=${encodeURIComponent(TOKEN)}&path=${encodeURIComponent(path)}`;
 }
 
+/* Soubor z prostoru ke stažení (čtení, Průběh, stažené v prohlížeči). Co se
+   smí, hlídá server (/api/soubor): jen domov a složky projektů, žádná tajemství. */
+function souborUrl(path, info) {
+  return `/api/soubor?t=${encodeURIComponent(TOKEN)}&path=${encodeURIComponent(path)}${info ? '&info=1' : ''}`;
+}
+window.HubSoubor = {
+  url: (path) => souborUrl(path),
+  info: async (path) => {
+    const r = await fetch(souborUrl(path, true), {credentials: 'same-origin'});
+    return r.json().catch(() => ({ok: false}));
+  },
+  async stahni(path) {
+    const info = await this.info(path).catch(() => null);
+    if (!info || !info.ok) { toast((info && info.error) || 'Soubor teď nejde stáhnout.'); return; }
+    const a = document.createElement('a');
+    a.href = souborUrl(path);
+    a.download = path.split(/[\\/]/).pop();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  },
+};
+
+/* Vestavěný prohlížeč něco stáhl (hub/stazene.py): soubor leží v ~/Stažené
+   prostoru. Karta vpravo dole s „Stáhnout" a totéž do čtení tabu, na který
+   se člověk dívá. */
+let stazenoTimer = null;
+function stazenoKarta(msg) {
+  document.querySelectorAll('.stazeno-karta').forEach((n) => n.remove());
+  const box = document.createElement('div');
+  box.className = 'stazeno-karta';
+  box.setAttribute('role', 'status');
+  const txt = document.createElement('span');
+  txt.className = 'cteni-ks-text';
+  const jmeno = document.createElement('span');
+  jmeno.className = 'cteni-ks-jmeno';
+  jmeno.textContent = msg.name || msg.path.split('/').pop();
+  const kde = document.createElement('span');
+  kde.className = 'cteni-ks-cesta';
+  kde.textContent = 'Stažené v prohlížeči · ' + msg.path.replace(/\/[^/]*$/, '');
+  txt.title = msg.path;
+  txt.append(jmeno, kde);
+  const btn = document.createElement('button');
+  btn.className = 'cteni-stahnout hlavni';
+  btn.type = 'button';
+  btn.textContent = 'Stáhnout';
+  btn.onclick = () => { HubSoubor.stahni(msg.path); box.remove(); };
+  const zavrit = document.createElement('button');
+  zavrit.className = 'stazeno-zavrit';
+  zavrit.type = 'button';
+  zavrit.title = 'Zavřít';
+  zavrit.textContent = '×';
+  zavrit.onclick = () => box.remove();
+  box.append(txt, btn, zavrit);
+  document.body.appendChild(box);
+  clearTimeout(stazenoTimer);
+  stazenoTimer = setTimeout(() => box.remove(), 30000);
+  if (ACTIVE && ACTIVE.cteni && ACTIVE.cteni.stazeno) ACTIVE.cteni.stazeno(msg);
+}
+
 /* „ukládá se sama · naposledy 14:05" — ať je vidět, že se na nic klikat nemusí. */
 function autosaveLine() {
   if (!STATE.memory_autosave) return 'automatické ukládání vypnuté';
@@ -2389,11 +2449,21 @@ function prehledHtml(tab, box) {
   if (p.soubory.length) {
     const s = sekce('Soubory');
     for (const f of p.soubory) {
-      const r = mk('button', 'pr-radek pr-soubor');
+      const r = mk('div', 'pr-radek pr-soubor');
       r.innerHTML = icon('i-note');
       r.appendChild(mk('span', 'pr-text', f.split(/[\\/]/).pop()));
-      r.title = f + ' — otevřít složku';
-      r.onclick = () => openExternal(f.replace(/[\\/][^\\/]*$/, ''));
+      r.title = f;
+      // Na serveru by „otevřít složku" nic neukázalo — tam jen stáhnout.
+      if (!onServer()) {
+        const o = mk('button', 'pr-soubor-akce', '↗');
+        o.title = 'Otevřít složku';
+        o.onclick = () => openExternal(f.replace(/[\\/][^\\/]*$/, ''));
+        r.appendChild(o);
+      }
+      const d = mk('button', 'pr-soubor-akce', '⤓');
+      d.title = 'Stáhnout ' + f;
+      d.onclick = () => HubSoubor.stahni(f);
+      r.appendChild(d);
       s.appendChild(r);
     }
     neco = true;
@@ -4513,6 +4583,8 @@ function handle(msg) {
   } else if (msg.t === 'host-oznameni') {
     // Co udělal host se Správou předplatného (gateway/pristup.py).
     if (!STATE.guest && msg.text) toast(msg.text);
+  } else if (msg.t === 'stazeno') {
+    if (msg.path) stazenoKarta(msg);
   } else if (msg.t === 'host-vstup') {
     if (!STATE.guest) toast(`${msg.name} vstoupil(a) do tvého prostoru (${msg.role}).`);
   } else if (msg.t === 'memory-saved') {

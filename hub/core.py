@@ -2172,36 +2172,64 @@ def on_gateway():
     return bool(CONFIG.get("gateway_user"))
 
 
-def pamet_prostoru():
-    """(použito, strop, počet OOM zabití) cgroupy, ve které hub běží, nebo None.
-
-    Na serveru běží prostor jako scope s MemoryMax; jádro po jeho překročení
-    zabíjí procesy a bez téhle stopy v logu nezbyde, proč tab zmizel."""
+def _cgroup_se_stropem():
+    """Složka nejbližší cgroupy nad hubem, která má strop paměti, nebo ''."""
     try:
         with open("/proc/self/cgroup", encoding="ascii") as fh:
             rel = fh.read().strip().split("::", 1)[1]
     except (OSError, IndexError):
-        return None
+        return ""
     base = "/sys/fs/cgroup"
     parts = rel.strip("/").split("/")
     while parts:
         d = os.path.join(base, *parts)
         try:
             with open(os.path.join(d, "memory.max"), encoding="ascii") as fh:
-                raw = fh.read().strip()
-            if raw.isdigit():
-                with open(os.path.join(d, "memory.current"), encoding="ascii") as fh:
-                    cur = int(fh.read())
-                kills = 0
-                with open(os.path.join(d, "memory.events"), encoding="ascii") as fh:
-                    for line in fh:
-                        if line.startswith("oom_kill "):
-                            kills = int(line.split()[1])
-                return cur, int(raw), kills
-        except (OSError, ValueError):
+                if fh.read().strip().isdigit():
+                    return d
+        except OSError:
             pass
         parts.pop()
-    return None
+    return ""
+
+
+def pamet_prostoru():
+    """(použito, strop, počet OOM zabití) cgroupy, ve které hub běží, nebo None.
+
+    Na serveru běží prostor jako scope s MemoryMax; jádro po jeho překročení
+    zabíjí procesy a bez téhle stopy v logu nezbyde, proč tab zmizel."""
+    d = _cgroup_se_stropem()
+    if not d:
+        return None
+    try:
+        with open(os.path.join(d, "memory.max"), encoding="ascii") as fh:
+            raw = int(fh.read().strip())
+        with open(os.path.join(d, "memory.current"), encoding="ascii") as fh:
+            cur = int(fh.read())
+        kills = 0
+        with open(os.path.join(d, "memory.events"), encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("oom_kill "):
+                    kills = int(line.split()[1])
+        return cur, raw, kills
+    except (OSError, ValueError):
+        return None
+
+
+def pamet_anon():
+    """Kolik bajtů prostoru drží procesy samy (anon), bez cache souborů —
+    tu jádro při nedostatku uvolní samo. 0 = nevíme."""
+    d = _cgroup_se_stropem()
+    if not d:
+        return 0
+    try:
+        with open(os.path.join(d, "memory.stat"), encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("anon "):
+                    return int(line.split()[1])
+    except (OSError, ValueError):
+        pass
+    return 0
 
 
 def hlidej_pamet(notify, every=30, warn=0.85):

@@ -34,7 +34,8 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
-               pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, vzhled)
+               pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, uspavani,
+               vzhled)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -143,6 +144,27 @@ def guest_owns(guest, session):
 
 
 # ── Terminal sessions ────────────────────────────────────────────────────────
+class _SpiciPty:
+    """Místo pty uspaného tabu: nic nedělá. Starý pty je zavřený a jeho číslo
+    souboru už může patřit něčemu jinému — druhé zavření by to zavřelo."""
+    proc = None
+
+    def read(self):
+        return b""
+
+    def write(self, data):
+        pass
+
+    def resize(self, cols, rows):
+        pass
+
+    def alive(self):
+        return False
+
+    def close(self):
+        pass
+
+
 class Session:
     """A pty running one bash session, plus the scrollback we replay on reload."""
 
@@ -189,6 +211,16 @@ class Session:
         self.size = (cols, rows)
         self.exited = False
         self._znovu = False
+        # Uspaný tab (hub/uspavani.py): proces neběží, konverzace čeká na
+        # probuzení. `posledni` = kdy naposled přišel vstup nebo výstup.
+        self.uspany = False
+        self.uspany_chat = ""
+        self.posledni = time.time()
+        self._vystup_at = 0.0
+        # Vstup, který přišel do uspaného (nebo právě se probouzejícího) tabu;
+        # doručí se, až Claude naběhne. None = píše se rovnou.
+        self._fronta = None
+        self._buzeni = threading.Lock()
         self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self._lock = threading.Lock()
         self.thread = threading.Thread(target=self._pump, daemon=True)
@@ -202,6 +234,7 @@ class Session:
             # Appending and sending under one lock is what keeps a replay from
             # interleaving with live output when a page attaches mid-stream.
             with self._lock:
+                self.posledni = self._vystup_at = time.time()
                 self.buffer += data
                 if len(self.buffer) > SCROLLBACK:
                     del self.buffer[:len(self.buffer) - SCROLLBACK]
@@ -294,7 +327,9 @@ class Session:
         with self._lock:
             self._znovu = False
             self.exited = False
-            self.started = time.time()
+            self.uspany = False
+            self.started = self.posledni = time.time()
+            self._vystup_at = 0.0
             self.resume = (env or {}).get("HUB_AGENT_RESUME", "") or self.resume
             self.chat_id = (env or {}).get("HUB_SESSION_ID", "") or self.resume
             self.buffer = bytearray()
@@ -304,11 +339,100 @@ class Session:
         self.thread = threading.Thread(target=self._pump, daemon=True)
         self.thread.start()
 
+    def write(self, data):
+        """Vstup do tabu. Uspaný tab se probudí a vstup dostane, až Claude naběhne."""
+        with self._lock:
+            self.posledni = time.time()
+            if self._fronta is not None:
+                self._fronta.append(data)
+                spi = self.uspany
+            else:
+                spi = None
+        if spi is None:
+            self.pty.write(data)
+        elif spi:
+            self.probud()
+
+    def uspi(self, chat):
+        """Ukončí Clauda v tabu, tab zůstává (hub/uspavani.py). Obraz i okna
+        zůstanou; `probud()` ho pustí znovu nad konverzací `chat`."""
+        with self._buzeni:
+            with self._lock:
+                if self.uspany or self.exited:
+                    return False
+                self._znovu = True
+                self._fronta = []
+            try:
+                self.pty.close()
+            except Exception:
+                pass
+            self.thread.join(timeout=5)
+            self.pty = _SpiciPty()
+            note = ("\r\n\x1b[2m[ tab je uspaný, ať nedrží paměť — Claude se vrátí "
+                    "do téže konverzace, jakmile tab otevřeš nebo napíšeš ]\x1b[0m\r\n")
+            with self._lock:
+                self._znovu = False
+                self.uspany = True
+                self.uspany_chat = chat or ""
+                self.buffer += note.encode("utf-8")
+                for conn in self.conns:
+                    conn.send_json({"t": "out", "id": self.id, "d": note})
+                cekaji = bool(self._fronta)
+        if cekaji:
+            # Někdo napsal zrovna během uspávání — hned zase vzhůru.
+            self.probud()
+        return True
+
+    def probud(self):
+        """Pustí uspaný tab znovu (`claude --resume`) a doručí, co mezitím přišlo."""
+        with self._buzeni:
+            if not self.uspany:
+                return
+            try:
+                HUB.probud(self)
+            except Exception as exc:
+                core.log_error(f"tab {self.id}: probuzení selhalo", exc)
+                with self._lock:
+                    self.exited = True
+                    self.uspany = False
+                    self._fronta = None
+                    conns = list(self.conns)
+                for conn in conns:
+                    conn.send_json({"t": "exit", "id": self.id})
+                return
+        HUB.broadcast({"t": "tab-uspany", "id": self.id, "on": False})
+        threading.Thread(target=self._dorucit_frontu, daemon=True).start()
+
+    def _dorucit_frontu(self, ticho=1.5, nejdele=25.0):
+        """Počká, až Claude po startu dokreslí (výstup a pak chvíle ticha),
+        a pošle mu vstup z fronty. Kousky s pauzou — text a Enter slepené
+        dohromady by Claude Code vzal jako vložený text (viz composer.js)."""
+        konec = time.time() + nejdele
+        while time.time() < konec:
+            v = self._vystup_at
+            if v and time.time() - v >= ticho:
+                break
+            time.sleep(0.2)
+        while True:
+            with self._lock:
+                if not self._fronta:
+                    self._fronta = None
+                    return
+                kus = self._fronta.pop(0)
+            if self.exited:
+                return
+            try:
+                self.pty.write(kus)
+            except Exception:
+                pass
+            time.sleep(0.25)
+
     def close(self):
         with self._lock:
             self.conns.clear()
             self.sizes.clear()
             self.driver = None
+            self._fronta = None
         try:
             self.pty.close()
         except Exception:
@@ -320,6 +444,7 @@ class Session:
                 "agent": self.agent, "model": self.model, "bypass": self.bypass,
                 "resume": self.resume, "vault": self.vault,
                 "chat": getattr(self, "chat_id", "") or self.resume or "",
+                "uspany": self.uspany,
                 "guest": (self.guest or {}).get("name") or (self.guest or {}).get("email") or ""}
 
 
@@ -417,6 +542,17 @@ class Hub:
                                      vault=vault, prompt=prompt, launch=launch)
         return script, path, env
 
+    def probud(self, s):
+        """Uspaný tab (Session.uspi) znovu s Claudem: nad toutéž konverzací,
+        nebo čistý, když v něm ještě nic nebylo. Vždy jako běžný tab projektu —
+        slash příkaz z otevření se podruhé nespouští."""
+        chat = s.uspany_chat
+        script, cwd, env = self._command_for("project", s.path, s.agent, s.model,
+                                             resume=chat, vault=s.vault)
+        env = {**env, "HUB_TAB": core.tab_tag(s.id)}
+        s.relaunch(core.bash_argv(script), cwd, env)
+        core.log(f"tab {s.id}: probuzený" + (f" (pokračuje v {chat[:8]})" if chat else ""))
+
     def prenacti_chaty(self, cekat=6 * 3600):
         """Nové přihlášení Clauda (hub/predplatne.py) i do už běžících chatů:
         každý tab s Claudem se spustí znovu nad toutéž konverzací. Kdo zrovna
@@ -430,14 +566,16 @@ class Hub:
             return bool(cesta and (restart._uprostred_prace(cesta, od_ms) or cteni.pozadi(cesta, od_ms)))
 
         def jed():
+            # Uspané taby ne: probudí se rovnou s novým přihlášením.
             cekaji = [s for s in list(self.sessions.values())
-                      if not s.exited and (s.kind == "project" or s.kind.startswith("slash:"))
+                      if not s.exited and not s.uspany
+                      and (s.kind == "project" or s.kind.startswith("slash:"))
                       and (s.agent or core.default_agent()) == "claude"]
             konec = time.time() + cekat
             while cekaji and time.time() < konec:
                 zbyva = []
                 for s in cekaji:
-                    if s.exited or self.sessions.get(s.id) is not s:
+                    if s.exited or s.uspany or self.sessions.get(s.id) is not s:
                         continue
                     try:
                         if zaneprazdneny(s):
@@ -1928,9 +2066,17 @@ class Handler(BaseHTTPRequestHandler):
             session.attach(conn)
         elif kind == "in" and session:
             session.drive(conn)
-            session.pty.write(msg.get("d", "").encode("utf-8"))
+            session.write(msg.get("d", "").encode("utf-8"))
         elif kind == "focus" and session:
             session.drive(conn)
+            if session.uspany:
+                session.probud()
+        elif kind == "zije" and session:
+            session.posledni = time.time()       # stránka se na tab dívá
+        elif kind == "wake" and session:
+            # Stránka tab otevřela (i bez fokusu okna, třeba na telefonu).
+            if session.uspany:
+                session.probud()
         elif kind == "resize" and session:
             session.resize(conn, int(msg.get("cols", 80)), int(msg.get("rows", 24)))
         elif kind == "rename" and session:
@@ -2036,6 +2182,9 @@ def start():
     prohlizec.CHATY = lambda: {sid: (getattr(s, "chat_id", "") or "") for sid, s in HUB.sessions.items()
                                if not getattr(s, "exited", False)}
     threading.Thread(target=prohlizec.migruj, args=(core.log,), daemon=True).start()
+    # Nepoužívaný prohlížeč zavřít — sám se spustí, až ho někdo bude chtít.
+    if prohlizec.povoleno(bool(core.CONFIG.get("server_mode"))):
+        threading.Thread(target=prohlizec.hlidej_necinnost, args=(core.log,), daemon=True).start()
     threading.Thread(target=chats.warm_up, daemon=True).start()
     # První /api/state chce doctor() (agenti v PATH) — ať je připravený, než
     # se okno rozjede, místo aby na něj čekalo první načtení stránky.
@@ -2055,6 +2204,8 @@ def start():
         threading.Thread(target=core.hlidej_pamet, args=(HUB.broadcast,),
                          daemon=True).start()
         threading.Thread(target=core.hlidej_skripty, daemon=True).start()
+    # Nečinné taby uspat (hub/uspavani.py) — v prostoru na serveru výchozí.
+    threading.Thread(target=uspavani.hlidej, args=(HUB,), daemon=True).start()
     return httpd, f"http://127.0.0.1:{port}/?t={urllib.parse.quote(token)}"
 
 

@@ -127,9 +127,14 @@ def main():
     profile = prohlizec.profile_dir()
     ok = False
     if prohlizec.povoleno(server=prohlizec.na_serveru()):
-        ok, why = prohlizec.ensure()
+        # Chromium se nespouští hned se session: Playwright MCP se k němu
+        # připojí až při prvním použití prohlížeče a proxy ho teprve pak
+        # spustí (prohlizec_proxy.Spojeni.bez → ensure). Dřív každý start
+        # Clauda pustil Chromium, i když prohlížeč nikdo nepotřeboval, a hub
+        # ho po nečinnosti zase zavírá (prohlizec.hlidej_necinnost).
+        ok = prohlizec.alive() or bool(prohlizec.find_chromium())
         if not ok:
-            print(f"playwright_bridge: {why} — jedu s vlastním prohlížečem", file=sys.stderr)
+            print("playwright_bridge: Chromium nenalezen — jedu s vlastním prohlížečem", file=sys.stderr)
     if ok:
         # Každá session vidí jen své karty (hub/prohlizec_proxy.py); profil
         # a přihlášení zůstávají společné. HUB_TAB řekne hubu, ke kterému
@@ -144,6 +149,11 @@ def main():
             proxy = None
         if proxy:
             return _pust([npx, PW_MCP, "--cdp-endpoint", proxy.endpoint], proxy)
+        # Bez proxy se Playwright připojuje rovnou — Chromium musí běžet už teď.
+        ok, why = prohlizec.ensure()
+        if not ok:
+            print(f"playwright_bridge: {why} — jedu s vlastním prohlížečem", file=sys.stderr)
+    if ok:
         args = [npx, PW_MCP, "--cdp-endpoint", prohlizec.endpoint()]
     else:
         args = [npx, PW_MCP, "--browser", "chromium", "--user-data-dir", profile]

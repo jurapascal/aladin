@@ -128,8 +128,21 @@ class Evidence:
         self.znacka = znacka
         self.chat = chat
         self.karty = set()
+        self.pouzite = {}          # id karty → kdy ji Claude naposled použil
+        self._ulozeno = 0.0
         self._lock = threading.Lock()
         self.soubor = os.path.join(slozka(), f"{os.getpid()}.json")
+
+    def pouzij(self, tid):
+        """Claude poslal příkaz do karty. Hub podle toho pozná, které karty
+        nikdo nepoužívá (prohlizec.hlidej_necinnost); zapisuje se jen občas."""
+        now = time.time()
+        with self._lock:
+            self.pouzite[tid] = now
+            if now - self._ulozeno < 20:
+                return
+            self._ulozeno = now
+        self.uloz()
 
     def pridej(self, tid):
         with self._lock:
@@ -150,8 +163,11 @@ class Evidence:
             os.makedirs(slozka(), exist_ok=True)
             tmp = self.soubor + ".tmp"
             with open(tmp, "w", encoding="utf-8") as fh:
+                with self._lock:
+                    pouzite = {t: round(v) for t, v in self.pouzite.items() if t in self.karty}
                 json.dump({"tab": self.znacka, "chat": self.chat, "pid": os.getpid(),
-                           "pages": sorted(self.karty), "cwd": os.getcwd(), "ts": time.time()}, fh)
+                           "pages": sorted(self.karty), "cwd": os.getcwd(), "ts": time.time(),
+                           "used": pouzite}, fh)
             os.replace(tmp, self.soubor)
         except OSError:
             pass
@@ -256,6 +272,7 @@ class Spojeni:
 
     # Playwright → Chromium
     def _od_klienta(self, raw):
+        prohlizec.oznac_aktivitu()          # Claude prohlížeč používá (hlidej_necinnost)
         try:
             m = json.loads(raw)
         except ValueError:
@@ -273,6 +290,10 @@ class Spojeni:
                     self._seznam.add(m.get("id"))
         elif m["sessionId"] in self._blok:
             return
+        else:
+            tid = self._sesn.get(m["sessionId"])
+            if tid:
+                self.ev.pouzij(tid)
         self.ch.send(raw)
 
     def _sam(self, method, sid=None, **params):
@@ -512,6 +533,29 @@ def vlastnici():
             continue
         for tid in d.get("pages") or []:
             out[tid] = d.get("tab") or ""
+    return out
+
+
+def pouziti_karet():
+    """targetId → kdy ho naposled použil Claude (podle zápisů mostů)."""
+    out = {}
+    try:
+        names = os.listdir(slozka())
+    except OSError:
+        return out
+    for name in names:
+        if not name.endswith(".json") or name.startswith("odlozene"):
+            continue
+        try:
+            with open(os.path.join(slozka(), name), encoding="utf-8") as fh:
+                d = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        if not isinstance(d, dict):
+            continue
+        for tid, ts in (d.get("used") or {}).items():
+            if isinstance(ts, (int, float)):
+                out[tid] = max(out.get(tid, 0), float(ts))
     return out
 
 

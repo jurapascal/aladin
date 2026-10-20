@@ -144,6 +144,289 @@ def nova_karta():
 
 
 _launch_lock = threading.Lock()
+# Kolik procesů stránek smí Chromium mít (měkký strop, viz ensure).
+RENDERERU = 4
+# Po kolika minutách bez použití se prohlížeč zavře (0 = nikdy). Spustí se
+# zase sám, jakmile ho Claude (most, hub/prohlizec_proxy.py) nebo okno
+# v appce bude chtít; přihlášení zůstávají v profilu.
+NECINNOST_MIN = 20
+_AKTIVITA_KAZDYCH = 20.0
+_aktivita_zapsana = 0.0
+
+
+def _aktivita_soubor():
+    return os.path.join(claude_dir(), "browser-sessions", ".aktivita")
+
+
+def oznac_aktivitu():
+    """Prohlížeč se právě používá. Zapisuje i most v jiném procesu, proto
+    soubor (jeho čas změny), a nejvýš jednou za pár vteřin."""
+    global _aktivita_zapsana
+    now = time.time()
+    if now - _aktivita_zapsana < _AKTIVITA_KAZDYCH:
+        return
+    _aktivita_zapsana = now
+    path = _aktivita_soubor()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "a", encoding="ascii"):
+            pass
+        os.utime(path, None)
+    except OSError:
+        pass
+
+
+def posledni_aktivita():
+    try:
+        return os.path.getmtime(_aktivita_soubor())
+    except OSError:
+        return 0.0
+
+
+def necinnost():
+    """Vteřiny bez použití, po kterých se prohlížeč zavře; 0 = nezavírat."""
+    raw = os.environ.get("HUB_PROHLIZEC_NECINNOST_MIN", "")
+    try:
+        minut = float(raw) if raw else NECINNOST_MIN
+    except ValueError:
+        minut = NECINNOST_MIN
+    return max(0.0, minut) * 60
+
+
+def zavri_prohlizec():
+    """Zavře Chromium přes CDP (Browser.close) — profil si stihne uložit.
+    Vrací, jestli se to povedlo."""
+    try:
+        info = _get("/json/version", 2)
+        ws = _WS(info["webSocketDebuggerUrl"])
+    except Exception:
+        return False
+    try:
+        ws.send(json.dumps({"id": 1, "method": "Browser.close"}))
+        try:
+            ws.sock.settimeout(5)
+            ws.recv()
+        except Exception:
+            pass
+    finally:
+        ws.close()
+    for _ in range(20):
+        if not alive():
+            return True
+        time.sleep(0.25)
+    return not alive()
+
+
+# Karty, na které nikdo dlouho nesáhl (Claude přes most ani člověk v okně),
+# se zavřou a jejich adresa se zapamatuje (`odlozene`). Každá karta je
+# vlastní proces stránky (80–600 MB) a Claude je po sobě nezavírá.
+KARTA_NECINNOST_MIN = 30
+MAX_KARET = 8               # víc živých karet → zavřou se nejdéle nepoužité
+KARTA_CHRANENA = 120        # karta použitá před méně než tolika vteřinami se nezavírá nikdy
+ODLOZENE_MAX = 50
+# Spadlý Chromium se pustí znovu, jen když ho někdo nedávno používal, a ne
+# donekonečna: nejvýš PADY_MAX× za PADY_OKNO vteřin.
+PADY_MAX = 3
+PADY_OKNO = 600
+
+
+def _odlozene_soubor():
+    # Mimo browser-sessions/: tam čte mosty *.json a seznam by je zmátl.
+    return os.path.join(claude_dir(), "browser-odlozene.json")
+
+
+def _je_web(p):
+    return bool(re.match(r"^https?:", p.get("url", "") or ""))
+
+
+def odlozene():
+    """Zavřené karty (nečinnost, strop, pád prohlížeče) — nejnovější první:
+    [{url, title, tab, at, duvod}]. Otevřou se znovu přes `obnov_odlozenou`."""
+    try:
+        with open(_odlozene_soubor(), encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, list) else []
+    except (OSError, ValueError):
+        return []
+
+
+def _uloz_odlozene(data):
+    path = _odlozene_soubor()
+    try:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data[:ODLOZENE_MAX], fh, ensure_ascii=False)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def _odloz(karty, duvod):
+    now = int(time.time())
+    nove = [{"url": k.get("url", ""), "title": k.get("title", ""), "tab": k.get("tab", ""),
+             "at": now, "duvod": duvod} for k in karty if _je_web(k)]
+    if not nove:
+        return
+    urls = {k["url"] for k in nove}
+    _uloz_odlozene(nove + [k for k in odlozene() if k.get("url") not in urls])
+
+
+def obnov_odlozenou(url):
+    """Otevře zapamatovanou kartu znovu (spustí i prohlížeč). Vrací id karty."""
+    if not re.match(r"^https?:", str(url or "")):
+        return ""
+    ok, _ = ensure()
+    if not ok:
+        return ""
+    try:
+        req = urllib.request.Request(endpoint() + "/json/new?" + urllib.parse.quote(url, safe=""),
+                                     method="PUT")
+        with urllib.request.urlopen(req, timeout=5) as res:
+            tid = (json.loads(res.read().decode("utf-8", "replace") or "{}") or {}).get("id", "")
+    except Exception:
+        return ""
+    _uloz_odlozene([k for k in odlozene() if k.get("url") != url])
+    return tid
+
+
+def _aktivita_mostu():
+    """targetId → kdy ho naposled použil Claude (zápisy mostů, prohlizec_proxy)."""
+    try:
+        from . import prohlizec_proxy as px
+    except ImportError:
+        try:
+            import prohlizec_proxy as px          # spuštěno mimo balíček
+        except ImportError:
+            return {}
+    try:
+        return px.pouziti_karet()
+    except Exception:
+        return {}
+
+
+class _Karty:
+    """Co hlídač o kartách ví mezi dvěma koly."""
+
+    def __init__(self):
+        self.pouziti = {}       # id karty → kdy se naposled něco dělo (adresa, titulek, okno, most)
+        self.otisk = {}         # id karty → (url, title) z minula
+        self.posledni = []      # poslední seznam karet (zapamatuje se po pádu)
+
+    def projdi(self, strany, now):
+        most = _aktivita_mostu()
+        cil = OKNO._target if OKNO.pouziva_se() else ""
+        for p in strany:
+            tid = p["id"]
+            otisk = (p.get("url", ""), p.get("title", ""))
+            if tid not in self.pouziti or self.otisk.get(tid) != otisk or tid == cil:
+                self.pouziti[tid] = now
+            self.pouziti[tid] = max(self.pouziti[tid], most.get(tid, 0))
+            self.otisk[tid] = otisk
+        zive = {p["id"] for p in strany}
+        for tid in list(self.pouziti):
+            if tid not in zive:
+                self.pouziti.pop(tid, None)
+                self.otisk.pop(tid, None)
+        self.posledni = [{"url": p.get("url", ""), "title": p.get("title", ""),
+                          "tab": OKNO._majitel(p["id"])} for p in strany]
+
+    def k_zavreni(self, strany, now):
+        """Karty k zavření: dlouho nepoužité, a nad MAX_KARET ty nejstarší."""
+        limit = KARTA_NECINNOST_MIN * 60
+        cil = OKNO._target if OKNO.viewers else ""
+        kandidati = []
+        for p in strany:
+            tid = p["id"]
+            if tid == cil or tid in OKNO._potreby or not _je_web(p):
+                continue      # na tu se kouká / člověk se v ní přihlašuje / prázdná nic nestojí
+            kdy = self.pouziti.get(tid, now)
+            if now - kdy >= KARTA_CHRANENA:
+                kandidati.append((kdy, p))
+        kandidati.sort(key=lambda x: x[0])
+        zavrit = [p for kdy, p in kandidati if limit and now - kdy >= limit]
+        navic = sum(1 for p in strany if _je_web(p)) - len(zavrit) - MAX_KARET
+        for _, p in kandidati:
+            if navic <= 0:
+                break
+            if p not in zavrit:
+                zavrit.append(p)
+                navic -= 1
+        return zavrit
+
+
+def hlidej_necinnost(log=lambda *a: None, every=15):
+    """Smyčka na pozadí v hubu, která drží vestavěný prohlížeč při zemi:
+
+      - karty, na které nikdo KARTA_NECINNOST_MIN minut nesáhl, a nejstarší
+        karty nad MAX_KARET zavře a jejich adresy si zapamatuje (`odlozene`),
+      - prohlížeč, který nikdo nepoužívá (Claude přes most ani člověk
+        v okně appky), po NECINNOST_MIN minutách zavře celý — spustí se sám,
+        až ho bude někdo chtít (most při prvním příkazu, okno při otevření),
+      - spadlý prohlížeč, který se nedávno používal, pustí znovu (nejvýš
+        PADY_MAX× za PADY_OKNO) a jeho karty zapamatuje.
+    """
+    start = time.time()
+    karty = _Karty()
+    bezel = False
+    zavrel_jsem = False
+    pady = []
+    kolo = 0
+    while True:
+        time.sleep(every)
+        kolo += 1
+        try:
+            now = time.time()
+            zije = alive()
+            if OKNO.pouziva_se():
+                OKNO.posledni = now
+            last = max(start, posledni_aktivita(), OKNO.posledni,
+                       max(karty.pouziti.values(), default=0))
+            if bezel and not zije and not zavrel_jsem:
+                _odloz(karty.posledni, "pad")
+                karty = _Karty()
+                pady = [t for t in pady if now - t < PADY_OKNO] + [now]
+                if now - last < (necinnost() or 3600) and len(pady) <= PADY_MAX:
+                    ok, why = ensure()
+                    log("prohlížeč: spadl, spuštěný znovu (adresy karet zapamatované)" if ok
+                        else f"prohlížeč: spadl a znovu nenaběhl: {why}")
+                    zije = ok
+                else:
+                    log("prohlížeč: spadl (znovu se spustí, až bude potřeba)")
+            if zije:
+                zavrel_jsem = False
+            bezel = zije
+            if not zije or kolo % max(1, int(60 // every)):
+                continue                  # karty a nečinnost stačí jednou za minutu
+            try:
+                data = _get("/json/list", 2)
+            except Exception:
+                continue
+            strany = [p for p in data if p.get("type") == "page"]
+            karty.projdi(strany, now)
+            zavrit = karty.k_zavreni(strany, now)
+            if zavrit and len(zavrit) >= len(strany):
+                nova_karta()              # poslední karta nesmí zmizet — prohlížeč by skončil
+            for p in zavrit:
+                try:
+                    zavri_kartu(p["id"])
+                except Exception:
+                    pass
+            if zavrit:
+                _odloz([{"url": p.get("url", ""), "title": p.get("title", ""),
+                         "tab": OKNO._majitel(p["id"])} for p in zavrit], "necinnost")
+                log(f"prohlížeč: zavřeno {len(zavrit)} nepoužívaných karet (adresy zapamatované)")
+            limit = necinnost()
+            if not limit or OKNO.pouziva_se() or now - last < limit:
+                continue
+            zavrel_jsem = True
+            if zavri_prohlizec():
+                bezel = False
+                karty = _Karty()
+                log(f"prohlížeč: zavřený po {int(limit // 60)} min bez použití (spustí se sám, až bude potřeba)")
+            else:
+                zavrel_jsem = False
+        except Exception as exc:          # noqa: BLE001 — pozadí, nic nesmí shodit
+            log(f"prohlížeč: hlídání: {exc}")
 
 
 def _verze_chromia(exe):
@@ -194,8 +477,24 @@ def ensure(wait=15.0):
                 "--disable-blink-features=AutomationControlled",
                 "--window-size=1600,1000", "--disable-background-timer-throttling",
                 "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding",
-                "--disable-features=Translate,MediaRouter,OptimizationHints", "--disable-extensions",
+                # BackForwardCache: každá karta by v paměti držela i stránky,
+                # ze kterých se odešlo (zpět se stejně kliká málokdy).
+                "--disable-features=Translate,MediaRouter,OptimizationHints,BackForwardCache,"
+                "AutofillServerCommunication,InterestFeedContentSuggestions",
+                # Víc karet sdílí procesy stránek — každý je 80–600 MB. Izolace
+                # webů (site isolation) zůstává, strop je jen měkký.
+                f"--renderer-process-limit={RENDERERU}",
+                "--disable-extensions",
                 "--disable-component-update", "--disable-default-apps", "--force-color-profile=srgb", "about:blank"]
+        # Malé /dev/shm (kontejnery, sandbox prostoru): sdílená paměť pro
+        # snímky by došla a stránky by padaly — pak radši /tmp.
+        try:
+            st = os.statvfs("/dev/shm")
+            if st.f_blocks * st.f_frsize < 512 * 2**20:
+                args.insert(1, "--disable-dev-shm-usage")
+        except (OSError, AttributeError):
+            if not IS_WINDOWS:
+                args.insert(1, "--disable-dev-shm-usage")
         # Pod rootem Chromium sandbox odmítne; v prostoru brány už běží
         # v bwrap a vlastní sandbox (další jmenné prostory) tam nenaběhne.
         if not IS_WINDOWS and hasattr(os, "geteuid") and (os.geteuid() == 0 or na_serveru()):
@@ -214,6 +513,13 @@ def ensure(wait=15.0):
             if alive():
                 return True, ""
             if proc.poll() is not None:
+                # Souběh: prohlížeč chtěly naráz dva mosty (spouští se až při
+                # prvním použití) — druhý Chromium nad zamčeným profilem hned
+                # skončí, ale ten první za chvíli odpoví.
+                for _ in range(20):
+                    if alive():
+                        return True, ""
+                    time.sleep(0.25)
                 return False, "Prohlížeč hned skončil — nad profilem nejspíš běží jiný Chrome."
             time.sleep(0.25)
         return False, "Prohlížeč se nerozjel včas."
@@ -389,6 +695,11 @@ class Okno:
         self._potreby_pocet = {}   # id karty → (důvod, kolik kontrol po sobě)
         self._bez_majitele = {}    # id nové karty → kdy se objevila (most ji ještě nezapsal)
         self._hlidac = None
+        self.posledni = 0.0        # kdy naposled člověk v okně něco dělal (hlidej_necinnost)
+
+    def pouziva_se(self):
+        """Kouká se někdo na rozbalené okno prohlížeče?"""
+        return any(self._vidi.values())
 
     # -- pohledy
     def pridej(self, conn, pasivne=False):
@@ -400,9 +711,13 @@ class Okno:
             except Exception:
                 pass
             return
+        self.posledni = time.time()
         with self._lock:
             self.viewers.add(conn)
             start = not (self._thread and self._thread.is_alive())
+            if not start and not pasivne and not alive():
+                # Prohlížeč se mezitím zavřel kvůli nečinnosti — okno ho chce zpátky.
+                threading.Thread(target=ensure, daemon=True).start()
             if start:
                 self._thread = threading.Thread(target=self._bez, name="prohlizec", daemon=True)
                 self._thread.start()
@@ -799,6 +1114,7 @@ class Okno:
 
     # -- vstup od člověka
     def vstup(self, msg):
+        self.posledni = time.time()
         a = msg.get("a")
         if a == "mouse":
             typ = {"down": "mousePressed", "up": "mouseReleased", "move": "mouseMoved"}.get(msg.get("type"))

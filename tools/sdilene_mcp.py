@@ -19,8 +19,24 @@ import os
 import secrets
 import sys
 import threading
-import urllib.error
-import urllib.request
+
+
+class _LenyUrllib:
+    """urllib.request vytáhne ssl, http a email (~8 MB RAM). Tab, který most na
+    počítač nikdy nezavolá, to platit nemá — importuje se až při prvním dotazu."""
+
+    @property
+    def request(self):
+        import urllib.request as mod
+        return mod
+
+    @property
+    def error(self):
+        import urllib.error as mod
+        return mod
+
+
+urllib = _LenyUrllib()
 
 TIMEOUT = 200                          # o kus víc než brána (TIMEOUT v mcp_sdilene)
 _out = threading.Lock()

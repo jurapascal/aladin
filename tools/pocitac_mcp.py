@@ -21,8 +21,24 @@ import os
 import sys
 import threading
 import time
-import urllib.error
-import urllib.request
+
+
+class _LenyUrllib:
+    """urllib.request vytáhne ssl, http a email (~8 MB RAM). Tab, který most na
+    počítač nikdy nezavolá, to platit nemá — importuje se až při prvním dotazu."""
+
+    @property
+    def request(self):
+        import urllib.request as mod
+        return mod
+
+    @property
+    def error(self):
+        import urllib.error as mod
+        return mod
+
+
+urllib = _LenyUrllib()
 
 NAME = "pocitac"
 VERSION = "1.3.0"
@@ -231,10 +247,11 @@ class Failed(Exception):
 
 # ── brána ────────────────────────────────────────────────────────────────────
 # Brána je na loopbacku stroje; proxy z prostředí by dotaz poslala ven.
-_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+_OPENER = None                  # vytvoří se při prvním dotazu (viz gateway)
 
 
 def gateway(op, args=None, computer="", wait=150):
+    global _OPENER
     url = os.environ.get("HUB_POCITAC_URL", "").rstrip("/")
     token = os.environ.get("HUB_POCITAC_TOKEN", "")
     if not url or not token:
@@ -246,6 +263,8 @@ def gateway(op, args=None, computer="", wait=150):
     req = urllib.request.Request(url + "/gw/pocitac/volani", data=body, method="POST",
                                  headers={"Content-Type": "application/json",
                                           "X-Hub-Pocitac": token})
+    if _OPENER is None:
+        _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with _OPENER.open(req, timeout=wait) as res:
             data = json.loads(res.read().decode("utf-8") or "{}")

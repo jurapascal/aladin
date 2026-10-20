@@ -17,7 +17,7 @@ Uspává se jen tab, u kterého to nic nerozbije:
   - dlouho do něj nikdo nepsal a nic nevypsal.
 
 Jak dlouho: `uspat_taby_min` v hub-config.json (nebo HUB_USPAT_TABY_MIN).
-Výchozí je 30 minut v prostoru na serveru a vypnuto na počítači. Když je
+Výchozí je 10 minut (dřív 30) v prostoru na serveru a vypnuto na počítači. Když je
 prostor blízko stropu paměti, uspává se už po pár minutách klidu.
 """
 import os
@@ -26,11 +26,11 @@ import time
 from . import core
 
 # Výchozí doba klidu v minutách: v prostoru na serveru / na počítači (0 = vypnuto).
-VYCHOZI_SERVER = 30
+VYCHOZI_SERVER = 10
 VYCHOZI_POCITAC = 0
 # Prostor nad tímhle podílem stropu (bez cache souborů) uspává dřív.
 TLAK = 0.7
-TLAK_MIN = 5
+TLAK_MIN = 3
 KAZDYCH = 60
 
 

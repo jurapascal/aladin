@@ -11,11 +11,26 @@ Protokol: JSON-RPC 2.0 po řádcích na stdin/stdout.
 """
 import json
 import os
-import ssl
 import sys
 import threading
-import urllib.error
-import urllib.request
+
+
+class _LenyUrllib:
+    """urllib.request vytáhne ssl, http a email (~8 MB RAM). Tab, který most na
+    počítač nikdy nezavolá, to platit nemá — importuje se až při prvním dotazu."""
+
+    @property
+    def request(self):
+        import urllib.request as mod
+        return mod
+
+    @property
+    def error(self):
+        import urllib.error as mod
+        return mod
+
+
+urllib = _LenyUrllib()
 
 NAME = "server"
 VERSION = "1.0.0"
@@ -71,6 +86,7 @@ def _config():
 
 
 def call(tool, args):
+    import ssl                      # líně: ~3 MB, tab bez volání serveru ho nepotřebuje
     base, token = _config()
     body = json.dumps({"tool": tool, "args": args}).encode("utf-8")
     req = urllib.request.Request(base + "/gw/prostor/volani", data=body, method="POST", headers={

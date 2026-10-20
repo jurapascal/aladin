@@ -2882,6 +2882,10 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         self.wfile.write(resp)
         self.wfile.flush()
         self.close_connection = True
+        # Limit 15 s z create_connection platí jen pro navázání spojení.
+        # V tunelu by recv() po 15 s ticha od hubu spadl na timeout a WebSocket
+        # se každých ~17 s přerušil — klik v tu chvíli propadl.
+        up.settimeout(None)
 
         client = self.connection
         # Psaní do terminálu jde jen tudy, žádným HTTP požadavkem. Bez tohohle

@@ -100,8 +100,10 @@
   <div class="topbar-actions">
     <button id="btn-update" class="topbar-update" hidden>
       <svg class="ico"><use href="#i-up"/></svg><span id="btn-update-text"></span></button>
-    <button id="btn-verxee" class="iconbtn" title="Nahlásit chybu nebo podat návrh (Alt+Shift+B)" hidden>
-      <svg class="ico"><use href="#i-bug"/></svg></button>
+    <span id="btn-verxee" class="verxee-split" hidden>
+      <button type="button" class="vx-chyba" data-klavesa="B" title="Nahlásit chybu (Alt+Shift+B)" aria-label="Nahlásit chybu">
+        <svg class="ico"><use href="#i-bug"/></svg><span>Chyba</span></button><button type="button" class="vx-navrh" data-klavesa="N" title="Podat návrh (Alt+Shift+N)" aria-label="Podat návrh">
+        <svg class="ico"><use href="#i-bulb"/></svg><span>Návrh</span></button></span>
     <button id="btn-refresh" class="iconbtn" title="Načíst projekty a paměť znovu (neaktualizuje aplikaci)">
       <svg class="ico"><use href="#i-refresh"/></svg></button>
     <button id="btn-theme" class="iconbtn" title="Přepnout světlý/tmavý režim">

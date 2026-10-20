@@ -60,15 +60,19 @@
     return true;
   }
 
-  // Ikonka v horní liště; klik = stejný zkratkový klávesový vstup jako Alt+Shift+B.
+  // Dvojité tlačítko v horní liště jako plovoucí tlačítko na webech: červená
+  // půlka Chyba (= Alt+Shift+B), modrá Návrh (= Alt+Shift+N).
   function lista(ukazat) {
     const b = document.getElementById('btn-verxee');
     if (!b) return;
     b.hidden = !ukazat;
     if (b.dataset.v) return;
     b.dataset.v = '1';
-    b.addEventListener('click', () => document.dispatchEvent(new KeyboardEvent('keydown',
-      {key: 'B', code: 'KeyB', altKey: true, shiftKey: true, bubbles: true})));
+    for (const btn of b.querySelectorAll('button[data-klavesa]')) {
+      const k = btn.dataset.klavesa;
+      btn.addEventListener('click', () => document.dispatchEvent(new KeyboardEvent('keydown',
+        {key: k, code: 'Key' + k, altKey: true, shiftKey: true, bubbles: true})));
+    }
   }
 
   function apply(state) {

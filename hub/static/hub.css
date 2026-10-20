@@ -170,6 +170,20 @@ body { display: flex; flex-direction: column; }
   color: var(--fg-bright); font-size: 15px; cursor: pointer;
 }
 .iconbtn:hover { background: var(--bg-card); }
+/* Nahlásit chybu / Podat návrh (verxee.js) — stejné barvy a tvar jako
+   plovoucí tlačítko Verxee Debug na webech, ať se pozná na první pohled. */
+.verxee-split { display: inline-flex; align-self: center; margin-right: 6px;
+                border-radius: 999px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
+.verxee-split[hidden] { display: none; }
+.verxee-split button {
+  display: inline-flex; align-items: center; gap: 5px; height: 26px;
+  border: 0; color: #fff; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.verxee-split button:hover { filter: brightness(1.15); }
+.verxee-split .ico { width: 15px; height: 15px; flex: none; }
+.verxee-split .vx-chyba { background: #e11d48; padding: 0 9px 0 10px; }
+.verxee-split .vx-navrh { background: #2563eb; padding: 0 10px 0 9px;
+                          border-left: 1px solid rgba(255,255,255,.45); }
 
 /* ── layout ──────────────────────────────────────────────────────────────── */
 .layout {
@@ -2021,6 +2035,9 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   .topbar-menu { display: inline-flex; }
   #btn-refresh, #btn-theme, #btn-stats, #btn-settings { display: none; }
   .iconbtn { width: 36px; height: 32px; }
+  /* Telefon: jen ikony, ale obě barvy — pořád je jasné, co je co. */
+  .verxee-split span { display: none; }
+  .verxee-split button { height: 30px; padding: 0 9px; }
   /* Položky nabídky musí unést palec, ne kurzor. */
   .ctxmenu { min-width: 232px; }
   .ctxmenu button { padding: 11px 12px; font-size: 13.5px; }

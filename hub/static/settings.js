@@ -1214,8 +1214,9 @@
       const wrap = el('div', 'acc-sec');
       wrap.appendChild(el('div', 'set-title', 'Přístup'));
       wrap.appendChild(el('div', 'set-note',
-        'Pusť do svého prostoru někoho z týmu — třeba aby ti nastavil předplatné. ' +
-        'Přístup můžeš kdykoli odebrat, platí to hned.'));
+        'Pusť do svého prostoru někoho z týmu — třeba aby ti nastavil předplatné —, nebo všechny ' +
+        'na serveru najednou. Přístup můžeš kdykoli odebrat, platí to hned. Do tvého prostoru se ' +
+        'přepnou v přepínači vlevo nahoře (vedle Osobní a firem).'));
       const list = el('div');
       const log = el('div');
       const gw = async (payload) => {
@@ -1230,11 +1231,14 @@
       };
       const AKCE = {pridat: 'dostal(a) přístup', role: 'změna role', odebrat: 'přístup odebrán',
                     vstup: 'vstoupil(a)', odchod: 'odešel/odešla', tab: 'otevřel(a) tab',
-                    zamitnuto: 'zamítnuto'};
+                    zamitnuto: 'zamítnuto', vyjimka: 'výjimka — bez přístupu',
+                    'vyjimka-zrusit': 'výjimka zrušena', 'vsem-pridat': 'přístup pro všechny zapnut',
+                    'vsem-role': 'přístup pro všechny — změna role', 'vsem-odebrat': 'přístup pro všechny zrušen'};
       let roles = [];
-      const roleSelect = (value) => {
+      let vyjimka = null;     // „Bez přístupu (výjimka)“ — nabízí se, jen když je zapnuto „Všichni“
+      const roleSelect = (value, withBlock) => {
         const sel = el('select', 'set-input');
-        for (const r of roles) {
+        for (const r of (withBlock && vyjimka ? [...roles, vyjimka] : roles)) {
           const o = el('option', null, r.label);
           o.value = r.id;
           if (r.id === value) o.selected = true;
@@ -1250,17 +1254,33 @@
         let d;
         try { d = await gw(); } catch (e) { list.textContent = e.message; return; }
         roles = d.role || [];
+        vyjimka = d.vyjimka || null;
+        const vsem = d.vsem || null;
         list.textContent = '';
-        if (!d.moje.length) list.appendChild(el('div', 'set-note', 'Zatím sem nikdo jiný nesmí.'));
+        list.appendChild(vsemBlok(vsem));
+        if (!d.moje.length && !vsem) list.appendChild(el('div', 'set-note', 'Zatím sem nikdo jiný nesmí.'));
+        if (d.moje.length && vsem) {
+          list.appendChild(el('div', 'set-note',
+            'Lidé níž mají vlastní roli — ta platí místo role pro všechny (i když je nižší).'));
+        }
         for (const g of d.moje) {
           const row = el('div', 'set-row');
           row.appendChild(el('span', null, (g.name || g.email) + (g.name ? ' · ' + g.email : '') +
                                            (g.online ? ' · právě tady' : '')));
-          const sel = roleSelect(g.role);
-          sel.onchange = () => run({akce: 'role', host: g.id, role: sel.value}, 'Role změněna.');
+          const sel = roleSelect(g.role, vsem || g.vyjimka);
+          sel.onchange = () => run({akce: 'role', host: g.id, role: sel.value},
+                                   sel.value === (vyjimka && vyjimka.id) ? 'Tenhle člověk do prostoru nesmí.' : 'Role změněna.');
           row.appendChild(sel);
-          const del = el('button', 'btn ghost', 'Odebrat');
-          del.onclick = () => run({akce: 'odebrat', host: g.id}, 'Přístup odebrán.');
+          const del = el('button', 'btn ghost', g.vyjimka ? 'Zrušit výjimku' : 'Odebrat');
+          del.onclick = async () => {
+            try {
+              const r = await gw({akce: 'odebrat', host: g.id});
+              io.toast(r.zbyva ? `Vlastní role odebrána — pořád smí přes „Všichni na serveru“ (${r.zbyva}). ` +
+                                 'Úplně ho vyřadíš rolí „' + ((vyjimka && vyjimka.label) || 'Bez přístupu') + '“.'
+                               : g.vyjimka ? 'Výjimka zrušena.' : 'Přístup odebrán.');
+            } catch (e) { io.toast(e.message); }
+            draw();
+          };
           row.appendChild(del);
           list.appendChild(row);
         }
@@ -1268,7 +1288,7 @@
         const email = el('input', 'set-input');
         email.type = 'email';
         email.placeholder = 'e-mail účtu na téhle bráně';
-        const sel = roleSelect('predplatne');
+        const sel = roleSelect('predplatne', !!vsem);
         const btn = el('button', 'btn primary', 'Přidat');
         btn.onclick = () => {
           if (!email.value.trim()) return io.toast('Vyplň e-mail.');
@@ -1276,6 +1296,18 @@
         };
         add.append(email, sel, btn);
         list.appendChild(add);
+        if (d.vse_vsem && d.vse_vsem.length) {
+          // Admin: kdo na bráně pustil k sobě všechny.
+          list.appendChild(el('div', 'set-title', 'Prostory otevřené všem na serveru'));
+          for (const a of d.vse_vsem) {
+            const row = el('div', 'set-row');
+            row.appendChild(el('span', null, `Všichni → ${a.vlastnik.name || a.vlastnik.email} · ${a.label}`));
+            const del = el('button', 'btn ghost', 'Zrušit');
+            del.onclick = () => run({akce: 'vsem-zrusit', vlastnik: a.vlastnik.id}, 'Přístup pro všechny zrušen.');
+            row.appendChild(del);
+            list.appendChild(row);
+          }
+        }
         if (d.vse && d.vse.length) {
           // Admin: všechny přístupy na bráně, jen k zobrazení a zrušení.
           list.appendChild(el('div', 'set-title', 'Všechny přístupy na bráně'));
@@ -1294,9 +1326,40 @@
           for (const e of d.zaznam.slice(0, 30)) {
             const what = [AKCE[e.akce] || e.akce, e.role ? '(' + e.role + ')' : '',
                           e.nazev ? '„' + e.nazev + '“' : '', e.cesta || e.zprava || ''].filter(Boolean).join(' ');
-            log.appendChild(el('div', 'set-note', `${e.cas} · ${e.host_jmeno} · ${what}`));
+            log.appendChild(el('div', 'set-note', `${e.cas} · ${e.host_jmeno} · ${what}` +
+                                                  (e.pres === 'vsem' ? ' · přes „Všichni na serveru“' : '')));
           }
         }
+      }
+      /* „Všichni na serveru“: jedna role pro každý aktivní účet brány (i nový).
+         Kdo má výš vlastní roli nebo výjimku, toho se netýká. */
+      function vsemBlok(vsem) {
+        const box = el('div', 'set-row pristup-vsem');
+        const txt = el('span', null, vsem
+          ? 'Všichni na serveru: ' + vsem.label + (vsem.online && vsem.online.length ? ' · právě tady: ' + vsem.online.join(', ') : '')
+          : 'Všichni na serveru: ne');
+        txt.title = 'Každý účet na téhle bráně (i ten, který přibude). Zablokované účty ne.';
+        box.appendChild(txt);
+        const sel = roleSelect(vsem ? vsem.role : 'pomocnik');
+        box.appendChild(sel);
+        const zapnout = async (role) => {
+          const r = roles.find((x) => x.id === role);
+          if (role === 'plny' && !(await HubDialog.confirm(
+            'Plný přístup pro všechny na serveru: kdokoli s účtem tu bude pracovat jako ty — tvůj Claude, ' +
+            'napojení, nastavení. Opravdu?', {title: 'Plný přístup pro všechny', ok: 'Pustit všechny'}))) { draw(); return; }
+          run({akce: 'vsem', role}, 'Všichni na serveru: ' + (r ? r.label : role) + '.');
+        };
+        if (vsem) {
+          sel.onchange = () => zapnout(sel.value);
+          const off = el('button', 'btn ghost', 'Zrušit pro všechny');
+          off.onclick = () => run({akce: 'vsem-zrusit'}, 'Přístup pro všechny zrušen.');
+          box.appendChild(off);
+        } else {
+          const on = el('button', 'btn ghost', 'Pustit všechny');
+          on.onclick = () => zapnout(sel.value);
+          box.appendChild(on);
+        }
+        return box;
       }
       wrap.append(list, log);
       draw();

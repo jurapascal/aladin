@@ -822,32 +822,80 @@ function newChatHere(agentId) {
   return openTab({kind: 'project', path: STATE.home, title: newTabLabel(), agent: a.id});
 }
 
-/* Přepínač prostoru v hlavičce: osobní, firmy a správa. */
+/* Cizí prostory, kam mě vlastník pustil (gateway/pristup.py — jménem, nebo
+   „Všichni na serveru“). Brána je vrací lehce (?jen=kam); přepínač prostoru
+   je ukazuje hned pod Osobní a firmami, ať se do nich nemusí přes nastavení
+   ani přes stránku brány. Načítá se nejvýš jednou za minutu, při otevření
+   nabídky znovu. */
+let PROSTORY = {kam: [], at: 0};
+async function loadProstory(maxAge = 60000) {
+  if (!onServer()) return PROSTORY;
+  if (Date.now() - PROSTORY.at < maxAge) return PROSTORY;
+  PROSTORY.at = Date.now();
+  try {
+    const r = await fetch('/gw/pristup?jen=kam', {credentials: 'same-origin'});
+    const d = await r.json().catch(() => ({}));
+    if (r.ok) PROSTORY = {kam: Array.isArray(d.kam) ? d.kam : [], at: Date.now()};
+  } catch (_) { /* brána neodpovídá — nabídka zůstane, jak byla */ }
+  renderProstorBtn();
+  return PROSTORY;
+}
+const prostorKdo = (k) => k.name || k.email || '?';
+
+/* Přepínač prostoru v hlavičce: osobní, firmy, cizí prostory a správa. */
 function renderProstorBtn() {
   const b = $('btn-prostor');
   if (!b) return;
   const f = prostorFirma();
+  const g = STATE.guest;
   const zakladat = !!(STATE.firma && STATE.firma.zakladat);
-  b.hidden = !onServer() || (!hasFirma() && !zakladat);
+  b.hidden = !onServer() || (!hasFirma() && !zakladat && !g && !PROSTORY.kam.length);
   b.classList.toggle('firma', !!f);
-  b.querySelector('.prostor-name').textContent = f ? f.nazev : 'Osobní';
-  b.title = f ? 'Okno pracuje pro firmu ' + f.nazev + ' (' + ROLE_FIRMY[f.role] + ') — klikni pro přepnutí'
-              : 'Okno je v osobním prostoru — klikni pro přepnutí na firmu';
+  b.classList.toggle('guest', !!g);
+  // V cizím prostoru: čí je a role — Osobní / firma je pak ta vlastníkova.
+  b.querySelector('.prostor-name').textContent = g
+    ? (g.owner_name || '?') + ' · ' + (f ? f.nazev : (g.label || g.role))
+    : f ? f.nazev : 'Osobní';
+  b.title = g
+    ? `Jsi v prostoru: ${g.owner_name || '?'} (${g.label || g.role})` + (f ? ' · firma ' + f.nazev : '') +
+      ' — klikni pro přepnutí nebo návrat do svého'
+    : f ? 'Okno pracuje pro firmu ' + f.nazev + ' (' + ROLE_FIRMY[f.role] + ') — klikni pro přepnutí'
+    : PROSTORY.kam.length && !hasFirma() ? 'Okno je v tvém prostoru — klikni a přepneš do prostoru, kam máš přístup'
+    : 'Okno je v osobním prostoru — klikni pro přepnutí na firmu';
 }
-function prostorMenu(ev) {
+async function prostorMenu(ev) {
   const r = ev.currentTarget.getBoundingClientRect();
+  await loadProstory(10000);
   const now = prostor();
-  const items = [{icon: 'i-user', label: 'Osobní prostor', on: !now, run: () => setProstor('')}];
+  const g = STATE.guest;
+  const items = [{icon: 'i-user', label: g ? 'Osobní · ' + (g.owner_name || '?') : 'Osobní prostor',
+                  on: !now, run: () => setProstor('')}];
   for (const f of firmyList()) {
     items.push({icon: 'i-folder', label: f.nazev + ' · ' + ROLE_FIRMY[f.role], on: now === f.zkratka,
                 color: 'var(--firma)', run: () => setProstor(f.zkratka)});
   }
-  if (STATE.firma && STATE.firma.zakladat) {
-    items.push({icon: 'i-plus', label: 'Založit firmu…', run: () => spravaFirem()});
+  // Cizí prostory: přepnutí = cookie na bráně a nové načtení stránky.
+  if (g || PROSTORY.kam.length) {
+    items.push({heading: 'Prostory, kam máš přístup'});
+    if (g) items.push({icon: 'i-hub', label: 'Zpět do svého prostoru', run: () => prostorJdi(0)});
+    for (const k of PROSTORY.kam) {
+      const tady = !!(g && g.owner === k.id);
+      items.push({icon: 'i-lock', on: tady,
+                  label: prostorKdo(k) + ' · ' + k.label + (k.pres === 'vsem' ? ' (všem)' : ''),
+                  run: () => { if (!tady) prostorJdi(k.id); }});
+    }
   }
-  if (firmyList().some((f) => f.role === 'kapitan')) {
-    items.push({icon: 'i-gear', label: 'Spravovat firmy…', run: () => spravaFirem()});
+  // Zakládat a spravovat firmy jde jen ve vlastním prostoru (host na to
+  // stejně nedosáhne — brána, gateway/firmy.py, jde za přihlášeným).
+  const tail = [];
+  if (!g && STATE.firma && STATE.firma.zakladat) {
+    tail.push({icon: 'i-plus', label: 'Založit firmu…', run: () => spravaFirem()});
   }
+  if (!g && firmyList().some((f) => f.role === 'kapitan')) {
+    tail.push({icon: 'i-gear', label: 'Spravovat firmy…', run: () => spravaFirem()});
+  }
+  if (tail.length && (g || PROSTORY.kam.length)) items.push({heading: 'Firmy'});
+  items.push(...tail);
   showMenu(r.left, r.bottom, items);
 }
 function spravaFirem() {
@@ -2760,9 +2808,9 @@ function renderPlace() {
   renderBranding();
   // Barva celé appky se odvozuje odsud: počítač jantarově, prostor modře.
   document.documentElement.dataset.place = u ? 'server' : 'pc';
-  badge.textContent = STATE.guest
-    ? `Prostor: ${STATE.guest.owner_name || '?'} · ${STATE.guest.label || ''}`
-    : u ? 'Server' : 'PC';
+  // Čí prostor to je, říká přepínač prostoru vedle (renderProstorBtn) a pruh
+  // nahoře — odznak zůstane krátký, na telefonu by se jinak nevešel.
+  badge.textContent = u ? 'Server' : 'PC';
   badge.classList.toggle('guest', !!STATE.guest);
   badge.setAttribute('aria-label', shown + ' ' + placeName());
   badge.classList.toggle('on-server', !!u);
@@ -3305,6 +3353,7 @@ async function reload() {
   renderActions();
   renderFooter();
   renderPlace();
+  loadProstory();                    // cizí prostory do přepínače (jen na serveru)
   renderDoctor();
   renderWelcome();
   renderNewTabButtons();
@@ -4327,6 +4376,14 @@ function showMenu(x, y, items, opts) {
   const menu = $('ctxmenu');
   menu.textContent = '';
   for (const item of items) {
+    // Nadpis skupiny (např. „Prostory, kam máš přístup“) — neklikací řádek.
+    if (item.heading) {
+      const h = document.createElement('div');
+      h.className = 'ctx-head';
+      h.textContent = item.heading;
+      menu.appendChild(h);
+      continue;
+    }
     const el = document.createElement('button');
     // Vybraná položka (model, režim) se pozná fajfkou místo vlastní ikony.
     el.innerHTML = icon(item.on ? 'i-check' : item.icon) + '<span></span>';

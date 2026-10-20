@@ -389,6 +389,8 @@ body { display: flex; flex-direction: column; }
 .tab:hover { background: var(--card-hover); }
 .tab.active { background: var(--bg); color: var(--fg-bright); box-shadow: inset 0 2px 0 var(--accent); }
 .tab.exited .tab-title { text-decoration: line-through; opacity: .65; }
+/* Uspaný tab (hub/uspavani.py): jen ztlumený, otevřením se probudí. */
+.tab.uspany .tab-title, .tab.uspany .tab-agent { opacity: .55; }
 /* Odznak agenta: tečka v jeho barvě. Jméno se dopisuje jen u toho, kdo není
    výchozí — jinak by u každého tabu svítilo totéž slovo a nic to neřeklo. */
 .tab-agent {

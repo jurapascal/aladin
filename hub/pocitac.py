@@ -1136,8 +1136,8 @@ def op_session_send(args):
         raise TaskError("Zpráva je moc dlouhá.")
     body = "[ze serveru] " + text
     data = ("\x1b[200~" + body + "\x1b[201~") if "\n" in body else body
-    session.pty.write(data.encode("utf-8"))
-    threading.Timer(0.25, lambda: None if session.exited else session.pty.write(b"\r")).start()
+    session.write(data.encode("utf-8"))      # uspaný tab se tím probudí
+    threading.Timer(0.25, lambda: None if session.exited else session.write(b"\r")).start()
     return {"sent": True, "tab": session.id}
 
 

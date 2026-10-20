@@ -396,10 +396,11 @@ def sdilet_poslat(args):
     # Claude i majitel pak vidí, od koho zpráva je.
     body = (f"[{kdo}] " if kdo else "") + text
     data = ("\x1b[200~" + body + "\x1b[201~") if "\n" in body else body
-    s.pty.write(data.encode("utf-8"))
+    # Přes write(): uspaný tab (hub/uspavani.py) se probudí a zprávu dostane.
+    s.write(data.encode("utf-8"))
     # Enter zvlášť a o chvíli později: slepený s textem by ho Claude Code přebral
     # jako součást vloženého textu (stejně to dělá bublina v composer.js).
-    threading.Timer(0.25, lambda: None if s.exited else s.pty.write(b"\r")).start()
+    threading.Timer(0.25, lambda: None if s.exited else s.write(b"\r")).start()
     return {"odeslano": True}
 
 

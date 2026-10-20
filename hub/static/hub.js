@@ -3399,7 +3399,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
     /* Server přehrává po reloadu jen 256 kB (server.py SCROLLBACK), víc
        historie tedy stejně nepřežije. 100 000 řádků bylo ~150 MB na tab —
        u dvaceti tabů stránka tuhla a padala. */
-    scrollback: 10000,
+    scrollback: 3000,
     cursorBlink: true,
     allowProposedApi: true,
     theme: termTheme({vault}),   // firemní tab je fialový od prvního znaku
@@ -3686,6 +3686,8 @@ function activate(tab) {
   if (tab) {
     refit(tab);
     claimSize(tab);
+    // Uspaný tab (hub/uspavani.py) se otevřením probudí — i bez fokusu okna.
+    if (tab.id) send({t: 'wake', id: tab.id});
     if (tab.links) tab.links.update();      // skrytý tab odkazy nečetl
     if (tab.cteni) tab.cteni.wake();        // a čtení je o dotaz pozadu
     // Na telefonu fokus nebrat: vyjela by klávesnice a zakryla půlku
@@ -4509,6 +4511,22 @@ function connect() {
 // Přepnutí do tohohle okna = pracuje se tady, rozměr terminálu patří jemu.
 window.addEventListener('focus', () => claimSize(ACTIVE));
 
+/* Tab, na který se člověk dívá, se neuspává (hub/uspavani.py), i když v něm
+   dlouho jen čte: viditelná stránka to serveru jednou za pár minut řekne.
+   Po návratu na stránku se tab, který mezitím usnul, hned probudí. */
+setInterval(() => {
+  if (!document.hidden && ACTIVE && ACTIVE.id) send({t: 'zije', id: ACTIVE.id});
+}, 4 * 60 * 1000);
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && ACTIVE && ACTIVE.id) send({t: 'wake', id: ACTIVE.id});
+});
+
+function oznacUspany(tab, on) {
+  if (!tab || !tab.el) return;
+  tab.uspany = !!on;
+  tab.el.classList.toggle('uspany', !!on);
+}
+
 function handle(msg) {
   // Appka se restartuje (aktualizace): nové okno se otevře samo, tohle se zavře.
   if (msg.t === 'okno-jdi' && /^http:\/\/127\.0\.0\.1:\d+\//.test(msg.url || '')) {
@@ -4569,6 +4587,11 @@ function handle(msg) {
       // Ve čtení terminál není vidět — bez hlášky by jen přestalo přibývat.
       if (tab.cteni) tab.cteni.upozorni('Claude Code v tomhle tabu skončil. Konverzaci otevřeš znovu v seznamu Konverzace.');
     }
+  } else if (msg.t === 'tab-uspany') {
+    const tab = TABS.find(t => t.id === msg.id);
+    oznacUspany(tab, msg.on);
+    // Usnul tab, na který se zrovna někdo dívá (souběh) — hned vzhůru.
+    if (msg.on && tab && tab === ACTIVE && !document.hidden) send({t: 'wake', id: tab.id});
   } else if (msg.t === 'pamet') {
     toast(msg.stav === 'oom'
       ? 'Prostoru došla paměť (' + msg.pouzito + ' z ' + msg.strop + ' MB), server ukončil proces. Zavři nepotřebné taby.'
@@ -4716,6 +4739,7 @@ function restore(list) {
     }
     tab.bypass = !!info.bypass;
     tab.chat = info.chat || tab.chat || '';
+    oznacUspany(tab, info.uspany);
     if (info.vault !== undefined && (tab.vault || '') !== (info.vault || '')) {
       tab.vault = info.vault || '';
       paintAgent(tab);

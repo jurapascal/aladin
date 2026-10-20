@@ -3415,12 +3415,12 @@ function newAgentMenu(ev) {
 }
 
 /* ── tabs ─────────────────────────────────────────────────────────────────── */
-function openTab({kind, path, title, agent, model, mode, resume, fork, vault, prompt}) {
+function openTab({kind, path, title, agent, model, mode, resume, fork, vault, prompt, spici}) {
   const tab = createTab({kind, path, title, agent, model, mode, resume, vault});
   const dims = measure(tab);
   send({t: 'open', ref: tab.ref, kind, path, title, agent: agent || '',
         model: model || '', resume: resume || '', fork: !!fork,
-        vault: vault || '', prompt: prompt || '', cols: dims.cols, rows: dims.rows});
+        vault: vault || '', prompt: prompt || '', spici: !!spici, cols: dims.cols, rows: dims.rows});
   return tab;
 }
 
@@ -4756,11 +4756,21 @@ async function restoreAfterRestart() {
   if (!tabs.length) return;
   const reason = res.duvod || 'restart';
   const drafts = takeDrafts();
+  /* Hned naběhne jen tab, kde člověk skončil, a taby s rozdělanou prací
+     (`prompt`). Ostatní se založí uspané a Claude v nich se pustí, až je
+     otevřeš — po aktualizaci tak nestartuje pět Claudů naráz a stránka se
+     nezasekne překreslováním všech konverzací. */
+  const key = LAST_PLACE.tab;
+  const tadyKoncil = (t, strict) => !!key && (t.kind || '') === key.kind && (t.path || '') === key.path &&
+    (t.vault || '') === (key.vault || '') && (!strict || (t.title || '') === key.title);
+  const hlavni = tabs.find((t) => tadyKoncil(t, true)) || tabs.find((t) => tadyKoncil(t, false))
+    || tabs[tabs.length - 1];
   for (const t of tabs) {
     // `prompt`: připomínka úloh na pozadí, které restart zastavil (restart.py).
+    const prompt = t.resume ? (t.prompt || '') : '';
     const tab = openTab({kind: t.kind, path: t.path, title: t.title,
                          agent: t.agent, model: t.model, resume: t.resume, vault: t.vault || '',
-                         prompt: t.resume ? (t.prompt || '') : ''});
+                         prompt, spici: t !== hlavni && !!t.resume && !prompt});
     // Rozepsaná zpráva z doby před restartem (aktualizace prostoru).
     const at = drafts.findIndex((d) => d.path === (t.path || '') && d.title === (t.title || ''));
     if (at >= 0 && tab.composer && tab.composer.setDraft) {

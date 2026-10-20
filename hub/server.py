@@ -198,7 +198,7 @@ class Session:
     """A pty running one bash session, plus the scrollback we replay on reload."""
 
     def __init__(self, sid, title, kind, path, argv, cwd, cols, rows,
-                 agent="", model="", env=None, vault=""):
+                 agent="", model="", env=None, vault="", spici=""):
         self.id = sid
         self.title = title
         self.kind = kind
@@ -225,10 +225,17 @@ class Session:
         # Kdo tab otevřel, když to byl host z jiného účtu (guest_from) — u tabu
         # se ukáže „spravuje …“.
         self.guest = None
-        child = core.child_env()
-        child.update(env or {})
-        self.pty = pty_backend.spawn(argv, cwd=cwd, env=child,
-                                     cols=cols, rows=rows)
+        if spici:
+            # Obnova po restartu: tab, na který se zrovna nikdo nedívá, se
+            # rovnou založí uspaný (`spici` = konverzace). Claude se pustí, až
+            # ho někdo otevře — po aktualizaci tak nenabíhají všechny taby
+            # najednou (procesor, paměť a překreslování celé konverzace v každém).
+            self.pty = _SpiciPty()
+        else:
+            child = core.child_env()
+            child.update(env or {})
+            self.pty = pty_backend.spawn(argv, cwd=cwd, env=child,
+                                         cols=cols, rows=rows)
         self.buffer = bytearray()
         # Výstup čekající na odeslání oknům (slučuje se po ~16 ms).
         self._ceka = []
@@ -256,6 +263,13 @@ class Session:
         self._buzeni = threading.Lock()
         self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self._lock = threading.Lock()
+        if spici:
+            self.uspany = True
+            self.uspany_chat = spici
+            self._fronta = []
+            self._znovu = True          # _pump hned skončí, tab ale nezavře
+            self.buffer += ("\x1b[2m[ tab čeká — Claude se vrátí do konverzace, "
+                            "jakmile ho otevřeš ]\x1b[0m\r\n").encode("utf-8")
         self.thread = threading.Thread(target=self._pump, daemon=True)
         self.thread.start()
 
@@ -563,7 +577,7 @@ class Hub:
         return running
 
     def open(self, kind, path, title, cols, rows, agent="", model="", resume="", fork=False,
-             vault="", prompt="", ukol=""):
+             vault="", prompt="", ukol="", spici=False):
         # Tab s úkolem ze serveru (hub/pocitac.py): otevřený kvůli úkolu, nebo
         # pokračování jeho konverzace. Dostane hook, přes který žádosti
         # o souhlas jdou i na server; ručně otevřený tab nic z toho nemá.
@@ -581,8 +595,14 @@ class Hub:
         # Podle téhle značky Stop hook pozná, ve kterém tabu session běží,
         # a zavření tabu pak uloží do paměti právě ji.
         env = {**env, "HUB_TAB": core.tab_tag(sid)}
+        # Uspaný start jen tam, kde je co probudit: Claude nad uloženou
+        # konverzací, bez úvodní zprávy (ta by čekala, až ho někdo otevře).
+        spici = (resume if spici and resume and not prompt and not fork and not launch
+                 and (kind == "project" or kind.startswith("slash:"))
+                 and (agent or core.default_agent()) == "claude" else "")
         session = Session(sid, title, kind, path, core.bash_argv(script), cwd,
-                          cols, rows, agent=agent, model=model, env=env, vault=vault)
+                          cols, rows, agent=agent, model=model, env=env, vault=vault,
+                          spici=spici)
         self.sessions[sid] = session
         if launch:
             pocitac.bind_tab(launch, session, meta)
@@ -2198,7 +2218,10 @@ class Handler(BaseHTTPRequestHandler):
                                    vault=str(msg.get("vault", "") or ""),
                                    # Úvodní zpráva: z okna se čtením se dá
                                    # rovnou napsat a konverzace s ní pokračuje.
-                                   prompt=str(msg.get("prompt", "") or "")[:20000])
+                                   prompt=str(msg.get("prompt", "") or "")[:20000],
+                                   # Obnova po restartu: tab mimo zrak se
+                                   # založí uspaný (Session, `spici`).
+                                   spici=msg.get("spici") is True)
             except (pty_backend.PtyUnavailable, core.BashMissing) as exc:
                 core.log_error("tab se nepodařilo otevřít", exc)
                 conn.send_json({"t": "error", "ref": msg.get("ref"), "d": str(exc)})

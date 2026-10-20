@@ -52,6 +52,57 @@
     return node;
   }
 
+  /* ── Stažení souborů z prostoru ─────────────────────────────────────────
+     Co Claude zapíše (Edit/Write) nebo vyrobí příkazem, si člověk stáhne
+     rovnou z chatu — na serveru se k souboru jinak nedostane. Adresu dává
+     hub.js (window.HubSoubor → /api/soubor), sdílený chat bránu
+     (/gw/relace/soubor). Server znovu hlídá, odkud se smí stahovat. */
+  // Výstup pro člověka: dokumenty, tabulky, archivy, média — karta na konci odpovědi.
+  const VYSTUP = /\.(pdf|docx?|xlsx?|pptx?|od[tsp]|csv|tsv|zip|7z|rar|tgz|tar|gz|mp3|mp4|wav|m4a|webm|mov|ics|vcf|epub|rtf|stl|3mf|gcode|glb)$/i;
+  // Tohle jen mimo složky se zdrojáky (stránka webu uprostřed repa výstup není).
+  const VYSTUP_MOZNA = /\.(html?|png|jpe?g|gif|webp|svg|txt|json|xml)$/i;
+  const ZDROJAKY = /[\\/](src|static|public|assets|templates|components|lib|app|node_modules|vendor|dist|build|test|tests|\.[^\\/]+)[\\/]/i;
+  function proCloveka(cesta) {
+    return VYSTUP.test(cesta) || (VYSTUP_MOZNA.test(cesta) && !ZDROJAKY.test(cesta));
+  }
+  const jmenoSouboru = (cesta) => String(cesta || '').split(/[\\/]/).pop() || cesta;
+  function velikost(b) {
+    if (!(b >= 0)) return '';
+    if (b < 1024) return b + ' B';
+    if (b < 1024 * 1024) return Math.round(b / 1024) + ' kB';
+    return (b / 1024 / 1024).toFixed(b < 10 * 1024 * 1024 ? 1 : 0).replace('.', ',') + ' MB';
+  }
+  function vychoziStahovani() {
+    return {
+      url: (p) => (global.HubSoubor ? global.HubSoubor.url(p) : ''),
+      info: (p) => (global.HubSoubor ? global.HubSoubor.info(p) : Promise.resolve(null)),
+    };
+  }
+  /* Nejdřív se zeptá, jestli soubor je (jinak by se stáhla chybová hláška
+     jako soubor), pak stáhne přes <a download> — funguje i v telefonu. */
+  async function stahni(cesta, st, notice) {
+    let info = null;
+    try { info = await st.info(cesta); } catch (_) { info = null; }
+    if (!info || !info.ok) {
+      if (notice) notice((info && info.error) || 'Soubor teď nejde stáhnout.');
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = st.url(cesta);
+    a.download = jmenoSouboru(cesta);
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  function tlacitkoStahnout(cesta, st, notice, cls, text) {
+    const b = el('button', 'cteni-stahnout' + (cls ? ' ' + cls : ''), text || '⤓ Stáhnout');
+    b.type = 'button';
+    b.title = 'Stáhnout ' + cesta;
+    b.onclick = (ev) => { ev.stopPropagation(); stahni(cesta, st, notice); };
+    return b;
+  }
+
   /* Barvy poznámek a malá paleta na výběr (i na odebrání). Otevírá se pravým
      klikem — `kotva` je prvek, nebo {x, y} z události myši. */
   const DUL_BARVY = ['#e0843c', '#f85149', '#3fb950', '#4c97f0', '#a371f7', '#d29922', '#e5609c'];
@@ -378,7 +429,8 @@
 
   function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null,
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
-                                  odpovez = null} = {}) {
+                                  odpovez = null, stahovani = null} = {}) {
+    const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
     mount.addEventListener('click', (ev) => {
@@ -413,6 +465,55 @@
     /* Přehled pro panel Průběh (hub.js renderPrehled) — jako v appce Claude:
        zadání, Claudův seznam úkolů, pomocníci, úlohy na pozadí a soubory. */
     const pr = {zadani: [], todos: null, tasks: [], soubory: [], kroky: [], pracuje: false};
+    /* Soubory ke stažení v jedné odpovědi: výstupy pro člověka (proCloveka)
+       dostanou na konci odpovědi výraznou kartu. `overene` = výstupy příkazů,
+       o kterých server potvrdil, že soubor opravdu je. */
+    let tah = {soubory: [], karta: null};
+    const overene = [];
+    function doTahu(cesta) {
+      if (!cesta || tah.soubory.includes(cesta)) return;
+      tah.soubory.push(cesta);
+      kresliKartu();
+    }
+    function kresliKartu() {
+      if (!tah.soubory.length) return;
+      if (!tah.karta) {
+        tah.karta = el('div', 'cteni-ke-stazeni');
+        mount.appendChild(tah.karta);
+      }
+      const k = tah.karta;
+      k.textContent = '';
+      k.appendChild(el('div', 'cteni-ks-nadpis', tah.soubory.length === 1 ? 'Soubor ke stažení' : 'Soubory ke stažení'));
+      for (const cesta of tah.soubory) {
+        const r = el('div', 'cteni-ks-radek');
+        const txt = el('span', 'cteni-ks-text');
+        txt.append(el('span', 'cteni-ks-jmeno', jmenoSouboru(cesta)),
+                   el('span', 'cteni-ks-cesta', cesta.replace(/[\\/][^\\/]*$/, '')));
+        txt.title = cesta;
+        r.append(el('span', 'cteni-ks-ico', '⤓'), txt, tlacitkoStahnout(cesta, st, notice, 'hlavni', 'Stáhnout'));
+        k.appendChild(r);
+      }
+      naKonec();
+    }
+    /* Výstupy příkazu (cesty v textu příkazu, hub/cteni.py) — jen ty, které
+       po doběhnutí opravdu existují. */
+    function overVystupy(box, cesty) {
+      for (const cesta of cesty) {
+        Promise.resolve(st.info(cesta)).then((info) => {
+          if (!info || !info.ok) return;
+          if (!overene.includes(cesta)) overene.push(cesta);
+          let radek = box.querySelector('.cteni-tool-soubor');
+          if (!radek) {
+            radek = el('div', 'cteni-tool-soubor');
+            box.insertBefore(radek, box._detail);
+          }
+          radek.appendChild(tlacitkoStahnout(cesta, st, notice, 'tichy', '⤓ ' + jmenoSouboru(cesta)
+                                             + (info.size ? ' · ' + velikost(info.size) : '')));
+          if (box._tah === tah) doTahu(cesta);
+          zmenaPrehledu();
+        }).catch(() => {});
+      }
+    }
     let prTimer = null;
     function zmenaPrehledu() {
       if (!naPrehled || prTimer) return;
@@ -437,7 +538,7 @@
         ulohy: ulohyData.filter((u) => u.name !== 'Agent').map((u) => ({
           text: u.title || u.name, druh: u.name === 'Monitor' ? 'hlídá'
             : u.name === 'ScheduleWakeup' ? 'ozve se' : 'příkaz'})),
-        soubory: pr.soubory.slice(-8).reverse(),
+        soubory: [...new Set([...pr.soubory, ...overene])].slice(-8).reverse(),
         pracuje: bezi,
       };
     }
@@ -645,6 +746,12 @@
           }
         };
         box.insertBefore(nahled, detail);
+      }
+      // Zapsaný / upravený soubor: nenápadné „Stáhnout" pod řádkem nástroje.
+      if (b.soubor) {
+        const radek = el('div', 'cteni-tool-soubor');
+        radek.appendChild(tlacitkoStahnout(b.soubor, st, notice, 'tichy', '⤓ Stáhnout ' + jmenoSouboru(b.soubor)));
+        box.insertBefore(radek, detail);
       }
       box.dataset.id = b.id || '';
       box._meta = meta;
@@ -1121,6 +1228,7 @@
         if (!/^\[hub\] /.test(b.text || '') && b.text) {
           pr.zadani.push({text: b.text.trim().split('\n')[0].slice(0, 140)});
           pr.kroky = [];
+          tah = {soubory: [], karta: null};
           zadaniZ = pr.zadani[pr.zadani.length - 1];
           zmenaPrehledu();
         }
@@ -1184,6 +1292,8 @@
         if (html) { box.innerHTML = html; ozivHtml(box); kopirovaniKodu(box); }
         else box.textContent = b.text;
         mount.appendChild(box);
+        // Karta se soubory ke stažení jde vždycky pod poslední text odpovědi.
+        if (tah.karta) mount.appendChild(tah.karta);
         const moznosti = odpovez ? rychleOdpovedi(b.text) : [];
         if (moznosti.length) {
           volby = el('div', 'cteni-volby');
@@ -1234,6 +1344,7 @@
           const i = pr.soubory.indexOf(b.soubor);
           if (i >= 0) pr.soubory.splice(i, 1);
           pr.soubory.push(b.soubor);
+          if (proCloveka(b.soubor)) doTahu(b.soubor);
           zmenaPrehledu();
         }
         // Zpráva do jiného chatu — na hřišti odletí obálka.
@@ -1243,6 +1354,7 @@
         if (udalost && b.name) udalost({co: 'nastroj', name: b.name});
         const box = udelejNastroj(b);
         box.classList.add('ceka');
+        if (b.vystupy && b.vystupy.length) { box._vystupy = b.vystupy; box._tah = tah; }
         if (b.id) tools.set(b.id, box);
         mount.appendChild(box);
         return;
@@ -1309,6 +1421,7 @@
         if (!box) return;
         box.classList.remove('ceka');
         box.classList.toggle('chyba', !b.ok);
+        if (b.ok && box._vystupy) { overVystupy(box, box._vystupy); box._vystupy = null; }
         if (!b.ok && udalost) udalost({co: 'chyba'});
         const kus = [];
         if (box._meta.textContent) kus.push(box._meta.textContent);
@@ -1390,6 +1503,25 @@
       odeslano,
       prubeh,
       prehled,
+      // Všechny soubory z chatu ke stažení (seznam ve sdíleném chatu), nejnovější první.
+      souboryVse: () => [...new Set([...pr.soubory, ...overene])].reverse(),
+      stahovani: st,
+      /* Vestavěný prohlížeč něco stáhl (hub/stazene.py → hub.js). */
+      stazeno(info) {
+        if (!info || !info.path) return;
+        const box = el('div', 'cteni-ke-stazeni prohlizec');
+        box.appendChild(el('div', 'cteni-ks-nadpis', 'Stažené v prohlížeči'));
+        const r = el('div', 'cteni-ks-radek');
+        const txt = el('span', 'cteni-ks-text');
+        txt.append(el('span', 'cteni-ks-jmeno', info.name || jmenoSouboru(info.path)),
+                   el('span', 'cteni-ks-cesta', info.path.replace(/[\\/][^\\/]*$/, '')
+                      + (info.size ? ' · ' + velikost(info.size) : '')));
+        txt.title = info.path;
+        r.append(el('span', 'cteni-ks-ico', '⤓'), txt, tlacitkoStahnout(info.path, st, notice, 'hlavni', 'Stáhnout'));
+        box.appendChild(r);
+        mount.appendChild(box);
+        naKonec();
+      },
       ulohy: ulohyZe,
       maUlohy: () => ulohyData.length > 0,
       agentu: () => agenti.size,
@@ -1562,6 +1694,8 @@
     return {
       hriste,
       prehled: () => proud.prehled(),
+      // Vestavěný prohlížeč stáhl soubor — karta do chatu, na který se kouká.
+      stazeno: (info) => { proud.stazeno(info); if (uDna) scroll.scrollTop = scroll.scrollHeight; },
       // Je v konverzaci už něco? (automatika modelu podle toho pozná navázání)
       prazdny: () => proud.prazdny(),
       release() {
@@ -1783,8 +1917,19 @@
     let zivy = true, uDna = true, odkud = 0, psat = share.role === 'pise', prazdnych = 0;
 
     const sdilenoInfo = {ja: share.ja || '', majitel: share.majitel};
+    /* Soubory ze sdíleného chatu jdou přes bránu — ta ověří, že chat smím
+       číst, a hub majitele pustí jen to, co Claude v tomhle chatu zapsal. */
+    const souborGw = (p, info) => '/gw/relace/soubor?id=' + encodeURIComponent(share.id) +
+      '&path=' + encodeURIComponent(p) + (info ? '&info=1' : '');
+    const stahovani = {
+      url: (p) => souborGw(p),
+      info: async (p) => {
+        const r = await fetch(souborGw(p, true), {credentials: 'same-origin'});
+        return r.json().catch(() => ({ok: false}));
+      },
+    };
     const proud = flow(q('.cteni-flow'), io.imageUrl, {openLink: io.openLink, notice: io.notice, copy: io.copy,
-                                                         sdileny: sdilenoInfo});
+                                                         sdileny: sdilenoInfo, stahovani});
     scroll.addEventListener('scroll', () => {
       uDna = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < U_DNA;
     }, {passive: true});
@@ -1878,9 +2023,30 @@
       tlPokracovat.disabled = false;
       tlPokracovat.textContent = 'Pokračovat u sebe';
     };
-    const tlSoubory = el('span', 'relace-soubory');
+    /* Upravené soubory: klepnutím seznam, u každého „Stáhnout". Seznam se
+       staví až při otevření — tlačítko pod kurzorem se nepřekresluje. */
+    const tlSoubory = el('button', 'relace-soubory');
+    tlSoubory.type = 'button';
     tlSoubory.hidden = true;
+    const seznamSouboru = el('div', 'relace-soubory-seznam');
+    seznamSouboru.hidden = true;
+    function kresliSeznamSouboru() {
+      seznamSouboru.textContent = '';
+      for (const cesta of proud.souboryVse()) {
+        const r = el('div', 'relace-soubor');
+        const txt = el('span', 'relace-soubor-jmeno', jmenoSouboru(cesta));
+        txt.title = cesta;
+        r.append(txt, tlacitkoStahnout(cesta, stahovani, io.notice, 'tichy', '⤓ Stáhnout'));
+        seznamSouboru.appendChild(r);
+      }
+    }
+    tlSoubory.onclick = (ev) => {
+      ev.stopPropagation();
+      seznamSouboru.hidden = !seznamSouboru.hidden;
+      if (!seznamSouboru.hidden) kresliSeznamSouboru();
+    };
     akce.append(tlSoubory, tlPokracovat, tlZapnout);
+    akce.parentNode.insertBefore(seznamSouboru, akce.nextSibling);
 
     // Kdo je v chatu (kromě mě) a kdo zrovna píše; kreslí se jen při změně.
     let lidiKlic = '';
@@ -1921,10 +2087,11 @@
         tlZapnout.title = 'Spustí ' + share.majitel + ' prostor (když spí) a otevře v něm tenhle chat — Claude naváže, ' +
           'kde skončil. Psát do něj smí jen ten, kdo na to má právo.';
       }
-      const soubory = proud.prehled().soubory, n = soubory.length;
+      const soubory = proud.souboryVse(), n = soubory.length;
       tlSoubory.hidden = !n;
-      tlSoubory.textContent = '✎ ' + n + (n === 1 ? ' soubor' : n < 5 ? ' soubory' : ' souborů');
-      tlSoubory.title = 'Upravené soubory:\n' + soubory.join('\n');
+      const popis = '✎ ' + n + (n === 1 ? ' soubor' : n < 5 ? ' soubory' : ' souborů');
+      if (tlSoubory.textContent !== popis) tlSoubory.textContent = popis;
+      tlSoubory.title = 'Upravené soubory (klepni — stáhnout):\n' + soubory.join('\n');
     }
 
     // Kód, který Claude napsal (Edit, Write), se rozbalí sám — kvůli tomu sdílíš.

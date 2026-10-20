@@ -34,7 +34,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
-               pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, vzhled)
+               pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene, vzhled)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -782,6 +782,62 @@ class Handler(BaseHTTPRequestHandler):
             core.log_error(f"/api/{name} selhalo", exc)
             return self._json({"error": f"Chyba serveru: {exc}"}, 500)
 
+    def _soubor_ke_stazeni(self, query, guest):
+        """Soubor z prostoru ke stažení (čtení → „Stáhnout").
+
+        Jen z domova, složek projektů a složek otevřených tabů (core.
+        soubor_ke_stazeni); host z jiného účtu jen z domova a projektů a bez
+        skrytých složek. `chat` = volá brána za člověka ze sdíleného chatu:
+        pak jen soubory, které Claude v tom chatu zapsal (cteni.soubory_chatu).
+        `info=1` jen řekne, jestli soubor je a jak je velký (karta v chatu)."""
+        path = query.get("path", [""])[0]
+        chat = query.get("chat", [""])[0]
+        prisne = bool(guest) or bool(chat)
+        extra = () if prisne else [s.path for s in HUB.sessions.values()
+                                   if s.path and not getattr(s, "exited", False)]
+        full, velikost, proc = core.soubor_ke_stazeni(path, extra, prisne=prisne)
+        if full and chat:
+            prepis = cteni.path_for(chat) if cteni.je_id(chat) else ""
+            povolene = {os.path.realpath(os.path.expanduser(p))
+                        for p in (cteni.soubory_chatu(prepis) if prepis else ())}
+            if full not in povolene:
+                full, proc = "", "Tenhle soubor v chatu nevznikl."
+        if query.get("info", [""])[0] == "1":
+            return self._json({"ok": bool(full), "size": velikost if full else 0,
+                               "name": os.path.basename(full or path), "error": proc})
+        if not full:
+            return self._json({"error": proc}, 404)
+        fname = os.path.basename(full)
+        ascii_name = re.sub(r'[^A-Za-z0-9._-]+', "_", fname) or "soubor"
+        try:
+            fh = open(full, "rb")
+        except OSError:
+            return self._json({"error": "Soubor nejde přečíst."}, 404)
+        with fh:
+            self.send_response(200)
+            # Vždycky jako příloha: HTML ani SVG z prostoru se pod adresou
+            # hubu nikdy neotevře jako stránka (stejně jako vault-file).
+            for k, v in (("Content-Type", "application/octet-stream"),
+                         ("Content-Length", str(velikost)),
+                         ("Content-Disposition", f"attachment; filename=\"{ascii_name}\"; "
+                                                 f"filename*=UTF-8''{urllib.parse.quote(fname)}"),
+                         ("Content-Security-Policy", "default-src 'none'; sandbox"),
+                         ("X-Content-Type-Options", "nosniff"), ("X-Frame-Options", "DENY"),
+                         ("Referrer-Policy", "same-origin"), ("Cache-Control", "no-store")):
+                self.send_header(k, v)
+            self.end_headers()
+            if self.command == "HEAD":
+                return None
+            try:
+                while True:
+                    kus = fh.read(256 * 1024)
+                    if not kus:
+                        break
+                    self.wfile.write(kus)
+            except (OSError, ValueError):
+                self.close_connection = True       # prohlížeč stahování zrušil
+        return None
+
     @staticmethod
     def _part(what, fn, default):
         """Kus /api/state, který se nepovedl, nesmí shodit celé okno — jinak se
@@ -1180,6 +1236,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, fh.read(), ctype, {
                     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
                     "X-Content-Type-Options": "nosniff"})
+        if name == "soubor":
+            return self._soubor_ke_stazeni(query, guest)
+        if name == "stazene":
+            # Co naposledy stáhl vestavěný prohlížeč (hub/stazene.py).
+            return self._json({"slozka": core.STAZENE_DIR, "soubory": stazene.posledni()})
         if name == "open-path":
             target = payload.get("path", "")
             if payload.get("kind") == "brain":
@@ -2057,6 +2118,8 @@ def start():
     prohlizec.CHATY = lambda: {sid: (getattr(s, "chat_id", "") or "") for sid, s in HUB.sessions.items()
                                if not getattr(s, "exited", False)}
     threading.Thread(target=prohlizec.migruj, args=(core.log,), daemon=True).start()
+    # Co se stáhne ve vestavěném prohlížeči, jde do ~/Stažené a okna to nabídnou.
+    stazene.spust(HUB.broadcast)
     threading.Thread(target=chats.warm_up, daemon=True).start()
     # První /api/state chce doctor() (agenti v PATH) — ať je připravený, než
     # se okno rozjede, místo aby na něj čekalo první načtení stránky.

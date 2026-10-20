@@ -237,7 +237,7 @@
     zamek = $('.br-zamek');
     pomerEl = $('.br-pomer');
     pomerEl.value = pomer;
-    pomerEl.addEventListener('change', () => zmenPomer(pomerEl.value));
+    pomerEl.addEventListener('change', () => { zmenPomer(pomerEl.value); try { kb.focus({preventScroll: true}); } catch (_) { /* nic */ } });
     pomerEl.addEventListener('keydown', (ev) => ev.stopPropagation());
     tlMax = $('.br-max');
     tlMax.onclick = () => maximalizuj();
@@ -270,7 +270,8 @@
     root.addEventListener('pointerdown', (ev) => {
       root.classList.add('br-nahore');
       // Zkratky (Ctrl+T, Ctrl+Tab…) mají fungovat i po kliknutí na kartu nebo lištu.
-      if (!ev.target.closest('input, textarea')) setTimeout(() => { try { kb.focus({preventScroll: true}); } catch (_) { /* nic */ } }, 0);
+      // Výběr (poměr stran) ne: přesun fokusu by jeho nabídku hned zavřel.
+      if (!ev.target.closest('input, textarea, select')) setTimeout(() => { try { kb.focus({preventScroll: true}); } catch (_) { /* nic */ } }, 0);
     });
     // Zkratky fungují kdekoli v okně (i na liště), ne jen v poli pro psaní.
     root.addEventListener('keydown', (ev) => { if (ev.target !== kb && ev.target !== urlInput) zkratka(ev); });

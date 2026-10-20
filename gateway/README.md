@@ -789,10 +789,22 @@ připojení vlastního předplatného přes `claude setup-token` spuštěný skr
 v hubu vlastníka, kód ze stránky, odpojení zpět na firemní; token si z hubu
 vyzvedne brána a host ho nevidí), **Pomocník**
 (práce v prostoru bez mazání a bez nastavení, napojení a účtu) a **Plný
-přístup** (jako vlastník v hubu). Host přepne odznakem prostoru v liště;
-brána si cíl drží v HttpOnly cookie `gw_prostor` a při **každém** požadavku
-ověří řádek v `space_access` — odebrání platí hned a otevřený websocket se
-zavře. Role se vynucuje na bráně (`gateway/pristup.py`: whitelist / blacklist
+přístup** (jako vlastník v hubu). Host přepne v **přepínači prostoru vlevo
+nahoře** (vedle Osobní a firem je skupina „Prostory, kam máš přístup“ se jménem
+vlastníka a rolí, v cizím prostoru i „Zpět do svého prostoru“; i na telefonu);
+seznam dává `GET /gw/pristup?jen=kam`. Brána si cíl drží v HttpOnly cookie
+`gw_prostor` a při **každém** požadavku ověří řádek v `space_access` (nebo
+`space_access_all`) — odebrání platí hned a otevřený websocket se zavře.
+
+**Všichni na serveru:** vlastník může jednou rolí pustit všechny aktivní účty
+brány (i ty, které přibudou; tabulka `space_access_all`, jeden řádek na
+vlastníka). Zablokované účty neprojdou. Řádek pro konkrétního člověka má
+vždycky přednost, i s nižší rolí (koho jsi pustil jen ke Správě předplatného,
+ten přes „všechny“ víc nedostane), a role **Bez přístupu (výjimka)** konkrétního
+člověka vyřadí — výjimky přežijí vypnutí „všech“ i zablokování účtu. Plný přístup
+pro všechny se potvrzuje zvlášť. Změna nebo zrušení zavře spojení hostů, kteří
+přišli přes „všechny“; zrušit to může vlastník kdykoli a admin taky. V záznamu je
+to host 0 (`vsem-pridat`, `vsem-role`, `vsem-odebrat`), vstup má `pres: vsem`. Role se vynucuje na bráně (`gateway/pristup.py`: whitelist / blacklist
 `/api/…` a filtr zpráv websocketu), hub ji z hlavičky `X-Hub-Guest` (vkládá
 jen brána, zvenku se zahazuje) hlídá ještě jednou a u tabu ukáže „spravuje …“.
 Heslo, 2FA, passkeys a přístupy jdou přes `/gw/…` vždycky za přihlášeným, host

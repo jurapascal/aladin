@@ -105,6 +105,16 @@ CREATE TABLE IF NOT EXISTS space_access (
     created_by INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (owner_id, guest_id)
 );
+-- Přístup do prostoru pro všechny účty na bráně najednou („Všichni na
+-- serveru“, gateway/pristup.py). Jeden řádek na vlastníka. Řádek
+-- v space_access pro konkrétního člověka má vždycky přednost — i s nižší rolí
+-- nebo s rolí `zadny` (výjimka: tenhle člověk ne).
+CREATE TABLE IF NOT EXISTS space_access_all (
+    owner_id   INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL,
+    created    REAL NOT NULL,
+    created_by INTEGER NOT NULL DEFAULT 0
+);
 -- Napojení z appky Claude (MCP, gateway/mcp.py). Klient se registruje sám
 -- (RFC 7591), ale jen s adresou pro návrat, kterou brána zná (oauth.py).
 CREATE TABLE IF NOT EXISTS oauth_clients (
@@ -347,10 +357,16 @@ class Accounts:
             if disabled:
                 self._drop_logins(email)
                 # Zablokovaný účet nesmí do cizích prostorů a nikdo do jeho.
+                # Výjimky z „Všichni na serveru“ (role `zadny`) zůstávají —
+                # po odblokování by jinak člověk, kterého vlastník vyřadil,
+                # dostal přístup znovu.
                 self.db.execute(
                     "DELETE FROM space_access WHERE owner_id IN (SELECT id FROM"
-                    " users WHERE email = ?) OR guest_id IN (SELECT id FROM users"
-                    " WHERE email = ?)", (email, email))
+                    " users WHERE email = ?) OR (guest_id IN (SELECT id FROM users"
+                    " WHERE email = ?) AND role != 'zadny')", (email, email))
+                self.db.execute(
+                    "DELETE FROM space_access_all WHERE owner_id IN (SELECT id"
+                    " FROM users WHERE email = ?)", (email,))
 
     def remove(self, email):
         email = (email or "").strip().lower()
@@ -361,6 +377,9 @@ class Accounts:
                 "DELETE FROM space_access WHERE owner_id IN (SELECT id FROM users"
                 " WHERE email = ?) OR guest_id IN (SELECT id FROM users WHERE"
                 " email = ?)", (email, email))
+            self.db.execute(
+                "DELETE FROM space_access_all WHERE owner_id IN (SELECT id FROM"
+                " users WHERE email = ?)", (email,))
             cur = self.db.execute("DELETE FROM users WHERE email = ?", (email,))
             if not cur.rowcount:
                 raise ValueError(f"{email} tu žádný účet nemá.")
@@ -700,10 +719,11 @@ class Accounts:
 
     # ── přístup do cizího prostoru (gateway/pristup.py) ──────────────────────
     def access_set(self, owner, guest_email, role):
-        """Vlastník `owner` pustí účet `guest_email` do svého prostoru s rolí.
+        """Vlastník `owner` pustí účet `guest_email` do svého prostoru s rolí
+        (nebo ho rolí `zadny` vyřadí z přístupu pro všechny).
         Vrací (host, stará role nebo "")."""
-        from .pristup import ROLES as SPACE_ROLES
-        if role not in SPACE_ROLES:
+        from .pristup import BLOCK, ROLES as SPACE_ROLES
+        if role not in SPACE_ROLES and role != BLOCK:
             raise ValueError("Neznámá role.")
         if not owner or not owner.get("id"):
             raise PermissionError("Chybí vlastník prostoru.")
@@ -730,25 +750,56 @@ class Accounts:
                 (int(owner_id), int(guest_id)))
         return bool(cur.rowcount)
 
-    def access_role(self, owner_id, guest_id):
-        """Role hosta v prostoru vlastníka, nebo None. Obě strany musí mít
-        aktivní účet — ptá se každý požadavek hosta."""
+    def access_row(self, owner_id, guest_id):
+        """Role z řádku pro konkrétního člověka (i `zadny`), nebo None —
+        bez ohledu na přístup pro všechny."""
+        with self._lock:
+            row = self.db.execute(
+                "SELECT role FROM space_access WHERE owner_id = ? AND guest_id = ?",
+                (int(owner_id), int(guest_id))).fetchone()
+        return row["role"] if row else None
+
+    def access_detail(self, owner_id, guest_id):
+        """(role, odkud) hosta v prostoru vlastníka, nebo (None, None).
+
+        `odkud` je "osobne" (řádek pro toho člověka) nebo "vsem" (přístup pro
+        všechny na bráně). Řádek pro člověka má vždycky přednost — i nižší
+        role a výjimka `zadny`. Obě strany musí mít aktivní účet — ptá se
+        každý požadavek hosta."""
+        from .pristup import BLOCK, ROLES as SPACE_ROLES
         try:
             owner_id, guest_id = int(owner_id), int(guest_id)
         except (TypeError, ValueError):
-            return None
+            return None, None
         if owner_id == guest_id:
-            return None
+            return None, None
         with self._lock:
+            active = self.db.execute(
+                "SELECT COUNT(*) FROM users WHERE id IN (?, ?) AND disabled = 0",
+                (owner_id, guest_id)).fetchone()[0]
+            if active != 2:
+                return None, None
             row = self.db.execute(
-                "SELECT a.role FROM space_access a JOIN users o ON o.id = a.owner_id"
-                " JOIN users g ON g.id = a.guest_id WHERE a.owner_id = ? AND"
-                " a.guest_id = ? AND o.disabled = 0 AND g.disabled = 0",
+                "SELECT role FROM space_access WHERE owner_id = ? AND guest_id = ?",
                 (owner_id, guest_id)).fetchone()
-        return row["role"] if row else None
+            if row:
+                if row["role"] == BLOCK or row["role"] not in SPACE_ROLES:
+                    return None, None
+                return row["role"], "osobne"
+            row = self.db.execute("SELECT role FROM space_access_all WHERE owner_id = ?",
+                                  (owner_id,)).fetchone()
+        if row and row["role"] in SPACE_ROLES:
+            return row["role"], "vsem"
+        return None, None
 
-    def access_list(self, owner_id=None, guest_id=None):
-        """Povolení vlastníka (komu dal přístup), hosta (kam smí), nebo všechna."""
+    def access_role(self, owner_id, guest_id):
+        """Role hosta v prostoru vlastníka (osobně, nebo přes přístup pro
+        všechny), nebo None."""
+        return self.access_detail(owner_id, guest_id)[0]
+
+    def access_list(self, owner_id=None, guest_id=None, blocks=False):
+        """Povolení vlastníka (komu dal přístup), hosta (kam smí), nebo všechna —
+        jen řádky pro konkrétní lidi. Výjimky (`zadny`) jen s `blocks`."""
         where, args = [], []
         if owner_id is not None:
             where.append("a.owner_id = ?")
@@ -756,6 +807,8 @@ class Accounts:
         if guest_id is not None:
             where.append("a.guest_id = ?")
             args.append(int(guest_id))
+        if not blocks:
+            where.append("a.role != 'zadny'")
         sql = ("SELECT a.owner_id, a.guest_id, a.role, a.created, o.email AS owner_email,"
                " o.name AS owner_name, g.email AS guest_email, g.name AS guest_name"
                " FROM space_access a JOIN users o ON o.id = a.owner_id"
@@ -764,6 +817,66 @@ class Accounts:
             sql += " AND " + " AND ".join(where)
         with self._lock:
             return [dict(r) for r in self.db.execute(sql + " ORDER BY a.created", args)]
+
+    def access_all_set(self, owner, role):
+        """Vlastník pustí do prostoru všechny aktivní účty na bráně s rolí.
+        Vrací starou roli nebo ""."""
+        from .pristup import ROLES as SPACE_ROLES
+        if role not in SPACE_ROLES:
+            raise ValueError("Neznámá role.")
+        if not owner or not owner.get("id"):
+            raise PermissionError("Chybí vlastník prostoru.")
+        with self._lock:
+            row = self.db.execute("SELECT role FROM space_access_all WHERE owner_id = ?",
+                                  (owner["id"],)).fetchone()
+            self.db.execute(
+                "INSERT INTO space_access_all (owner_id, role, created, created_by)"
+                " VALUES (?, ?, ?, ?) ON CONFLICT(owner_id) DO UPDATE SET role = excluded.role",
+                (owner["id"], role, time.time(), owner["id"]))
+        return row["role"] if row else ""
+
+    def access_all_remove(self, owner_id):
+        """Zruší přístup pro všechny. Vrací starou roli nebo ""."""
+        with self._lock:
+            row = self.db.execute("SELECT role FROM space_access_all WHERE owner_id = ?",
+                                  (int(owner_id),)).fetchone()
+            self.db.execute("DELETE FROM space_access_all WHERE owner_id = ?", (int(owner_id),))
+        return row["role"] if row else ""
+
+    def access_all_list(self, owner_id=None):
+        """Přístupy pro všechny (jen aktivní vlastníci): [{owner_id, role, …}]."""
+        sql = ("SELECT v.owner_id, v.role, v.created, o.email AS owner_email,"
+               " o.name AS owner_name FROM space_access_all v JOIN users o"
+               " ON o.id = v.owner_id WHERE o.disabled = 0")
+        args = []
+        if owner_id is not None:
+            sql += " AND v.owner_id = ?"
+            args.append(int(owner_id))
+        with self._lock:
+            return [dict(r) for r in self.db.execute(sql + " ORDER BY v.created", args)]
+
+    def access_kam(self, guest_id):
+        """Kam smí host: [{owner_id, owner_email, owner_name, role, pres}] —
+        osobní povolení a přístupy pro všechny, kde host nemá vlastní řádek
+        (ten má přednost, i výjimka). Host musí mít aktivní účet."""
+        from .pristup import ROLES as SPACE_ROLES
+        guest_id = int(guest_id)
+        out = [{**r, "pres": "osobne"} for r in self.access_list(guest_id=guest_id)
+               if r["role"] in SPACE_ROLES]
+        with self._lock:
+            if not self.db.execute("SELECT 1 FROM users WHERE id = ? AND disabled = 0",
+                                   (guest_id,)).fetchone():
+                return []
+            rows = self.db.execute(
+                "SELECT v.owner_id, v.role, v.created, o.email AS owner_email,"
+                " o.name AS owner_name FROM space_access_all v JOIN users o"
+                " ON o.id = v.owner_id WHERE o.disabled = 0 AND v.owner_id != ?"
+                " AND NOT EXISTS (SELECT 1 FROM space_access a WHERE"
+                " a.owner_id = v.owner_id AND a.guest_id = ?) ORDER BY v.created",
+                (guest_id, guest_id)).fetchall()
+        out += [{**dict(r), "guest_id": guest_id, "pres": "vsem"} for r in rows
+                if r["role"] in SPACE_ROLES]
+        return out
 
     # ── napojení z appky Claude (OAuth pro MCP) ──────────────────────────────
     def oauth_client_add(self, name, redirect_uris):

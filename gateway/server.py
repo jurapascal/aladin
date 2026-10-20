@@ -2190,6 +2190,10 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                 owner, role = here
                 tady = {"id": owner["id"], "name": owner.get("name") or "",
                         "email": owner["email"], "role": role, "label": pristup.label(role)}
+            # Přepínač prostoru v liště hubu chce jen „kam smím“ — bez záznamu.
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            if (query.get("jen") or [""])[0] == "kam":
+                return self._json(pristup.kam_only(self.accounts, user, tady))
             return self._json(pristup.overview(self.accounts, user, tady))
         if method != "POST":
             return self._json({"error": "Jen GET nebo POST."}, 405)
@@ -2202,11 +2206,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                 owner_id = int(form.get("vlastnik"))
             except (TypeError, ValueError):
                 return self._json({"error": "Neznámý prostor."}, 400)
-            role = self.accounts.access_role(owner_id, user["id"])
+            role, pres = self.accounts.access_detail(owner_id, user["id"])
             owner = self.accounts.by_id(owner_id) if role else None
             if not owner:
                 return self._json({"error": "Do tohohle prostoru přístup nemáš."}, 403)
-            pristup.log(owner_id, user["id"], "vstup", role=role)
+            pristup.log(owner_id, user["id"], "vstup", role=role, pres=pres)
             self._owner_notice(owner, f"{user.get('name') or user['email']} vstoupil(a) do tvého "
                                f"prostoru ({pristup.label(role)}).")
             return self._send(200, json.dumps({"ok": True}), "application/json; charset=utf-8",

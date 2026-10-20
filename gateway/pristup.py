@@ -1,12 +1,28 @@
 """
 Přístup do cizího prostoru — vlastník pustí jiný účet z téže brány k sobě.
 
-Vlastník v Nastavení → Účet → Přístup zadá e-mail existujícího účtu a roli;
-host pak v liště přepne odznak prostoru na „Prostory, kam máš přístup“. Kam
+Vlastník v Nastavení → Účet → Přístup zadá e-mail existujícího účtu a roli,
+nebo pustí **všechny na serveru** najednou (jedna role pro všechny aktivní
+účty brány, i ty, které přibudou později). Host pak přepne v přepínači
+prostoru v liště (vedle Osobní / firem) na „Prostory, kam máš přístup“. Kam
 host právě míří, drží cookie `gw_prostor` (id vlastníka). Cookie je jen
 *přání* — o tom, jestli smí, rozhoduje při **každém** požadavku řádek
-v `space_access` (accounts.py). Odebrání tak platí hned a otevřená spojení
-(websocket terminálu) brána sama zavře.
+v `space_access`, případně `space_access_all` (accounts.py). Odebrání tak
+platí hned a otevřená spojení (websocket terminálu) brána sama zavře.
+
+„Všichni na serveru“ (`space_access_all`, jeden řádek na vlastníka):
+
+* platí jen pro aktivní účty — zablokovaný účet neprojde (accounts.py
+  `access_detail` kontroluje obě strany při každém požadavku),
+* řádek pro konkrétního člověka má **vždycky přednost**, i s nižší rolí:
+  koho vlastník pustil jen ke Správě předplatného, ten přes „všechny“
+  Pomocníkem ani Plným přístupem nebude,
+* výjimka: role `zadny` (BLOCK) u konkrétního člověka = tenhle ne. Výjimky
+  přežijí zrušení i nové zapnutí „všech“ a zablokování účtu,
+* vlastník ho může kdykoli změnit nebo zrušit (admin zrušit), spojení hostů,
+  kteří přišli přes „všechny“, se zavřou hned,
+* záznam jde jako host 0 (`vsem-pridat`, `vsem-role`, `vsem-odebrat`),
+  vstup přes „všechny“ má `pres: vsem`.
 
 Proč cookie, ne prefix v cestě: stránka hubu volá absolutní cesty (`/api/…`,
 `/ws`) a brána by je musela přepisovat v HTML, JS i odpovědích. Cookie je
@@ -49,6 +65,12 @@ LOG = os.path.join(config.GATEWAY_DIR, "pristup.jsonl")
 ROLES = ("predplatne", "pomocnik", "plny")
 ROLE_LABELS = {"predplatne": "Správa předplatného", "pomocnik": "Pomocník",
                "plny": "Plný přístup"}
+# Výjimka z „Všichni na serveru“: řádek pro člověka, který přístup nemá.
+# Není to role — do ROLES nepatří a host s ní nikam neprojde.
+BLOCK = "zadny"
+BLOCK_LABEL = "Bez přístupu (výjimka)"
+# Host v záznamu u změn „Všichni na serveru“.
+VSEM_HOST = 0
 
 # Co v prostoru nesmí žádný host: vnitřní volání brány a obnova tabů po
 # restartu (čte se jednou — host by ji vlastníkovi „snědl“).
@@ -74,6 +96,8 @@ _log_lock = threading.Lock()
 
 
 def label(role):
+    if role == BLOCK:
+        return BLOCK_LABEL
     return ROLE_LABELS.get(role, role)
 
 
@@ -196,11 +220,14 @@ class _Live:
                 if not s:
                     self._map.pop(key, None)
 
-    def kick(self, owner_id=None, guest_id=None):
+    def kick(self, owner_id=None, guest_id=None, skip=()):
+        """Zavře spojení; `skip` = hosté, kterých se to netýká (mají vlastní
+        řádek, takže je změna „Všichni na serveru“ nemění)."""
         with self._lock:
             keys = [k for k in self._map
                     if (owner_id is None or k[0] == owner_id)
-                    and (guest_id is None or k[1] == guest_id)]
+                    and (guest_id is None or k[1] == guest_id)
+                    and k[1] not in skip]
             socks = [s for k in keys for s in self._map.pop(k, ())]
         for s in socks:
             try:
@@ -212,6 +239,11 @@ class _Live:
     def count(self, owner_id, guest_id):
         with self._lock:
             return len(self._map.get((owner_id, guest_id), ()))
+
+    def guests(self, owner_id):
+        """Hosté, kteří mají v prostoru vlastníka právě otevřené spojení."""
+        with self._lock:
+            return {k[1] for k, s in self._map.items() if k[0] == owner_id and s}
 
 
 LIVE = _Live()
@@ -365,25 +397,67 @@ def _person(row, prefix):
             "name": row[prefix + "_name"] or ""}
 
 
+def _kam(accounts, user):
+    """Prostory, kam `user` smí — pro přepínač v liště i pro Nastavení.
+    `pres`: "osobne" (pozvaný jménem), nebo "vsem" (Všichni na serveru)."""
+    return [{**_person(r, "owner"), "role": r["role"], "label": label(r["role"]),
+             "pres": r["pres"]}
+            for r in accounts.access_kam(user["id"])]
+
+
+def kam_only(accounts, user, here=None):
+    """Lehká odpověď pro přepínač prostoru v hubu (bez záznamu a správy)."""
+    return {"kam": _kam(accounts, user), "tady": here}
+
+
 def overview(accounts, user, here=None):
     """Co stránka potřebuje: komu jsem dal přístup, kam smím, kde teď jsem."""
+    uid = user["id"]
+    rows = accounts.access_list(owner_id=uid, blocks=True)
     mine = [{**_person(r, "guest"), "role": r["role"], "label": label(r["role"]),
-             "created": r["created"], "online": LIVE.count(user["id"], r["guest_id"]) > 0}
-            for r in accounts.access_list(owner_id=user["id"])]
-    kam = [{**_person(r, "owner"), "role": r["role"], "label": label(r["role"])}
-           for r in accounts.access_list(guest_id=user["id"])]
+             "vyjimka": r["role"] == BLOCK, "created": r["created"],
+             "online": LIVE.count(uid, r["guest_id"]) > 0}
+            for r in rows]
     names = {r["id"]: (r["name"] or r["email"]) for r in accounts.list()}
-    zaznam = [{**e, "host_jmeno": names.get(e.get("host"), "?"),
+    explicit = {r["guest_id"] for r in rows}
+    vsem = None
+    for r in accounts.access_all_list(owner_id=uid):
+        # Kdo je teď v prostoru přes „všechny“ (bez vlastního řádku).
+        tady = sorted(names.get(g, "?") for g in LIVE.guests(uid) if g not in explicit)
+        vsem = {"role": r["role"], "label": label(r["role"]), "created": r["created"],
+                "online": tady}
+    zaznam = [{**e, "host_jmeno": ("všichni na serveru" if e.get("host") == VSEM_HOST
+                                   else names.get(e.get("host"), "?")),
                "vlastnik_jmeno": names.get(e.get("vlastnik"), "?")}
-              for e in read_log(user["id"], 100)]
-    out = {"moje": mine, "kam": kam, "zaznam": zaznam,
+              for e in read_log(uid, 100)]
+    out = {"moje": mine, "kam": _kam(accounts, user), "vsem": vsem, "zaznam": zaznam,
            "role": [{"id": r, "label": ROLE_LABELS[r]} for r in ROLES],
+           "vyjimka": {"id": BLOCK, "label": BLOCK_LABEL},
            "tady": here}
     if user.get("role") == "admin":
         out["vse"] = [{"vlastnik": _person(r, "owner"), "host": _person(r, "guest"),
                        "role": r["role"], "label": label(r["role"])}
                       for r in accounts.access_list()]
+        out["vse_vsem"] = [{"vlastnik": _person(r, "owner"), "role": r["role"],
+                            "label": label(r["role"])}
+                           for r in accounts.access_all_list()]
     return out
+
+
+def _owner_for(user, form):
+    """Čí přístup se ruší: vlastní, nebo (jen admin) cizí."""
+    if form.get("vlastnik") not in (None, "") and _int(form.get("vlastnik")) != user["id"]:
+        if user.get("role") != "admin":
+            raise PermissionError("Cizí přístupy ruší jen admin.")
+        return _int(form.get("vlastnik"))
+    return user["id"]
+
+
+def _kick_vsem(accounts, owner_id):
+    """Změna „Všichni na serveru“: zavřít spojení hostů, kteří přišli přes ni
+    (kdo má vlastní řádek, toho se netýká)."""
+    explicit = {r["guest_id"] for r in accounts.access_list(owner_id=owner_id, blocks=True)}
+    return LIVE.kick(owner_id, skip=explicit)
 
 
 def act(accounts, user, form):
@@ -391,32 +465,57 @@ def act(accounts, user, form):
     akce = str(form.get("akce") or "")
     if akce == "pridat":
         role = str(form.get("role") or "")
-        guest, old = accounts.access_set(user, str(form.get("email") or ""), role)
-        log(user["id"], guest["id"], "role" if old else "pridat", role=role, stara=old or "")
-        if old and old != role:
-            LIVE.kick(user["id"], guest["id"])       # nová pravidla = nové spojení
+        email = str(form.get("email") or "")
+        target = accounts.get(email)
+        before = accounts.access_role(user["id"], target["id"]) if target else None
+        guest, old = accounts.access_set(user, email, role)
+        if role == BLOCK:
+            log(user["id"], guest["id"], "vyjimka", stara=old or "")
+        else:
+            log(user["id"], guest["id"], "role" if old else "pridat", role=role, stara=old or "")
+        # Nová pravidla = nové spojení (i když dosud chodil přes „všechny“).
+        if before and before != accounts.access_role(user["id"], guest["id"]):
+            LIVE.kick(user["id"], guest["id"])
         return {"ok": True}
     if akce == "role":
         role = str(form.get("role") or "")
         target = accounts.by_id(_int(form.get("host")))
-        if not target or not accounts.access_role(user["id"], target["id"]):
+        # Jen u lidí s vlastním řádkem — kdo chodí přes „všechny“, toho se
+        # přidává jménem (`pridat`), ať je to v záznamu vidět.
+        if not target or accounts.access_row(user["id"], target["id"]) is None:
             raise ValueError("Tenhle člověk do tvého prostoru přístup nemá.")
         _, old = accounts.access_set(user, target["email"], role)
-        log(user["id"], target["id"], "role", role=role, stara=old)
+        log(user["id"], target["id"], "vyjimka" if role == BLOCK else "role",
+            role=role, stara=old)
         LIVE.kick(user["id"], target["id"])
         return {"ok": True}
     if akce == "odebrat":
-        owner_id = user["id"]
-        if form.get("vlastnik") not in (None, "") and _int(form.get("vlastnik")) != user["id"]:
-            if user.get("role") != "admin":
-                raise PermissionError("Cizí přístupy ruší jen admin.")
-            owner_id = _int(form.get("vlastnik"))
+        owner_id = _owner_for(user, form)
         guest_id = _int(form.get("host"))
-        if not accounts.access_remove(owner_id, guest_id):
+        old = accounts.access_row(owner_id, guest_id)
+        if old is None or not accounts.access_remove(owner_id, guest_id):
             raise ValueError("Takový přístup tu není.")
-        log(owner_id, guest_id, "odebrat",
+        log(owner_id, guest_id, "vyjimka-zrusit" if old == BLOCK else "odebrat",
             **({"admin": user["id"]} if owner_id != user["id"] else {}))
         LIVE.kick(owner_id, guest_id)
+        # Bez vlastního řádku platí „Všichni na serveru“ — ať to vlastník ví.
+        zbyva = accounts.access_role(owner_id, guest_id)
+        return {"ok": True, "zbyva": label(zbyva) if zbyva else ""}
+    if akce == "vsem":
+        role = str(form.get("role") or "")
+        old = accounts.access_all_set(user, role)
+        log(user["id"], VSEM_HOST, "vsem-role" if old else "vsem-pridat", role=role, stara=old)
+        if old and old != role:
+            _kick_vsem(accounts, user["id"])
+        return {"ok": True}
+    if akce == "vsem-zrusit":
+        owner_id = _owner_for(user, form)
+        old = accounts.access_all_remove(owner_id)
+        if not old:
+            raise ValueError("Přístup pro všechny tu není.")
+        log(owner_id, VSEM_HOST, "vsem-odebrat", stara=old,
+            **({"admin": user["id"]} if owner_id != user["id"] else {}))
+        _kick_vsem(accounts, owner_id)
         return {"ok": True}
     raise ValueError("Neznámá akce.")
 

@@ -549,11 +549,49 @@ def user_agent(exe):
             f"Chrome/{ver}.0.0.0 Safari/537.36")
 
 
+# Nad tímhle podílem využité paměti se nový Chromium nespouští — jeden by
+# dorazil systém (nebo strop prostoru) a jádro by zabilo něco důležitějšího.
+PAMET_STROP = 0.85
+
+
+def vytizeni_pameti():
+    """Podíl využité paměti 0–1 (větší z celého systému a stropu prostoru,
+    bez cache souborů); 0.0 = nevíme (Windows, bez /proc)."""
+    podil = 0.0
+    try:
+        total = avail = 0
+        with open("/proc/meminfo", encoding="ascii") as fh:
+            for line in fh:
+                if line.startswith("MemTotal:"):
+                    total = int(line.split()[1])
+                elif line.startswith("MemAvailable:"):
+                    avail = int(line.split()[1])
+        if total:
+            podil = 1.0 - avail / total
+    except (OSError, ValueError, IndexError):
+        pass
+    try:
+        from . import core
+        st = core.pamet_prostoru()
+        if st:
+            cur, mx, _ = st
+            anon = core.pamet_anon()
+            if mx:
+                podil = max(podil, (anon if anon else cur) / mx)
+    except Exception:
+        pass
+    return podil
+
+
 def ensure(wait=15.0):
     """Zajistí běžící prohlížeč. Vrací (ok, zpráva)."""
     with _launch_lock:
         if alive():
             return True, ""
+        podil = vytizeni_pameti()
+        if podil > PAMET_STROP:
+            return False, (f"Prohlížeč teď nespouštím — paměť je zaplněná na {int(podil * 100)} %. "
+                           "Zavři nepoužívané taby (nebo je nech uspat) a zkus to znovu.")
         exe = find_chromium()
         if not exe:
             return False, "Nenašel jsem Chromium (spusť instalačku nebo: npx @playwright/mcp install-browser chrome-for-testing)."
@@ -798,6 +836,8 @@ class Okno:
         self._potreby_pocet = {}   # id karty → (důvod, kolik kontrol po sobě)
         self._bez_majitele = {}    # id nové karty → kdy se objevila (most ji ještě nezapsal)
         self._hlidac = None
+        self._insp_cdp = None      # spojení, na kterém je zapnutá doména Inspector
+        self._pady_karty = []      # kdy se stránka naposled zhroutila (omezuje opakované načítání)
         self.posledni = 0.0        # kdy naposled člověk v okně něco dělal (hlidej_necinnost)
 
     def pouziva_se(self):
@@ -974,6 +1014,18 @@ class Okno:
         """Události stránky: načítání, historie, dialogy JavaScriptu."""
         m = msg.get("method")
         par = msg.get("params") or {}
+        # Pád stránky (renderer) hlásí až zapnutá doména Inspector; zapíná se tady,
+        # u první události nového spojení, ať se nesahá do _stream.
+        if self._cdp is not None and self._insp_cdp is not self._cdp:
+            self._insp_cdp = self._cdp
+            self._posli("Inspector.enable")
+        if m == "Inspector.targetCrashed":
+            now = time.time()
+            self._pady_karty = [t for t in self._pady_karty if now - t < PADY_OKNO] + [now]
+            if len(self._pady_karty) <= PADY_MAX:
+                # Tentýž profil, tatáž karta: stačí ji načíst znovu.
+                self._posli("Page.reload")
+            return
         if m == "Page.frameStartedLoading":
             self._nacita = True
             self._info = None

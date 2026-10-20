@@ -40,7 +40,24 @@ from . import (account, automodel, chats, clockify, connect, core, cteni, jev, m
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 MAX_FRAME = 4 * 1024 * 1024          # a client frame is keystrokes; 4 MB is plenty
-SCROLLBACK = 256 * 1024              # replayed to the page after a reload
+
+
+def _scrollback():
+    """Kolik bajtů výstupu si tab pamatuje pro nové okno / reload (256 KB–1 MB).
+    `scrollback_kb` v hub-config.json nebo HUB_SCROLLBACK_KB."""
+    raw = os.environ.get("HUB_SCROLLBACK_KB") or core.CONFIG.get("scrollback_kb") or 256
+    try:
+        kb = int(float(raw))
+    except (TypeError, ValueError):
+        kb = 256
+    return max(256, min(1024, kb)) * 1024
+
+
+SCROLLBACK = _scrollback()           # replayed to the page after a reload
+SLEEP_COALESCE = 0.016               # výstup tabu se oknům posílá po ~16 ms dávkách
+# Kolik neodeslaných bajtů smí u jednoho okna ležet v socketu, než se mu živý
+# výstup přestane posílat (pomalý klient nesmí zdržovat čtečku ptyje).
+OUT_BACKLOG = 512 * 1024
 COOKIE_NAME = "hub_phone"            # so a paired phone opens without the QR
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
@@ -65,6 +82,18 @@ class WSConn:
         self.sock = sock
         self._lock = threading.Lock()
         self.closed = False
+        # Pomalé okno: živý výstup se mu přeskočil a čeká na překreslení.
+        self.lost = False
+
+    def backlog(self):
+        """Kolik bajtů leží v odesílací frontě socketu (Linux: SIOCOUTQ); jinde 0."""
+        try:
+            import fcntl
+            import termios
+            buf = fcntl.ioctl(self.sock.fileno(), termios.TIOCOUTQ, b"\0\0\0\0")
+            return struct.unpack("i", buf)[0]
+        except Exception:
+            return 0
 
     def send(self, payload, opcode=0x1):
         header = bytearray([0x80 | opcode])
@@ -201,6 +230,10 @@ class Session:
         self.pty = pty_backend.spawn(argv, cwd=cwd, env=child,
                                      cols=cols, rows=rows)
         self.buffer = bytearray()
+        # Výstup čekající na odeslání oknům (slučuje se po ~16 ms).
+        self._ceka = []
+        self._casovac = None
+        self._odeslano = 0.0
         # Tab může vidět víc oken naráz — appka i prohlížeč na tentýž prostor.
         # Výpis jde všem; pty ale má jen jeden rozměr a ten drží okno, které se
         # naposledy používalo (`driver`). Rozměry ostatních se pamatují, aby
@@ -240,11 +273,19 @@ class Session:
                     del self.buffer[:len(self.buffer) - SCROLLBACK]
                 text = self._decoder.decode(data)
                 if text:
-                    msg = {"t": "out", "id": self.id, "d": text}
-                    for conn in self.conns:
-                        conn.send_json(msg)
+                    self._ceka.append(text)
+                    # Dávka: první kus jde hned, další do 16 ms se slepí. Čtečka
+                    # ptyje nikdy nečeká — odeslání obstará časovač.
+                    if self._casovac is None:
+                        if time.time() - self._odeslano >= SLEEP_COALESCE:
+                            self._odeslat()
+                        else:
+                            self._casovac = threading.Timer(SLEEP_COALESCE, self._casovac_tik)
+                            self._casovac.daemon = True
+                            self._casovac.start()
         # Pod zámkem spolu s attach(): každé okno dostane „exit" právě jednou.
         with self._lock:
+            self._odeslat()                  # nic nezůstane viset v dávce
             if self._znovu:
                 return                       # relaunch(): tab jede dál s novým procesem
             self.exited = True
@@ -252,11 +293,47 @@ class Session:
         for conn in conns:
             conn.send_json({"t": "exit", "id": self.id})
 
+    def _casovac_tik(self):
+        with self._lock:
+            self._casovac = None
+            self._odeslat()
+
+    def _odeslat(self):
+        """Pod zámkem: pošle slepenou dávku výstupu všem oknům. Okno, kterému
+        leží v socketu moc neodeslaného (pomalé spojení), živý výstup přeskočí
+        a až se vzpamatuje, dostane tab znovu vykreslený z paměti — čtečka
+        ptyje se kvůli němu nezdrží ani nenafukuje paměť."""
+        if not self._ceka:
+            return
+        text = "".join(self._ceka)
+        self._ceka = []
+        self._odeslano = time.time()
+        msg = None
+        for conn in list(self.conns):
+            if conn.closed:
+                continue
+            fronta = conn.backlog()
+            if conn.lost:
+                if fronta > OUT_BACKLOG // 4:
+                    continue
+                conn.lost = False
+                conn.send_json({"t": "out", "id": self.id,
+                                "d": "\x1b[2J\x1b[3J\x1b[H"
+                                     + bytes(self.buffer).decode("utf-8", "replace")})
+                continue
+            if fronta > OUT_BACKLOG:
+                conn.lost = True
+                continue
+            if msg is None:
+                msg = {"t": "out", "id": self.id, "d": text}
+            conn.send_json(msg)
+
     def attach(self, conn):
         """Add a page to the viewers and replay what it missed.
 
         The replay goes only to that page — the others already show it."""
         with self._lock:
+            self._odeslat()                  # čekající dávka už je v paměti, novému oknu by se zdvojila
             self.conns.add(conn)
             backlog = bytes(self.buffer)
             if backlog:
@@ -333,6 +410,7 @@ class Session:
             self.resume = (env or {}).get("HUB_AGENT_RESUME", "") or self.resume
             self.chat_id = (env or {}).get("HUB_SESSION_ID", "") or self.resume
             self.buffer = bytearray()
+            self._ceka = []
             self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
             for conn in self.conns:
                 conn.send_json({"t": "out", "id": self.id, "d": "\x1b[2J\x1b[3J\x1b[H"})
@@ -2245,6 +2323,7 @@ def _zahrat_doctor():
 
 def start():
     """Start the server on a random loopback port. Returns (server, url)."""
+    core.omez_arenas()               # glibc: míň arén = menší RSS hubu (děti: MALLOC_ARENA_MAX)
     # V prostoru na serveru: připravit Claude Code na přihlášení z prostředí
     # dřív, než stránka stihne otevřít první tab.
     try:
@@ -2290,6 +2369,14 @@ def start():
         threading.Thread(target=core.hlidej_skripty, daemon=True).start()
     # Nečinné taby uspat (hub/uspavani.py) — v prostoru na serveru výchozí.
     threading.Thread(target=uspavani.hlidej, args=(HUB,), daemon=True).start()
+    # Vše vytvořené při startu (moduly, konfigurace) se vyřadí ze sledování
+    # cyklického sběrače — jeho průchody jsou pak levnější.
+    try:
+        import gc
+        gc.collect()
+        gc.freeze()
+    except Exception:
+        pass
     return httpd, f"http://127.0.0.1:{port}/?t={urllib.parse.quote(token)}"
 
 

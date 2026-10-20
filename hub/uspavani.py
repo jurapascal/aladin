@@ -159,12 +159,75 @@ def muze_spat(session, klid):
     return True, os.path.basename(path)[:-6]
 
 
+# Hlídač paměti jednoho Claudea: proces, který přeroste tenhle strop (MB),
+# se v klidu uspí a tím vrátí paměť (po probuzení běží znovu od nuly, nad toutéž
+# konverzací). `claude_rss_mb` v hub-config.json nebo HUB_CLAUDE_RSS_MB;
+# 0 = vypnuto. Výchozí je 1536 MB v prostoru na serveru, na počítači vypnuto.
+RSS_VYCHOZI = 1536
+RSS_KLID = 120          # vteřin bez vstupu i výstupu, než se přerostlý tab uspí
+TRIM_KAZDYCH = 300      # malloc_trim hubu každých pět minut
+
+
+def rss_limit_mb():
+    raw = os.environ.get("HUB_CLAUDE_RSS_MB", "")
+    if not raw:
+        raw = core.CONFIG.get("claude_rss_mb", "")
+    try:
+        mb = float(raw) if raw not in ("", None) else None
+    except (TypeError, ValueError):
+        mb = None
+    if mb is None:
+        mb = RSS_VYCHOZI if core.on_gateway() else 0
+    return max(0.0, mb)
+
+
+def rss_clauda(session):
+    """Největší RSS (MB) procesu `claude` v tabu; 0 = nic neběží."""
+    proc = getattr(session.pty, "proc", None)
+    if proc is None or proc.poll() is not None:
+        return 0
+    return max((rss for _, comm, rss in _procesy_relace(proc.pid) if comm == "claude"),
+               default=0) // 1024
+
+
+def hlidej_rss(hub):
+    """Uspí nečinné taby, jejichž Claude přerostl strop paměti. Stejná kritéria
+    jako u uspávání po klidu (muze_spat): nepracuje, nečeká na souhlas ani otázku,
+    nemá úlohy na pozadí."""
+    strop = rss_limit_mb()
+    if not strop:
+        return
+    for session in list(hub.sessions.values()):
+        mb = rss_clauda(session)
+        if mb < strop:
+            continue
+        ano, chat = muze_spat(session, RSS_KLID)
+        if not ano:
+            continue
+        if session.uspi(chat):
+            core.log(f"tab {session.id}: Claude držel {mb} MB (strop {int(strop)} MB), "
+                     f"uspaný v klidu — uvolněno ~{mb} MB"
+                     + (f" (konverzace {chat[:8]})" if chat else " (bez konverzace)"), "warn")
+            hub.broadcast({"t": "tab-uspany", "id": session.id, "on": True})
+
+
 def hlidej(hub, every=KAZDYCH):
     """Smyčka na pozadí: projde taby a nečinné uspí."""
     if not podporovano():
         return
+    trim_at = time.time()
     while True:
         time.sleep(every)
+        try:
+            if time.time() - trim_at >= TRIM_KAZDYCH:
+                trim_at = time.time()
+                core.vrat_pamet_systemu()
+        except Exception as exc:
+            core.log_error("malloc_trim", exc)
+        try:
+            hlidej_rss(hub)
+        except Exception as exc:
+            core.log_error("hlídač paměti Claudea", exc)
         try:
             klid = limit()
             if not klid:

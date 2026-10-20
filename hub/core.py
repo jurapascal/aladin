@@ -392,8 +392,35 @@ def utf8_locale(current, installed=None):
     return current or "C.UTF-8"
 
 
+def omez_arenas():
+    """glibc malloc: míň arén = menší RSS u procesu s mnoha vlákny (Linux).
+    Děti dostanou MALLOC_ARENA_MAX v prostředí (child_env), samotný hub si arény
+    omezí za běhu přes mallopt(M_ARENA_MAX) — musí to být dřív, než vlákna arény
+    založí, proto se volá hned při importu. Chyba se tiše ignoruje."""
+    if IS_WINDOWS or sys.platform == "darwin":
+        return
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").mallopt(-8, 2)          # M_ARENA_MAX
+    except Exception:
+        pass
+
+
+def vrat_pamet_systemu():
+    """malloc_trim(0): vrátí systému uvolněné stránky haldy hubu (Linux/glibc)."""
+    if IS_WINDOWS or sys.platform == "darwin":
+        return False
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+        return True
+    except Exception:
+        return False
+
+
 def child_env():
     env = dict(os.environ)
+    env.setdefault("MALLOC_ARENA_MAX", "2")
     env["TERM"] = "xterm-256color"
     env["COLORTERM"] = "truecolor"
     env["CHERE_INVOKING"] = "1"

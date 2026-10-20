@@ -921,6 +921,27 @@ class Handler(BaseHTTPRequestHandler):
             running = HUB.chat_tabs()
             return self._json({"chats": [dict(c, tab=running.get(c["id"]))
                                          for c in chats.list_chats()]})
+        if name == "chat-delete":
+            # Smazání konverzace z panelu Chaty (do koše, hub/chats.py). Jen
+            # vlastník prostoru — host cizí historii nemaže. Běžící v tabu ne:
+            # Claude Code by přepis hned založil znovu.
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            if guest:
+                return self._json({"error": "Konverzace smí mazat jen vlastník prostoru."}, 403)
+            chat_id = str(payload.get("id") or "")
+            if chat_id in HUB.chat_tabs():
+                return self._json({"error": "Konverzace je otevřená v tabu — nejdřív ho zavři."}, 409)
+            try:
+                moved = chats.delete_chat(chat_id)
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
+            except OSError as exc:
+                core.log_error("chaty: smazání", exc)
+                return self._json({"error": f"Nepovedlo se smazat: {exc}"}, 500)
+            if not moved:
+                return self._json({"error": "Konverzace už neexistuje."}, 404)
+            return self._json({"ok": True})
         if name == "bypass":
             # Potvrzení varování k bypassu, které by se jinak Claude Code ptal
             # v každém novém tabu. Jen výslovně (POST s accept: true).

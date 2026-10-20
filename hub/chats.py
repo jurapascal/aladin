@@ -209,3 +209,32 @@ def list_chats(limit=1000):
         _save_disk()
     out.sort(key=lambda c: c["updated"], reverse=True)
     return out[:limit]
+
+
+def delete_chat(chat_id):
+    """Smazat konverzaci ze seznamu: přepis (a podkonverzace `<id>/`) se
+    přesune do koše ~/.claude/hub-kos/chaty/, ne natvrdo — omyl jde vrátit
+    přesunem zpět. Vrací počet přesunutých položek (0 = nenalezeno)."""
+    if not core.SESSION_ID.fullmatch(str(chat_id or "")):
+        raise ValueError("Neplatná konverzace.")
+    root = _root()
+    kos = os.path.join(core.CLAUDE_DIR, "hub-kos", "chaty")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    moved = 0
+    try:
+        folders = os.listdir(root)
+    except OSError:
+        return 0
+    for folder in folders:
+        base = os.path.join(root, folder)
+        for name in (chat_id + ".jsonl", chat_id):
+            src = os.path.join(base, name)
+            if not os.path.lexists(src) or os.path.islink(src):
+                continue
+            dst_dir = os.path.join(kos, folder)
+            os.makedirs(dst_dir, exist_ok=True)
+            os.replace(src, os.path.join(dst_dir, f"{stamp}-{name}"))
+            moved += 1
+            with _LOCK:
+                _CACHE.pop(src, None)
+    return moved

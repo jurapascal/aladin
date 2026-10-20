@@ -1556,6 +1556,7 @@ function renderChats() {
       ];
       const p = prenosMoznost();
       if (p) items.push({icon: 'i-up', label: p.label, run: () => prenosPoslat(c.id, c.title, true)});
+      items.push({icon: 'i-trash', label: 'Smazat', color: 'var(--red)', run: () => deleteChat(c)});
       showMenu(ev.clientX, ev.clientY, items);
     };
     box.appendChild(item);
@@ -1589,6 +1590,26 @@ function openChat(c) {
   closeDrawer();
   if (running) return activate(running);
   resumeChat(c);
+}
+
+/* Smazat konverzaci z panelu Chaty. Server ji přesune do koše prostoru
+   (~/.claude/hub-kos/chaty), takže omyl jde vrátit. Otevřenou v tabu nesmaže. */
+async function deleteChat(c) {
+  if (c.tab) return toast('Konverzace je otevřená v tabu — nejdřív ho zavři.');
+  const ok = await askConfirm({
+    title: 'Smazat konverzaci?',
+    html: `<b>${escapeHtml(c.title)}</b> zmizí ze seznamu chatů. Přepis se přesune do koše prostoru.`,
+    yes: 'Smazat', no: 'Zrušit'});
+  if (!ok) return;
+  try {
+    await api('chat-delete', {id: c.id});
+  } catch (err) {
+    return toast('Nesmazáno: ' + err.message);
+  }
+  CHATS = CHATS.filter((x) => x.id !== c.id);
+  chatsSig = '';
+  renderChatsSoon();
+  toast('Konverzace smazána.');
 }
 
 /* Konverzace jen ke čtení, bez spouštění Claude Code. */

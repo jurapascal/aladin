@@ -193,27 +193,115 @@ def necinnost():
     return max(0.0, minut) * 60
 
 
-def zavri_prohlizec():
-    """Zavře Chromium přes CDP (Browser.close) — profil si stihne uložit.
-    Vrací, jestli se to povedlo."""
+COOKIES_DNI = 90
+_cookies_lock = threading.Lock()
+_PROC = None                 # proces, který jsme spustili (kvůli nouzovému ukončení)
+
+
+def _cookies_soubor():
+    return os.path.join(profile_dir(), "hub-cookies.json")
+
+
+def _cdp_prikaz(method, params=None, timeout=8):
+    """Jeden příkaz na úrovni prohlížeče (ne karty) → result, nebo None."""
+    ws = None
     try:
         info = _get("/json/version", 2)
         ws = _WS(info["webSocketDebuggerUrl"])
+        ws.sock.settimeout(timeout)
+        ws.send(json.dumps({"id": 1, "method": method, "params": params or {}}))
+        while True:
+            raw = ws.recv()
+            if raw is None:
+                return None
+            msg = json.loads(raw)
+            if msg.get("id") == 1:
+                return msg.get("result")
     except Exception:
-        return False
-    try:
-        ws.send(json.dumps({"id": 1, "method": "Browser.close"}))
-        try:
-            ws.sock.settimeout(5)
-            ws.recv()
-        except Exception:
-            pass
+        return None
     finally:
-        ws.close()
-    for _ in range(20):
+        if ws:
+            ws.close()
+
+
+def uloz_cookies():
+    """Cookies z běžícího prohlížeče do profilu (0600). Přihlášení tak přežije
+    pád, restart i poškozenou cookie databázi. Bez nich by se po každém
+    zavření nečinného prohlížeče odhlašovalo. Cookies bez expirace dostanou
+    +90 dní (jako storageState u Playwrightu)."""
+    res = _cdp_prikaz("Storage.getCookies")
+    cookies = (res or {}).get("cookies")
+    if not cookies:
+        return False                     # nic nepřepisovat prázdným
+    exp = time.time() + COOKIES_DNI * 86400
+    for c in cookies:
+        if c.get("session") or not c.get("expires") or c.get("expires", 0) < 0:
+            c["expires"] = exp
+        c.pop("session", None)
+        c.pop("size", None)
+    path = _cookies_soubor()
+    with _cookies_lock:
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            tmp = path + ".tmp"
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                json.dump(cookies, fh)
+            os.replace(tmp, path)
+            os.chmod(path, 0o600)
+        except OSError:
+            return False
+    return True
+
+
+def vrat_cookies():
+    """Po startu vrátí uložené cookies, které prohlížeč nemá (nic nepřepisuje)."""
+    try:
+        with open(_cookies_soubor(), encoding="utf-8") as fh:
+            ulozene = json.load(fh)
+    except (OSError, ValueError):
+        return 0
+    if not isinstance(ulozene, list) or not ulozene:
+        return 0
+    maji = _cdp_prikaz("Storage.getCookies")
+    if maji is None:
+        return 0
+    klic = lambda c: (c.get("name"), c.get("domain"), c.get("path"))
+    existuji = {klic(c) for c in maji.get("cookies", [])}
+    chybi = [c for c in ulozene if isinstance(c, dict) and klic(c) not in existuji
+             and c.get("expires", 0) > time.time()]
+    if chybi and _cdp_prikaz("Storage.setCookies", {"cookies": chybi}, 15) is not None:
+        return len(chybi)
+    return 0
+
+
+def zavri_prohlizec():
+    """Slušně vypne Chromium: uloží cookies, pošle Browser.close a počká, až
+    prohlížeč sám skončí a zapíše profil (cookie databáze). Teprve po ~10 s
+    ho ukončí signálem. Vrací, jestli už neběží."""
+    if not alive():
+        return True
+    try:
+        uloz_cookies()
+    except Exception:
+        pass
+    _cdp_prikaz("Browser.close", timeout=5)
+    for _ in range(40):
         if not alive():
             return True
         time.sleep(0.25)
+    # Nereaguje: SIGTERM (Chromium se ještě stihne uklidit), SIGKILL až nakonec.
+    proc = _PROC
+    if proc is not None and proc.poll() is None:
+        for sig_name, cekat in (("SIGTERM", 5), ("SIGKILL", 3)):
+            try:
+                os.killpg(proc.pid, getattr(__import__("signal"), sig_name))
+            except Exception:
+                pass
+            for _ in range(cekat * 4):
+                if not alive():
+                    return True
+                time.sleep(0.25)
     return not alive()
 
 
@@ -371,6 +459,7 @@ def hlidej_necinnost(log=lambda *a: None, every=15):
     zavrel_jsem = False
     pady = []
     kolo = 0
+    cookies_at = 0.0
     while True:
         time.sleep(every)
         kolo += 1
@@ -395,6 +484,9 @@ def hlidej_necinnost(log=lambda *a: None, every=15):
             if zije:
                 zavrel_jsem = False
             bezel = zije
+            if zije and now - last < 1800 and now - cookies_at >= 300:
+                cookies_at = now          # přihlášení nesmí záviset na tom, že se prohlížeč zavře slušně
+                uloz_cookies()
             if not zije or kolo % max(1, int(60 // every)):
                 continue                  # karty a nečinnost stačí jednou za minutu
             try:
@@ -484,6 +576,11 @@ def ensure(wait=15.0):
                 # Víc karet sdílí procesy stránek — každý je 80–600 MB. Izolace
                 # webů (site isolation) zůstává, strop je jen měkký.
                 f"--renderer-process-limit={RENDERERU}",
+                # Cookies nešifrovat klíčem z keyringu: při jeho změně (nová
+                # session, jiný stroj) by byly nečitelné = odhlášení všude.
+                "--password-store=basic",
+                "--disable-background-networking", "--disable-breakpad", "--disable-sync",
+                "--js-flags=--max-old-space-size=512",
                 "--disable-extensions",
                 "--disable-component-update", "--disable-default-apps", "--force-color-profile=srgb", "about:blank"]
         # Malé /dev/shm (kontejnery, sandbox prostoru): sdílená paměť pro
@@ -506,11 +603,17 @@ def ensure(wait=15.0):
             kw["start_new_session"] = True
         try:
             proc = subprocess.Popen(args, **kw)
+            global _PROC
+            _PROC = proc
         except OSError as exc:
             return False, f"Prohlížeč se nepodařilo spustit: {exc}"
         end = time.time() + wait
         while time.time() < end:
             if alive():
+                try:
+                    vrat_cookies()
+                except Exception:
+                    pass
                 return True, ""
             if proc.poll() is not None:
                 # Souběh: prohlížeč chtěly naráz dva mosty (spouští se až při

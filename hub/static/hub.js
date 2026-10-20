@@ -3308,7 +3308,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
     /* Server přehrává po reloadu jen 256 kB (server.py SCROLLBACK), víc
        historie tedy stejně nepřežije. 100 000 řádků bylo ~150 MB na tab —
        u dvaceti tabů stránka tuhla a padala. */
-    scrollback: 10000,
+    scrollback: 3000,
     cursorBlink: true,
     allowProposedApi: true,
     theme: termTheme({vault}),   // firemní tab je fialový od prvního znaku

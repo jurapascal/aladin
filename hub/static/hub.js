@@ -4410,7 +4410,12 @@ function connect() {
     WS.openedAt = Date.now();
     WS.send(JSON.stringify({t: 'hello'}));
   };
-  WS.onmessage = (ev) => handle(JSON.parse(ev.data));
+  // Binární zprávy jsou jen snímky prohlížeče v appce (prohlizec.js) — JPEG bez base64.
+  WS.binaryType = 'arraybuffer';
+  WS.onmessage = (ev) => {
+    if (typeof ev.data !== 'string') { if (window.HubProhlizec && HubProhlizec.naSnimek) HubProhlizec.naSnimek(ev.data); return; }
+    handle(JSON.parse(ev.data));
+  };
   WS.addEventListener('open', () => document.dispatchEvent(new Event('hub-ws-open')));
   WS.onclose = () => setTimeout(connect, 1000);
 }

@@ -244,6 +244,13 @@ class _WS:
             raise OSError("handshake odmítnut")
         self._buf = head.split(b"\r\n\r\n", 1)[1]
         self.sock.settimeout(None)
+        if sys.platform.startswith("linux"):
+            # Zápis do zaseknutého Chromia nesmí viset navěky (čtení dál čeká
+            # bez limitu — rozbité čtení uprostřed rámce by rozhodilo spojení).
+            try:
+                self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDTIMEO, struct.pack("ll", 5, 0))
+            except OSError:
+                pass
         self._lock = threading.Lock()
         self.closed = False
 
@@ -360,6 +367,61 @@ KLAVESY = {"Enter": 13, "Backspace": 8, "Tab": 9, "Escape": 27, "Delete": 46,
            "Home": 36, "End": 35, "PageUp": 33, "PageDown": 34, "Insert": 45}
 
 
+# ── Plynulý obraz: snímky bez fronty ─────────────────────────────────────────
+# Snímek jde do okna binárně (JPEG bez base64 a JSONu) a Chromu se potvrdí až
+# ve chvíli, kdy ho okno vykreslilo (`ack`). Na cestě je tak nejvýš HLOUBKA
+# snímků navíc: pomalé spojení nebo zaneprázdněná stránka dostane méně snímků,
+# ale vždycky ten nejnovější — nic se nehromadí a obraz nezaostává za stránkou.
+# Schované okno nepotvrzuje, takže Chrome přestane snímat úplně sám.
+KVALITA = 85                 # JPEG v klidu (text ostrý)
+KVALITA_ROLOVANI = 50        # při rolování kolečkem — poloviční data, plynulejší pohyb
+HLOUBKA = 1                  # kolik snímků smí být navíc na cestě do okna
+DRZET_NEJDEL = 2.0           # s — nepotvrzený snímek se pak Chromu potvrdí stejně
+ODPOVED_NEJDEL = 10.0        # s — CDP dotaz bez odpovědi se zahodí (cb dostane None)
+
+
+class _Posilac:
+    """Snímky jednomu spojení hubu na vlastním vlákně. Drží se jen poslední —
+    starší se zahodí, takže pomalé spojení (telefon, brána) nezdrží Chrome
+    ani ostatní okna a v paměti nic nebobtná."""
+
+    def __init__(self, conn, zahozeno):
+        self.conn = conn
+        self._zahozeno = zahozeno
+        self._lock = threading.Lock()
+        self._data = None
+        self._ev = threading.Event()
+        self.zije = True
+        threading.Thread(target=self._bez, name="prohlizec-obraz", daemon=True).start()
+
+    def dej(self, data):
+        with self._lock:
+            stary, self._data = self._data, data
+        if stary is not None:
+            self._zahozeno()             # okno ho nikdy neuvidí — počítá se jako vyřízený
+        self._ev.set()
+
+    def stop(self):
+        self.zije = False
+        self._ev.set()
+
+    def _bez(self):
+        while True:
+            self._ev.wait()
+            self._ev.clear()
+            if not self.zije or getattr(self.conn, "closed", False):
+                return
+            with self._lock:
+                data, self._data = self._data, None
+            if data is None:
+                continue
+            try:
+                self.conn.send(data, 0x2)
+            except Exception:
+                self.zije = False
+                return
+
+
 class Okno:
     """Jedno vlákno na prohlížeč, kolik je pohledů. `viewers` = spojení hubu."""
 
@@ -389,6 +451,7 @@ class Okno:
         self._potreby_pocet = {}   # id karty → (důvod, kolik kontrol po sobě)
         self._bez_majitele = {}    # id nové karty → kdy se objevila (most ji ještě nezapsal)
         self._hlidac = None
+        self._init_obraz()
 
     # -- pohledy
     def pridej(self, conn, pasivne=False):
@@ -416,11 +479,16 @@ class Okno:
             self.viewers.discard(conn)
             had = any(self._vidi.values())
             self._vidi.pop(conn, None)
+        self._pustit_posilace(conn)
         if had and not any(self._vidi.values()):
             self._posli("Page.stopScreencast")
+            self._uvolni_snimky()
 
-    def vidi(self, conn, on):
-        """Rozbalené okno chce obraz, minimalizované jen stav karet."""
+    def vidi(self, conn, on, pauza=False):
+        """Rozbalené okno chce obraz, minimalizované jen stav karet.
+        `pauza` = okno je jen schované (jiný tab prohlížeče, jiný chat):
+        obraz se zastaví, ale stránka si nechá velikost okna — po návratu
+        se nic nepřeskládá."""
         with self._lock:
             pred = any(self._vidi.values())
             self._vidi[conn] = bool(on)
@@ -429,9 +497,11 @@ class Okno:
             self._emuluj()
             self._spust_obraz()
         elif pred and not ted:
-            # Minimalizované: stránka se vrátí do svého okna, Claude ji vidí normálně.
             self._posli("Page.stopScreencast")
-            self._posli("Emulation.clearDeviceMetricsOverride")
+            self._uvolni_snimky()
+            if not pauza:
+                # Minimalizované: stránka se vrátí do svého okna, Claude ji vidí normálně.
+                self._posli("Emulation.clearDeviceMetricsOverride")
 
     # -- komu která karta patří
     def _majitel(self, tid):
@@ -534,7 +604,7 @@ class Okno:
         self._next_id += 1
         rid = self._next_id
         if cb:
-            self._odpovedi[rid] = cb
+            self._odpovedi[rid] = (cb, time.time())
         try:
             cdp.send(json.dumps({"id": rid, "method": method, "params": params}))
         except OSError:
@@ -565,11 +635,20 @@ class Okno:
             self._obnov_historii()
         elif m in ("Page.frameNavigated", "Page.navigatedWithinDocument"):
             self._obnov_historii()
+            ram = par.get("frame") or {}
+            if m == "Page.frameNavigated" and not ram.get("parentId") and ram.get("url"):
+                self._url_cile = ram["url"]          # kam se vrátit, kdyby stránka spadla
         elif m == "Page.javascriptDialogOpening":
             self._vsem({"t": "br-dialog", "typ": par.get("type", "alert"), "zprava": par.get("message", ""),
                         "vychozi": par.get("defaultPrompt", ""), "url": par.get("url", "")})
         elif m == "Page.javascriptDialogClosed":
             self._vsem({"t": "br-dialog", "zavrit": True})
+        elif m == "Inspector.targetCrashed":
+            self._spadla()
+        elif m == "Inspector.detached":
+            cdp = self._cdp
+            if cdp:
+                cdp.close()        # karta zmizela / převzal ji někdo jiný — smyčka se připojí znovu
 
     def _strany(self):
         try:
@@ -629,7 +708,10 @@ class Okno:
     def _stream(self, cil):
         cdp = _WS(cil["webSocketDebuggerUrl"])
         self._cdp = cdp
+        self._url_cile = cil.get("url", "")
+        self._uvolni_snimky()
         self._posli("Page.enable")
+        self._posli("Inspector.enable")        # pád stránky (Inspector.targetCrashed)
         self._nacita = False
         self._nav = {"back": False, "fwd": False}
         if any(self._vidi.values()):
@@ -652,6 +734,7 @@ class Okno:
                 if akt is None or self._nova(strany, vzit=False):
                     break
                 self._posli_info(strany, akt)
+                self._hlidej_casy()
             stop.set()
             cdp.close()
         threading.Thread(target=hlidej, daemon=True).start()
@@ -665,13 +748,9 @@ class Okno:
                 except ValueError:
                     continue
                 if msg.get("id") in self._odpovedi:
-                    self._odpovedi.pop(msg["id"])(msg.get("result"))
+                    self._odpovedi.pop(msg["id"])[0](msg.get("result"))
                 elif msg.get("method") == "Page.screencastFrame":
-                    p = msg["params"]
-                    meta = p.get("metadata", {})
-                    self._vsem({"t": "br-frame", "d": p["data"],
-                                "w": meta.get("deviceWidth", 0), "h": meta.get("deviceHeight", 0)})
-                    self._posli("Page.screencastFrameAck", sessionId=p["sessionId"])
+                    self._snimek(msg["params"])
                 elif msg.get("method"):
                     self._udalost(msg)
         finally:
@@ -690,22 +769,159 @@ class Okno:
         if not self._velikost:
             return
         css_w, css_h, dpr = self._viewport()
+        mobil = self._mobil
         self._posli("Emulation.setDeviceMetricsOverride", width=css_w, height=css_h,
-                    deviceScaleFactor=dpr, mobile=False,
-                    screenWidth=max(css_w, 1920), screenHeight=max(css_h, 1080))
+                    deviceScaleFactor=dpr, mobile=mobil,
+                    screenWidth=css_w if mobil else max(css_w, 1920),
+                    screenHeight=css_h if mobil else max(css_h, 1080))
 
     def _viewport(self):
         w, h, dpr = self._velikost or (1600, 1000, 1.0)
+        # Živý obraz je beztak v CSS pixelech (viz _spust_obraz), takže vyšší
+        # hustota by jen zčtyřnásobila kreslení v bezhlavém Chromu (software).
+        dpr = 1.0
+        if self._mobil:
+            return w, h, dpr                  # telefon (poměr 9:16): přesně plocha okna
         css_w = max(w, MIN_SIRKA)
         return css_w, max(200, round(h * css_w / w)), dpr
 
     def _spust_obraz(self):
         # Bezhlavý Chrome posílá živý obraz v CSS pixelech stránky (hustotu
-        # displeje ignoruje, naměřeno) — na běžném displeji je to přesně 1:1.
+        # displeje ignoruje, naměřeno). Užší okno než stránka (MIN_SIRKA)
+        # dostane snímek zmenšený už v Chromu — menší data, plátno kreslí 1:1.
         css_w, css_h, _ = self._viewport()
+        w, h, _ = self._velikost or (css_w, css_h, 1.0)
+        self._uvolni_snimky()
         self._posli("Page.stopScreencast")
-        self._posli("Page.startScreencast", format="jpeg", quality=92,
-                    maxWidth=css_w, maxHeight=css_h, everyNthFrame=1)
+        self._posli("Page.startScreencast", format="jpeg",
+                    quality=KVALITA_ROLOVANI if self._rychle else KVALITA,
+                    maxWidth=min(css_w, w), maxHeight=min(css_h, h),
+                    everyNthFrame=2 if self._rychle else 1)
+
+    # -- plynulý obraz (viz KVALITA, _Posilac)
+    def _init_obraz(self):
+        self._mobil = False            # okno v poměru 9:16 — stránka jako na telefonu
+        self._rychle = False           # právě se roluje → nižší kvalita snímků
+        self._rolovani_do = 0.0
+        self._posilace = {}            # spojení → _Posilac
+        self._snimky_lock = threading.Lock()
+        self._v_letu = 0               # snímky poslané do okna, které ještě nepotvrdilo
+        self._drzene = []              # [(sessionId, kdy)] — Chromu zatím nepotvrzené
+        self._url_cile = ""
+        self._pady = []                # kdy stránka spadla (proti nekonečnému obnovování)
+
+    def _posilac(self, conn):
+        pos = self._posilace.get(conn)
+        if pos is None or not pos.zije:
+            pos = self._posilace[conn] = _Posilac(conn, self._potvrzeno)
+        return pos
+
+    def _pustit_posilace(self, conn):
+        pos = self._posilace.pop(conn, None)
+        if pos:
+            pos.stop()
+
+    def _uvolni_snimky(self):
+        """Nové snímání (jiná karta, velikost, kvalita): staré potvrzování neplatí."""
+        with self._snimky_lock:
+            self._v_letu = 0
+            self._drzene = []
+
+    def _snimek(self, p):
+        meta = p.get("metadata") or {}
+        w, h = meta.get("deviceWidth", 0), meta.get("deviceHeight", 0)
+        with self._lock:
+            divaci = [c for c in self.viewers if self._vidi.get(c)]
+        nove = [c for c in divaci if getattr(c, "br_bin", False)]
+        if nove:
+            try:
+                jpeg = base64.b64decode(p.get("data") or "")
+            except (ValueError, TypeError):
+                jpeg = b""
+            hlava = json.dumps({"w": w, "h": h}).encode()
+            data = b"BR" + struct.pack(">H", len(hlava)) + hlava + jpeg
+            for conn in nove:
+                self._posilac(conn).dej(data)
+        for conn in divaci:
+            if conn not in nove:           # okno ze staré verze stránky (do reloadu)
+                try:
+                    conn.send_json({"t": "br-frame", "d": p.get("data", ""), "w": w, "h": h})
+                except Exception:
+                    pass
+        sid = p.get("sessionId")
+        with self._snimky_lock:
+            if nove:
+                self._v_letu += 1
+                if self._v_letu > HLOUBKA:
+                    self._drzene.append((sid, time.time()))
+                    return
+        self._posli("Page.screencastFrameAck", sessionId=sid)
+
+    def _potvrzeno(self):
+        """Okno snímek vykreslilo (nebo ho zahodilo) — Chrome smí poslat další."""
+        with self._snimky_lock:
+            self._v_letu = max(0, self._v_letu - 1)
+            sid = self._drzene.pop(0)[0] if self._drzene else None
+        if sid is not None:
+            self._posli("Page.screencastFrameAck", sessionId=sid)
+
+    def _hlidej_casy(self):
+        """Nic nesmí viset: nepotvrzený snímek ani dotaz bez odpovědi."""
+        ted = time.time()
+        with self._snimky_lock:
+            stare = [sid for sid, kdy in self._drzene if ted - kdy > DRZET_NEJDEL]
+            self._drzene = [(sid, kdy) for sid, kdy in self._drzene if ted - kdy <= DRZET_NEJDEL]
+            if stare:
+                self._v_letu = len(self._drzene)
+        for sid in stare:
+            self._posli("Page.screencastFrameAck", sessionId=sid)
+        for rid, (cb, kdy) in list(self._odpovedi.items()):
+            if ted - kdy > ODPOVED_NEJDEL and self._odpovedi.pop(rid, None):
+                try:
+                    cb(None)
+                except Exception:
+                    pass
+
+    def _rolovani(self):
+        """Kolečko: snímky v nižší kvalitě, po doběhnutí zase ostré."""
+        self._rolovani_do = time.time() + 0.45
+        if self._rychle or not any(self._vidi.values()):
+            return
+        self._rychle = True
+        self._spust_obraz()
+
+        def po():
+            while time.time() < self._rolovani_do:
+                time.sleep(0.1)
+            self._rychle = False
+            if any(self._vidi.values()):
+                self._spust_obraz()        # restart pošle hned jeden ostrý snímek
+        threading.Thread(target=po, name="prohlizec-rolovani", daemon=True).start()
+
+    def _spadla(self):
+        """Proces stránky spadl (Inspector.targetCrashed): stránka se načte
+        znovu sama, okno mezitím řekne, co se děje. Když padá pořád, nechá
+        se to na člověku."""
+        ted = time.time()
+        self._pady = [t for t in self._pady if ted - t < 60] + [ted]
+        if len(self._pady) > 3:
+            self._vsem({"t": "br-stav", "ok": False, "pad": True,
+                        "zprava": "Stránka opakovaně padá — zkus ji načíst znovu (Ctrl+R)."})
+            return
+        self._vsem({"t": "br-stav", "ok": False, "pad": True, "zprava": "Stránka spadla — obnovuji…"})
+        url = self._url_cile
+
+        def obnov():
+            time.sleep(0.6)
+            if re.match(r"^https?:", url or ""):
+                self._posli("Page.navigate", url=url)
+            else:
+                self._posli("Page.reload")
+            time.sleep(1.0)
+            if any(self._vidi.values()):
+                self._emuluj()
+                self._spust_obraz()
+        threading.Thread(target=obnov, name="prohlizec-obnova", daemon=True).start()
 
     def _srovnej_okno(self, w, h):
         """Skutečné okno Chromia dostane rozměr plochy, ať stránka vidí tu
@@ -808,8 +1024,11 @@ class Okno:
                             button=btn if typ != "mouseMoved" else "none", clickCount=int(msg.get("clicks", 1)),
                             modifiers=int(msg.get("mod", 0)))
         elif a == "wheel":
+            self._rolovani()
             self._posli("Input.dispatchMouseEvent", type="mouseWheel", x=float(msg.get("x", 0)), y=float(msg.get("y", 0)),
                         deltaX=float(msg.get("dx", 0)), deltaY=float(msg.get("dy", 0)))
+        elif a == "ack":
+            self._potvrzeno()
         elif a == "key":
             key = str(msg.get("key", ""))
             vk = KLAVESY.get(key) or int(msg.get("vk") or 0)
@@ -833,8 +1052,10 @@ class Okno:
                 dpr = max(1.0, min(float(msg.get("dpr") or 1), 3.0))
             except (TypeError, ValueError):
                 return
-            if (w, h, dpr) != self._velikost:
+            mobil = bool(msg.get("mobil"))
+            if (w, h, dpr) != self._velikost or mobil != self._mobil:
                 self._velikost = (w, h, dpr)
+                self._mobil = mobil
                 if any(self._vidi.values()):
                     self._emuluj()
                     self._spust_obraz()
@@ -922,11 +1143,13 @@ def zprava(conn, msg, server=False):
         return
     a = msg.get("a")
     if a == "open":
+        # Nové okno umí binární snímky a potvrzuje vykreslení (plynulý obraz).
+        conn.br_bin = bool(msg.get("bin"))
         OKNO.pridej(conn, bool(msg.get("pasivne")))
     elif a == "close":
         OKNO.odeber(conn)
     elif a == "vidi":
-        OKNO.vidi(conn, msg.get("on"))
+        OKNO.vidi(conn, msg.get("on"), bool(msg.get("pauza")))
     else:
         OKNO.vstup(msg)
 

@@ -2,8 +2,9 @@
 Správa týmu z hubu (Nastavení → Tým) — jen pro adminy.
 
 Totéž, co umí `claude-hub-admin` na serveru, jen naklikáním: pozvat člověka,
-nové heslo, role, zablokování, reset ověření z telefonu, správci poznámek
-a odemknutí zablokovaného přihlášení. Mazání účtu zůstává jen na serveru —
+nové heslo, role, zablokování, reset ověření z telefonu, správci poznámek,
+odemknutí zablokovaného přihlášení a web (FTP), kam Claude v prostoru
+zveřejňuje — heslo FTP se stránce nikdy nevrací, jen „nastaveno“. Mazání účtu zůstává jen na serveru —
 je nevratné a odkládá celý domov.
 
 Hesla vymýšlí brána (čitelná slova + čísla), ukážou se adminovi jednou a on
@@ -64,6 +65,8 @@ def people(accounts, hubs=None):
             "zakladatel": firmy.muze_zakladat(dict(r)),
             "zamceny": r["email"] in locked,
             "pracuje": running,
+            # Web (FTP) od správce — bez hesla, jen že je nastavené.
+            "web": workspace.web_public(dict(r)),
         })
     return out
 
@@ -177,4 +180,22 @@ def act(accounts, admin, form, hubs=None):
         poznamky.set_managers(emails)
         _log(admin, email, "spravce-poznamek", zapnuto=bool(form.get("zapnout")))
         return {"ok": True}
+    if action == "web":
+        # Web (FTP), kam Claude v prostoru zveřejňuje. Heslo zůstane, když se
+        # mění jen adresa nebo složka a nové se nevyplní.
+        old = workspace.web(dict(row)) or {}
+        password = str(form.get("heslo") or "") or old.get("password", "")
+        data = workspace.save_web(dict(row), form.get("host"), form.get("uzivatel"), password,
+                                  form.get("url"), form.get("slozka") or "/",
+                                  form.get("port") or 21, "Tým: " + admin.get("email", ""))
+        if hubs:
+            hubs.preved_web(dict(row))
+        _log(admin, email, "web", url=data["url"], host=data["host"])
+        return {"ok": True, "web": workspace.web_public(dict(row))}
+    if action == "web-pryc":
+        gone = workspace.remove_web(dict(row))
+        if hubs:
+            hubs.preved_web(dict(row))
+        _log(admin, email, "web-pryc")
+        return {"ok": True, "odebrano": gone}
     raise ValueError("Neznámá akce.")

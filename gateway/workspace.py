@@ -441,6 +441,105 @@ def remove_predplatne(user):
         return False
 
 
+# ── web účtu (FTP) ───────────────────────────────────────────────────────────
+# Kam Claude v prostoru zveřejňuje, co postaví. Přiděluje správce
+# (`claude-hub-admin web`), leží u brány podle čísla účtu jako předplatné —
+# 0600 ve složce 0700. Do prostoru jde při startu v HUB_WEB (session_env), za
+# běhu přes /api/web-host (server.HubManager.preved_web); zapíše ho hub sám
+# do ~/.claude/hub-web.json (hub/web.py). Heslo ven z brány jinak nejde.
+WEB_HOST_RE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?")
+_RIDICI = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _web_path(user):
+    return os.path.join(config.WEB_FTP_DIR, "%d.json" % int(user["id"]))
+
+
+def _web_cisty(host, ftp_user, password, url, remote_dir="/", port=21):
+    host = str(host or "").strip().lower()
+    ftp_user = str(ftp_user or "").strip()
+    password = str(password or "")
+    url = str(url or "").strip().rstrip("/")
+    remote = "/" + str(remote_dir or "/").strip().strip("/")
+    try:
+        port = 21 if port in (None, "") else int(port)
+    except (TypeError, ValueError):
+        raise ValueError("Port musí být číslo.") from None
+    if not WEB_HOST_RE.fullmatch(host):
+        raise ValueError("Server (host) vypadá jako ftp.firma.cz.")
+    if not ftp_user or len(ftp_user) > 200 or _RIDICI.search(ftp_user):
+        raise ValueError("Chybí uživatel FTP.")
+    if not password or len(password) > 500 or _RIDICI.search(password):
+        raise ValueError("Chybí heslo FTP.")
+    if not 0 < port < 65536:
+        raise ValueError("Port je číslo 1–65535.")
+    if not re.fullmatch(r"https?://[^\s/]+(/[^\s]*)?", url):
+        raise ValueError("Adresa webu začíná https:// (třeba https://firma.cz/adam).")
+    if ".." in remote.split("/") or _RIDICI.search(remote) or len(remote) > 300:
+        raise ValueError("Složka na FTP je cesta jako / nebo /www/adam.")
+    return {"host": host, "port": port, "protocol": "ftps", "user": ftp_user,
+            "password": password, "remote_dir": remote.rstrip("/") or "/", "url": url}
+
+
+def web(user):
+    """{"host", "port", "protocol", "user", "password", "remote_dir", "url",
+    "updated", "label"} přiděleného webu, nebo None."""
+    try:
+        with open(_web_path(user), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or not data.get("host") or not data.get("password"):
+        return None
+    return data
+
+
+def save_web(user, host, ftp_user, password, url, remote_dir="/", port=21, label=""):
+    data = _web_cisty(host, ftp_user, password, url, remote_dir, port)
+    data.update(updated=int(time.time()), label=str(label or "")[:80])
+    os.makedirs(config.WEB_FTP_DIR, mode=0o700, exist_ok=True)
+    os.chmod(config.WEB_FTP_DIR, 0o700)
+    path = _web_path(user)
+    tmp = f"{path}.{secrets.token_hex(4)}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False)
+    os.replace(tmp, path)
+    return data
+
+
+def remove_web(user):
+    try:
+        os.remove(_web_path(user))
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def web_public(user):
+    """Přidělený web bez hesla (výpis, stránka správce), nebo None."""
+    data = web(user)
+    if not data:
+        return None
+    return dict({k: data.get(k) for k in ("host", "port", "user", "remote_dir", "url", "updated")},
+                heslo="nastaveno")
+
+
+def web_env(user):
+    """Co prostor dostane v HUB_WEB: JSON webu (bez poznámek brány), nebo ''."""
+    data = web(user)
+    if not data:
+        return ""
+    return json.dumps({k: data.get(k) for k in ("host", "port", "protocol", "user", "password",
+                                                "remote_dir", "url")}, ensure_ascii=False)
+
+
+def web_mark(user):
+    """Otisk webu — podle něj brána pozná, že běžící prostor má starý."""
+    raw = web_env(user)
+    return hashlib.sha256(raw.encode()).hexdigest()[:16] if raw else ""
+
+
 def auth_mark(user):
     """Otisk přihlášení, se kterým by prostor nastartoval teď — podle něj se
     pozná, že běžící prostor potřebuje restart (připojené předplatné)."""
@@ -504,6 +603,9 @@ def session_env(user):
     # jinak by si ho každý stahoval do svého domova (~300 MB na člověka).
     if os.path.isdir(PROHLIZECE):
         env["PLAYWRIGHT_BROWSERS_PATH"] = PROHLIZECE
+    # Web od správce: vždycky, i prázdný — prázdný říká hubu „web už nemáš“
+    # (hub/web.py pri_startu ho zapíše nebo smaže a proměnnou zahodí).
+    env["HUB_WEB"] = web_env(user)
     return env
 
 

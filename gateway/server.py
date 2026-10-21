@@ -222,6 +222,9 @@ class HubProc:
         # S jakým přihlášením Clauda prostor nastartoval (workspace.auth_mark) —
         # připojené předplatné se do běžícího prostoru dostane až restartem.
         self.auth_mark = ""
+        # S jakým webem od správce prostor jede (workspace.web_mark) — změnu za
+        # běhu mu pošle HubManager (preved_web), bez restartu.
+        self.web_mark = ""
         # Verze hubu, na které prostor jede (workspace.code_dir při startu).
         self.version = ""
         self._checked = 0.0
@@ -254,6 +257,9 @@ class HubProc:
         env.pop("GOOGLE_OAUTH_CLIENT_SECRET", None)
         env.update(workspace.session_env(self.user))
         self.auth_mark = workspace.auth_mark(self.user)
+        # Docker prostředí brány do kontejneru nepouští (HUB_WEB tam nedojde) —
+        # web pak doručí HubManager za běhu, jako po změně.
+        self.web_mark = "" if self.mode == "docker" else workspace.web_mark(self.user)
         # Most na počítač uživatele: MCP server v prostoru (tools/pocitac_mcp.py)
         # volá bránu přímo na loopbacku, ne přes nginx — a tenhle žeton říká,
         # čí prostor volá. Jiné prostory ho nevidí (každý má svoje prostředí).
@@ -352,6 +358,22 @@ class HubProc:
                     pass
 
 
+def hub_post(hub, name, payload, timeout=20):
+    """Brána volá hub prostoru napřímo (ne z prohlížeče) — jeho tokenem."""
+    conn = http.client.HTTPConnection("127.0.0.1", hub.port, timeout=timeout)
+    try:
+        conn.request("POST", "/api/" + name, body=json.dumps(payload).encode("utf-8"),
+                     headers={"X-Hub-Token": hub.token, "Content-Type": "application/json"})
+        resp = conn.getresponse()
+        data = json.loads(resp.read() or b"{}")
+        return data if resp.status == 200 else {"error": data.get("error") or "Prostor odmítl."}
+    except (OSError, ValueError, http.client.HTTPException) as exc:
+        _errlog("hub_call " + name, exc)
+        return {"error": "Prostor teď neodpovídá, zkus to za chvíli."}
+    finally:
+        conn.close()
+
+
 class HubManager:
     """Které instance hubu běží a kdo je čí. Uspává nečinné, drží strop počtu."""
 
@@ -429,6 +451,32 @@ class HubManager:
             # mimo zámek, ať mezitím nečekají požadavky ostatních.
             for proc in to_stop:
                 proc.stop()
+            # Web změněný přes claude-hub-admin (jiný proces) do běžících
+            # prostorů — nejpozději do minuty, bez restartu.
+            with self._lock:
+                live = list(self.procs.values())
+            for proc in live:
+                try:
+                    if proc.alive() and proc.web_mark != workspace.web_mark(proc.user):
+                        self.preved_web(proc.user)
+                except Exception as exc:
+                    _errlog("web do prostoru", exc)
+
+    def preved_web(self, user):
+        """Přidělený / změněný / odebraný web pošle do běžícího prostoru (hub
+        ho zapíše do ~/.claude/hub-web.json). Neběžící ho dostane při startu
+        (workspace.session_env). Otisk se zapíše i po neúspěchu — starý hub,
+        který akci nezná, by se jinak zkoušel každou minutu znovu."""
+        proc = self.procs.get(user["id"])
+        if not proc or not proc.alive():
+            return False
+        mark = workspace.web_mark(user)
+        out = hub_post(proc, "web-host", {"web": json.loads(workspace.web_env(user) or "null")},
+                       timeout=10)
+        proc.web_mark = mark
+        if not out.get("ok"):
+            _errlog("web do prostoru", RuntimeError(str(out.get("error") or "")[:200]))
+        return bool(out.get("ok"))
 
     def user_for_pocitac(self, token):
         """Čí běžící prostor se tímhle žetonem prokazuje, nebo None."""
@@ -1130,7 +1178,7 @@ class Handler(BaseHTTPRequestHandler):
 
             # Nástroje pro appku Claude volá v instanci jen brána sama — přes
             # proxy z prohlížeče se k nim nikdo nedostane.
-            if route.startswith("/api/mcp-tool") or route.startswith("/api/predplatne-host"):
+            if route.startswith(("/api/mcp-tool", "/api/predplatne-host", "/api/web-host")):
                 return self._send(404, b"404")
             # Host v cizím prostoru (gateway/pristup.py): povolení se ověřuje
             # při každém požadavku, role rozhoduje, kam smí.
@@ -2293,18 +2341,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
 
     def _hub_call(self, hub, name, payload, timeout=20):
         """Brána volá hub prostoru napřímo (ne z prohlížeče) — jeho tokenem."""
-        conn = http.client.HTTPConnection("127.0.0.1", hub.port, timeout=timeout)
-        try:
-            conn.request("POST", "/api/" + name, body=json.dumps(payload).encode("utf-8"),
-                         headers={"X-Hub-Token": hub.token, "Content-Type": "application/json"})
-            resp = conn.getresponse()
-            data = json.loads(resp.read() or b"{}")
-            return data if resp.status == 200 else {"error": data.get("error") or "Prostor odmítl."}
-        except (OSError, ValueError, http.client.HTTPException) as exc:
-            _errlog("hub_call " + name, exc)
-            return {"error": "Prostor teď neodpovídá, zkus to za chvíli."}
-        finally:
-            conn.close()
+        return hub_post(hub, name, payload, timeout)
 
     def _preved_prihlaseni(self, user):
         """Nové přihlášení Clauda (připojené / odpojené předplatné) pošle do

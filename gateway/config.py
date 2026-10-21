@@ -72,6 +72,11 @@ API_KEYS_DIR = os.environ.get("HUB_GW_API_KEYS_DIR",
 CLAUDE_TOKENS_DIR = os.environ.get("HUB_GW_CLAUDE_TOKENS_DIR",
                                    os.path.join(GATEWAY_DIR, "claude-predplatne"))
 
+# Web (FTP) po účtech, který přidělil správce (`claude-hub-admin web`). Soubor
+# podle čísla účtu, 0600 ve složce 0700; do prostoru přijde při startu v HUB_WEB
+# a hub ho zapíše do ~/.claude/hub-web.json (hub/web.py).
+WEB_FTP_DIR = os.environ.get("HUB_GW_WEB_DIR", os.path.join(GATEWAY_DIR, "web-ftp"))
+
 # Tlačítko Nahlásit chybu / Podat návrh v prostorech (Verxee Debug,
 # hub/static/verxee.js): veřejný klíč `vxd_…` (claude-hub-admin verxee set).
 # Do prostoru přijde v hub-config.json při jeho startu; bez souboru se

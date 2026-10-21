@@ -1129,6 +1129,13 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Nepovoleno."}, 403)
             return self._json(predplatne.host_action(str(payload.get("action") or ""), payload,
                                                      HUB.broadcast, HUB.prenacti_chaty))
+        if name == "web-host":
+            # Web (FTP), který účtu přidělil správce (hub/web.py). Stejně jako
+            # predplatne-host volá jen brána přímo, z prohlížeče se sem nedostane.
+            if guest or not core.on_gateway():
+                return self._json({"error": "Nepovoleno."}, 403)
+            from . import web
+            return self._json(web.host_action(payload))
         if name == "app-vzhled":
             # Název a ikona appky (hub/vzhled.py) — jen ke čtení.
             if self.command != "POST":
@@ -2384,6 +2391,13 @@ def start():
         predplatne.prepare_space()
     except Exception as exc:
         core.log_error("prostor: příprava Claude Code selhala", exc)
+    # Web od správce (HUB_WEB) do ~/.claude/hub-web.json — dřív, než se otevře
+    # první tab: ten si podle souboru skládá pokyn a proměnnou už nezdědí.
+    try:
+        from . import web
+        web.pri_startu()
+    except Exception as exc:
+        core.log_error("prostor: zápis webu selhal", exc)
     token = secrets.token_urlsafe(24)
     httpd = HubHTTPServer(token)
     port = httpd.server_address[1]

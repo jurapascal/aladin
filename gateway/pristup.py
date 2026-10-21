@@ -74,7 +74,7 @@ VSEM_HOST = 0
 
 # Co v prostoru nesmí žádný host: vnitřní volání brány a obnova tabů po
 # restartu (čte se jednou — host by ji vlastníkovi „snědl“).
-DENY_ALL_GUESTS = {"prostor-snapshot", "restore", "mcp-tool", "predplatne-host"}
+DENY_ALL_GUESTS = {"prostor-snapshot", "restore", "mcp-tool", "predplatne-host", "web-host"}
 
 # Správa předplatného: akce na /gw/pristup/predplatne (POST). Nic jiného.
 PREDPLATNE_AKCE = {"prihlasit", "kod", "zrusit", "odpojit"}

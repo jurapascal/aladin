@@ -32,6 +32,10 @@ přes `--password` (hodí se do skriptu, ale zůstane v historii shellu).
     python3 -m gateway.admin predplatne set jmeno@firma.cz    # token z `claude setup-token`
     python3 -m gateway.admin predplatne remove jmeno@firma.cz
     python3 -m gateway.admin google status | remove
+    python3 -m gateway.admin web                  # kdo má přidělený web (FTP)
+    python3 -m gateway.admin web jmeno@firma.cz --host ftp.firma.cz --user ftp_jmeno \
+        --url https://firma.cz/jmeno [--dir /] [--port 21] [--password-stdin]
+    python3 -m gateway.admin web jmeno@firma.cz --remove
     python3 -m gateway.admin zamky               # zablokovaná přihlášení (3 špatné pokusy)
     python3 -m gateway.admin zamky odemknout jmeno@firma.cz   # nebo IP adresa
     python3 -m gateway.admin firma                # kdo vidí firemní Obsidian a kdo zapisuje
@@ -87,13 +91,14 @@ def cmd_list(a, args):
         print("Zatím žádné účty.")
         return
     w = max(len(r["email"]) for r in rows)
-    print(f'{"e-mail":<{w}}  role   claude    2fa  vault              stav')
+    print(f'{"e-mail":<{w}}  role   claude    2fa  vault              stav     web')
     for r in rows:
         stav = "vypnutý" if r["disabled"] else "aktivní"
         auth = r.get("claude_auth") or "central"
         twofa = "ano" if r.get("twofa") else "ne"
+        web = workspace.web_public(r)
         print(f'{r["email"]:<{w}}  {r["role"]:<5}  {auth:<8}  {twofa:<3}  '
-              f'{(r["vault"] or "-"):<18} {stav}')
+              f'{(r["vault"] or "-"):<18} {stav:<8} {web["url"] if web else "-"}')
 
 
 def cmd_spotreba(a, args):
@@ -499,6 +504,48 @@ def cmd_predplatne(a, args):
           " patří jednomu člověku — nesdílej ho mezi účty.")
 
 
+def cmd_web(a, args):
+    """Web (FTP) účtu: kam Claude v jeho prostoru zveřejňuje appky a stránky.
+    Heslo se zadá skrytě, nebo přijde na standardní vstup (--password-stdin) —
+    na příkazové řádce by zůstalo v historii. Běžící prostor ho dostane do
+    minuty sám (HubManager.preved_web), další start rovnou."""
+    if not args.email:
+        rows = [r for r in a.list() if workspace.web_public(r)]
+        if not rows:
+            print("Web nemá přidělený nikdo.")
+        for r in rows:
+            w = workspace.web_public(r)
+            print(f"  {r['email']:<32} {w['url']}  (ftp {w['user']}@{w['host']}:{w['port']}"
+                  f"{w['remote_dir']}, heslo {w['heslo']})")
+        return
+    user = _user_or_die(a, args.email)
+    if args.remove:
+        gone = workspace.remove_web(user)
+        print(f"{args.email}: " + ("web odebrán — z běžícího prostoru zmizí do minuty."
+                                    if gone else "web přidělený neměl."))
+        return
+    old = workspace.web(user) or {}
+    host = args.host or old.get("host", "")
+    ftp_user = args.ftp_user or old.get("user", "")
+    url = args.url or old.get("url", "")
+    if not (host and ftp_user and url):
+        raise ValueError("Zadej --host, --user a --url.")
+    if args.password_stdin:
+        password = sys.stdin.readline().rstrip("\r\n")
+    elif sys.stdin.isatty():
+        prompt = "Heslo FTP" + (" (Enter = nechat původní)" if old.get("password") else "") + ": "
+        password = getpass.getpass(prompt) or old.get("password", "")
+    else:
+        password = sys.stdin.readline().rstrip("\r\n")
+    data = workspace.save_web(user, host, ftp_user, password, url,
+                              args.dir if args.dir is not None else old.get("remote_dir", "/"),
+                              args.port if args.port is not None else old.get("port", 21),
+                              "claude-hub-admin")
+    print(f"{args.email}: web {data['url']} (ftp {data['user']}@{data['host']}:{data['port']}"
+          f"{data['remote_dir']}). Běžící prostor ho dostane do minuty, jinak při startu —"
+          " Claude v nových chatech ví, že tam může zveřejňovat.")
+
+
 def cmd_verxee(a, args):
     """Tlačítko Nahlásit chybu / Podat návrh (Verxee Debug) v prostorech. Klíč je
     veřejný (skončí ve stránce); v portálu alba-rosa.cz/debug → Klíče a domény
@@ -802,6 +849,18 @@ def build_parser():
     pp.add_argument("action", choices=("status", "set", "remove"))
     pp.add_argument("email", nargs="?", default="", help="e-mail účtu")
     pp.set_defaults(func=cmd_predplatne)
+
+    wb = sub.add_parser("web", help="web (FTP) účtu, kam Claude v prostoru zveřejňuje")
+    wb.add_argument("email", nargs="?", default="", help="e-mail účtu (bez něj výpis)")
+    wb.add_argument("--host", default="", help="FTP server, třeba ftp.firma.cz")
+    wb.add_argument("--user", dest="ftp_user", default="", help="uživatel FTP")
+    wb.add_argument("--url", default="", help="veřejná adresa složky, třeba https://firma.cz/adam")
+    wb.add_argument("--dir", default=None, help="složka na FTP, která je na --url (výchozí /)")
+    wb.add_argument("--port", type=int, default=None, help="port FTP (výchozí 21, FTP přes TLS)")
+    wb.add_argument("--password-stdin", action="store_true",
+                    help="heslo z prvního řádku standardního vstupu")
+    wb.add_argument("--remove", action="store_true", help="web účtu odebrat")
+    wb.set_defaults(func=cmd_web)
 
     vx = sub.add_parser("verxee", help="tlačítko Nahlásit chybu / Podat návrh (klíč vxd_…)")
     vx.add_argument("action", choices=("status", "set", "remove"))

@@ -128,6 +128,20 @@ který doinstaluje `install.sh`.
 Klíče a domény; mezi doménami klíče musí být adresa brány). Prostor ho dostane
 při dalším startu; `verxee remove` ho vypne, `verxee status` ukáže klíč.
 
+**Web účtu (FTP)** — kam Claude v prostoru zveřejňuje appky a stránky:
+
+    claude-hub-admin web                                # kdo má přidělený web
+    claude-hub-admin web jmeno@firma.cz --host ftp.firma.cz --user ftp_jmeno \
+        --url https://firma.cz/jmeno [--dir /] [--port 21] [--password-stdin]
+    claude-hub-admin web jmeno@firma.cz --remove
+
+Heslo se zadá skrytě (nebo prvním řádkem stdin s `--password-stdin`). Brána ho
+drží v `web-ftp/<id účtu>.json` (0600, složka 0700), prostoru ho dá při startu
+v `HUB_WEB` a běžícímu do minuty přes `/api/web-host`. Hub ho zapíše do
+`~/.claude/hub-web.json` + `hub-web.netrc` (0600) a každý chat Clauda pak ví,
+že má web na té adrese a jak na něj nahrávat (curl přes TLS). Totéž jde přes
+`/gw/tym` (akce `web`, `web-pryc`; heslo se nevrací).
+
 ## Přihlášení a dvoufázové ověření
 
 Po hesle brána chce ještě šesticiferný kód z aplikace v mobilu (TOTP,

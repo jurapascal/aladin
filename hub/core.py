@@ -10,6 +10,7 @@ bash-based slash command work unchanged on all three platforms.
 """
 import datetime
 import functools
+import glob
 import json
 import os
 import re
@@ -3418,6 +3419,63 @@ def firma_tab_prompt(vault="firma", path=""):
     return text
 
 
+NAVAZNOST_CHATU = 8
+
+
+def _kdy(epoch, now=None):
+    """Kdy se konverzace naposled změnila, lidsky a krátce: „před 5 min“."""
+    s = max(0, int((now or time.time()) - (epoch or 0)))
+    if s < 3600:
+        return f"před {max(1, s // 60)} min"
+    if s < 86400:
+        return f"před {s // 3600} h"
+    d = s // 86400
+    return "včera" if d == 1 else f"před {d} dny"
+
+
+def _zkrat_home(path):
+    return "~" + path[len(HOME):] if path == HOME or path.startswith(HOME + os.sep) else path
+
+
+def navaznost_prompt(chat_id=""):
+    """Pokyn pro nový chat: poslední konverzace uživatele a co dělat, když
+    zpráva navazuje na něco, co v tomhle chatu není.
+
+    Lidi otevřou nový tab a píšou „Přidej pls“ nebo „No ty noty, zapomněl
+    jsi?“ — myslí předchozí chat. Claude bez tohohle odpověděl, že v téhle
+    konverzaci nic nemá (Adam, 21. 10. 2026). Krátké: jde do každého nového
+    tabu, takže každý řádek stojí tokeny. Bez konverzací nic."""
+    from . import chats
+    try:
+        rows = [c for c in chats.list_chats(limit=NAVAZNOST_CHATU + 1)
+                if c.get("id") != chat_id][:NAVAZNOST_CHATU]
+    except Exception as exc:
+        log_error("navázání: seznam konverzací", exc)
+        return ""
+    if not rows:
+        return ""
+    now = time.time()
+    lines = []
+    for c in rows:
+        cwd = c.get("cwd") or HOME
+        path = transcript_path(cwd, c["id"])
+        if not os.path.isfile(path):
+            # Konverzace přesunutá jinam (cwd v přepisu ≠ složka v projects/).
+            found = glob.glob(os.path.join(CLAUDE_DIR, "projects", "*", c["id"] + ".jsonl"))
+            path = found[0] if found else path
+        title = " ".join(str(c.get("title") or "").split())[:70]
+        lines.append(f"- „{title}“ · {_kdy(c.get('updated'), now)} · {_zkrat_home(cwd)} · "
+                     f"{_zkrat_home(path)}")
+    return ("## Navázání na předchozí chaty\n"
+            "Tenhle chat je nový. Když zpráva navazuje na něco, co tu není („to“, „ty noty“, "
+            "„přidej“, „pokračuj“…), nikdy neodpovídej, že nic nemáš: podle názvu najdi "
+            "nejpravděpodobnější konverzaci níž, přečti konec jejího přepisu (JSONL, bývá "
+            "velký — čti od konce, třeba `tail`) a pokračuj v ní. Nejsi-li si jistý, zeptej se "
+            "a nabídni 2–3 nejpravděpodobnější. Běží-li stejný úkol před chvílí v jiném chatu, "
+            "řekni to, ať se práce nezdvojí.\n"
+            "Poslední konverzace (název · kdy · složka · přepis):\n" + "\n".join(lines))
+
+
 def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vault="",
               prompt="", launch=None):
     """(příkaz pro tab, proměnné prostředí) — tudy se spouští každý agent.
@@ -3454,8 +3512,23 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
                 os.makedirs(where, exist_ok=True)
             except OSError:
                 pass
-    if firma and spec.get("system_arg"):
-        argv += [part.replace("{text}", firma_tab_prompt(vault, path))
+    # Pokyn jen pro tohle sezení — jediný --append-system-prompt, části za sebou:
+    # firemní tab, navázání na předchozí chaty (jen nový chat Clauda) a web
+    # uživatele, když mu ho správce přidělil (hub/web.py).
+    pokyny = []
+    if firma:
+        pokyny.append(firma_tab_prompt(vault, path))
+    if (spec.get("id") or "") == "claude":
+        if not resume:
+            pokyny.append(navaznost_prompt(session))
+        try:
+            from . import web
+            pokyny.append(web.prompt())
+        except Exception as exc:
+            log_error("web: pokyn pro tab", exc)
+    pokyny = [p for p in pokyny if p]
+    if pokyny and spec.get("system_arg"):
+        argv += [part.replace("{text}", "\n\n".join(pokyny))
                  for part in spec["system_arg"].split(" ") if part]
     wrapper = _wrapper_path()
     if not wrapper:

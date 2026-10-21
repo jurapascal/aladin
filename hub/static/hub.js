@@ -3553,6 +3553,11 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
         tab.pracuje = !!(stav && stav.on);
         if (pracoval !== tab.pracuje) {
           document.dispatchEvent(new CustomEvent('hub-prace', {detail: {tab: tab.id, on: tab.pracuje}}));
+          // Tečka na tabu klidně dýchá a bublina řekne, od kdy pracuje — ať je
+          // vidět, že běží, i když se kouká jinam (bez dalšího dotazování).
+          tab.pracujeOd = tab.pracuje ? Date.now() : 0;
+          if (tab.el) tab.el.classList.toggle('pracuje', tab.pracuje);
+          paintAgent(tab);
         }
         // Doběhl v tabu, na který se zrovna nekouká — ať je to na tabu vidět.
         if (pracoval && !tab.pracuje && tab !== ACTIVE) { tab.hotovo = true; oznacTab(tab); }
@@ -3700,7 +3705,10 @@ function paintAgent(tab) {
   // jantarová, v prostoru modrá, nad firemním trezorem fialová. Odznak se
   // jménem si drží barvu agenta, jinak by se agenti mezi sebou nerozeznali.
   badge.style.setProperty('--agent-color', dotColor(tab, a));
-  tab.el.title = a.label + (tab.model ? ' · ' + tab.model : '');
+  tab.el.title = a.label + (tab.model ? ' · ' + tab.model : '') + (tab.pracujeOd
+    ? '\nPracuje od ' + new Date(tab.pracujeOd).toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'}) +
+      ' — nezaseklo se, jen to trvá'
+    : '');
 }
 
 function measure(tab) {

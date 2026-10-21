@@ -2591,6 +2591,8 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 }
 .cteni-slovo { color: var(--fg); font-weight: 600; }
 .cteni-cas, .cteni-tok { font-variant-numeric: tabular-nums; }
+/* Po pár minutách práce: klidná věta, že se nezaseklo (cteni.js DLOUHA_PRACE). */
+.cteni-klid { flex-basis: 100%; color: var(--dim); font-size: 12.5px; line-height: 1.4; }
 .cteni-cas::before, .cteni-tok:not(:empty)::before { content: "· "; color: var(--section); }
 @keyframes cteni-toc { to { transform: rotate(360deg); } }
 @keyframes cteni-puls { 50% { opacity: .45; } }
@@ -3335,6 +3337,8 @@ body:not(.pokrocile) .chat-item { padding: 7px 10px; }
   border-radius: 50%; background: var(--green); vertical-align: 1px;
 }
 @keyframes ceka-pulz { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+/* Claude v tabu pracuje: tečka agenta pomalu dýchá. */
+.tab.pracuje .tab-agent { animation: cteni-puls 1.8s ease-in-out infinite; }
 .open-tab.ceka { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .open-tab.ceka .open-dot { animation: ceka-pulz 1.3s ease-in-out infinite; box-shadow: 0 0 8px var(--accent); }
 .open-tab.ceka .open-name::after { content: " · čeká na tebe"; color: var(--accent); font-size: 13px; }
@@ -3348,7 +3352,8 @@ body.neco-ceka .drawer-toggle::after {
 .wcol-note.ceka { color: var(--accent); font-weight: 700; }
 .wcol-note.hotovo { color: var(--green); }
 @media (prefers-reduced-motion: reduce) {
-  .tab.ceka::after, .open-tab.ceka .open-dot, body.neco-ceka .drawer-toggle::after { animation: none; }
+  .tab.ceka::after, .open-tab.ceka .open-dot, body.neco-ceka .drawer-toggle::after,
+  .tab.pracuje .tab-agent { animation: none; }
 }
 
 /* ── Claudíci na hřišti (claudici.js) ─────────────────────────────────────

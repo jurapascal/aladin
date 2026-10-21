@@ -1440,6 +1440,7 @@
        z terminálu (composer.js → io.prace); čas běží i mezi překresleními,
        ať se neposouvá po skocích. */
     let odKdy = 0, tikaniPrace = null;
+    const DLOUHA_PRACE = 3 * 60 * 1000;
     function stav(st) {
       mount.classList.toggle('pracuje', !!(st && st.on));
       if (pr.pracuje !== !!(st && st.on)) { pr.pracuje = !!(st && st.on); zmenaPrehledu(); }
@@ -1463,8 +1464,22 @@
       else if (!odKdy) odKdy = Date.now();
       prace.querySelector('.cteni-tok').textContent =
         st.tokeny && pokrocile() ? '↓ ' + st.tokeny + ' tokenů' : '';
+      // Po pár minutách klidná věta, že to pořád běží. Bez ní lidi po čtvrt
+      // hodině mysleli, že se zaseklo, a zadali totéž do dalších tabů (Adam,
+      // 21. 10. 2026 — tři taby se stejným úkolem).
       const napis = () => {
-        if (prace) prace.querySelector('.cteni-cas').textContent = cas(Date.now() - odKdy);
+        if (!prace) return;
+        const ms = Date.now() - odKdy;
+        prace.querySelector('.cteni-cas').textContent = cas(ms);
+        let klid = prace.querySelector('.cteni-klid');
+        if (ms >= DLOUHA_PRACE && !klid) {
+          klid = el('span', 'cteni-klid',
+            'Pořád pracuje, nezaseklo se — větší úkol klidně trvá desítky minut. ' +
+            'Znovu ho zadávat nemusíš, ozve se, až bude hotovo.');
+          prace.appendChild(klid);
+        } else if (ms < DLOUHA_PRACE && klid) {
+          klid.remove();
+        }
       };
       napis();
       if (!tikaniPrace) tikaniPrace = setInterval(napis, 1000);

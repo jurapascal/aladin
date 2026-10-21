@@ -250,6 +250,11 @@ def _prihlaseni(env, prenacti=None):
         v = env.get(k)
         if isinstance(v, str) and v.strip():
             os.environ[k] = v.strip()
+    if core.on_gateway():
+        try:
+            prihlaseni_do_souboru(os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or "")
+        except Exception as exc:
+            core.log_error("předplatné: zápis přihlášení do ~/.claude", exc)
     # Běžící chaty se přepnou taky (Hub.prenacti_chaty) — jen když se něco změnilo.
     if prenacti and pred != {k: os.environ.get(k, "") for k in AUTH_KLICE}:
         prenacti()
@@ -288,6 +293,54 @@ def host_action(action, payload, broadcast=None, prenacti=None):
 
 
 # ── v prostoru na serveru ────────────────────────────────────────────────────
+ZALOHA_CREDENTIALS = ".credentials.json.pred-predplatnym"
+
+
+def prihlaseni_do_souboru(token):
+    """Token předplatného i do ~/.claude/.credentials.json.
+
+    Claude Code token z prostředí (CLAUDE_CODE_OAUTH_TOKEN) nedává dál
+    procesům, které sám pouští — hookům a příkazům. Ukládání paměti
+    (memory-autosave) i appky, které si Claude v prostoru napíše a pouští
+    `claude -p`, pak sáhly po starém prošlém přihlášení a padaly na „OAuth
+    session expired" (Adam, 21. 10. 2026). Se souborem je přihlášený každý
+    Claude v prostoru. Původní soubor (vlastní přihlášení) se jednou zazálohuje
+    a po odpojení předplatného se vrátí."""
+    path = os.path.join(core.CLAUDE_DIR, ".credentials.json")
+    zaloha = os.path.join(core.CLAUDE_DIR, ZALOHA_CREDENTIALS)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            stary = json.load(fh)
+    except (OSError, ValueError):
+        stary = None
+    oauth = (stary or {}).get("claudeAiOauth") if isinstance(stary, dict) else None
+    nas = isinstance(oauth, dict) and oauth.get("hubPredplatne") is True
+    if not token:
+        if nas:                           # předplatné odpojené: náš zápis pryč
+            if os.path.exists(zaloha):
+                os.replace(zaloha, path)
+            else:
+                os.remove(path)
+            core.log("předplatné: přihlášení v ~/.claude vrácené zpět")
+        return
+    if nas and oauth.get("accessToken") == token:
+        return
+    if stary is not None and not nas and not os.path.exists(zaloha):
+        os.replace(path, zaloha)
+    os.makedirs(core.CLAUDE_DIR, exist_ok=True)
+    data = {"claudeAiOauth": {"accessToken": token, "refreshToken": None,
+                              # Token z `claude setup-token` platí rok a neobnovuje se.
+                              "expiresAt": int((time.time() + 365 * 86400) * 1000),
+                              "scopes": ["user:inference"], "subscriptionType": None,
+                              "hubPredplatne": True}}
+    tmp = f"{path}.{secrets.token_hex(4)}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(data, fh)
+    os.replace(tmp, path)
+    core.log("předplatné: přihlášení zapsané i do ~/.claude (pro hooky a skripty)")
+
+
 def prepare_space():
     """Předvyplní ~/.claude.json, aby Claude Code s přihlášením z prostředí
     nechtěl nic nastavovat.
@@ -305,6 +358,10 @@ def prepare_space():
         return
     token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") or ""
     key = os.environ.get("ANTHROPIC_API_KEY") or ""
+    try:
+        prihlaseni_do_souboru(token)
+    except Exception as exc:
+        core.log_error("předplatné: zápis přihlášení do ~/.claude", exc)
     if not token and not key:
         return
     path = os.path.join(core.HOME, ".claude.json")

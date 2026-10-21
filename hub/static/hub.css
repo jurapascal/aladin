@@ -4489,3 +4489,12 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
   .br-chaty { max-width: 34%; }
   .br-pomer { font-size: 11px; }
 }
+
+/* Nastavení → Účet → Weby lidí (settings.js webyLidi) */
+.web-clovek { align-items: center; gap: 8px; }
+.web-kdo { flex: 1; min-width: 0; }
+.web-kdo .set-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+.web-form { display: grid; gap: 6px; padding: 8px 0 12px; }
+.web-pole { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 12.5px; }
+@media (max-width: 520px) { .web-pole { grid-template-columns: 1fr; gap: 2px; } }
+.web-pole .set-input { width: 100%; max-width: none; box-sizing: border-box; }

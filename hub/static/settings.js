@@ -1204,7 +1204,119 @@
       cards.appendChild(card(HubPocitac.serverBlock(io), 'i-laptop'));
       cards.appendChild(card(zabezpeceni(), 'i-lock'));
       cards.appendChild(card(pristup(), 'i-user'));
+      if (u.role === 'admin') cards.appendChild(card(webyLidi(), 'i-folder'));
       body.appendChild(cards);
+    }
+
+    /* Web (FTP) pro lidi na bráně (gateway/tym.py, akce web / web-pryc) — jen
+       správce. Claude v prostoru toho člověka pak ví, že může zveřejňovat na
+       jeho adresu (hub/web.py). Heslo se stránce nikdy nevrací, jen „nastaveno";
+       prázdné pole hesla při úpravě nechá původní. */
+    function webyLidi() {
+      const wrap = el('div', 'acc-sec');
+      wrap.appendChild(el('div', 'set-title', 'Weby lidí (FTP)'));
+      wrap.appendChild(el('div', 'set-note',
+        'Přiděl člověku FTP a adresu webu. Claude v jeho prostoru pak ví, že tam může ' +
+        'zveřejnit appku nebo stránku, a pošle mu odkaz. Projeví se do minuty.'));
+      const list = el('div');
+      wrap.appendChild(list);
+      const gw = async (payload) => {
+        const r = await fetch('/gw/tym', payload === undefined ? {credentials: 'same-origin'} : {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-Hub-Account': '1'},
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'Server teď neodpovídá, zkus to za chvíli.');
+        return data;
+      };
+      const input = (ph, value, type) => {
+        const i = el('input', 'set-input');
+        i.placeholder = ph;
+        i.value = value || '';
+        if (type) i.type = type;
+        i.autocomplete = 'off';
+        return i;
+      };
+      function formular(clovek, done) {
+        const w = clovek.web || {};
+        const f = el('div', 'web-form');
+        const url = input('https://alba-rosa.cz/jmeno/', w.url);
+        const host = input('FTP server (např. 237642.w42.wedos.net)', w.host);
+        const user = input('FTP uživatel', w.user);
+        const heslo = input(w.heslo ? 'Heslo (prázdné = nechat původní)' : 'Heslo', '', 'password');
+        const slozka = input('Složka na FTP (většinou /)', w.remote_dir || '/');
+        const port = input('Port', String(w.port || 21));
+        port.inputMode = 'numeric';
+        for (const [label, field] of [['Adresa webu', url], ['FTP server', host], ['Uživatel', user],
+                                      ['Heslo', heslo], ['Složka', slozka], ['Port', port]]) {
+          const row = el('label', 'web-pole');
+          row.appendChild(el('span', null, label));
+          row.appendChild(field);
+          f.appendChild(row);
+        }
+        const acts = el('div', 'set-row');
+        const ulozit = el('button', 'btn primary', 'Uložit');
+        ulozit.onclick = async () => {
+          if (!url.value.trim() || !host.value.trim() || !user.value.trim()) return io.toast('Vyplň adresu, server a uživatele.');
+          if (!w.heslo && !heslo.value) return io.toast('Vyplň heslo.');
+          ulozit.disabled = true;
+          try {
+            await gw({akce: 'web', id: clovek.id, url: url.value.trim(), host: host.value.trim(),
+                      uzivatel: user.value.trim(), heslo: heslo.value, slozka: slozka.value.trim() || '/',
+                      port: port.value.trim() || 21});
+            io.toast('Web uložený — Claude u ' + (clovek.name || clovek.email) + ' o něm ví.');
+            done();
+          } catch (err) {
+            io.toast(err.message);
+            ulozit.disabled = false;
+          }
+        };
+        const zrusit = el('button', 'btn ghost', 'Zrušit');
+        zrusit.onclick = done;
+        acts.append(ulozit, zrusit);
+        f.appendChild(acts);
+        return f;
+      }
+      async function nacti() {
+        list.textContent = '';
+        list.appendChild(el('div', 'set-note', 'Načítám…'));
+        let d;
+        try { d = await gw(); } catch (err) {
+          list.textContent = '';
+          list.appendChild(el('div', 'set-note', err.message));
+          return;
+        }
+        list.textContent = '';
+        const lide = (d.lide || []).filter((c) => !c.blokovany);
+        for (const c of lide) {
+          const row = el('div', 'set-row web-clovek');
+          const kdo = el('div', 'web-kdo');
+          kdo.appendChild(el('div', null, c.name || c.email));
+          kdo.appendChild(el('div', 'set-note', c.web ? c.web.url + ' · FTP ' + c.web.user : 'bez webu'));
+          row.appendChild(kdo);
+          const upravit = el('button', 'btn ghost', c.web ? 'Upravit' : 'Přidělit web');
+          const slot = el('div');
+          upravit.onclick = () => {
+            if (slot.firstChild) { slot.textContent = ''; return; }
+            slot.appendChild(formular(c, nacti));
+          };
+          row.appendChild(upravit);
+          if (c.web) {
+            const pryc = el('button', 'btn ghost', 'Odebrat');
+            pryc.onclick = async () => {
+              if (!confirm('Odebrat web člověku ' + (c.name || c.email) + '? Claude v jeho prostoru přestane zveřejňovat.')) return;
+              try { await gw({akce: 'web-pryc', id: c.id}); io.toast('Web odebraný.'); nacti(); }
+              catch (err) { io.toast(err.message); }
+            };
+            row.appendChild(pryc);
+          }
+          list.appendChild(row);
+          list.appendChild(slot);
+        }
+      }
+      nacti();
+      return wrap;
     }
 
     /* Přístup do mého prostoru (gateway/pristup.py): komu a s jakou rolí,

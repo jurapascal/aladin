@@ -531,6 +531,16 @@ install_agenti() {
     if [ -n "$ok" ]; then ok "nainstalováno:$ok"; fi
 }
 
+uklid_cache() {
+    # Každá aktualizace instaluje agenty znovu (npm, uv, apt) a stažené balíčky
+    # by zůstaly v cache správce — na malém disku brány to bylo ~0,7–1,5 GB
+    # za každé vydání. Nic z toho se nepotřebuje, příště se stáhne znovu.
+    # Chyba úklidu nesmí instalaci shodit (set -e), proto vše `|| true`.
+    npm cache clean --force >/dev/null 2>&1 || true
+    if command -v uv >/dev/null 2>&1; then uv cache clean >/dev/null 2>&1 || true; fi
+    apt-get clean >/dev/null 2>&1 || true
+}
+
 install_gh() {
     step "GitHub CLI"
     if command -v gh >/dev/null 2>&1; then
@@ -906,6 +916,7 @@ main() {
     setup_prohlizec
     install_agenti
     install_gh
+    uklid_cache
     setup_service
     setup_updater
     setup_ucty

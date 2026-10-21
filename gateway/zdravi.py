@@ -174,6 +174,9 @@ OPRAVENE = [
     ("reading 'dimensions'", (2, 88, 0)),          # myš po zavření tabu (xterm)
     ("_renderer.value.dimensions", (2, 88, 0)),    # totéž v Safari
 ]
+# Zamrznutí stránky, jejichž příčinu opravila brána (ne prostor) — starší
+# záznamy se nepočítají, jinak by hlídač den po opravě hlásil dál totéž.
+ZAMRZNUTI_OPRAVENA_DO = "2026-10-20 23:16:00"   # 2.89.1: WS tunel padal po 15 s ticha
 START_VERZE = re.compile(r"\bstart: .*\bverze (\d+)\.(\d+)\.(\d+)")
 # Od 2.88.0 posílá stránka stejnou chybu nejvýš 1× za minutu a připíše, kolikrát
 # mezitím přišla — skutečný počet je i s tímhle.
@@ -207,7 +210,8 @@ def stranky():
                         if radek[:19] < od or "stránka:" not in radek:
                             continue
                         if "stránka neodpovídá" in radek:
-                            zamrzlo += 1
+                            if radek[:19] >= ZAMRZNUTI_OPRAVENA_DO:
+                                zamrzlo += 1
                         elif " ERROR " in radek[19:27]:
                             m = ZAMLCENO.search(radek)
                             n = 1 + (int(m.group(1)) if m else 0)

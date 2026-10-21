@@ -1396,42 +1396,33 @@
           row.appendChild(del);
           list.appendChild(row);
         }
-        const add = el('div', 'set-row');
-        const email = el('input', 'set-input');
-        email.type = 'email';
-        email.placeholder = 'e-mail účtu na téhle bráně';
-        const sel = roleSelect('predplatne', !!vsem);
-        const btn = el('button', 'btn primary', 'Přidat');
-        btn.onclick = () => {
-          if (!email.value.trim()) return io.toast('Vyplň e-mail.');
-          run({akce: 'pridat', email: email.value.trim(), role: sel.value}, 'Přístup přidán.');
-        };
-        add.append(email, sel, btn);
+        // Komu přístup dát: výběr z lidí na bráně (ne opisování e-mailu), pak typ přístupu.
+        const uz = new Set(d.moje.map((g) => g.id));
+        const volni = (d.lide || []).filter((c) => !uz.has(c.id));
+        const add = el('div', 'set-row pristup-pridat');
+        if (!volni.length) {
+          add.appendChild(el('span', 'set-note', (d.lide || []).length
+            ? 'Všichni na serveru už mají vlastní přístup.' : 'Na serveru nejsou další účty.'));
+        } else {
+          const kdo = el('select', 'set-input');
+          const prazdna = el('option', null, 'Vyber člověka…');
+          prazdna.value = '';
+          kdo.appendChild(prazdna);
+          for (const c of volni) {
+            const o = el('option', null, (c.name || c.email) + (c.name ? ' · ' + c.email : ''));
+            o.value = c.email;
+            kdo.appendChild(o);
+          }
+          const sel = roleSelect('predplatne', !!vsem);
+          sel.title = 'Typ přístupu';
+          const btn = el('button', 'btn primary', 'Přidat');
+          btn.onclick = () => {
+            if (!kdo.value) return io.toast('Vyber člověka.');
+            run({akce: 'pridat', email: kdo.value, role: sel.value}, 'Přístup přidán.');
+          };
+          add.append(kdo, sel, btn);
+        }
         list.appendChild(add);
-        if (d.vse_vsem && d.vse_vsem.length) {
-          // Admin: kdo na bráně pustil k sobě všechny.
-          list.appendChild(el('div', 'set-title', 'Prostory otevřené všem na serveru'));
-          for (const a of d.vse_vsem) {
-            const row = el('div', 'set-row');
-            row.appendChild(el('span', null, `Všichni → ${a.vlastnik.name || a.vlastnik.email} · ${a.label}`));
-            const del = el('button', 'btn ghost', 'Zrušit');
-            del.onclick = () => run({akce: 'vsem-zrusit', vlastnik: a.vlastnik.id}, 'Přístup pro všechny zrušen.');
-            row.appendChild(del);
-            list.appendChild(row);
-          }
-        }
-        if (d.vse && d.vse.length) {
-          // Admin: všechny přístupy na bráně, jen k zobrazení a zrušení.
-          list.appendChild(el('div', 'set-title', 'Všechny přístupy na bráně'));
-          for (const a of d.vse) {
-            const row = el('div', 'set-row');
-            row.appendChild(el('span', null, `${a.host.name || a.host.email} → ${a.vlastnik.name || a.vlastnik.email} · ${a.label}`));
-            const del = el('button', 'btn ghost', 'Zrušit');
-            del.onclick = () => run({akce: 'odebrat', vlastnik: a.vlastnik.id, host: a.host.id}, 'Přístup zrušen.');
-            row.appendChild(del);
-            list.appendChild(row);
-          }
-        }
         log.textContent = '';
         if (d.zaznam && d.zaznam.length) {
           log.appendChild(el('div', 'set-title', 'Záznam'));

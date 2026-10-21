@@ -430,7 +430,12 @@ def overview(accounts, user, here=None):
                                    else names.get(e.get("host"), "?")),
                "vlastnik_jmeno": names.get(e.get("vlastnik"), "?")}
               for e in read_log(uid, 100)]
-    out = {"moje": mine, "kam": _kam(accounts, user), "vsem": vsem, "zaznam": zaznam,
+    # Komu jde přístup přidat: aktivní účty na bráně (jméno a e-mail) — do výběru
+    # v Nastavení → Přístup, aby se e-mail nemusel opisovat.
+    lide = sorted(({"id": r["id"], "name": r["name"] or "", "email": r["email"]}
+                   for r in accounts.list() if r["id"] != uid and not r["disabled"]),
+                  key=lambda x: (x["name"] or x["email"]).lower())
+    out = {"moje": mine, "lide": lide, "kam": _kam(accounts, user), "vsem": vsem, "zaznam": zaznam,
            "role": [{"id": r, "label": ROLE_LABELS[r]} for r in ROLES],
            "vyjimka": {"id": BLOCK, "label": BLOCK_LABEL},
            "tady": here}

@@ -4498,3 +4498,7 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 .web-pole { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 8px; font-size: 12.5px; }
 @media (max-width: 520px) { .web-pole { grid-template-columns: 1fr; gap: 2px; } }
 .web-pole .set-input { width: 100%; max-width: none; box-sizing: border-box; }
+/* Nastavení → Přístup: výběr člověka + typ přístupu se vejdou i do úzké karty */
+.pristup-pridat { flex-wrap: wrap; gap: 6px; }
+.pristup-pridat select { flex: 1 1 150px; min-width: 0; max-width: 100%; }
+.pristup-pridat .btn { flex: none; }

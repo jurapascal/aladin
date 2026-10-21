@@ -744,6 +744,28 @@ PASSKEY_LOGIN_JS = """<script>
 </script>"""
 
 
+# Návod u přihlášení — lidi nevěděli, jaké údaje zadat a kde najdou kód.
+LOGIN_HELP = """<details class=help>
+<summary>Jak se přihlásit?</summary>
+<ol>
+<li><b>E-mail</b> je ten, na který ti správce založil účet (stejný jako v pozvánce).</li>
+<li><b>Heslo</b> sis zvolil při prvním přihlášení. Zapomenuté heslo obnoví správce
+serveru — napiš mu.</li>
+<li><b>Kód</b> (šest číslic) ukazuje aplikace na kódy v mobilu, kam sis při prvním
+přihlášení naskenoval QR kód: Google Authenticator, Microsoft Authenticator, nebo
+na iPhonu aplikace <b>Hesla</b> (sekce Kódy). Účet se tam jmenuje <i>Code Hub</i>
+nebo podle tvého e-mailu.</li>
+<li>Nemáš telefon? Použij jeden ze záložních kódů, které se ukázaly po zapnutí ověřování.</li>
+</ol>
+<p>Přihlášení vydrží 90 dní od posledního použití — aktualizace serveru tě neodhlásí.</p>
+</details>
+<style>
+.help{margin-top:14px;font-size:13px;color:inherit;opacity:.85;text-align:left}
+.help summary{cursor:pointer;font-weight:600}
+.help ol{padding-left:18px;margin:8px 0}.help li{margin:4px 0}.help p{margin:6px 0 0}
+</style>"""
+
+
 def login_page(error=""):
     err = f'<div class=err>{html.escape(error)}</div>' if error else ''
     return _page("Přihlášení — Paluba", f"""
@@ -756,6 +778,7 @@ def login_page(error=""):
 <input name=password type=password autocomplete=current-password required>
 <button type=submit>Přihlásit se</button>
 {err}
+{LOGIN_HELP}
 </form>
 {PASSKEY_LOGIN_JS}""")
 
@@ -808,7 +831,7 @@ def code_page(ticket, error="", passkey=False):
 <h1>Ověření</h1>
 {pk}
 <p class=sub>Opiš šesticiferný kód z aplikace v mobilu
-(Google Authenticator, Microsoft Authenticator…).</p>
+(Google Authenticator, Microsoft Authenticator, na iPhonu aplikace Hesla → Kódy).</p>
 <input type=hidden name=ticket value="{html.escape(ticket)}">
 <label>Kód</label>
 <input name=code inputmode=numeric autocomplete=one-time-code autofocus required
@@ -816,6 +839,7 @@ def code_page(ticket, error="", passkey=False):
 <button type=submit>Ověřit</button>
 <p class=hint>Nemáš u sebe telefon? Zadej jeden ze záložních kódů.</p>
 {err}
+{LOGIN_HELP}
 </form>{PASSKEY_JS if passkey else ""}""")
 
 
@@ -2264,7 +2288,8 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         extra = {pristup.GUEST_HEADER: pristup.guest_header(user, owner, role)}
         if "websocket" in self.headers.get("Upgrade", "").lower():
             return self._proxy_ws(hub, extra=extra, guest=(owner, user, role))
-        return self._proxy_http(method, hub, body=body, extra=extra, guest=True)
+        obnov = method == "GET" and urllib.parse.urlsplit(self.path).path in ("/", "/index.html")
+        return self._proxy_http(method, hub, body=body, extra=extra, guest=True, obnov_cookie=obnov)
 
     def _hub_call(self, hub, name, payload, timeout=20):
         """Brána volá hub prostoru napřímo (ne z prohlížeče) — jeho tokenem."""
@@ -2794,7 +2819,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         hub.touch()
         if "websocket" in self.headers.get("Upgrade", "").lower():
             return self._proxy_ws(hub)
-        return self._proxy_http(method, hub)
+        # Načtení stránky prodlouží přihlášení o celou dobu znovu (posuvná
+        # platnost). Dřív platila cookie pevně 30 dní od přihlášení a pak
+        # člověka bez varování odhlásila, i když bránu používal každý den.
+        obnov = method == "GET" and urllib.parse.urlsplit(self.path).path in ("/", "/index.html")
+        return self._proxy_http(method, hub, obnov_cookie=obnov)
 
     def _forward_headers(self, hub, extra=None):
         out = {}
@@ -2826,7 +2855,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         out.update(extra or {})
         return out
 
-    def _proxy_http(self, method, hub, body=None, extra=None, guest=False):
+    def _proxy_http(self, method, hub, body=None, extra=None, guest=False, obnov_cookie=False):
         if body is None:
             length = int(self.headers.get("Content-Length") or 0)
             body = self.rfile.read(length) if length else None
@@ -2889,6 +2918,10 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             if low == "set-cookie":
                 continue
             self.send_header(key, value)
+        if obnov_cookie:
+            token = self._cookies().get(config.SESSION_COOKIE, "")
+            if token:
+                self.send_header("Set-Cookie", self._set_cookie(token))
         if guest and urllib.parse.urlsplit(self.path).path.startswith("/api/"):
             # Soubory z cizího prostoru (poznámky, obrázky) běží na stejném
             # původu jako brána — host s nimi nesmí spustit cizí skript.

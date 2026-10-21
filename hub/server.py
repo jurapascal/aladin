@@ -255,6 +255,9 @@ class Session:
         # probuzení. `posledni` = kdy naposled přišel vstup nebo výstup.
         self.uspany = False
         self.uspany_chat = ""
+        # Název tabu se sám bere z konverzace (HUB.pojmenuj_taby), dokud ho
+        # člověk nepřejmenuje ručně.
+        self.vlastni_nazev = False
         self.posledni = time.time()
         self._vystup_at = 0.0
         # Vstup, který přišel do uspaného (nebo právě se probouzejícího) tabu;
@@ -556,6 +559,33 @@ class Hub:
             sid = self._next_id
             self._next_id += 1
             return sid
+
+    def pojmenuj_taby(self):
+        """Tab s Claudem dostane název konverzace (Claude Code ho sám vymyslí
+        z obsahu — `ai-title`), ať se v tabech dá vyznat i bez přejmenovávání."""
+        for s in list(self.sessions.values()):
+            if s.exited or s.vlastni_nazev:
+                continue
+            if not (s.kind == "project" or s.kind.startswith("slash:")):
+                continue
+            if (s.agent or core.default_agent()) != "claude":
+                continue
+            try:
+                cesta = core.transcript_for(s)
+                nazev = " ".join(chats.title_for(cesta).split())[:60] if cesta else ""
+            except Exception:
+                continue
+            if nazev and nazev != s.title:
+                s.title = nazev
+                self.broadcast({"t": "tab-renamed", "id": s.id, "title": nazev})
+
+    def hlidej_nazvy(self, every=15):
+        while True:
+            time.sleep(every)
+            try:
+                self.pojmenuj_taby()
+            except Exception as exc:
+                core.log_error("názvy tabů", exc)
 
     def chat_tabs(self):
         """Id konverzace -> id tabu, ve kterém právě běží. Seznam konverzací
@@ -2264,6 +2294,7 @@ class Handler(BaseHTTPRequestHandler):
             session.resize(conn, int(msg.get("cols", 80)), int(msg.get("rows", 24)))
         elif kind == "rename" and session:
             session.title = str(msg.get("title", session.title))[:60]
+            session.vlastni_nazev = True      # ručně přejmenovaný tab se sám nepřejmenuje
             HUB.broadcast({"t": "tab-renamed", "id": sid, "title": session.title},
                           skip=conn)
         elif kind == "close" and session:
@@ -2372,6 +2403,7 @@ def start():
     if prohlizec.povoleno(bool(core.CONFIG.get("server_mode"))):
         threading.Thread(target=prohlizec.hlidej_necinnost, args=(core.log,), daemon=True).start()
     threading.Thread(target=chats.warm_up, daemon=True).start()
+    threading.Thread(target=HUB.hlidej_nazvy, name="nazvy-tabu", daemon=True).start()
     # První /api/state chce doctor() (agenti v PATH) — ať je připravený, než
     # se okno rozjede, místo aby na něj čekalo první načtení stránky.
     threading.Thread(target=_zahrat_doctor, daemon=True).start()

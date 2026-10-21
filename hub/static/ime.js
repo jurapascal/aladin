@@ -78,6 +78,18 @@
     };
   }
 
-  global.HubIME = { install };
+  /* Enter v poli na psaní. Na telefonu a tabletu bez myši (dotyková
+     klávesnice) dělá nový řádek a odesílá se tlačítkem — jako ve WhatsAppu;
+     na počítači Enter odešle a Shift+Enter dá nový řádek. */
+  const dotykove = () => {
+    try {
+      return global.matchMedia('(pointer: coarse)').matches && !global.matchMedia('(any-pointer: fine)').matches;
+    } catch (_) { return false; }
+  };
+  function enterOdesle(ev) {
+    return ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !dotykove();
+  }
+
+  global.HubIME = { install, enterOdesle, dotykove };
 
 })(window);

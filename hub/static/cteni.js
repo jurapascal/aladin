@@ -1804,7 +1804,7 @@
     };
     q('.cteni-send').onclick = odeslat;
     pole.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) {
+      if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !(global.HubIME && !global.HubIME.enterOdesle(ev))) {
         ev.preventDefault();
         odeslat();
       }
@@ -1983,7 +1983,7 @@
     }
     q('.cteni-send').onclick = odeslat;
     pole.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); odeslat(); }
+      if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !(global.HubIME && !global.HubIME.enterOdesle(ev))) { ev.preventDefault(); odeslat(); }
     });
     let pisuOd = 0;
     pole.addEventListener('input', () => {

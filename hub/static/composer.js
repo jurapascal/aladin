@@ -2179,7 +2179,8 @@
     /* ── klávesy ──────────────────────────────────────────────────────────── */
 
     input.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter' && !ev.shiftKey) {
+      // Na dotykové klávesnici Enter = nový řádek, odesílá tlačítko (ime.js).
+      if (ev.key === 'Enter' && !ev.shiftKey && !(global.HubIME && !global.HubIME.enterOdesle(ev))) {
         ev.preventDefault();
         send();
         return;
@@ -2298,6 +2299,8 @@
     }
     // Na úzké obrazovce se dlouhá výzva zalomila do dvou řádků a spodní byl
     // uříznutý — pole vypadalo rozbitě. Tam stačí krátká.
+    // Dotyková klávesnice ukáže místo „Odeslat“ šipku nového řádku (ime.js).
+    if (global.HubIME && global.HubIME.dotykove()) input.setAttribute('enterkeyhint', 'enter');
     input.placeholder = window.matchMedia('(max-width: 520px)').matches
       ? 'Napiš zprávu…'
       : 'Napiš, s čím ti má ' + AG.label + ' pomoct… (Enter odešle, Shift+Enter nový řádek)';

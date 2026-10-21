@@ -238,3 +238,21 @@ def delete_chat(chat_id):
             with _LOCK:
                 _CACHE.pop(src, None)
     return moved
+
+
+def title_for(path):
+    """Název konverzace podle přepisu (ai-title / custom-title / první zadání),
+    nebo ''. Ze stejné mezipaměti jako seznam chatů — čte se jen při změně."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return ""
+    with _LOCK:
+        cached = _CACHE.get(path)
+    if cached and cached[0] == st.st_size and cached[1] == st.st_mtime:
+        info = cached[2]
+    else:
+        info = _info(path, st.st_size)
+        with _LOCK:
+            _CACHE[path] = (st.st_size, st.st_mtime, info)
+    return (info or {}).get("title", "") if info else ""

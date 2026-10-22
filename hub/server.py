@@ -34,7 +34,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
-               pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
+               fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
                uspavani, vzhled)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -1281,6 +1281,28 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 return self._json({"error": str(exc)}, 400)
             return self._json({"ok": True})
+        if name.startswith("fronta"):
+            # Fronta zpráv na serveru (hub/fronta.py): uložit, doručit, smazat.
+            try:
+                session = HUB.sessions.get(int(str(payload.get("tab") or (query.get("tab") or ["0"])[0])))
+            except ValueError:
+                session = None
+            chat = fronta.chat_tabu(session) if session and not session.exited else ""
+            if not chat:
+                return self._json({"error": "Tab nemá konverzaci, do které by zpráva šla."}, 409)
+            if name == "fronta":
+                if self.command == "POST":
+                    try:
+                        return self._json({"ok": True, "zprava": fronta.pridej(chat, payload.get("text"), payload.get("id"))})
+                    except ValueError as exc:
+                        return self._json({"error": str(exc)}, 400)
+                return self._json({"zpravy": fronta.seznam(chat), "pauza": fronta.pauza(chat)})
+            if name == "fronta-znovu":
+                return self._json({"ok": fronta.znovu(chat, str(payload.get("id") or ""))})
+            if name == "fronta-zrus":
+                return self._json({"ok": fronta.zrus(chat, str(payload.get("id") or ""))})
+            if name == "fronta-pauza":
+                return self._json({"ok": True, "pauza": fronta.pauza(chat, bool(payload.get("on")))})
         if name == "cteni-pozadi":
             # Úlohy, které Claude v tabu pustil na pozadí a ještě běží.
             try:
@@ -2413,6 +2435,7 @@ def start():
     threading.Thread(target=prohlizec.migruj, args=(core.log,), daemon=True).start()
     # Co se stáhne ve vestavěném prohlížeči, jde do ~/Stažené a okna to nabídnou.
     stazene.spust(HUB.broadcast)
+    fronta.spust()
     # Nepoužívaný prohlížeč zavřít — sám se spustí, až ho někdo bude chtít.
     if prohlizec.povoleno(bool(core.CONFIG.get("server_mode"))):
         threading.Thread(target=prohlizec.hlidej_necinnost, args=(core.log,), daemon=True).start()

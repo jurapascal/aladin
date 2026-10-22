@@ -825,7 +825,7 @@
        z přihlášení se neukazuje: je to jednorázové heslo. */
     function ohlas(body, opts, stav) {
       if (!io.odeslano || codePrompt) return;
-      io.odeslano({text: opts.text !== undefined ? opts.text : body,
+      io.odeslano({text: opts.text !== undefined ? opts.text : body, fid: opts.fid || '',
                    images: (opts.atts || []).filter((p) => IMG_EXT.test(p))}, stav);
     }
 
@@ -1027,18 +1027,32 @@
       /* Tab právě vznikl a Claude Code se ještě rozjíždí. Co by se teď poslalo
          do terminálu, by se ztratilo v jeho startu — zpráva proto počká a
          odejde sama, jakmile se objeví prompt. */
-      if (tab.cteni && (!tab.id || !everIdle)) {
+      /* Zpráva Claudovi (ne příkaz, ne odpověď na dotaz) jde přes server: tam se
+         uloží a doručí, až je Claude připravený — přežije restart prostoru
+         i zavřené okno. Příkazy a odpovědi na dotazy jdou rovnou do terminálu. */
+      const pres_server = !!(io.naServer && tab.id && tab.cteni && !opts.zeStartu && !codePrompt &&
+                             !tab.ceka && !askingNow && !/^\s*[\/!]/.test(body) && !dialogDole());
+      if (!pres_server && tab.cteni && (!tab.id || !everIdle)) {
         cekaZprava = cekaZprava ? cekaZprava + '\n' + body : body;
         ohlas(body, opts, 'start');
         if (io.notice && !io.odeslano) io.notice('Claude se ještě chystá… Zpráva odejde, jakmile bude připravený.');
         return;
       }
-      if (opts.zeStartu) {
-        if (io.odeslano) io.odeslano(null, 'odesila');
+      if (pres_server) {
+        const fid = 'z' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+        io.naServer(body, fid).then((ok) => {
+          if (ok) { ohlas(body, Object.assign({}, opts, {fid}), 'server'); return; }
+          ohlas(body, opts, 'odesila');          // server zprávu nevzal — stará cesta
+          doruc(body);
+        });
       } else {
-        ohlas(body, opts, 'odesila');
+        if (opts.zeStartu) {
+          if (io.odeslano) io.odeslano(null, 'odesila');
+        } else {
+          ohlas(body, opts, 'odesila');
+        }
+        doruc(body);
       }
-      doruc(body);
       // Kód z přihlášení do historie nepatří — platí jednou a je to heslo.
       if (!codePrompt) {
         // Dvakrát po sobě to samé je v seznamu jen k horšímu.

@@ -3518,13 +3518,25 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
                                        znovu: (text) => !!(tab.composer && tab.composer.znovu && tab.composer.znovu(text)),
                                        jeOnline: online,
                                        pozastaveno: () => !!tab.pozastaveno,
-                                       pozastavit: (on) => { tab.pozastaveno = !!on; },
+                                       pozastavit: (on) => {
+                                         tab.pozastaveno = !!on;
+                                         if (tab.id) api('fronta-pauza', {tab: tab.id, on: !!on}).catch(() => {});
+                                       },
+                                       serverZnovu: (id) => { if (tab.id) api('fronta-znovu', {tab: tab.id, id}).catch(() => {}); },
                                        // Majitelův chat, který už je sdílený: bubliny podle lidí.
                                        sdileny: () => { const r = relaceTabu(tab); return r ? {ja: r.majitel, majitel: r.majitel} : null; },
                                        // Tlačítko rychlé odpovědi pod odpovědí Clauda.
                                        odpovez: (text) => !!(tab.composer && tab.composer.run(text + '\r')),
                                        // Panel Průběh vpravo (renderPrehled).
                                        prehled: () => { if (ACTIVE === tab) showActionbar(tab); }});
+    // Co na serveru po restartu nebo reloadu ještě čeká, se ukáže znovu — i pozastavení.
+    if (tab.id) {
+      api('fronta?tab=' + tab.id).then((r) => {
+        if (!r) return;
+        if (r.pauza) tab.pozastaveno = true;
+        if (tab.cteni && r.zpravy && r.zpravy.length) tab.cteni.obnovFrontu(r.zpravy);
+      }).catch(() => {});
+    }
     // Úsilí mohla bublina zjistit dřív, než vzniklo hřiště — Claudík se převlékne hned.
     if (tab.effort && tab.cteni.hriste) tab.cteni.hriste.effort(tab.effort);
   }
@@ -3532,6 +3544,10 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
     tab.composer = HubComposer.install(tab, {
       send,
       pozastaveno: () => !!tab.pozastaveno,
+      // Zpráva se uloží na server a doručí Claudovi, až je připravený (hub/fronta.py).
+      naServer: async (text, id) => {
+        try { const r = await api('fronta', {tab: tab.id, id, text}); return !!(r && r.ok); } catch (_) { return false; }
+      },
       // Úhoz v bublině: sdílející vidí, že tu píšu.
       pise: () => { tab.pisuOd = Date.now(); },
       online,
@@ -4703,6 +4719,10 @@ function handle(msg) {
   } else if (msg.t === 'host-oznameni') {
     // Co udělal host se Správou předplatného (gateway/pristup.py).
     if (!STATE.guest && msg.text) toast(msg.text);
+  } else if (msg.t === 'fronta') {
+    // Stav zprávy z fronty na serveru: uložená → předaná Claudovi → doručená.
+    const tab = TABS.find(t => t.id === msg.tab);
+    if (tab && tab.cteni) tab.cteni.odServeru(msg);
   } else if (msg.t === 'stazeno') {
     if (msg.path) stazenoKarta(msg);
   } else if (msg.t === 'host-vstup') {

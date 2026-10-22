@@ -446,7 +446,7 @@
   function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null,
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
-                                  pozastaveno = null, pozastavit = null} = {}) {
+                                  pozastaveno = null, pozastavit = null, serverZnovu = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -849,6 +849,9 @@
       // Claude ještě dělá předchozí úkol: zpráva čeká ve frontě a vezme si ji
       // hned potom (Adam, 22. 10. 2026 — šestiminutové čekání vypadalo jako chyba).
       fronta: 'Claude ještě dokončuje práci — zprávu si vezme hned potom',
+      // Zpráva je uložená na serveru (hub/fronta.py) a doručí se sama.
+      server: 'Uloženo na serveru — Claude ji dostane, jakmile bude připravený',
+      predano: 'Předáno Claudovi — čeká na převzetí',
       // Slash příkaz (/usage, /model…) Claude Code často do přepisu nezapíše
       // vůbec, nebo až po zavření svého okna — čekat na potvrzení nemá smysl.
       prikaz: 'Příkaz poslán Claudovi',
@@ -868,7 +871,7 @@
       m.row.querySelector('.cteni-stitek').textContent = stitek(stav);
       clearTimeout(m.timer);
       if (stav === 'odesila') m.timer = setTimeout(() => nastavMistni(m, pr.pracuje ? 'fronta' : 'nedoslo'), NEDOSLO_MS);
-      if (stav === 'nedoslo') m.timer = setTimeout(() => zkusZnovu(m), RETRY_MS);
+      if (stav === 'nedoslo' && !m.server) m.timer = setTimeout(() => zkusZnovu(m), RETRY_MS);
       ukazPomoc(m);
       if (stav === 'prikaz') m.timer = setTimeout(() => potvrdMistni(m), PRIKAZ_MS);
       if (stav === 'start') {
@@ -885,6 +888,10 @@
        pracuje, zpráva čeká ve frontě u něj a znovu se neposílá — vznikl by
        duplikát. Pozastavené odesílání se nepokouší. */
     function zkusZnovu(m, rucne) {
+      if (m.server) {                            // zprávu drží server — požádat ho o nový pokus
+        if (serverZnovu && m.fid) { serverZnovu(m.fid); nastavMistni(m, 'server'); }
+        return;
+      }
       if (m.stav !== 'nedoslo' || !mistni.includes(m)) return;
       if (pr.pracuje) { nastavMistni(m, 'fronta'); return; }
       const jeSpojeni = !jeOnline || jeOnline();
@@ -900,7 +907,7 @@
        a pozastavit odesílání (když Claude blbne, ať se do něj nehrne další). */
     function ukazPomoc(m) {
       let box = m.row.querySelector('.cteni-pomoc');
-      if (m.stav !== 'nedoslo') { if (box) box.remove(); return; }
+      if (m.stav !== 'nedoslo' && !(m.server && m.stav === 'server')) { if (box) box.remove(); return; }
       if (!box) {
         box = el('div', 'cteni-pomoc');
         box.append(el('span', 'cteni-pomoc-text'));
@@ -914,12 +921,34 @@
         m.row.appendChild(box);
       }
       const stop = !!(pozastaveno && pozastaveno());
-      const proc = (jeOnline && !jeOnline()) ? 'Spojení se serverem spadlo.'
+      const proc = m.stav === 'server'
+        ? 'Zpráva je uložená na serveru a odejde Claudovi, jakmile dokončí práci a bude připravený.'
+        : (jeOnline && !jeOnline()) ? 'Spojení se serverem spadlo.'
         : pr.pracuje ? 'Claude pracuje, zpráva čeká ve frontě u něj.'
         : 'Claude teď zprávy nebere — nejspíš se po restartu ještě rozjíždí.';
       box.querySelector('.cteni-pomoc-text').textContent = proc +
-        (stop ? ' Odesílání je pozastavené.' : ' Zkusím to znovu' + ((m.pokusy || 0) >= RETRY_MAX ? ' — už to nezkouším, klikni na Poslat znovu.' : ' sám.'));
+        (stop ? ' Odesílání je pozastavené.'
+          : m.server ? (m.stav === 'nedoslo' ? ' Klikni na Poslat znovu.' : '')
+          : ' Zkusím to znovu' + ((m.pokusy || 0) >= RETRY_MAX ? ' — už to nezkouším, klikni na Poslat znovu.' : ' sám.'));
       box.querySelector('.cteni-pomoc-btn:last-child').textContent = stop ? 'Povolit odesílání' : 'Pozastavit odesílání';
+    }
+    /* Stav zprávy z fronty na serveru (WebSocket `fronta`). */
+    function odServeru(msg) {
+      const m = mistni.find((x) => x.fid && x.fid === msg.id);
+      if (!m) return;
+      if (msg.stav === 'nedoslo') nastavMistni(m, 'nedoslo');
+      else if (msg.stav === 'odeslano' || msg.stav === 'doruceno') nastavMistni(m, 'predano');
+      else nastavMistni(m, 'server');
+    }
+    /* Po obnovení okna: co na serveru ještě čeká, se ukáže znovu jako bublina. */
+    function obnovFrontu(zpravy) {
+      for (const z of zpravy || []) {
+        if (mistni.some((x) => x.fid === z.id)) continue;
+        odeslano({text: z.text, fid: z.id}, 'server');
+        const m = mistni[mistni.length - 1];
+        if (z.stav === 'nedoslo') nastavMistni(m, 'nedoslo');
+        else if (z.stav === 'odeslano') nastavMistni(m, 'predano');
+      }
     }
     function potvrdMistni(m) {
       clearTimeout(m.timer);
@@ -937,10 +966,11 @@
         for (const m of mistni) if (m.stav === 'start' || m.stav === 'spojeni') nastavMistni(m, 'odesila');
         return;
       }
-      const m = {norm: norm(z.text), text: String(z.text || '').trim(), row: bublina(z, '', ' ')};
+      const m = {norm: norm(z.text), text: String(z.text || '').trim(), row: bublina(z, '', ' '),
+                 fid: z.fid || '', server: stav === 'server'};
       mistni.push(m);
       fronta.appendChild(m.row);
-      nastavMistni(m, stav === 'start' ? 'start' : 'odesila');
+      nastavMistni(m, stav === 'start' ? 'start' : stav === 'server' ? 'server' : 'odesila');
       naKonec();
     }
     /* Jeden blok z přepisu potvrdí jednu odeslanou zprávu — tu nejstarší, která
@@ -1638,6 +1668,7 @@
     naKonec();
     return {
       upozorni,
+      odServeru, obnovFrontu,
       add(bloky) {
         for (const b of bloky) pridej(b);
         naKonec();                          // nové bloky nad řádek práce a frontu
@@ -1734,7 +1765,7 @@
     const proud = flow(mount, io.imageUrl, {
       openLink: io.openLink, notice: io.notice, copy: io.copy, odpovez: io.odpovez,
       sdileny: io.sdileny || null,
-      znovu: io.znovu || null, jeOnline: io.jeOnline || null,
+      znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null,
       pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
       zive: () => nacteno && !!global.HubHlas && global.HubHlas.auto.get() &&
                   (!io.aktivni || io.aktivni()),
@@ -1866,6 +1897,13 @@
         if (hriste) hriste.release();
         root.remove();
         tab.pane.classList.remove('cteni-on');
+      },
+      // Fronta zpráv na serveru (hub/fronta.py): stav zprávy a obnova po reloadu.
+      odServeru(msg) { if (zivy) proud.odServeru(msg); },
+      obnovFrontu(zpravy) {
+        if (!zivy) return;
+        proud.obnovFrontu(zpravy);
+        prazdno.hidden = true;
       },
       // Po přepnutí na tab se doptá hned, ať čtení není o vteřinu pozadu.
       wake() { if (zivy) { clearTimeout(timer); timer = setTimeout(tik, 60); } },

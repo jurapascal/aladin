@@ -38,6 +38,7 @@ import time
 
 from . import chats
 from . import core
+from . import rewind
 
 # Kolik se toho pošle najednou. Přepis narůstá po kilobajtech, ale první
 # načtení dlouhé konverzace by jinak poslalo desítky MB do prohlížeče.
@@ -678,7 +679,7 @@ def read(path, start=0, tail=False):
         except ValueError:
             continue
         if isinstance(entry, dict):
-            bloky.extend(_bloky_zpravy(entry))
+            bloky.extend(rewind.oznac(entry, _bloky_zpravy(entry), os.path.basename(path)[:-6]))
     return {"blocks": bloky[-MAX_BLOCKS:], "next": start + konec + 1, "ready": True}
 
 

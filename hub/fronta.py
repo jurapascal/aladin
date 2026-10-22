@@ -34,6 +34,7 @@ MAX_VE_FRONTE = 50
 ROZJEZD_S = 10.0             # po startu Claude Code chvíli nic nebere
 KLID_S = 1.5                 # výstup musí ztichnout
 POTVRZENI_S = 20.0           # tak dlouho se čeká na přepis, než se zkusí Enter
+ZASEKLE_S = 150.0            # tak dlouho bez změny v přepisu = Claude se zdá zaseklý
 PO_ENTERU_S = 25.0           # a tak dlouho po Enteru, než je zpráva „nedošla"
 STARE_S = 7 * 86400          # co nikdo týden nechtěl, se zahodí
 
@@ -120,6 +121,20 @@ def znovu(chat, id_):
                 _probud.set()
                 return True
     return False
+
+def ihned(chat, id_):
+    """„Přerušit a poslat hned“: Claude se zasekl (nástroj nevrací výsledek,
+    dialog nikdo nevidí) — práce se přeruší Esc a zpráva se napíše."""
+    _nacti()
+    with _lock:
+        for p in _polozky:
+            if p["chat"] == chat and p["id"] == id_:
+                p.update(stav="ceka", typed=0, enter=0, pokusy=0, ihned=True)
+                _uloz()
+                _probud.set()
+                return True
+    return False
+
 
 def zrus(chat, id_):
     _nacti()
@@ -251,9 +266,18 @@ def _pracuje(cesta):
             text = _text_z_obsahu(zprava.get("content"))
             if text.lstrip().startswith(_PRIKAZ):
                 continue                            # příkaz, ne zadání pro Clauda
+            if text.lstrip().startswith("[Request interrupted"):
+                return False                        # práce přerušená Esc — Claude je volný
             return True
         return zprava.get("stop_reason") in (None, "tool_use")
     return False
+
+
+def _stari(cesta):
+    try:
+        return time.time() - os.path.getmtime(cesta)
+    except OSError:
+        return 0.0
 
 
 def _pripraven(s, cesta):
@@ -327,7 +351,24 @@ def _krok():
                 zmena = True
             cekaji_ted[p["chat"]] = True
             continue
-        if _pripraven(s, cesta):
+        pripraven = _pripraven(s, cesta)
+        if not pripraven and not s.uspany and time.time() - s.started >= ROZJEZD_S \
+                and getattr(s, "_fronta", None) is None:
+            if p.get("ihned"):
+                # Člověk chce zprávu hned: práce se přeruší (jediné Esc — dvojité
+                # by otevřelo „vrátit zprávu“) a text se napíše.
+                try:
+                    s.pty.write(b"\x1b")
+                    time.sleep(1.0)
+                    pripraven = True
+                except Exception:
+                    pass
+                p.pop("ihned", None)
+            elif not p.get("zaseklo") and _stari(cesta) > ZASEKLE_S and _pracuje(cesta):
+                p["zaseklo"] = True
+                _oznam(s, p, "zaseklo")
+                zmena = True
+        if pripraven:
             try:
                 _napis(s, p["text"])
             except Exception as exc:                # pty zrovna zaniklo — příště znovu

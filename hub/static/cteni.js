@@ -446,7 +446,7 @@
   function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null,
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
-                                  pozastaveno = null, pozastavit = null, serverZnovu = null} = {}) {
+                                  pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -852,6 +852,7 @@
       // Zpráva je uložená na serveru (hub/fronta.py) a doručí se sama.
       server: 'Uloženo na serveru — Claude ji dostane, jakmile bude připravený',
       predano: 'Předáno Claudovi — čeká na převzetí',
+      zaseklo: 'Claude se zdá zaseklý — můžeš práci přerušit a zprávu poslat hned',
       // Slash příkaz (/usage, /model…) Claude Code často do přepisu nezapíše
       // vůbec, nebo až po zavření svého okna — čekat na potvrzení nemá smysl.
       prikaz: 'Příkaz poslán Claudovi',
@@ -907,21 +908,26 @@
        a pozastavit odesílání (když Claude blbne, ať se do něj nehrne další). */
     function ukazPomoc(m) {
       let box = m.row.querySelector('.cteni-pomoc');
-      if (m.stav !== 'nedoslo' && !(m.server && m.stav === 'server')) { if (box) box.remove(); return; }
+      if (m.stav !== 'nedoslo' && !(m.server && (m.stav === 'server' || m.stav === 'zaseklo'))) { if (box) box.remove(); return; }
       if (!box) {
         box = el('div', 'cteni-pomoc');
         box.append(el('span', 'cteni-pomoc-text'));
         const znovuBtn = el('button', 'cteni-pomoc-btn', 'Poslat znovu');
         znovuBtn.type = 'button';
         znovuBtn.onclick = () => { m.pokusy = 0; zkusZnovu(m, true); };
-        const stopBtn = el('button', 'cteni-pomoc-btn', '');
+        const stopBtn = el('button', 'cteni-pomoc-btn cteni-pomoc-stop', '');
         stopBtn.type = 'button';
         stopBtn.onclick = () => { if (pozastavit) pozastavit(!(pozastaveno && pozastaveno())); ukazPomoc(m); };
-        box.append(znovuBtn, stopBtn);
+        const ihnedBtn = el('button', 'cteni-pomoc-btn cteni-pomoc-ihned', 'Přerušit práci a poslat hned');
+        ihnedBtn.type = 'button';
+        ihnedBtn.onclick = () => { if (serverIhned && m.fid) { serverIhned(m.fid); nastavMistni(m, 'server'); } };
+        box.append(znovuBtn, ihnedBtn, stopBtn);
         m.row.appendChild(box);
       }
       const stop = !!(pozastaveno && pozastaveno());
-      const proc = m.stav === 'server'
+      const proc = m.stav === 'zaseklo'
+        ? 'Claude už několik minut nic nezapsal — nejspíš se zasekl na nástroji. Zpráva čeká; můžeš práci přerušit a poslat ji hned.'
+        : m.stav === 'server'
         ? 'Zpráva je uložená na serveru a odejde Claudovi, jakmile dokončí práci a bude připravený.'
         : (jeOnline && !jeOnline()) ? 'Spojení se serverem spadlo.'
         : pr.pracuje ? 'Claude pracuje, zpráva čeká ve frontě u něj.'
@@ -930,13 +936,14 @@
         (stop ? ' Odesílání je pozastavené.'
           : m.server ? (m.stav === 'nedoslo' ? ' Klikni na Poslat znovu.' : '')
           : ' Zkusím to znovu' + ((m.pokusy || 0) >= RETRY_MAX ? ' — už to nezkouším, klikni na Poslat znovu.' : ' sám.'));
-      box.querySelector('.cteni-pomoc-btn:last-child').textContent = stop ? 'Povolit odesílání' : 'Pozastavit odesílání';
+      box.querySelector('.cteni-pomoc-stop').textContent = stop ? 'Povolit odesílání' : 'Pozastavit odesílání';
     }
     /* Stav zprávy z fronty na serveru (WebSocket `fronta`). */
     function odServeru(msg) {
       const m = mistni.find((x) => x.fid && x.fid === msg.id);
       if (!m) return;
       if (msg.stav === 'nedoslo') nastavMistni(m, 'nedoslo');
+      else if (msg.stav === 'zaseklo') nastavMistni(m, 'zaseklo');
       else if (msg.stav === 'odeslano' || msg.stav === 'doruceno') nastavMistni(m, 'predano');
       else nastavMistni(m, 'server');
     }
@@ -1765,7 +1772,7 @@
     const proud = flow(mount, io.imageUrl, {
       openLink: io.openLink, notice: io.notice, copy: io.copy, odpovez: io.odpovez,
       sdileny: io.sdileny || null,
-      znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null,
+      znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
       pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
       zive: () => nacteno && !!global.HubHlas && global.HubHlas.auto.get() &&
                   (!io.aktivni || io.aktivni()),

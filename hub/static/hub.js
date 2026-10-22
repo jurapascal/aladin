@@ -3523,6 +3523,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
                                          if (tab.id) api('fronta-pauza', {tab: tab.id, on: !!on}).catch(() => {});
                                        },
                                        serverZnovu: (id) => { if (tab.id) api('fronta-znovu', {tab: tab.id, id}).catch(() => {}); },
+                                       serverIhned: (id) => { if (tab.id) api('fronta-ihned', {tab: tab.id, id}).catch(() => {}); },
                                        // Majitelův chat, který už je sdílený: bubliny podle lidí.
                                        sdileny: () => { const r = relaceTabu(tab); return r ? {ja: r.majitel, majitel: r.majitel} : null; },
                                        // Tlačítko rychlé odpovědi pod odpovědí Clauda.

@@ -452,7 +452,10 @@ if (bezSandboxu()) app.commandLine.appendSwitch('no-sandbox');
 
 // Složka s nastavením zůstává pod původním názvem, ať se přejmenováním
 // neztratí poloha okna ani udělená oprávnění.
-app.setPath('userData', path.join(app.getPath('appData'), 'Claude Code Hub'));
+// Přepínač --user-data-dir (zkoušky, vlastní profil) má přednost.
+if (!app.commandLine.hasSwitch('user-data-dir')) {
+  app.setPath('userData', path.join(app.getPath('appData'), 'Claude Code Hub'));
+}
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();

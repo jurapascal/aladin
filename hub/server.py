@@ -34,7 +34,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
-               fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
+               fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, rewind, setup, stats, stazene,
                uspavani, vzhled)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
@@ -1346,6 +1346,14 @@ class Handler(BaseHTTPRequestHandler):
             out = cteni.read(path, start, tail=not start)
             out["src"] = here
             return self._json(out)
+        if name.startswith("rewind-"):
+            # Vrácení souborů k zprávě (hub/rewind.py) — hostům ne.
+            if guest:
+                return self._json({"error": "Nepovoleno."}, 403)
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            out = rewind.api(name, payload)
+            return self._json(out, 400 if out.get("error") else 200)
         if name == "auto-model":
             # Druhý názor na model a effort ke zprávě (hub/automodel.py).
             text = payload.get("text") if isinstance(payload, dict) else ""

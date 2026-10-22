@@ -1426,6 +1426,7 @@
         mount.appendChild(radek);
         if (zadaniZ) { zadaniZ.row = radek; zadaniZ = null; }
         if (b.text) pripojPoznamku(radek, b.text);
+        if (b.uuid && global.HubRewind && !(typeof sdileny === 'function' ? sdileny() : sdileny)) global.HubRewind.pripoj(radek, b);
         return;
       }
       if (b.kind === 'queued') {

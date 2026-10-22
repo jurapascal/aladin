@@ -1725,8 +1725,32 @@ function readChat(c) {
   closeDrawer();
   if (!window.HubCteni) return resumeChat(c);
   const at = new Date(c.updated * 1000);
-  HubCteni.open({api, notice: toast, resume: resumeChat, imageUrl, openLink, copy: copyText},
+  HubCteni.open({api, notice: toast, resume: resumeChat, imageUrl, openLink, copy: copyText, rozvetvit: rozvetvitChat},
                 {...c, when: at.toLocaleString('cs-CZ')});
+}
+
+/* Rozvětvit konverzaci od zprávy: server (hub/vetev.py) vyrobí nový přepis jen
+   do toho místa a hned se v něm pokračuje v novém tabu. `zdroj` = {id: tab}
+   nebo {chat: id konverzace}; původní konverzace zůstává beze změny. */
+let vetveniBezi = false;
+async function rozvetvitChat(zdroj, uuid, zavrit) {
+  if (vetveniBezi) return;               // dvojklik / rychlé opakování
+  vetveniBezi = true;
+  try {
+    const r = await api('chat-vetev', {...zdroj, uuid});
+    if (!r || !r.id) throw new Error('Server nevrátil novou konverzaci.');
+    if (zavrit) zavrit();
+    openTab({kind: 'project', path: r.cwd || (ACTIVE && ACTIVE.path) || '', title: (r.title || 'Větev').slice(0, 40),
+             agent: 'claude', resume: r.id});
+    closeDrawer();
+    toast(r.znovu ? 'Větev už vznikla, otevřena znovu.' : 'Větev otevřena. Zprávu, od které jsi větvil, napiš znovu nebo uprav:\n„' +
+          String(r.text || '').slice(0, 120) + '“');
+    setTimeout(loadChats, 2000);
+  } catch (err) {
+    toast('Nerozvětveno: ' + (err && err.message ? err.message : err));
+  } finally {
+    vetveniBezi = false;
+  }
 }
 
 /* Pokračovat v konverzaci: tohle už je nový tab s Claude Code. `prompt` je
@@ -3522,6 +3546,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
   if (kind === 'project' && window.HubCteni &&
       (agent || STATE.default_agent || 'claude') === 'claude') {
     tab.cteni = HubCteni.install(tab, {api, notice: toast, imageUrl, openLink, copy: copyText,
+                                       rozvetvit: rozvetvitChat,
                                        aktivni: () => ACTIVE === tab,
                                        // Nepřevzatá zpráva se po restartu pošle sama znovu; odesílání jde pozastavit.
                                        znovu: (text) => !!(tab.composer && tab.composer.znovu && tab.composer.znovu(text)),

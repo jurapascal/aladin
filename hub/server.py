@@ -35,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
                fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
-               uspavani, vzhled)
+               uspavani, vetev, vzhled)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -1271,6 +1271,29 @@ class Handler(BaseHTTPRequestHandler):
             if not moved:
                 return self._json({"error": "Konverzace už neexistuje."}, 404)
             return self._json({"ok": True})
+        if name == "chat-vetev":
+            # Větvení konverzace (hub/vetev.py): nový přepis jen do zvoleného místa,
+            # původní se nemění. Zdroj = konverzace podle id (`chat`) nebo tab (`id`).
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            if guest:
+                return self._json({"error": "Konverzaci smí větvit jen vlastník prostoru."}, 403)
+            chat = str(payload.get("chat") or "")
+            if chat:
+                path = cteni.path_for(chat)
+            else:
+                try:
+                    session = HUB.sessions.get(int(payload.get("id") or 0))
+                except (TypeError, ValueError):
+                    session = None
+                path = core.transcript_for(session) if session else ""
+            try:
+                return self._json(dict(vetev.rozvetvit(path, str(payload.get("uuid") or "")), ok=True))
+            except vetev.VetevChyba as exc:
+                return self._json({"error": str(exc)}, 409)
+            except Exception as exc:
+                core.log_error("chat-vetev", exc)
+                return self._json({"error": f"Větev se nepodařilo vytvořit: {exc}"}, 500)
         if name == "bypass":
             # Potvrzení varování k bypassu, které by se jinak Claude Code ptal
             # v každém novém tabu. Jen výslovně (POST s accept: true).

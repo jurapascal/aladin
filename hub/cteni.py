@@ -678,7 +678,11 @@ def read(path, start=0, tail=False):
         except ValueError:
             continue
         if isinstance(entry, dict):
-            bloky.extend(_bloky_zpravy(entry))
+            for blok in _bloky_zpravy(entry):
+                # Kde zpráva v přepisu stojí — podle toho se z ní dá rozvětvit (hub/vetev.py).
+                if blok.get("kind") == "me" and isinstance(entry.get("uuid"), str):
+                    blok["uuid"] = entry["uuid"]
+                bloky.append(blok)
     return {"blocks": bloky[-MAX_BLOCKS:], "next": start + konec + 1, "ready": True}
 
 

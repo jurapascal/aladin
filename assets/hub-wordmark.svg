@@ -17,9 +17,13 @@
       <stop offset="0" stop-color="#ffe08a"/>
       <stop offset="1" stop-color="#e8a02c"/>
     </linearGradient>
-    <linearGradient id="smoke" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#8fe3d5" stop-opacity=".95"/>
-      <stop offset="1" stop-color="#8fe3d5" stop-opacity="0"/>
+    <linearGradient id="dzin" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7fd0ff"/>
+      <stop offset="1" stop-color="#3d8fe8"/>
+    </linearGradient>
+    <linearGradient id="sklo" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#c8f6ee" stop-opacity=".75"/>
+      <stop offset="1" stop-color="#7fd8cc" stop-opacity=".45"/>
     </linearGradient>
   </defs>
 
@@ -29,31 +33,32 @@
   <rect x="1.5" y="1.5" width="253" height="253" rx="54.5"
         fill="none" stroke="#ffd36e" stroke-opacity=".28" stroke-width="3"/>
 
-  <!-- dým z hubičky -->
-  <path d="M66 148 C40 120 84 100 62 70 C50 54 66 40 78 34"
-        fill="none" stroke="url(#smoke)" stroke-width="12" stroke-linecap="round"/>
+  <!-- hvězdy -->
+  <path d="M200 66 l5 14 14 5 -14 5 -5 14 -5 -14 -14 -5 14 -5z" fill="#ffe9a8"/>
+  <path d="M54 84 l3.5 10 10 3.5 -10 3.5 -3.5 10 -3.5 -10 -10 -3.5 10 -3.5z" fill="#ffe9a8" opacity=".85"/>
+  <path d="M206 160 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3z" fill="#ffe9a8" opacity=".7"/>
 
-  <!-- hvězdičky -->
-  <path d="M184 52 l5 14 14 5 -14 5 -5 14 -5 -14 -14 -5 14 -5z" fill="#ffe9a8"/>
-  <path d="M96 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3z" fill="#ffe9a8" opacity=".8"/>
+  <!-- džin: ocas z hrdla, tělo, ruce, hlava -->
+  <path d="M118 112 C112 100 106 92 112 82 H144 C150 92 144 100 138 112 Z" fill="url(#dzin)"/>
+  <path d="M100 74 C104 52 152 52 156 74 C158 86 144 90 128 90 C112 90 98 86 100 74Z" fill="url(#dzin)"/>
+  <path d="M104 70 C92 64 86 52 90 40" fill="none" stroke="url(#dzin)" stroke-width="10" stroke-linecap="round"/>
+  <path d="M152 70 C164 64 170 52 166 40" fill="none" stroke="url(#dzin)" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="128" cy="44" r="17" fill="#7fd0ff"/>
+  <path d="M128 28 C124 18 132 12 140 15 C136 18 138 24 134 29Z" fill="#2a2a6a"/>
+  <circle cx="140" cy="14" r="4" fill="url(#gold)"/>
+  <rect x="111" y="35" width="34" height="5" rx="2" fill="url(#gold)"/>
+  <circle cx="121" cy="47" r="2.6" fill="#162a4a"/><circle cx="135" cy="47" r="2.6" fill="#162a4a"/>
+  <path d="M120 54 Q128 62 136 54" fill="none" stroke="#162a4a" stroke-width="3" stroke-linecap="round"/>
 
-  <!-- víčko a knoflík -->
-  <ellipse cx="146" cy="104" rx="30" ry="9" fill="url(#gold)"/>
-  <circle cx="146" cy="90" r="9" fill="url(#gold)"/>
-
-  <!-- tělo lampy -->
-  <path d="M74 150 C74 118 112 108 146 108 C180 108 206 124 206 150
-           C206 176 180 196 146 196 C110 196 74 180 74 150 Z" fill="url(#gold)"/>
-  <!-- hubička -->
-  <path d="M78 140 C62 138 54 128 44 118 C52 142 60 158 84 166 Z" fill="url(#gold)"/>
-  <!-- ucho -->
-  <path d="M200 132 C228 126 236 156 214 168" fill="none" stroke="url(#gold)"
-        stroke-width="12" stroke-linecap="round"/>
-  <!-- podstavec -->
-  <path d="M112 194 H180 L172 214 H120 Z" fill="url(#gold)"/>
-  <!-- lesk -->
-  <path d="M100 142 C106 128 124 122 142 122" fill="none" stroke="#fff6d6"
-        stroke-opacity=".7" stroke-width="7" stroke-linecap="round"/>
+  <!-- láhev -->
+  <path d="M112 110 H144 V128 C176 138 186 164 184 196 C183 216 168 226 148 226 H108
+           C88 226 73 216 72 196 C70 164 80 138 112 128 Z" fill="url(#sklo)"
+        stroke="#d4faf3" stroke-opacity=".85" stroke-width="4" stroke-linejoin="round"/>
+  <rect x="106" y="104" width="44" height="10" rx="5" fill="url(#gold)"/>
+  <path d="M76 196 C76 184 90 178 128 178 C166 178 180 184 180 196 C180 214 166 222 148 222 H108 C90 222 76 214 76 196Z"
+        fill="#8b6bff" opacity=".55"/>
+  <path d="M92 150 C96 140 104 134 114 131" fill="none" stroke="#ffffff" stroke-opacity=".8"
+        stroke-width="7" stroke-linecap="round"/>
   </g>
 
   <!-- jméno -->

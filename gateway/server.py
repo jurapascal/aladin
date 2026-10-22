@@ -637,7 +637,7 @@ input:focus{outline:none;border-color:var(--accent)}
 @media (max-width:480px){.badge{max-width:46vw}.btn.zpet span{display:none}}
 </style>
 <header class=top>
-  <span class=brand><svg viewBox="0 0 24 24" fill="#4c97f0" fill-rule="evenodd"><path d="M10.4 6.6a1.2 1.2 0 1 1 2.4 0 1.2 1.2 0 0 1-2.4 0zM8.6 9.4h6.2l.4.9H8.2zM5.2 14.5c0-3 3.2-4.2 6.5-4.2 3.2 0 5.6 1.4 5.6 4 0 2.6-2.4 4.2-5.6 4.2-3.3 0-6.5-1.5-6.5-4zM5.6 13.3C4.5 13.2 3.7 12.5 3 11.5c.5 2.4 1.2 3.9 3.2 4.6zM17 12.8c2.2-.5 3 2.3 1 3.4l-.6-.9c.9-.5.9-1.5-.6-1.4zM9.8 18.6h4.6l-.6 1.8H10.4z"/></svg>Aladin</span>
+  <span class=brand><svg viewBox="0 0 24 24" fill="#4c97f0" fill-rule="evenodd"><path d="M12 2.6a2.7 2.7 0 1 1 0 5.4 2.7 2.7 0 0 1 0-5.4zM8.7 11.2c0-2.3 6.6-2.3 6.6 0l-1.6 2.1h-3.4zM8.2 9.6 6 7.2l1-.9 2.3 2.5zM15.8 9.6 18 7.2l-1-.9-2.3 2.5zM10.3 13.6h3.4v1.6c2 .8 3.6 2.4 3.6 4.7 0 1.4-1 2.3-2.4 2.3H9.1c-1.4 0-2.4-.9-2.4-2.3 0-2.3 1.6-3.9 3.6-4.7z"/></svg>Aladin</span>
   <span class=badge>Prostor: """ + who + """ · Správa předplatného</span>
   <span class=sp></span>
   <button id=zpet class="btn small zpet">← <span>Zpět do svého</span></button>

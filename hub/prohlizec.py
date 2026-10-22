@@ -583,6 +583,29 @@ def vytizeni_pameti():
     return podil
 
 
+def _priprav_profil():
+    """Před startem: PDF se stahují, neotevírají ve vestavěném čtečce (v okně
+    bez GUI by se jen ukázal prázdný panel a nic by se nestáhlo), a Chromium
+    se při stahování neptá, kam soubor uložit. Preferences se dají měnit jen
+    dokud prohlížeč neběží — jinak by je při ukončení přepsal."""
+    soubor = os.path.join(profile_dir(), "Default", "Preferences")
+    try:
+        os.makedirs(os.path.dirname(soubor), exist_ok=True)
+        try:
+            with open(soubor, encoding="utf-8") as fh:
+                pref = json.load(fh)
+        except (OSError, ValueError):
+            pref = {}
+        pref.setdefault("plugins", {})["always_open_pdf_externally"] = True
+        d = pref.setdefault("download", {})
+        d["prompt_for_download"] = False
+        d["directory_upgrade"] = True
+        with open(soubor, "w", encoding="utf-8") as fh:
+            json.dump(pref, fh)
+    except (OSError, TypeError, AttributeError):
+        pass
+
+
 def ensure(wait=15.0):
     """Zajistí běžící prohlížeč. Vrací (ok, zpráva)."""
     with _launch_lock:
@@ -596,6 +619,7 @@ def ensure(wait=15.0):
         if not exe:
             return False, "Nenašel jsem Chromium (spusť instalačku nebo: npx @playwright/mcp install-browser chrome-for-testing)."
         os.makedirs(profile_dir(), exist_ok=True)
+        _priprav_profil()
         # Bez --remote-allow-origins: webová stránka (ta pošle Origin vždycky)
         # se k ladicímu portu nepřipojí; Playwright ani hub Origin neposílají.
         args = [exe, f"--remote-debugging-port={port()}", f"--remote-debugging-address={HOST}",

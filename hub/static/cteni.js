@@ -838,22 +838,21 @@
       if (m.norm) return norm(b.text).includes(m.norm.slice(0, 48));
       return !!((b.images || []).length || (b.inline || []).length);
     }
-    // Terminál je vidět jen pro pokročilé — v jednoduchém režimu se na něj
-    // neodkazuje, radí se počkat.
+    // Na terminál se neodkazuje nikde — lidé ho nevidí, radí se počkat.
     const STITEK = {
       start: 'Čeká, až se Claude připraví…',
       odesila: 'Odesílá se…',
       nedoslo: 'Claude zprávu zatím nepřevzal — zkus to za chvíli znovu',
+      // Claude ještě dělá předchozí úkol: zpráva čeká ve frontě a vezme si ji
+      // hned potom (Adam, 22. 10. 2026 — šestiminutové čekání vypadalo jako chyba).
+      fronta: 'Claude ještě dokončuje práci — zprávu si vezme hned potom',
       // Slash příkaz (/usage, /model…) Claude Code často do přepisu nezapíše
       // vůbec, nebo až po zavření svého okna — čekat na potvrzení nemá smysl.
       prikaz: 'Příkaz poslán Claudovi',
       // Bublina zprávu drží, dokud se spojení nevrátí — pak odejde sama.
       spojeni: 'Čeká na spojení se serverem — odejde sama',
     };
-    const STITEK_PRO = {
-      nedoslo: 'Claude zprávu zatím nepřevzal — mrkni do terminálu',
-    };
-    const stitek = (stav) => (pokrocile() && STITEK_PRO[stav]) || STITEK[stav];
+    const stitek = (stav) => STITEK[stav];
     // Jak dlouho štítek u slash příkazu zůstane, než zmizí sám.
     const PRIKAZ_MS = 8000;
     // Tak dlouho se start čeká bez poznámky; pak nejspíš visí na dotazu.
@@ -865,14 +864,13 @@
       m.row.className = 'cteni-me cteni-ceka mistni ' + stav;
       m.row.querySelector('.cteni-stitek').textContent = stitek(stav);
       clearTimeout(m.timer);
-      if (stav === 'odesila') m.timer = setTimeout(() => nastavMistni(m, 'nedoslo'), NEDOSLO_MS);
+      if (stav === 'odesila') m.timer = setTimeout(() => nastavMistni(m, pr.pracuje ? 'fronta' : 'nedoslo'), NEDOSLO_MS);
       if (stav === 'prikaz') m.timer = setTimeout(() => potvrdMistni(m), PRIKAZ_MS);
       if (stav === 'start') {
         m.timer = setTimeout(() => {
           if (m.stav === 'start') {
-            m.row.querySelector('.cteni-stitek').textContent = pokrocile()
-              ? 'Claude se pořád chystá — nejspíš se na něco ptá, mrkni do terminálu'
-              : 'Claude se pořád chystá — zkus to za chvíli znovu';
+            m.row.querySelector('.cteni-stitek').textContent =
+              'Claude se pořád chystá — zkus to za chvíli znovu';
           }
         }, START_DLOUHO_MS);
       }
@@ -1534,6 +1532,8 @@
       mount.classList.toggle('pracuje', !!(st && st.on));
       if (pr.pracuje !== !!(st && st.on)) { pr.pracuje = !!(st && st.on); zmenaPrehledu(); }
       if (!st || !st.on) {
+        // Claude dopracoval — zpráva z fronty teď musí dojít, tak se čeká znovu.
+        for (const m of mistni) if (m.stav === 'fronta') nastavMistni(m, 'odesila');
         if (prace) { prace.remove(); prace = null; }
         clearInterval(tikaniPrace);
         tikaniPrace = null;

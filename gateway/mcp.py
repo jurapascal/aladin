@@ -135,7 +135,7 @@ def protected_resource(h):
     base = base_url(h)
     h._json({"resource": base + "/mcp", "authorization_servers": [base],
              "scopes_supported": ["prostor"], "bearer_methods_supported": ["header"],
-             "resource_name": "Paluba — tvůj prostor"})
+             "resource_name": "Aladin — tvůj prostor"})
 
 
 def auth_server(h):
@@ -203,7 +203,7 @@ def _page(title, body):
 
 
 def _error_page(h, text, code=400):
-    return h._send(code, _page("Napojení — Paluba", f"""
+    return h._send(code, _page("Napojení — Aladin", f"""
 <div class=card><h1>Napojení se nepovedlo</h1>
 <p class=sub>{html.escape(text)}</p></div>"""), "text/html; charset=utf-8", _no_frame())
 
@@ -294,7 +294,7 @@ Napojení povede na <b>{where}</b>.</p>
  style="background:none;border:1px solid #30363d;color:#c9d1d9">Zamítnout</button>
 {err}
 </form>"""
-    return h._send(200, _page("Napojení — Paluba", body), "text/html; charset=utf-8",
+    return h._send(200, _page("Napojení — Aladin", body), "text/html; charset=utf-8",
                    _no_frame())
 
 
@@ -368,7 +368,7 @@ def authorize(h, method):
             req["stage"] = "kod"
         elif config.REQUIRE_2FA:
             _req_drop(rid)
-            return _error_page(h, "Nejdřív se přihlas do Paluby v prohlížeči a nastav si "
+            return _error_page(h, "Nejdřív se přihlas do Aladina v prohlížeči a nastav si "
                                   "ověření kódem z aplikace. Pak napojení zopakuj.")
         else:
             h.accounts.fail_clear(keys[0][0])
@@ -711,7 +711,7 @@ def _handle(h, user, msg):
         return _rpc_result(mid, {
             "protocolVersion": want if want in PROTOCOLS else PROTOCOLS[0],
             "capabilities": {"tools": {"listChanged": False}},
-            "serverInfo": {"name": "claude-code-hub", "title": "Paluba",
+            "serverInfo": {"name": "claude-code-hub", "title": "Aladin",
                            "version": __version__},
             "instructions": INSTRUCTIONS})
     if method == "ping":

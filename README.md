@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="assets/hub-wordmark.svg" alt="Paluba" width="420"/>
+  <img src="assets/hub-wordmark.svg" alt="Aladin" width="420"/>
 </p>
 
-# Paluba
+# Aladin
 
 > Jedno okno kolem Claude Code — projekty v postranním panelu, každý otevřený jako vlastní tab se skutečným terminálem. Linux, Windows i macOS z jednoho kódu.
 
-Paluba se dřív jmenovala **Claude Code Hub** — pod tím názvem ji ještě najdeš v názvu repa, balíčků a instalaček.
+Aladin se dřív jmenoval **Claude Code Hub** — pod tím názvem ji ještě najdeš v názvu repa, balíčků a instalaček.
 
 **Repo je jen instalačka.** Žádná data, žádné projekty, žádná paměť, žádné přihlašovací
 údaje. Instalátor se podívá, co máš na disku ty, zapíše to do `~/.claude/hub-config.json`

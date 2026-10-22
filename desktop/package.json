@@ -1,12 +1,12 @@
 {
   "name": "claude-code-hub-desktop",
-  "productName": "Claude Code Hub",
+  "productName": "Aladin",
   "version": "1.1.1",
-  "description": "Okno pro Claude Code Hub: vlastní aplikace s vlastním menu a novými okny místo karty v Chromu.",
+  "description": "Okno pro Aladina: vlastní aplikace s vlastním menu a novými okny místo karty v Chromu.",
   "main": "main.js",
   "license": "MIT",
   "repository": "https://github.com/jurapascal/claude-code-hub",
-  "author": "Claude Code Hub",
+  "author": "Aladin",
   "scripts": {
     "start": "electron .",
     "test": "node test/smoke.mjs",
@@ -20,7 +20,7 @@
   },
   "build": {
     "appId": "com.github.jurapascal.claude-code-hub.desktop",
-    "productName": "Claude Code Hub",
+    "productName": "Aladin",
     "directories": {
       "buildResources": "build",
       "output": "dist"
@@ -30,7 +30,7 @@
       "preload.cjs",
       "package.json"
     ],
-    "artifactName": "Claude-Code-Hub-Desktop-${version}-${os}-${arch}.${ext}",
+    "artifactName": "Aladin-Desktop-${version}-${os}-${arch}.${ext}",
     "mac": {
       "category": "public.app-category.developer-tools",
       "target": [
@@ -39,7 +39,7 @@
       ],
       "identity": null,
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Claude Code Hub používá mikrofon pro diktování zpráv."
+        "NSMicrophoneUsageDescription": "Aladin používá mikrofon pro diktování zpráv."
       }
     },
     "win": {

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Code Hub — jednořádková instalace.
+# Aladin — jednořádková instalace.
 #
 #     curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.sh | bash
 #
@@ -20,7 +20,7 @@ info() { echo -e "  ${A}▸${R} $1"; }
 die()  { echo -e "  ${Y}⚠${R} $1" >&2; exit 1; }
 
 echo ""
-echo -e "  ${A}✦${R} Claude Code Hub"
+echo -e "  ${A}✦${R} Aladin"
 echo -e "  ${D}────────────────────────────────────${R}"
 
 command -v python3 >/dev/null 2>&1 || die "Chybí python3.

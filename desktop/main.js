@@ -1,4 +1,4 @@
-/* Claude Code Hub — okno jako samostatná aplikace.
+/* Aladin — okno jako samostatná aplikace.
  *
  * Hub je lokální webová appka. Dosud ji držel v okně Chromu (--app), takže
  * v liště svítilo „Chrome", menu bylo chromí a Nové okno otevřelo prázdný
@@ -111,8 +111,8 @@ function najdiPython() {
 
 function nenainstalovano(text) {
   const volba = dialogOkno({
-    type: 'info', title: 'Paluba',
-    message: 'Paluba ještě není nainstalovaná.',
+    type: 'info', title: 'Aladin',
+    message: 'Aladin ještě není nainstalovaný.',
     detail: text, buttons: ['Stáhnout instalaci', 'Zavřít'], defaultId: 0, cancelId: 1,
   });
   if (volba === 0) shell.openExternal(RELEASES);
@@ -127,7 +127,7 @@ function spustHub() {
   if (hubBezZnacky(launcher)) {
     // „Spustit i tak" pro případ, že proces jen zůstal viset bez okna.
     const volba = dialogOkno({
-      type: 'warning', title: 'Paluba',
+      type: 'warning', title: 'Aladin',
       message: 'Hub už běží v jiném okně.',
       detail: 'Je to starší verze, ke které se tahle appka neumí připojit. Zavři okno hubu '
         + '(v Chromu) a spusť appku znovu — dvě instance nad stejnými chaty by si přepisovaly konverzace.',
@@ -232,7 +232,7 @@ function noveOkno(url) {
   }
   const icon = path.join(__dirname, '..', 'assets', 'claude-code.png');
   const win = new BrowserWindow({
-    ...opts, minWidth: 720, minHeight: 480, title: 'Paluba',
+    ...opts, minWidth: 720, minHeight: 480, title: 'Aladin',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0d0f12' : '#ffffff',
     ...(fs.existsSync(icon) ? { icon } : {}),
     // Menu kreslí hub v liště (window.hubApp) — nativní lišta je schovaná a Alt
@@ -262,7 +262,7 @@ function noveOkno(url) {
   win.webContents.on('will-prevent-unload', (e) => {
     // Platí pro zavření okna i pro Znovu načíst — proto obecně „odejít".
     const volba = dialogOkno({
-      type: 'question', title: 'Paluba', buttons: ['Odejít', 'Zůstat'], defaultId: 1, cancelId: 1,
+      type: 'question', title: 'Aladin', buttons: ['Odejít', 'Zůstat'], defaultId: 1, cancelId: 1,
       message: 'Claude ještě pracuje. Opravdu odejít?',
       detail: 'Rozdělaná práce v tabech se přeruší.',
       volbaVZkousce: 0,
@@ -290,7 +290,7 @@ async function otevriOkno(primo = '') {
   } catch (e) {
     if (!/není nainstalovaný|chybí Python|bez značky/.test(String(e.message))) {
       if (TEST) hlasky.push(String(e.message || e));
-      else dialog.showErrorBox('Palubu se nepodařilo spustit', String(e.message || e));
+      else dialog.showErrorBox('Aladina se nepodařilo spustit', String(e.message || e));
     }
     if (TEST) {             // zkouška se k rychle skončené appce nestihne připojit
       try { fs.writeFileSync(path.join(app.getPath('userData'), 'hlasky.json'), JSON.stringify(hlasky)); } catch (_) { /* nic */ }
@@ -335,10 +335,10 @@ function sestavMenu() {
   ] };
   const template = [
     ...(IS_MAC ? [{ label: app.name, submenu: [
-      { role: 'about', label: 'O aplikaci Paluba' }, { type: 'separator' },
+      { role: 'about', label: 'O aplikaci Aladin' }, { type: 'separator' },
       { role: 'services' }, { type: 'separator' },
       { role: 'hide' }, { role: 'hideOthers' }, { role: 'unhide' }, { type: 'separator' },
-      { role: 'quit', label: 'Ukončit Palubu' },
+      { role: 'quit', label: 'Ukončit Aladina' },
     ] }] : []),
     { label: 'Soubor', submenu: [
       // Na Windows a Linuxu patří Ctrl+N a Ctrl+W terminálu (historie, mazání
@@ -361,7 +361,7 @@ function sestavMenu() {
       { label: 'Maximalizovat', click: (_i, win) => { if (win) { if (win.isMaximized()) win.unmaximize(); else win.maximize(); } } },
     ] },
     { label: 'Nápověda', submenu: [
-      { label: 'Paluba na GitHubu', click: () => ven('https://github.com/jurapascal/claude-code-hub') },
+      { label: 'Aladin na GitHubu', click: () => ven('https://github.com/jurapascal/claude-code-hub') },
     ] },
   ];
   // Každá položka dostane id — podle něj ji spouští menu nakreslené v hubu.
@@ -450,6 +450,10 @@ function bezSandboxu() {
 }
 if (bezSandboxu()) app.commandLine.appendSwitch('no-sandbox');
 
+// Složka s nastavením zůstává pod původním názvem, ať se přejmenováním
+// neztratí poloha okna ani udělená oprávnění.
+app.setPath('userData', path.join(app.getPath('appData'), 'Claude Code Hub'));
+
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
@@ -458,7 +462,7 @@ if (!app.requestSingleInstanceLock()) {
   app.setAppUserModelId('com.github.jurapascal.claude-code-hub.desktop');
 
   app.whenReady().then(async () => {
-    app.setName('Claude Code Hub');
+    app.setName('Aladin');
     if (IS_MAC && app.dock) {
       const png = path.join(__dirname, '..', 'assets', 'claude-code.png');
       if (fs.existsSync(png)) app.dock.setIcon(png);

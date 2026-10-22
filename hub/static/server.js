@@ -99,7 +99,7 @@
     const box = document.createElement('div');
     const note = document.createElement('div');
     note.className = 'set-warn';
-    note.textContent = '! Aplikace Paluba na tomhle počítači je starší a tohle ještě neumí.';
+    note.textContent = '! Aplikace Aladin na tomhle počítači je starší a tohle ještě neumí.';
     const how = document.createElement('div');
     how.className = 'set-note';
     how.textContent = 'Aktualizuj ji: tlačítkem se vrátíš na počítač, tam Nastavení → ' +

@@ -80,7 +80,7 @@ def _config():
     base = str(data.get("gw_server") or "").rstrip("/")
     token = str(data.get("gw_token") or "")
     if not base or not token:
-        raise Failed("Appka Paluba na tomhle počítači není přihlášená k serveru "
+        raise Failed("Appka Aladin na tomhle počítači není přihlášená k serveru "
                      "(Nastavení → Účet).")
     return base, token
 

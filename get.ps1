@@ -1,4 +1,4 @@
-# Claude Code Hub — jednořádková instalace pro Windows.
+# Aladin — jednořádková instalace pro Windows.
 #
 #     irm https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.ps1 | iex
 #
@@ -26,7 +26,7 @@ function Write-Info ($m) { Write-Host "  ▸ $m" -ForegroundColor DarkYellow }
 function Die        ($m) { Write-Host "  ⚠ $m" -ForegroundColor Yellow; exit 1 }
 
 Write-Host ''
-Write-Host '  ✦ Claude Code Hub' -ForegroundColor DarkYellow
+Write-Host '  ✦ Aladin' -ForegroundColor DarkYellow
 Write-Host '  ────────────────────────────────────' -ForegroundColor DarkGray
 
 # Git když je (jde pak updatovat přes git pull), jinak ZIP — na Windows je

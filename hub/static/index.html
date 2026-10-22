@@ -5,7 +5,7 @@
 <!-- viewport-fit=cover kvůli výřezu na iPhonu, interactive-widget kvůli
      Androidu: bez něj klávesnice bublinu jen překryje místo aby ji vytlačila. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-<title>Paluba</title>
+<title>Aladin</title>
 <!-- Okno hubu je na Windows prohlížeč v režimu --app a ikonu v panelu, v Alt+Tab
      i v záhlaví si bere z favicony stránky, ne ze zástupce, kterým se spustil.
      Bez ní tam svítí prázdný list. Soubory dělá tools/make-icons.py. -->
@@ -19,7 +19,7 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Paluba">
+<meta name="apple-mobile-web-app-title" content="Aladin">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <link rel="stylesheet" href="/vendor/xterm.css">
 <link rel="stylesheet" href="/hub.css">
@@ -51,7 +51,7 @@
   <symbol id="i-globe" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></g></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5z"/></symbol>
   <symbol id="i-hub" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M3.2 6.1h5.1a1.2 1.2 0 0 1 0 2.4H3.2a1.2 1.2 0 0 1 0-2.4zm0 4.7h5.1a1.2 1.2 0 0 1 0 2.4H3.2a1.2 1.2 0 0 1 0-2.4zm0 4.7h5.1a1.2 1.2 0 0 1 0 2.4H3.2a1.2 1.2 0 0 1 0-2.4zM11.4 5.9l5.4 5.3a1.1 1.1 0 0 1 0 1.6l-5.4 5.3-1.6-1.7 4.3-4.4-4.3-4.4 1.6-1.7zM17.6 15.4h3.2a1.2 1.2 0 0 1 0 2.4h-3.2a1.2 1.2 0 0 1 0-2.4z"/></symbol>
-  <symbol id="i-paluba" viewBox="0 0 24 24"><path d="M8.3 3.4l7.4 6.4-7.4 6.5" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8.3 3.4v12.9" fill="none" stroke="currentColor" stroke-width=".9" stroke-linecap="round" opacity=".45"/><path d="M2.8 18.3h18.4l-1.8 2.8q-.5.7-1.4.7H6q-.9 0-1.4-.7z"/></symbol>
+  <symbol id="i-paluba" viewBox="0 0 24 24"><path d="M10.4 6.6a1.2 1.2 0 1 1 2.4 0 1.2 1.2 0 0 1-2.4 0zM8.6 9.4h6.2l.4.9H8.2zM5.2 14.5c0-3 3.2-4.2 6.5-4.2 3.2 0 5.6 1.4 5.6 4 0 2.6-2.4 4.2-5.6 4.2-3.3 0-6.5-1.5-6.5-4zM5.6 13.3C4.5 13.2 3.7 12.5 3 11.5c.5 2.4 1.2 3.9 3.2 4.6zM17 12.8c2.2-.5 3 2.3 1 3.4l-.6-.9c.9-.5.9-1.5-.6-1.4zM9.8 18.6h4.6l-.6 1.8H10.4z" fill-rule="evenodd"/></symbol>
   <symbol id="i-terminal" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M2 4h20v16H2V4zm2 2v12h16V6H4zm2.9 1.9L10.9 12l-4 4.1L5.5 14.7 8.2 12 5.5 9.3l1.4-1.4zM12 15h6v1.8h-6V15z"/></symbol>
   <symbol id="i-bug" viewBox="0 0 24 24"><path d="M8 2l1.5 2.1A5 5 0 0 1 12 3.5c.9 0 1.7.2 2.5.6L16 2l1.2.8-1.3 1.9A5 5 0 0 1 17 8H7a5 5 0 0 1 1.1-3.3L6.8 2.8 8 2zM4 10h3v2H4v-2zm13 0h3v2h-3v-2zM7 13h10v1a5 5 0 0 1-4 4.9V22h-2v-3.1A5 5 0 0 1 7 14v-1zm-3 1h3v2H4v-2zm13 0h3v2h-3v-2z"/></symbol>
   <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-4 12.75V17h8v-2.25A7 7 0 0 0 12 2zM9 18.5h6V20a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-1.5z"/></symbol>
@@ -86,7 +86,7 @@
   <div class="topbar-title">
     <!-- Logo a název = domů na úvodní stránku (i s otevřenými taby). -->
     <button id="btn-home" class="topbar-home" title="Úvodní stránka">
-      <svg class="ico brand-ico"><use href="#i-paluba"/></svg><strong>Paluba</strong></button>
+      <svg class="ico brand-ico"><use href="#i-paluba"/></svg><strong>Aladin</strong></button>
     <button id="btn-place" class="topbar-badge"></button>
     <!-- Prostor okna: osobní, firma (gateway/firmy.py), nebo cizí prostor, kam
          mě vlastník pustil (gateway/pristup.py) — hub.js prostorMenu. -->
@@ -127,7 +127,7 @@
     <!-- Jen na telefonu: hlavička šuplíku jako v appce Claude — název, křížek,
          nový tab a pod tím otevřené taby (lišta s nimi je schovaná). -->
     <div class="drawer-head">
-      <strong>Paluba</strong>
+      <strong>Aladin</strong>
       <button id="btn-drawer-x" class="iconbtn" title="Zavřít panel">
         <svg class="ico"><use href="#i-close"/></svg></button>
     </div>
@@ -235,7 +235,7 @@
         <div class="welcome-scene" id="welcome-scene"></div>
         <!-- „Hub" tu bývalo napevno. Teď se píše prostředí (renderWelcome):
              na počítači „Claude Code PC", v prostoru „Claude Code server". -->
-        <div class="welcome-big">Paluba <b id="welcome-place"></b></div>
+        <div class="welcome-big">Aladin <b id="welcome-place"></b></div>
         <div class="welcome-greet" id="welcome-greet"></div>
         <!-- Otevřené chaty (taby) — appka po otevření zůstává tady, na Domů. -->
         <div class="welcome-open" id="welcome-open" hidden></div>

@@ -327,7 +327,7 @@
       if (oldApp && st.mode !== 'ucet') body.appendChild(global.HubServer.oldAppNote());
       if (st.mode === 'zadne' && !fromApp && !oldApp) {
         body.appendChild(el('div', 'set-note',
-          'Otevři prostor v aplikaci Paluba na počítači — propojí ho s tvým předplatným ' +
+          'Otevři prostor v aplikaci Aladin na počítači — propojí ho s tvým předplatným ' +
           'sama. Nebo v rozhovoru s Claudem zvol přihlášení účtem Claude.'));
       }
       const row = el('div', 'set-row');

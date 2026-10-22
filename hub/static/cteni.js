@@ -261,21 +261,14 @@
      najednou. V terminálu je z toho jeden řádek — tady karta: kdo to je, co
      dostal za úkol, jestli ještě běží, co zrovna dělá a co odevzdal. */
 
-  // Barva podle typu agenta, ať se paralelní agenti dají od sebe poznat.
-  const AG_BARVA = {
-    'general-purpose': 'var(--accent)', Explore: '#4c97f0', Plan: '#a371f7',
-    'claude-code-guide': '#3fb950',
-  };
-  const AG_PALETA = ['#4c97f0', '#a371f7', '#3fb950', '#e0843c', '#2bb3a8', '#e05d8a'];
+  // Každý agent dostane vlastní barvu (další z palety v pořadí, jak přicházejí),
+  // ať se paralelní agenti dají od sebe poznat — i ti stejného typu.
+  const AG_PALETA = ['#4c97f0', '#e0843c', '#3fb950', '#a371f7', '#e05d8a', '#2bb3a8', '#d4a72c', '#f0636b'];
+  let agPoradi = 0;
   const AG_STAV = {bezi: 'Běží', hotovo: 'Hotovo', chyba: 'Selhal', stop: 'Zastaven'};
   const AG_KROKU = 3;          // kolik posledních kroků je na kartě vidět
 
-  function barvaAgenta(typ) {
-    if (AG_BARVA[typ]) return AG_BARVA[typ];
-    let h = 0;
-    for (const c of String(typ || '')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-    return AG_PALETA[h % AG_PALETA.length];
-  }
+  const dalsiBarva = () => AG_PALETA[agPoradi++ % AG_PALETA.length];
 
   // Jednoduchý režim × Pro pokročilé (hub.js → window.HUB_ADVANCED). Čte se
   // při každém kreslení — přepnout se dá bez reloadu.
@@ -342,6 +335,27 @@
       '<rect class="cl-jiskra b" x="0" y="3" width="1" height="1" fill="#f2cc60"/>' +
     '</g>';
 
+  /* Aladin a džin: hlavní Claudík je Aladin (bílý turban s rubínem, vestička),
+     pomocníci jsou džinové v barvě svého agenta (uzel vlasů, zlatá čelenka
+     a náramky, bradka a ocas místo nohou). CSS ukáže turban jen bez klobouku
+     podle úsilí; kdo je který, řeší předek (.cl-fig.hlavni, .tab-visi). */
+  const ALADIN =
+    '<g class="cl-aladin">' +
+      '<rect x="3" y="8" width="3" height="3" fill="#2bb3a3"/><rect x="10" y="8" width="3" height="3" fill="#2bb3a3"/>' +
+      '<rect x="3" y="3" width="10" height="2" fill="#f6eddc"/><rect x="4" y="2" width="8" height="1" fill="#f6eddc"/>' +
+      '<rect x="6" y="1" width="4" height="1" fill="#f6eddc"/><rect x="3" y="4" width="10" height="1" fill="#d9d2c0"/>' +
+      '<rect x="7" y="3" width="2" height="1" fill="#e5534b"/>' +
+    '</g>';
+  const DZIN =
+    '<g class="cl-dzin">' +
+      '<rect x="7" y="2" width="2" height="2" fill="currentColor"/><rect x="9" y="1" width="2" height="1" fill="currentColor"/>' +
+      '<rect x="3" y="4" width="10" height="1" fill="#f2cc60"/><rect x="7" y="3" width="2" height="1" fill="#f2cc60"/>' +
+      '<rect x="1" y="7" width="2" height="1" fill="#f2cc60"/><rect x="13" y="7" width="2" height="1" fill="#f2cc60"/>' +
+      '<rect x="7" y="10" width="2" height="1" fill="#1b1b1b"/>' +
+      '<g class="cl-ocas" fill="currentColor"><rect x="4" y="11" width="8" height="1"/><rect x="5" y="12" width="6" height="1"/>' +
+      '<rect x="6" y="13" width="3" height="1"/><rect x="9" y="13" width="2" height="1" opacity=".6"/></g>' +
+    '</g>';
+
   function claudik(typ) {
     const doplnek = {
       Explore: '<g class="cl-dopl"><rect x="13" y="3" width="3" height="1"/><rect x="12" y="4" width="1" height="3"/>' +
@@ -361,6 +375,8 @@
         ${doplnek}
       </g>
       ${OBLECENI}
+      ${ALADIN}
+      ${DZIN}
       <g class="cl-oci" fill="#1b1b1b">
         <rect class="cl-oko" x="5" y="6" width="1" height="2"/><rect class="cl-oko" x="10" y="6" width="1" height="2"/>
       </g>
@@ -534,7 +550,7 @@
         kroku: pr.kroky.length,
         agenti: [...agenti.values()].map((k) => ({
           jmeno: jmenoAgenta(k.typ), ukol: k.q('.ag-ukol').textContent,
-          stav: k.stav, barva: barvaAgenta(k.typ), box: k.box})),
+          stav: k.stav, barva: k.barva, box: k.box})),
         ulohy: ulohyData.filter((u) => u.name !== 'Agent').map((u) => ({
           text: u.title || u.name, druh: u.name === 'Monitor' ? 'hlídá'
             : u.name === 'ScheduleWakeup' ? 'ozve se' : 'příkaz'})),
@@ -906,8 +922,9 @@
                  start: Date.parse(b.ts || '') || 0, ms: 0, tools: 0, tokens: 0,
                  kroky: [], prompt: b.prompt || '', vysledek: '', souhrn: '',
                  konecOd: 0, otevreno: ''};
+      k.barva = dalsiBarva();
       const box = el('div', 'ag bezi');
-      box.style.setProperty('--ag', barvaAgenta(b.type));
+      box.style.setProperty('--ag', k.barva);
       box.innerHTML = `
         <div class="ag-top">
           <span class="ag-avatar"></span>
@@ -1042,7 +1059,7 @@
       kresliAgenta(k);
       hlidej();
       // Na hřiště (claudici.js) — pomocník vyskočí z hlavního Claudíka.
-      if (udalost) udalost({co: 'agent', id: b.id, typ: b.type, barva: barvaAgenta(b.type), ukol: b.title || ''});
+      if (udalost) udalost({co: 'agent', id: b.id, typ: b.type, barva: k.barva, ukol: b.title || ''});
     }
 
     function doplnAgenta(k, info) {
@@ -1439,8 +1456,80 @@
        vybírá Claude Code sám), jak dlouho a kolik napsal. Stav čte bublina
        z terminálu (composer.js → io.prace); čas běží i mezi překresleními,
        ať se neposouvá po skocích. */
-    let odKdy = 0, tikaniPrace = null;
+    let odKdy = 0, tikaniPrace = null, tikaniJisker = null;
     const DLOUHA_PRACE = 3 * 60 * 1000;
+    /* Kouzelná lampa: při práci se potřásá a z hubičky vylétají písmenka
+       z toho, co Claude zrovna píše (poslední jeho odstavec v konverzaci),
+       nebo hvězdičky, dokud nic nenapsal. Bez pohybu, když má člověk
+       vypnuté animace. */
+    const LAMPA_SVG = '<svg viewBox="0 0 140 90" width="112" height="72" class="al-scena">' +
+      '<defs><linearGradient id="al-zl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/>' +
+      '<stop offset="1" stop-color="#e8a02c"/></linearGradient>' +
+      '<linearGradient id="al-dzin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6cc4ff"/>' +
+      '<stop offset="1" stop-color="#3d8fe8"/></linearGradient></defs>' +
+      '<ellipse cx="62" cy="85" rx="52" ry="4" fill="#000" opacity=".18"/>' +
+      /* kouř z hubičky do džina */
+      '<path class="al-kour" d="M97 64 C104 62 94 58 104 56 C110 54 104 50 110 52" fill="none" stroke="#b6efe6" ' +
+      'stroke-width="7" stroke-linecap="round" opacity=".8"/>' +
+      /* džin: ocas, tělo, hlava, uzel vlasů, ruce */
+      '<g class="al-dzin">' +
+      '<path d="M96 56 C100 44 118 44 120 56 C121 64 108 62 106 68 C104 72 98 66 96 56Z" fill="url(#al-dzin)"/>' +
+      '<ellipse cx="108" cy="44" rx="13" ry="13" fill="url(#al-dzin)"/>' +
+      '<path d="M95 41 H121 V45 H95Z" fill="#ffd36e"/>' +
+      '<circle cx="108" cy="25" r="10" fill="#6cc4ff"/>' +
+      '<path d="M108 14 C106 8 110 4 114 6 C112 8 114 12 112 15Z" fill="#2a2a6a"/>' +
+      '<circle cx="114" cy="6" r="2.4" fill="#ffd36e"/>' +
+      '<path d="M98 24 C98 18 118 18 118 24Z" fill="#fff"/>' +
+      '<circle cx="104" cy="26" r="1.6" fill="#162a4a" class="al-mrk"/><circle cx="112" cy="26" r="1.6" fill="#162a4a" class="al-mrk"/>' +
+      '<path d="M103 30 Q108 35 113 30" fill="none" stroke="#162a4a" stroke-width="1.6" stroke-linecap="round"/>' +
+      '<path d="M106 33 L108 38 L110 33Z" fill="#2a2a6a"/>' +
+      '<path class="al-ruka" d="M96 44 C86 42 82 32 86 24" fill="none" stroke="#6cc4ff" stroke-width="6" stroke-linecap="round"/>' +
+      '<circle cx="86" cy="23" r="3.6" fill="#6cc4ff"/>' +
+      '<path d="M120 44 C128 42 130 34 126 28" fill="none" stroke="#6cc4ff" stroke-width="6" stroke-linecap="round"/>' +
+      '<circle cx="126" cy="27" r="3.6" fill="#6cc4ff"/>' +
+      '</g>' +
+      /* Aladin: kalhoty, vesta, hlava, turban */
+      '<ellipse cx="30" cy="74" rx="19" ry="9" fill="#f6eddc"/>' +
+      '<path d="M18 74 C16 54 44 54 42 74Z" fill="#2bb3a3"/>' +
+      '<circle cx="30" cy="40" r="10" fill="#f0b98a"/>' +
+      '<path d="M19 38 C19 24 41 24 41 38 C36 33 24 33 19 38Z" fill="#fff"/>' +
+      '<circle cx="30" cy="31" r="2.2" fill="#e0443c"/>' +
+      '<circle cx="26.5" cy="41" r="1.4" fill="#2a1a10" class="al-mrk"/><circle cx="33.5" cy="41" r="1.4" fill="#2a1a10" class="al-mrk"/>' +
+      '<path d="M26.5 45.5 Q30 48.5 33.5 45.5" fill="none" stroke="#2a1a10" stroke-width="1.4" stroke-linecap="round"/>' +
+      /* lampa se potřásá, Aladin ji třese rukou */
+      '<g class="al-lampa"><g transform="translate(4 0)">' +
+      '<path d="M58 81 H78 L76 86 H60Z" fill="url(#al-zl)"/>' +
+      '<path d="M48 74 C48 66 58 64 66 64 C76 64 84 68 84 74 C84 80 76 82 66 82 C56 82 48 80 48 74Z" fill="url(#al-zl)"/>' +
+      '<ellipse cx="66" cy="64" rx="7" ry="2" fill="url(#al-zl)"/><circle cx="66" cy="60.5" r="2.6" fill="url(#al-zl)"/>' +
+      '<path d="M82 70 C88 70 90 65 94 61 C93 70 90 76 81 78Z" fill="url(#al-zl)"/>' +
+      '<path d="M49 70 C41 69 40 78 47 79" fill="none" stroke="url(#al-zl)" stroke-width="3.2" stroke-linecap="round"/>' +
+      '<path d="M53 73 C55 69 60 68 65 68" fill="none" stroke="#fff6d6" stroke-width="2" stroke-linecap="round" opacity=".7"/>' +
+      '</g></g>' +
+      '<path class="al-ruka2" d="M36 56 C48 54 58 58 66 66" fill="none" stroke="#2bb3a3" stroke-width="6" stroke-linecap="round"/>' +
+      '<circle class="al-ruka2" cx="67" cy="67" r="3.6" fill="#f0b98a"/>' +
+      '</svg>';
+    const PRACE_SLOVA = ['Plním přání', 'Čaruju', 'Chvilku, kouzlím', 'Pilně pracuju', 'Už to bude'];
+    const JISKRY = ['✦', '✧', '·', '✦'];
+    const klidnyPohyb = global.matchMedia && global.matchMedia('(prefers-reduced-motion: reduce)');
+    function jisker() {
+      const lampa = prace && prace.querySelector('.cteni-spin');
+      if (!lampa || (klidnyPohyb && klidnyPohyb.matches) || document.hidden) return;
+      if (lampa.querySelectorAll('.cteni-let').length >= 8) return;
+      let znak = JISKRY[Math.floor(Math.random() * JISKRY.length)];
+      const kusy = mount.querySelectorAll('.cteni-text');
+      const posledni = kusy.length ? kusy[kusy.length - 1].textContent : '';
+      if (posledni && Math.random() < 0.75) {
+        const pismena = posledni.match(/[\p{L}\p{N}]/gu);
+        if (pismena) znak = pismena[Math.floor(Math.random() * pismena.length)];
+      }
+      const let_ = el('span', 'cteni-let', znak);
+      let_.style.left = (Math.random() < 0.5 ? 69 : 101) + 'px';
+      let_.style.setProperty('--dx', (Math.random() * 40 - 20).toFixed(0) + 'px');
+      let_.style.setProperty('--dy', (-(22 + Math.random() * 22)).toFixed(0) + 'px');
+      let_.style.setProperty('--rot', (Math.random() * 60 - 30).toFixed(0) + 'deg');
+      let_.addEventListener('animationend', () => let_.remove());
+      lampa.appendChild(let_);
+    }
     function stav(st) {
       mount.classList.toggle('pracuje', !!(st && st.on));
       if (pr.pracuje !== !!(st && st.on)) { pr.pracuje = !!(st && st.on); zmenaPrehledu(); }
@@ -1448,18 +1537,24 @@
         if (prace) { prace.remove(); prace = null; }
         clearInterval(tikaniPrace);
         tikaniPrace = null;
+        clearInterval(tikaniJisker);
+        tikaniJisker = null;
         odKdy = 0;
         return;
       }
       if (!prace) {
         prace = el('div', 'cteni-prace');
-        prace.append(el('span', 'cteni-spin', '✻'), el('span', 'cteni-slovo'),
+        const lampa = el('span', 'cteni-spin');
+        lampa.setAttribute('aria-hidden', 'true');
+        lampa.innerHTML = LAMPA_SVG;
+        prace.append(lampa, el('span', 'cteni-slovo'),
                      el('span', 'cteni-cas'), el('span', 'cteni-tok'));
+        if (!tikaniJisker) tikaniJisker = setInterval(jisker, 650);
       }
       naKonec();                            // vždycky na konci konverzace
       // Sloveso od Claude Code je anglické („Bloviating") — jen pro pokročilé.
       prace.querySelector('.cteni-slovo').textContent =
-        ((pokrocile() && st.sloveso) || 'Pracuje') + '…';
+        ((pokrocile() && st.sloveso) || PRACE_SLOVA[Math.floor((Date.now() - odKdy) / 7000) % PRACE_SLOVA.length]) + '…';
       if (st.sekund !== null && st.sekund !== undefined) odKdy = Date.now() - st.sekund * 1000;
       else if (!odKdy) odKdy = Date.now();
       prace.querySelector('.cteni-tok').textContent =

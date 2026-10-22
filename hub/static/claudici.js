@@ -35,6 +35,24 @@
     box.setAttribute('aria-hidden', 'true');
     root.appendChild(box);
 
+    /* Kouzelná lampa vedle domovského místa hlavního Claudíka: při práci se
+       potřásá a když vyskočí nový pomocník (džin), z ní vyvane kouř. */
+    const lampa = el('cl-lampa');
+    lampa.style.left = DOMOV + '%';
+    lampa.innerHTML = '<svg viewBox="38 56 60 32" aria-hidden="true">' +
+      '<path d="M58 81 H78 L76 86 H60Z" fill="#e8a02c"/>' +
+      '<path d="M48 74 C48 66 58 64 66 64 C76 64 84 68 84 74 C84 80 76 82 66 82 C56 82 48 80 48 74Z" fill="#f4bd48"/>' +
+      '<ellipse cx="66" cy="64" rx="7" ry="2" fill="#f4bd48"/><circle cx="66" cy="60.5" r="2.6" fill="#f4bd48"/>' +
+      '<path d="M82 70 C88 70 90 65 94 61 C93 70 90 76 81 78Z" fill="#f4bd48"/>' +
+      '<path d="M49 70 C41 69 40 78 47 79" fill="none" stroke="#f4bd48" stroke-width="3.2" stroke-linecap="round"/>' +
+      '<path d="M53 73 C55 69 60 68 65 68" fill="none" stroke="#fff6d6" stroke-width="2" stroke-linecap="round" opacity=".7"/></svg>';
+    box.appendChild(lampa);
+    function kour() {
+      const k = el('cl-kour', '✦');
+      lampa.appendChild(k);
+      setTimeout(() => k.remove(), 1500);
+    }
+
     let zivy = true;
     let praceOn = false, cekaOn = false;
     let letu = 0;                        // papíry a obálky ve vzduchu
@@ -293,6 +311,7 @@
       prace(on) {
         if (!zivy || praceOn === !!on) return;
         praceOn = !!on;
+        lampa.classList.toggle('trese', praceOn);
         if (praceOn) {
           ukaz();
           hlavni.el.classList.remove('hotovo');
@@ -347,6 +366,7 @@
         if (!zivy || pomocnici.has(id)) return;
         ukaz();
         const f = figurka(typ, barva, 'pomocnik' + (tise ? '' : ' vznik'));
+        if (!tise) kour();
         f.x = tise ? nahoda(OD, DO) : hlavni.x;
         f.el.style.left = f.x + '%';
         pomocnici.set(id, f);

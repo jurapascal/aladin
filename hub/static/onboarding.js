@@ -125,7 +125,7 @@
 
   /* ── kroky ──────────────────────────────────────────────────────────────── */
   function vitej(box) {
-    head('Paluba', 'Chvilka nastavení a pak už jen práce.');
+    head('Aladin', 'Chvilka nastavení a pak už jen práce.');
 
     // Kde se bude pracovat — rozhoduje o celém zbytku, tak je to první otázka.
     if (!chosen.onServer) {

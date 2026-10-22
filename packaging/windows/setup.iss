@@ -1,4 +1,4 @@
-; Claude Code Hub — instalačka pro Windows (Inno Setup 6).
+; Aladin — instalačka pro Windows (Inno Setup 6).
 ;
 ;   iscc /DAppVersion=2.30.0 /DStage=C:\cesta\k\balíku /DOutDir=dist packaging\windows\setup.iss
 ;
@@ -19,9 +19,9 @@
 
 [Setup]
 AppId={{6E0F3C9B-5B1D-4E0B-9C7A-C1A0DE0C0DE5}
-AppName=Claude Code Hub
+AppName=Aladin
 AppVersion={#AppVersion}
-AppPublisher=Claude Code Hub
+AppPublisher=Aladin
 AppPublisherURL=https://github.com/jurapascal/claude-code-hub
 DefaultDirName={localappdata}\ClaudeCodeHub
 DisableDirPage=yes
@@ -32,7 +32,7 @@ OutputDir={#OutDir}
 OutputBaseFilename=Claude-Code-Hub-Setup
 SetupIconFile=..\..\assets\claude-code.ico
 UninstallDisplayIcon={app}\claude-code.ico
-UninstallDisplayName=Claude Code Hub
+UninstallDisplayName=Aladin
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -51,14 +51,14 @@ Source: "..\..\assets\claude-code.ico"; DestDir: "{app}"; Flags: ignoreversion
 [Icons]
 ; Instalace v okně (install.ps1 -App) tenhle zástupce přepíše na nainstalovanou
 ; appku; do té doby vede na spouštěč, který instalaci dokončí.
-Name: "{userprograms}\Claude Code Hub"; Filename: "{app}\python\pythonw.exe"; \
+Name: "{userprograms}\Aladin"; Filename: "{app}\python\pythonw.exe"; \
   Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\claude-code.ico"
-Name: "{userdesktop}\Claude Code Hub"; Filename: "{app}\python\pythonw.exe"; \
+Name: "{userdesktop}\Aladin"; Filename: "{app}\python\pythonw.exe"; \
   Parameters: """{app}\launcher.py"""; WorkingDir: "{app}"; IconFilename: "{app}\claude-code.ico"
 
 [Run]
 Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; \
-  WorkingDir: "{app}"; Description: "Spustit Claude Code Hub"; \
+  WorkingDir: "{app}"; Description: "Spustit Aladin"; \
   Flags: nowait postinstall
 
 [UninstallDelete]

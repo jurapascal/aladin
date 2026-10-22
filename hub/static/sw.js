@@ -10,7 +10,7 @@
 
 const OFFLINE = `<!doctype html><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Paluba</title>
+<title>Aladin</title>
 <style>body{font:16px/1.6 system-ui,sans-serif;margin:0;min-height:100vh;
 display:grid;place-items:center;background:#0d1117;color:#e8e3d3;padding:24px}
 div{max-width:22rem;text-align:center}b{color:#e0843c}
@@ -18,7 +18,7 @@ button{margin-top:18px;padding:10px 18px;border-radius:9px;border:1px solid #3a3
 background:#1b2129;color:#e8e3d3;font:inherit}</style>
 <div><p><b>Hub není k zastižení.</b></p>
 <p>Zkontroluj připojení k internetu. Když se připojuješ k počítači, musí na
-něm běžet Paluba a telefon musí být v Tailscale.</p>
+něm běžet Aladin a telefon musí být v Tailscale.</p>
 <button onclick="location.reload()">Zkusit znovu</button></div>`;
 
 self.addEventListener('install', () => self.skipWaiting());

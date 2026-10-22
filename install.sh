@@ -1,5 +1,5 @@
 #!/bin/bash
-# Claude Code Hub — instalačka pro Linux a macOS.
+# Aladin — instalačka pro Linux a macOS.
 #
 # Repo je jen instalačka: obsah (projekty, paměť) má každý svůj na disku.
 # Skript zjistí, kde ho má, uloží to do ~/.claude/hub-config.json a podle
@@ -64,9 +64,9 @@ warn() { echo -e "  ${Y}⚠${R} $1"; }
 
 echo ""
 if $UPDATE; then
-    echo -e "  ${A}✦${R} Claude Code Hub — aktualizace"
+    echo -e "  ${A}✦${R} Aladin — aktualizace"
 else
-    echo -e "  ${A}✦${R} Claude Code Hub — instalace"
+    echo -e "  ${A}✦${R} Aladin — instalace"
 fi
 echo -e "  ${D}────────────────────────────────────${R}"
 
@@ -609,8 +609,8 @@ cat > "$APP_DIR/claude-code-hub.desktop" <<EOF
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=Claude Code Hub
-Comment=Claude Code Hub — projekty a paměť v jednom okně s taby
+Name=Aladin
+Comment=Aladin — projekty a paměť v jednom okně s taby
 Icon=$ICON_DIR/claude-code.png
 Terminal=false
 Categories=Development;Utility;
@@ -620,7 +620,7 @@ StartupWMClass=claude-code-hub
 EOF
 chmod +x "$APP_DIR/claude-code-hub.desktop"
 update-desktop-database "$APP_DIR" >/dev/null 2>&1
-ok "položka v nabídce aplikací: Claude Code Hub"
+ok "položka v nabídce aplikací: Aladin"
 
 # ── 7. Hooky a režim oprávnění v settings.json ───────────────────────────────
 # settings.json je uživatelův (klíče, model, vlastní hooky), takže se do něj
@@ -866,7 +866,7 @@ if $UPDATE; then
 fi
 
 echo ""
-echo -e "  ${A}✦${R} Hotovo. Spusť: ${D}python3 $CLAUDE_DIR/claude-hub.py${R}  (nebo ikonu Claude Code Hub v nabídce)"
+echo -e "  ${A}✦${R} Hotovo. Spusť: ${D}python3 $CLAUDE_DIR/claude-hub.py${R}  (nebo ikonu Aladin v nabídce)"
 echo -e "  ${D}Kontrola prostředí:  python3 $CLAUDE_DIR/claude-hub.py --doctor${R}"
 echo -e "  ${D}Když okno zůstane prázdné, důvod je v $CLAUDE_DIR/hub.log${R}"
 echo ""

@@ -139,7 +139,7 @@ const klikniMenu = (app, label) => app.evaluate(({ Menu }, label) => {
     globalThis.__okno1 = okno1; globalThis.__chybyStranky = chybyStranky;
     await nacteno(okno1);
     const jmeno = await app.evaluate(({ app: a }) => a.getName());
-    ok('název aplikace je Claude Code Hub', jmeno === 'Claude Code Hub', jmeno);
+    ok('název aplikace je Aladin', jmeno === 'Aladin', jmeno);
     ok('okno ukazuje hub (adresa 127.0.0.1)', /^http:\/\/127\.0\.0\.1:\d+\//.test(okno1.url()), okno1.url().replace(/\?.*/, ''));
     hubPid = await app.evaluate(() => global.hubDesktop.hubPid());
     ok('hub běží jako samostatný proces s --vlastni-okno', hubPid > 0 && zije(hubPid)

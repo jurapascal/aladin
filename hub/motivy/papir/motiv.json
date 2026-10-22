@@ -2,7 +2,7 @@
   "name": "Papír",
   "version": "1.0.0",
   "description": "Teplý sépiový papír s cihlovým akcentem a konverzace patkovým písmem, jako v knize. Ve tmě hnědý večerní papír.",
-  "author": "Paluba",
+  "author": "Aladin",
   "nahled": ["#f4ecd8", "#fbf6e9", "#b5492b", "#2a2019"],
   "barvy": {
     "light": {

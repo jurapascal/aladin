@@ -78,12 +78,16 @@ def spustitelny():
     platí: na Windows nejde přepsat ani přejmenovat složku běžící appky, takže
     se nová verze rozbalí vedle a jen se přepne."""
     slozka = os.path.join(DIR, str(_stav().get("slozka") or "-"))
+    # Od 2.92 se appka jmenuje Aladin; starší verze v appka/ mají ještě
+    # původní název Claude Code Hub, tak se zkusí oba.
     if core.IS_MAC:
-        cesta = os.path.join(slozka, "Claude Code Hub.app", "Contents", "MacOS", "Claude Code Hub")
+        kandidati = [os.path.join(slozka, f"{n}.app", "Contents", "MacOS", n)
+                     for n in ("Aladin", "Claude Code Hub")]
     elif core.IS_WINDOWS:
-        cesta = os.path.join(slozka, "Claude Code Hub.exe")
+        kandidati = [os.path.join(slozka, f"{n}.exe") for n in ("Aladin", "Claude Code Hub")]
     else:
-        cesta = os.path.join(slozka, "claude-code-hub")
+        kandidati = [os.path.join(slozka, "claude-code-hub")]
+    cesta = next((c for c in kandidati if os.path.isfile(c)), "")
     return cesta if os.path.isfile(cesta) else ""
 
 

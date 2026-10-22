@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Paluba — logo se jménem. Značka + text, na tmavém i světlém
+<!-- Aladin — logo se jménem. Značka + text, na tmavém i světlém
      podkladu (barvy jsou z palety aplikace, pozadí je průhledné). -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 200" width="560" height="200">
   <style>
@@ -10,31 +10,55 @@
   </style>
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#1b2129"/>
-      <stop offset="1" stop-color="#0d1117"/>
+      <stop offset="0" stop-color="#2a2150"/>
+      <stop offset="1" stop-color="#120f2b"/>
     </linearGradient>
-    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#f0a259"/>
-      <stop offset="1" stop-color="#d9702a"/>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffe08a"/>
+      <stop offset="1" stop-color="#e8a02c"/>
+    </linearGradient>
+    <linearGradient id="smoke" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#8fe3d5" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#8fe3d5" stop-opacity="0"/>
     </linearGradient>
   </defs>
 
   <!-- značka (stejná jako hub-mark.svg) -->
   <g transform="translate(20,20) scale(0.625)">
-    <rect width="256" height="256" rx="56" fill="url(#tile)"/>
-    <rect x="1.5" y="1.5" width="253" height="253" rx="54.5"
-          fill="none" stroke="#e0843c" stroke-opacity=".28" stroke-width="3"/>
-    <path d="M96 52 L160 108 L96 164" fill="none" stroke="url(#amber)"
-          stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M96 52 V164" stroke="#e8893f" stroke-width="8"
-          stroke-linecap="round" opacity=".45"/>
-    <path d="M48 182 H208 L192 206 Q188 212 180 212 H76 Q68 212 64 206 Z"
-          fill="url(#amber)"/>
+<rect width="256" height="256" rx="56" fill="url(#tile)"/>
+  <rect x="1.5" y="1.5" width="253" height="253" rx="54.5"
+        fill="none" stroke="#ffd36e" stroke-opacity=".28" stroke-width="3"/>
+
+  <!-- dým z hubičky -->
+  <path d="M66 148 C40 120 84 100 62 70 C50 54 66 40 78 34"
+        fill="none" stroke="url(#smoke)" stroke-width="12" stroke-linecap="round"/>
+
+  <!-- hvězdičky -->
+  <path d="M184 52 l5 14 14 5 -14 5 -5 14 -5 -14 -14 -5 14 -5z" fill="#ffe9a8"/>
+  <path d="M96 40 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3z" fill="#ffe9a8" opacity=".8"/>
+
+  <!-- víčko a knoflík -->
+  <ellipse cx="146" cy="104" rx="30" ry="9" fill="url(#gold)"/>
+  <circle cx="146" cy="90" r="9" fill="url(#gold)"/>
+
+  <!-- tělo lampy -->
+  <path d="M74 150 C74 118 112 108 146 108 C180 108 206 124 206 150
+           C206 176 180 196 146 196 C110 196 74 180 74 150 Z" fill="url(#gold)"/>
+  <!-- hubička -->
+  <path d="M78 140 C62 138 54 128 44 118 C52 142 60 158 84 166 Z" fill="url(#gold)"/>
+  <!-- ucho -->
+  <path d="M200 132 C228 126 236 156 214 168" fill="none" stroke="url(#gold)"
+        stroke-width="12" stroke-linecap="round"/>
+  <!-- podstavec -->
+  <path d="M112 194 H180 L172 214 H120 Z" fill="url(#gold)"/>
+  <!-- lesk -->
+  <path d="M100 142 C106 128 124 122 142 122" fill="none" stroke="#fff6d6"
+        stroke-opacity=".7" stroke-width="7" stroke-linecap="round"/>
   </g>
 
   <!-- jméno -->
   <text x="214" y="128" font-family="Inter, 'DejaVu Sans', system-ui, sans-serif"
-        font-size="84" font-weight="700" class="name" letter-spacing="-1.5">Paluba</text>
-  <!-- kurzor pod jménem, ať text navazuje na trup lodi -->
-  <rect x="218" y="146" width="64" height="12" rx="6" fill="url(#amber)"/>
+        font-size="84" font-weight="700" class="name" letter-spacing="-1.5">Aladin</text>
+  <!-- zlatá linka pod jménem -->
+  <rect x="218" y="146" width="64" height="12" rx="6" fill="url(#gold)"/>
 </svg>

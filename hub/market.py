@@ -1,6 +1,6 @@
 """
-Paluba Market — vlastní katalog rozšíření Paluby (Nastavení → Napojení
-a pluginy → Paluba Market). Vedle Claude Code Marketplace (hub/pluginy.py),
+Aladin Market — vlastní katalog rozšíření Aladina (Nastavení → Napojení
+a pluginy → Aladin Market). Vedle Claude Code Marketplace (hub/pluginy.py),
 který obsluhuje `claude plugin …`, tohle je obchod se vším, co patří appce:
 
 - **Pluginy appky** a **motivy** z GitHub repa katalogu (`market_repo`
@@ -16,7 +16,7 @@ který obsluhuje `claude plugin …`, tohle je obchod se vším, co patří appc
   (žádné odkazy, zařízení ani cesty ven). Plugin je po instalaci vypnutý
   (stejně jako appka_pridej), motiv se sám nezapíná.
 
-- **Skilly Paluby** — slash příkazy, které appka přibaluje ve `skills/`
+- **Skilly Aladina** — slash příkazy, které appka přibaluje ve `skills/`
   repa. Instalačka je dává jen při první instalaci; tady si je jde
   doinstalovat (nebo odebrat) jednotlivě. Šablona se vyrenderuje stejně
   jako v install.sh. Skilly patří uživateli — existující se nepřepisuje.
@@ -48,7 +48,7 @@ TARBALL_MAX = 50 * 1024 * 1024
 # Co se z tarballu smí rozbalit pro jednu položku.
 POLOZKA_MAX = 20 * 1024 * 1024
 POLOZKA_SOUBORU = 500
-NEDOSTUPNY = "Katalog Paluba Marketu zatím není k dispozici."
+NEDOSTUPNY = "Katalog Aladin Marketu zatím není k dispozici."
 
 DRUHY = {"pluginy": "plugin.json", "motivy": "motiv.json"}
 
@@ -136,15 +136,15 @@ def katalog(obnovit=False):
             if exc.code == 404:
                 return {"ok": False, "repo": r, "pluginy": [], "motivy": [], "error": NEDOSTUPNY}
             return {"ok": False, "repo": r, "pluginy": [], "motivy": [],
-                    "error": f"Katalog Paluba Marketu teď neodpovídá (HTTP {exc.code})."}
+                    "error": f"Katalog Aladin Marketu teď neodpovídá (HTTP {exc.code})."}
         except _Chyba as exc:
             return {"ok": False, "repo": r, "pluginy": [], "motivy": [], "error": str(exc)}
         except ValueError:
             return {"ok": False, "repo": r, "pluginy": [], "motivy": [],
-                    "error": "Katalog Paluba Marketu je rozbitý (katalog.json není platný JSON)."}
+                    "error": "Katalog Aladin Marketu je rozbitý (katalog.json není platný JSON)."}
         except Exception as exc:
             return {"ok": False, "repo": r, "pluginy": [], "motivy": [],
-                    "error": f"Katalog Paluba Marketu teď neodpovídá: {exc}"}
+                    "error": f"Katalog Aladin Marketu teď neodpovídá: {exc}"}
         with _KATALOG_LOCK:
             _KATALOG.update(at=time.time(), repo=r, data=hit)
     return {"ok": True, "repo": r,
@@ -243,7 +243,7 @@ def instaluj(druh, pid):
             except (OSError, ValueError):
                 manifest = None
             if not isinstance(manifest, dict):
-                raise _Chyba(f"V položce chybí {DRUHY[druh]} — tohle není {co.lower()} Paluby.")
+                raise _Chyba(f"V položce chybí {DRUHY[druh]} — tohle není {co.lower()} Aladina.")
             os.chmod(tmp, 0o755)              # mkdtemp zakládá 0700
             os.rename(tmp, cil)
         except _Chyba as exc:
@@ -264,7 +264,7 @@ def instaluj(druh, pid):
     return {"ok": True, "id": pid, "message": msg}
 
 
-# ── Skilly Paluby ────────────────────────────────────────────────────────────
+# ── Skilly Aladina ────────────────────────────────────────────────────────────
 VAULT_ONLY = {"save", "learn", "project", "skill"}   # bez vaultu nedávají smysl
 VYNECHAT = {"jev"}                                   # AI model — patří do napojení
 SKILL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
@@ -283,7 +283,7 @@ def _zdroj_skillu():
 
 
 def _sablony():
-    """{jméno: složka šablony} skillů Paluby."""
+    """{jméno: složka šablony} skillů Aladina."""
     zdroj = _zdroj_skillu()
     out = {}
     try:
@@ -308,7 +308,7 @@ def skilly_paluby():
                     "vault": vault, "available": not vault or core.HAS_BRAIN})
     res = {"skills": out}
     if not out:
-        res["error"] = "Skilly Paluby tu nejsou — chybí zdroj appky (~/.claude/hub-src)."
+        res["error"] = "Skilly Aladina tu nejsou — chybí zdroj appky (~/.claude/hub-src)."
     return res
 
 
@@ -337,7 +337,7 @@ def skill_instaluj(name):
     name = str(name or "")
     sablona = _sablony().get(name)
     if not sablona:
-        return {"ok": False, "message": "Takový skill Paluba nemá."}
+        return {"ok": False, "message": "Takový skill Aladin nemá."}
     if name in VAULT_ONLY and not core.HAS_BRAIN:
         return {"ok": False, "message": f"/{name} potřebuje Obsidian vault s pamětí — nejdřív ho nastav."}
     cil = os.path.join(core.SKILLS_DIR, name)
@@ -372,19 +372,19 @@ def skill_instaluj(name):
         shutil.rmtree(tmp, ignore_errors=True)
         return {"ok": False, "message": f"Skill se nepovedlo zapsat: {exc}"}
     _zapomen_skilly()
-    core.log(f"skilly Paluby: /{name} nainstalován")
+    core.log(f"skilly Aladina: /{name} nainstalován")
     return {"ok": True, "message": f"/{name} je nainstalovaný — funguje v nově otevřených chatech."}
 
 
 def skill_odeber(name):
     name = str(name or "")
     if name not in _sablony():
-        return {"ok": False, "message": "Odebrat tu jde jen skill Paluby."}
+        return {"ok": False, "message": "Odebrat tu jde jen skill Aladina."}
     cil = os.path.join(core.SKILLS_DIR, name)
     root = os.path.realpath(core.SKILLS_DIR)
     if os.path.islink(cil) or not os.path.isdir(cil) or os.path.dirname(os.path.realpath(cil)) != root:
         return {"ok": False, "message": f"/{name} tu není nainstalovaný."}
     shutil.rmtree(cil)
     _zapomen_skilly()
-    core.log(f"skilly Paluby: /{name} odebrán")
+    core.log(f"skilly Aladina: /{name} odebrán")
     return {"ok": True, "message": f"/{name} je pryč."}

@@ -1,5 +1,5 @@
 """
-Motivy — jak Paluba vypadá (Nastavení → Napojení a pluginy → Paluba Market → Motivy).
+Motivy — jak Aladin vypadá (Nastavení → Napojení a pluginy → Aladin Market → Motivy).
 
 Motiv je složka s `motiv.json` a volitelně `motiv.css`:
 
@@ -16,7 +16,7 @@ Motiv je složka s `motiv.json` a volitelně `motiv.css`:
   proto se motivy berou jen z vlastního katalogu (hub/market.py) nebo z gitu.
 
 Přibalené motivy leží v hub/motivy/<id>/, nainstalované v ~/.claude/hub-motivy/<id>/.
-Zapnutý je jeden (`motiv` v hub-config); prázdný = výchozí vzhled Paluby.
+Zapnutý je jeden (`motiv` v hub-config); prázdný = výchozí vzhled Aladina.
 """
 import json
 import os

@@ -663,7 +663,7 @@
     return wrap;
   }
 
-  /* ── Paluba Market: motivy, katalog Paluby, přibalené skilly ───────────
+  /* ── Aladin Market: motivy, katalog Aladina, přibalené skilly ───────────
      Tyhle části volá Nastavení (settings.js) a podává jim `opts` z okna:
      {setMotiv, open, vychozi, poInstalaci} — io pluginů appky je nemá. */
 
@@ -784,8 +784,8 @@
       mrizka.textContent = '';
       dole.textContent = '';
       const aktivni = (data && data.aktivni) || '';
-      mrizka.appendChild(karta({id: '', name: 'Výchozí (Paluba)', author: 'Paluba',
-                                description: 'Původní vzhled Paluby — jantarová na počítači, modrá na serveru.',
+      mrizka.appendChild(karta({id: '', name: 'Výchozí (Aladin)', author: 'Aladin',
+                                description: 'Původní vzhled Aladina — jantarová na počítači, modrá na serveru.',
                                 nahled: opts.vychozi || []}, !aktivni));
       for (const m of (data && data.motivy) || []) mrizka.appendChild(karta(m, !!aktivni && m.id === aktivni));
 
@@ -817,14 +817,14 @@
     return wrap;
   }
 
-  /* Objevit v Paluba Marketu: katalog pluginů a motivů Paluby (hub/market.py). */
+  /* Objevit v Aladin Marketu: katalog pluginů a motivů Aladina (hub/market.py). */
   function market(druh, opts) {
     opts = opts || {};
     const jeMotiv = druh === 'motivy';
     const wrap = el('div');
     wrap.appendChild(el('div', 'set-note', jeMotiv
-      ? 'Motivy z katalogu Paluby — barvy, písmo a rozložení okna. Po instalaci ho jedním klikem zapneš.'
-      : 'Pluginy z katalogu Paluby. Po instalaci je plugin vypnutý — zapneš ho v záložce Moje, až budeš vědět, co dělá.'));
+      ? 'Motivy z katalogu Aladina — barvy, písmo a rozložení okna. Po instalaci ho jedním klikem zapneš.'
+      : 'Pluginy z katalogu Aladina. Po instalaci je plugin vypnutý — zapneš ho v záložce Moje, až budeš vědět, co dělá.'));
     const stav = el('div', 'set-note', 'Načítám katalog…');
     const obsah = el('div', jeMotiv ? 'mtv-mrizka' : 'plg-seznam');
     const pata = el('div', 'set-row mkt-pata');
@@ -912,12 +912,12 @@
     return wrap;
   }
 
-  /* Skilly, které Paluba přibaluje (hub/skills): po instalaci jsou v Claude
+  /* Skilly, které Aladin přibaluje (hub/skills): po instalaci jsou v Claude
      Code jako /příkaz. Některé potřebují Obsidian vault. */
   function palubaSkilly() {
     const wrap = el('div');
     wrap.appendChild(el('div', 'set-note',
-      'Skilly, které Paluba přibaluje (/deploy, /audit, /screenshot…). Po instalaci je máš v Claude Code ' +
+      'Skilly, které Aladin přibaluje (/deploy, /audit, /screenshot…). Po instalaci je máš v Claude Code ' +
       'jako /příkaz — v chatu napíšeš třeba /deploy.'));
     const stav = el('div', 'set-note', 'Načítám skilly…');
     const seznam = el('div', 'plg-seznam');
@@ -939,7 +939,7 @@
     function kresli() {
       seznam.textContent = '';
       stav.hidden = !!skills.length;
-      if (!skills.length) stav.textContent = 'Paluba žádné skilly nepřibaluje.';
+      if (!skills.length) stav.textContent = 'Aladin žádné skilly nepřibaluje.';
       skills.forEach((x, i) => {
         const bezVaultu = x.vault && !x.available;
         const meta = [x.installed ? 'nainstalovaný' : '', bezVaultu ? 'potřebuje Obsidian vault' : x.vault ? 'pracuje s Obsidian vaultem' : '']

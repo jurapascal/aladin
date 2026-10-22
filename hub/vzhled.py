@@ -1,5 +1,5 @@
 """
-Název a ikona appky — pro všechny stejné: Paluba a loďka z promptu. Platí
+Název a ikona appky — pro všechny stejné: Aladin a zlatá lampa. Platí
 v okně i na liště hubu, pro ikonu na ploše telefonu (PWA) a pro spouštěč na
 počítači.
 
@@ -13,7 +13,7 @@ import os
 
 from . import core
 
-VYCHOZI = "Paluba"
+VYCHOZI = "Aladin"
 VELIKOSTI = (512, 192, 32)
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
@@ -68,12 +68,12 @@ def uprav_stranku(page):
     name = html.escape(zobrazeny())
     a = adresy()
     v = verze()
-    text = text.replace("<title>Paluba</title>", f"<title>{name}</title>", 1)
+    text = text.replace("<title>Aladin</title>", f"<title>{name}</title>", 1)
     text = text.replace('<link rel="manifest" href="/manifest.webmanifest">',
                         f'<link rel="manifest" href="{html.escape(a["manifest"])}">', 1)
     text = text.replace('<link rel="apple-touch-icon" href="/icon-192.png">',
                         f'<link rel="apple-touch-icon" href="{html.escape(a["touch"])}">', 1)
-    text = text.replace('<meta name="apple-mobile-web-app-title" content="Paluba">',
+    text = text.replace('<meta name="apple-mobile-web-app-title" content="Aladin">',
                         f'<meta name="apple-mobile-web-app-title" content="{name}">', 1)
     if v:
         text = text.replace('href="/icon-32.png"', f'href="/app-ikona/32.png?v={v}"', 1)

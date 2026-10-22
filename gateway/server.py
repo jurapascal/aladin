@@ -531,7 +531,7 @@ def _page(title, body):
 <meta name=mobile-web-app-capable content=yes>
 <meta name=apple-mobile-web-app-capable content=yes>
 <meta name=apple-mobile-web-app-status-bar-style content=black-translucent>
-<meta name=apple-mobile-web-app-title content="Paluba">
+<meta name=apple-mobile-web-app-title content="Aladin">
 <style>
 :root{color-scheme:dark}
 *{box-sizing:border-box}
@@ -573,7 +573,7 @@ def predplatne_page(owner):
     who = html.escape(owner.get("name") or owner.get("email") or "")
     return ("""<!doctype html><html lang=cs><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Správa předplatného — Paluba</title>
+<title>Správa předplatného — Aladin</title>
 <link rel=icon href="/favicon.ico" sizes=any>
 <meta name=theme-color content="#161b22">
 <style>
@@ -637,7 +637,7 @@ input:focus{outline:none;border-color:var(--accent)}
 @media (max-width:480px){.badge{max-width:46vw}.btn.zpet span{display:none}}
 </style>
 <header class=top>
-  <span class=brand><svg viewBox="0 0 24 24" fill="none" stroke="#4c97f0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l6 5.5L9 15"/><path d="M4.5 18.5h15l-1.6 2.5h-11.8z" fill="#4c97f0" stroke="none"/></svg>Paluba</span>
+  <span class=brand><svg viewBox="0 0 24 24" fill="#4c97f0" fill-rule="evenodd"><path d="M10.4 6.6a1.2 1.2 0 1 1 2.4 0 1.2 1.2 0 0 1-2.4 0zM8.6 9.4h6.2l.4.9H8.2zM5.2 14.5c0-3 3.2-4.2 6.5-4.2 3.2 0 5.6 1.4 5.6 4 0 2.6-2.4 4.2-5.6 4.2-3.3 0-6.5-1.5-6.5-4zM5.6 13.3C4.5 13.2 3.7 12.5 3 11.5c.5 2.4 1.2 3.9 3.2 4.6zM17 12.8c2.2-.5 3 2.3 1 3.4l-.6-.9c.9-.5.9-1.5-.6-1.4zM9.8 18.6h4.6l-.6 1.8H10.4z"/></svg>Aladin</span>
   <span class=badge>Prostor: """ + who + """ · Správa předplatného</span>
   <span class=sp></span>
   <button id=zpet class="btn small zpet">← <span>Zpět do svého</span></button>
@@ -742,7 +742,7 @@ nacti();
 
 def error_page(message):
     """Chyba, kterou uvidí člověk v prohlížeči — věta a tlačítko zkusit znovu."""
-    return _page("Chvilku strpení — Paluba", f"""
+    return _page("Chvilku strpení — Aladin", f"""
 <div class=card>
 <h1>Chvilku strpení</h1>
 <p class=sub>{html.escape(message)}</p>
@@ -816,9 +816,9 @@ nebo podle tvého e-mailu.</li>
 
 def login_page(error=""):
     err = f'<div class=err>{html.escape(error)}</div>' if error else ''
-    return _page("Přihlášení — Paluba", f"""
+    return _page("Přihlášení — Aladin", f"""
 <form class=card method=post action="/login">
-<h1>Paluba</h1>
+<h1>Aladin</h1>
 <p class=sub>Přihlaš se ke svému účtu na serveru.</p>
 <label>E-mail</label>
 <input name=email type=email autocomplete=username autofocus required>
@@ -874,7 +874,7 @@ def code_page(ticket, error="", passkey=False):
           '<div class=err id=pkerr></div>'
           '<p class=hint>Otisk prstu, obličej, PIN nebo bezpečnostní klíč. Nebo opiš kód níž.</p>'
           ) if passkey else ''
-    return _page("Ověření — Paluba", f"""
+    return _page("Ověření — Aladin", f"""
 <form class=card method=post action="/login/2fa">
 <h1>Ověření</h1>
 {pk}
@@ -895,7 +895,7 @@ def setup_page(ticket, secret, email, error=""):
     """Při prvním přihlášení: zapnutí dvoufázového ověření."""
     err = f'<div class=err>{html.escape(error)}</div>' if error else ''
     svg = qr.svg(totp.uri(secret, email), quiet=2, scale=5)
-    return _page("Dvoufázové ověření — Paluba", f"""
+    return _page("Dvoufázové ověření — Aladin", f"""
 <form class="card wide" method=post action="/login/2fa">
 <h1>Zapni dvoufázové ověření</h1>
 <p class=sub>Přihlášení na server teď chce kromě hesla i kód z telefonu.</p>
@@ -919,7 +919,7 @@ def setup_page(ticket, secret, email, error=""):
 def recovery_page(codes):
     """Záložní kódy hned po zapnutí ověřování — ukážou se jen tady."""
     items = "".join(f"<code>{html.escape(c)}</code>" for c in codes)
-    return _page("Záložní kódy — Paluba", f"""
+    return _page("Záložní kódy — Aladin", f"""
 <div class="card wide">
 <h1>Záložní kódy</h1>
 <p class=sub>Když ztratíš telefon, přihlásíš se jedním z nich — každý platí
@@ -1807,10 +1807,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._redirect("/login", extra={"Set-Cookie": f"hub_zar={nonce}; Path=/; HttpOnly; "
                                                                  f"SameSite=Lax; Max-Age=600{flags}"})
         if method != "POST":
-            return self._send(200, _page("Přihlášení appky — Paluba", f"""
+            return self._send(200, _page("Přihlášení appky — Aladin", f"""
 <form class=card method=post action="/zarizeni">
 <h1>Povolit přihlášení?</h1>
-<p class=sub>Appka <b>Paluba</b> na zařízení <b>{html.escape(z["label"])}</b>
+<p class=sub>Appka <b>Aladin</b> na zařízení <b>{html.escape(z["label"])}</b>
 chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
 <input type=hidden name=n value="{html.escape(nonce)}">
 <button type=submit>Povolit</button>
@@ -1821,7 +1821,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         token = self.accounts.issue_token(user, "Appka · " + z["label"], mfa=True)
         with _ticket_lock:
             z["token"], z["user"] = token, user
-        return self._send(200, _page("Hotovo — Paluba", """
+        return self._send(200, _page("Hotovo — Aladin", """
 <div class=card>
 <h1>Hotovo</h1>
 <p class=sub>Appka je přihlášená. Tuhle stránku můžeš zavřít a vrátit se do appky.</p>
@@ -1846,7 +1846,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                 _pk_reg[user["id"]] = (challenge, time.time() + 300)
             return self._json({
                 "challenge": webauthn.b64e(challenge),
-                "rp": {"id": rp_id, "name": "Paluba"},
+                "rp": {"id": rp_id, "name": "Aladin"},
                 "user": {"id": webauthn.b64e(hashlib.sha256(f"claude-hub:{user['id']}".encode()).digest()),
                          "name": user["email"], "displayName": user.get("name") or user["email"]},
                 "algs": list(webauthn.ALGS),

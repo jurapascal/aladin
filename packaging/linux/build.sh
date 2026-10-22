@@ -29,8 +29,8 @@ cp "$ROOT/assets/claude-code.png" "$APPDIR/claude-code-hub.png"
 cat > "$APPDIR/claude-code-hub.desktop" <<'DESK'
 [Desktop Entry]
 Type=Application
-Name=Claude Code Hub
-Comment=Claude Code Hub — projekty a paměť v jednom okně s taby
+Name=Aladin
+Comment=Aladin — projekty a paměť v jednom okně s taby
 Icon=claude-code-hub
 Exec=AppRun
 Terminal=false

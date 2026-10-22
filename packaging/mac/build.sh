@@ -25,7 +25,7 @@ case "${MAC_ARCH:-$(uname -m)}" in
     *) echo "neznámá architektura ${MAC_ARCH:-$(uname -m)}"; exit 1 ;;
 esac
 
-APP="$WORK/Claude Code Hub.app"
+APP="$WORK/Aladin.app"
 RES="$APP/Contents/Resources"
 mkdir -p "$APP/Contents/MacOS"
 python3 "$ROOT/packaging/stage.py" "$RES" "$TRIPLE"
@@ -53,8 +53,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <key>CFBundleName</key><string>Claude Code Hub</string>
-    <key>CFBundleDisplayName</key><string>Claude Code Hub</string>
+    <key>CFBundleName</key><string>Aladin</string>
+    <key>CFBundleDisplayName</key><string>Aladin</string>
     <key>CFBundleIdentifier</key><string>com.github.jurapascal.claude-code-hub</string>
     <key>CFBundleVersion</key><string>$VERSION</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
@@ -74,6 +74,6 @@ DMGDIR="$WORK/dmg"
 mkdir -p "$DMGDIR" "$OUT"
 cp -R "$APP" "$DMGDIR/"
 ln -s /Applications "$DMGDIR/Applications"
-hdiutil create -volname "Claude Code Hub" -srcfolder "$DMGDIR" -ov -format UDZO \
+hdiutil create -volname "Aladin" -srcfolder "$DMGDIR" -ov -format UDZO \
     "$OUT/Claude-Code-Hub-mac-$LABEL.dmg"
 echo "hotovo: $OUT/Claude-Code-Hub-mac-$LABEL.dmg"

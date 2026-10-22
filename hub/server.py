@@ -65,12 +65,12 @@ COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 # 403 there looks like the hub is broken.
 PAIR_AGAIN = """<!doctype html><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Paluba</title>
+<title>Aladin</title>
 <style>body{font:16px/1.6 system-ui,sans-serif;margin:0;min-height:100vh;
 display:grid;place-items:center;background:#16150f;color:#e8e3d3;padding:24px}
 div{max-width:22rem;text-align:center}b{color:#e0a458}</style>
 <div><p><b>Telefon už není spárovaný.</b></p>
-<p>Otevři na počítači Palubu → Nastavení → Telefon a načti QR kód znovu.</p></div>
+<p>Otevři na počítači Aladina → Nastavení → Telefon a načti QR kód znovu.</p></div>
 """
 
 
@@ -1140,7 +1140,7 @@ class Handler(BaseHTTPRequestHandler):
             # Název a ikona appky (hub/vzhled.py) — jen ke čtení.
             if self.command != "POST":
                 return self._json(vzhled.stav())
-            # Název i ikona jsou pro všechny stejné (Paluba) — měnit nejdou.
+            # Název i ikona jsou pro všechny stejné (Aladin) — měnit nejdou.
             return self._json({"error": "Název a ikona appky se nemění."}, 403)
         if name.startswith("hlas"):
             # Diktování a předčítání (hub/hlas.py) — česky, na tomhle stroji.
@@ -1888,7 +1888,7 @@ class Handler(BaseHTTPRequestHandler):
             if not co and (query.get("jen") or [""])[0] == "skill":
                 return self._json(pluginy.skill_detail((query.get("zdroj") or [""])[0], (query.get("name") or [""])[0],
                                                        (query.get("kde") or [""])[0]))
-            # Paluba Market (hub/market.py): motivy, katalog z GitHubu, skilly Paluby.
+            # Aladin Market (hub/market.py): motivy, katalog z GitHubu, skilly Aladina.
             if not co and (query.get("jen") or [""])[0] == "motivy":
                 return self._json(motivy.seznam())
             if not co and (query.get("jen") or [""])[0] == "market":

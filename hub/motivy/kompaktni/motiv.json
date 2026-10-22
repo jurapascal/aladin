@@ -2,7 +2,7 @@
   "name": "Kompaktní",
   "version": "1.0.0",
   "description": "Výchozí barvy, ale hustší rozložení: užší postranní panel, nižší horní lišta, těsnější seznam projektů a chatů a menší zaoblení. Na menší obrazovky a hodně projektů.",
-  "author": "Paluba",
+  "author": "Aladin",
   "nahled": ["#0d1117", "#161b22", "#e0843c", "#e6edf3"],
   "style": "motiv.css"
 }

@@ -378,13 +378,13 @@ def _call(path, token="", payload=None, method=None, base=None, timeout=TIMEOUT)
     except (urllib.error.URLError, OSError) as exc:
         return None, _offline_reason(exc, base), OFFLINE
     except ValueError:
-        return None, "Server neodpověděl tak, jak by brána Paluby měla.", HTTP
+        return None, "Server neodpověděl tak, jak by brána Aladina měla.", HTTP
     except Exception as exc:
         return None, f"Nepovedlo se: {exc}", HTTP
 
 
 def probe(server):
-    """Je na adrese brána Paluby? Volá se před přihlášením.
+    """Je na adrese brána Aladina? Volá se před přihlášením.
 
     Vrací {"ok", "server", "host"} nebo {"error", "server"}.
     """
@@ -403,7 +403,7 @@ def probe(server):
     if kind == AUTH and err == "Neplatný token.":
         return {**out, "ok": True, "version": ""}
     return {**out, "error": f"Na {_host(base)} je něco jiného než server "
-                             "Paluby. Zkontroluj adresu."}
+                             "Aladina. Zkontroluj adresu."}
 
 
 def status(timeout=TIMEOUT):

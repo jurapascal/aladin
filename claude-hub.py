@@ -65,7 +65,7 @@ def doctor():
     host = ("chromium (" + os.path.basename(browser) + ")" if browser else
             "webkitgtk" if webkit else "výchozí prohlížeč (jen záložka)")
     print()
-    print("  Paluba — kontrola prostředí")
+    print("  Aladin — kontrola prostředí")
     print("  " + "─" * 42)
     for label, value in [
         ("platforma", info["platform"]),

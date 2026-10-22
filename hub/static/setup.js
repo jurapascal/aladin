@@ -28,7 +28,7 @@
         <div class="onb-head">
           <span class="onb-mark"></span>
           <div>
-            <div class="onb-title">Instalace Paluby</div>
+            <div class="onb-title">Instalace Aladina</div>
             <div class="onb-sub">Chvilku to potrvá — všechno se nastaví samo.</div>
           </div>
         </div>
@@ -87,9 +87,9 @@
         go.textContent = 'Instaluju…';
         retry.hidden = true;
       } else if (st.done && st.ok) {
-        say('✓ Hotovo. Paluba je nainstalovaná.', 'ok');
+        say('✓ Hotovo. Aladin je nainstalovaný.', 'ok');
         go.disabled = false;
-        go.textContent = 'Otevřít Palubu';
+        go.textContent = 'Otevřít Aladina';
         retry.hidden = true;
         go.focus();
       } else if (st.done) {
@@ -131,9 +131,9 @@
       } catch (err) {
         console.warn('setup.js: launch', err);
         say('Aplikaci se nepodařilo spustit. Otevři ji z nabídky aplikací ' +
-            '(Paluba, případně ještě pod starým názvem Claude Code Hub).', 'err');
+            '(Aladin, případně ještě pod starým názvem Claude Code Hub).', 'err');
         go.disabled = false;
-        go.textContent = 'Otevřít Palubu';
+        go.textContent = 'Otevřít Aladina';
       }
     };
     retry.onclick = start;

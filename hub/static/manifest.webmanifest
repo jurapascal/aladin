@@ -1,6 +1,6 @@
 {
-  "name": "Paluba",
-  "short_name": "Paluba",
+  "name": "Aladin",
+  "short_name": "Aladin",
   "description": "Projekty a běžící Claude Code session z počítače, v telefonu.",
   "start_url": "/",
   "scope": "/",

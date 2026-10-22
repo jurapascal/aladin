@@ -2,7 +2,7 @@
   "name": "Námořní",
   "version": "1.0.0",
   "description": "Tmavě námořnická modř s mosazným akcentem, ve světlém režimu modrobílá paluba. Trochu ostřejší rohy.",
-  "author": "Paluba",
+  "author": "Aladin",
   "nahled": ["#0b1a2b", "#132a42", "#d4a24c", "#eef3f8"],
   "barvy": {
     "dark": {

@@ -255,7 +255,7 @@ def report_bundle():
     import datetime
     info = doctor()
     head = [
-        "Paluba — hlášení",
+        "Aladin — hlášení",
         f"pořízeno   {datetime.datetime.now():%Y-%m-%d %H:%M:%S}",
         f"verze      {version()}",
         "",
@@ -3365,7 +3365,7 @@ SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 # Pokyn pro firemní tab. Souhlas se zápisem dal uživatel tím, že tab otevřel —
 # platí ale jen na to, o co si v té konverzaci řekne: osobní poznámky, přístupy
 # ani nastavení napojení do společného trezoru nepatří.
-FIRMA_TAB_PROMPT = """Jsi ve firemním tabu Paluby (HUB_VAULT=firma).
+FIRMA_TAB_PROMPT = """Jsi ve firemním tabu Aladina (HUB_VAULT=firma).
 
 - Pracuješ nad **firemním Obsidianem** celého týmu: čti z něj a nové poznámky do
   něj posílej příkazem `python3 {tool} navrh "cesta/nazev.md" - ` (obsah na
@@ -3379,7 +3379,7 @@ FIRMA_TAB_PROMPT = """Jsi ve firemním tabu Paluby (HUB_VAULT=firma).
   „Server osobní"."""
 
 
-FIRMA_TAB_PROMPT_FIRMY = """Jsi ve firemním tabu Paluby pro firmu **{nazev}**
+FIRMA_TAB_PROMPT_FIRMY = """Jsi ve firemním tabu Aladina pro firmu **{nazev}**
 (HUB_VAULT=firma:{zkratka}, trezor `{cesta}`, tvoje role: {role}).
 
 - Pracuješ jen pro tuhle firmu. Čti z jejího Obsidianu; nic z ní nepiš do jiné

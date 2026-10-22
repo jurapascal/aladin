@@ -24,9 +24,9 @@
   function kdo(state) {
     const cfg = state.config || {};
     const g = state.guest || cfg.gateway_user;
-    if (g) return {jmeno: g.name || g.email || 'Paluba', email: g.email || ''};
+    if (g) return {jmeno: g.name || g.email || 'Aladin', email: g.email || ''};
     const a = ucet || {};
-    return {jmeno: a.name || state.user || cfg.gw_email || a.email || 'Paluba',
+    return {jmeno: a.name || state.user || cfg.gw_email || a.email || 'Aladin',
             email: cfg.gw_email || a.email || ''};
   }
 

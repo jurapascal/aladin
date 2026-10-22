@@ -22,7 +22,7 @@ git archive --format=zip --prefix=claude-code-hub/ -o "$ZIP" HEAD
 TMP="$(mktemp -d)"
 mkdir -p "$TMP/claude-code-hub"
 cat > "$TMP/claude-code-hub/ZACNI-TADY.txt" <<'EOF'
-Claude Code Hub — instalace bez GitHubu
+Aladin — instalace bez GitHubu
 =======================================
 
 Rozbal tenhle ZIP kamkoli (třeba na plochu) a pusť instalačku.
@@ -45,7 +45,7 @@ WINDOWS
    Claude Code, Obsidian, GitHub CLI - všechno přes winget). Klidně odpovídej
    "a" u všeho, co chceš mít.
 5. Na konci nabídne přihlášení do Claude Code: projdi /login a napiš /exit.
-6. Spusť "Claude Code Hub" z nabídky Start.
+6. Spusť "Aladin" z nabídky Start.
 
 Pozor: když si necháš něco doinstalovat, ZAVŘI POTOM POWERSHELL a spusť
 install.ps1 ještě jednou. Podruhé už instalačka nové programy uvidí všechny

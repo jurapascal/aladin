@@ -4,5 +4,5 @@ pluginManagement {
 dependencyResolutionManagement {
     repositories { google(); mavenCentral() }
 }
-rootProject.name = "Claude Code Hub"
+rootProject.name = "Aladin"
 include(":app")

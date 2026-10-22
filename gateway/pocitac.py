@@ -653,7 +653,7 @@ class Broker:
             mine = hits[:1]
         if not mine:
             return None, ("Žádný počítač uživatele teď není připojený. Musí mít na "
-                          "počítači otevřenou appku Paluba přihlášenou k "
+                          "počítači otevřenou appku Aladin přihlášenou k "
                           "tomuhle serveru a v ní zapnutý přístup: Nastavení → Účet → "
                           "Claude ze serveru na tomhle počítači. Když to může počkat, "
                           "nech počítači úkol (nechat_ukol) — dodělá ho Claude na "

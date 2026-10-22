@@ -221,7 +221,7 @@ async function daemon(pair) {
     try { ({ version } = await B.fetchLatestBaileysVersion()); } catch { /* bundled default */ }
     const sock = makeWASocket({
       auth, logger: silent, version, markOnlineOnConnect: false,
-      browser: B.Browsers ? B.Browsers.appropriate('Paluba') : undefined,
+      browser: B.Browsers ? B.Browsers.appropriate('Aladin') : undefined,
       syncFullHistory: false, shouldSyncHistoryMessage: () => false,
     });
     st.sock = sock;
@@ -534,7 +534,7 @@ function mcp() {
           protocolVersion: params?.protocolVersion || '2025-06-18',
           capabilities: { tools: {} },
           serverInfo: { name: 'whatsapp', version: VERSION },
-          instructions: 'WhatsApp channel to the user (via Paluba). Use `ask` when you need '
+          instructions: 'WhatsApp channel to the user (via Aladin). Use `ask` when you need '
             + 'the user\'s decision and they might be away from the computer, `send_message` for '
             + 'results and notifications. Do not spam: one message per meaningful event.',
         } });

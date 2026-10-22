@@ -2580,14 +2580,45 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   max-height: 46vh; overflow: auto;
   -webkit-user-select: text; user-select: text;
 }
-/* Claude pracuje: hvězdička se točí a dýchá, vedle co dělá a jak dlouho. */
+/* Claude pracuje: kouzelná lampa se potřásá, jako by ji někdo třel, a z hubičky
+   vylétají písmenka a hvězdičky (cteni.js jisker). */
 .cteni-prace {
-  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 2px 8px; color: var(--dim); font-size: 12.5px;
 }
 .cteni-spin {
-  display: inline-block; color: var(--accent); font-size: 15px; line-height: 1;
-  animation: cteni-toc 2.4s linear infinite, cteni-puls 1.2s ease-in-out infinite;
+  position: relative; display: inline-block; width: 112px; height: 72px; flex: none;
+  color: var(--accent); line-height: 1; margin: 2px 4px 2px 0;
+}
+.cteni-spin svg { display: block; overflow: visible; }
+.al-lampa { transform-box: fill-box; transform-origin: 50% 90%; animation: al-lampa 1.1s ease-in-out infinite; }
+.al-ruka2 { transform-box: fill-box; transform-origin: 0% 0%; animation: al-tre 1.1s ease-in-out infinite; }
+.al-dzin { transform-box: fill-box; transform-origin: 50% 100%; animation: al-pluje 2.6s ease-in-out infinite; }
+.al-ruka { transform-box: fill-box; transform-origin: 100% 100%; animation: al-mava 1.3s ease-in-out infinite; }
+.al-kour { transform-box: fill-box; transform-origin: 50% 100%; animation: al-kour 1.6s ease-in-out infinite; }
+.al-mrk { transform-box: fill-box; transform-origin: 50% 50%; animation: al-mrk 4s infinite; }
+.cteni-let {
+  position: absolute; left: 80px; top: 16px; pointer-events: none;
+  font-size: 12px; font-weight: 700; line-height: 1; color: var(--accent);
+  opacity: 0; animation: cteni-let 2.4s ease-out forwards;
+}
+@keyframes al-lampa { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-3deg) translateX(-1px); } 75% { transform: rotate(3deg) translateX(1px); } }
+@keyframes al-tre { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-7deg) translateX(2px); } }
+@keyframes al-pluje { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-4px) rotate(2deg); } }
+@keyframes al-mava { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(14deg); } }
+@keyframes al-kour { 0%, 100% { transform: scale(1, 1); opacity: .8; } 50% { transform: scale(1.15, .85) skewX(6deg); opacity: .5; } }
+@keyframes al-mrk { 0%, 94%, 100% { transform: scaleY(1); } 97% { transform: scaleY(.1); } }
+@keyframes cteni-lampa {
+  0%, 100% { transform: rotate(0) scale(1); }
+  20% { transform: rotate(-9deg) scale(1.05); }
+  40% { transform: rotate(7deg) scale(1.05); }
+  60% { transform: rotate(-5deg) scale(1.02); }
+  80% { transform: rotate(3deg) scale(1); }
+}
+@keyframes cteni-let {
+  0% { opacity: 0; transform: translate(0, 0) scale(.4) rotate(0); }
+  15% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1.15) rotate(var(--rot)); }
 }
 .cteni-slovo { color: var(--fg); font-weight: 600; }
 .cteni-cas, .cteni-tok { font-variant-numeric: tabular-nums; }
@@ -2596,7 +2627,7 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-cas::before, .cteni-tok:not(:empty)::before { content: "· "; color: var(--section); }
 @keyframes cteni-toc { to { transform: rotate(360deg); } }
 @keyframes cteni-puls { 50% { opacity: .45; } }
-@media (prefers-reduced-motion: reduce) { .cteni-spin { animation: cteni-puls 1.6s ease-in-out infinite; } }
+@media (prefers-reduced-motion: reduce) { .cteni-spin svg * { animation: none !important; } }
 .cteni-empty { color: var(--dim); font-size: 13px; text-align: center; margin-top: 12vh; }
 
 /* Pod bublinou: jestli zprávu Claude už vidí. */
@@ -3195,7 +3226,16 @@ html:has(> body.is-app.is-touch), body.is-app.is-touch { height: var(--app-h, 10
 .ag-avatar .claudik { width: 31px; height: 23px; margin-top: 1px; color: var(--ag); overflow: visible; }
 .claudik .cl-usmev, .claudik .cl-krizky { display: none; }
 /* Oblečení podle úsilí (cteni.js OBLECENI): jen hlavní Claudík, podle data-effort. */
-.claudik .cl-obl { display: none; }
+.claudik .cl-obl, .claudik .cl-aladin, .claudik .cl-dzin { display: none; }
+/* Hlavní Claudík (hřiště, tab) = Aladin; pomocníci a karty agentů = džinové. */
+.cl-fig.hlavni .claudik .cl-aladin, .tab-visi .claudik .cl-aladin { display: inline; }
+[data-effort="low"] .claudik .cl-aladin, [data-effort="high"] .claudik .cl-aladin,
+[data-effort="xhigh"] .claudik .cl-aladin, [data-effort="max"] .claudik .cl-aladin { display: none !important; }
+[data-effort="medium"] .claudik .cl-obl-medium { display: none !important; }
+.cl-fig:not(.hlavni) .claudik .cl-dzin, .ag-avatar .claudik .cl-dzin { display: inline; }
+.cl-fig:not(.hlavni) .claudik .cl-noha, .ag-avatar .claudik .cl-noha { display: none; }
+.claudik .cl-ocas { animation: cl-ocas 1s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 0; }
+@keyframes cl-ocas { from { transform: skewX(-8deg); } to { transform: skewX(8deg); } }
 [data-effort="low"] .claudik .cl-obl-low, [data-effort="medium"] .claudik .cl-obl-medium,
 [data-effort="high"] .claudik .cl-obl-high, [data-effort="xhigh"] .claudik .cl-obl-xhigh,
 [data-effort="max"] .claudik .cl-obl-max { display: inline; }
@@ -3373,6 +3413,15 @@ body.neco-ceka .drawer-toggle::after {
   color: var(--ag); transition-property: left, opacity; transition-timing-function: ease-in-out;
 }
 .cl-fig.hlavni { width: 44px; margin-left: -22px; }
+.cl-lampa { position: absolute; bottom: 2px; width: 26px; margin-left: 26px; line-height: 0; }
+.cl-lampa svg { display: block; width: 100%; filter: drop-shadow(0 0 3px color-mix(in srgb, #f4bd48 55%, transparent)); transform-origin: 50% 90%; }
+.cl-lampa.trese svg { animation: al-lampa 1.1s ease-in-out infinite; }
+.cl-kour {
+  position: absolute; left: 18px; bottom: 10px; font-size: 12px; line-height: 1; color: #9fe6dc;
+  text-shadow: 0 0 8px #9fe6dc; opacity: 0; animation: cl-kour 1.5s ease-out forwards;
+}
+@keyframes cl-kour { 0% { opacity: 0; transform: translate(0, 0) scale(.5); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(10px, -26px) scale(1.5) rotate(40deg); } }
+@media (prefers-reduced-motion: reduce) { .cl-lampa svg, .cl-kour { animation: none !important; } }
 .cl-postava { line-height: 0; }
 .cl-postava .claudik { width: 31px; height: 23px; overflow: visible; }
 .cl-fig.hlavni .claudik { width: 40px; height: 29px; }
@@ -4367,7 +4416,7 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 .cteni-moje .cteni-kdo { text-align: right; }
 
 /* Napojení a pluginy: dva obchody (settings.js, rozsireni) — Claude Code
-   Marketplace a Paluba Market jako dvě velké karty vedle sebe. Na úzké
+   Marketplace a Aladin Market jako dvě velké karty vedle sebe. Na úzké
    obrazovce zůstanou vedle sebe, jen bez podtitulku; pod 360 px pod sebou. */
 .trh-volba { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 10px 0 14px; }
 .trh-karta {

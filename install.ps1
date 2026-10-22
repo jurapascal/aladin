@@ -1,4 +1,4 @@
-﻿# Claude Code Hub — instalačka pro Windows.
+﻿# Aladin — instalačka pro Windows.
 #
 # Repo je jen instalačka: obsah (projekty, paměť) má každý svůj na disku.
 # Skript zjistí, kde ho má, uloží to do %USERPROFILE%\.claude\hub-config.json
@@ -103,7 +103,7 @@ function Install-WithWinget($id) {
 $HasWinget = Test-Cmd winget
 
 Write-Host ''
-Write-Host $(if ($Update) { '  ✦ Claude Code Hub — aktualizace' } else { '  ✦ Claude Code Hub — instalace' }) -ForegroundColor DarkYellow
+Write-Host $(if ($Update) { '  ✦ Aladin — aktualizace' } else { '  ✦ Aladin — instalace' }) -ForegroundColor DarkYellow
 Write-Host '  ────────────────────────────────────' -ForegroundColor DarkGray
 
 if (-not $HasWinget -and -not $Update) {
@@ -526,7 +526,7 @@ function New-Shortcut($path) {
     $link.Arguments = '"' + (Join-Path $ClaudeDir 'claude-hub.py') + '"'
     $link.WorkingDirectory = $ClaudeDir
     $link.IconLocation = (Join-Path $ClaudeDir 'claude-code.ico')
-    $link.Description = 'Claude Code Hub — projekty a paměť v jednom okně s taby'
+    $link.Description = 'Aladin — projekty a paměť v jednom okně s taby'
     $link.Save()
 }
 
@@ -547,15 +547,15 @@ $startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
 if (Remove-OurOldShortcut (Join-Path $startMenu 'Claude Code.lnk')) {
     Write-Dim 'starý zástupce „Claude Code" v nabídce Start nahrazen'
 }
-New-Shortcut (Join-Path $startMenu 'Claude Code Hub.lnk')
-Write-Ok 'zástupce v nabídce Start: Claude Code Hub'
+New-Shortcut (Join-Path $startMenu 'Aladin.lnk')
+Write-Ok 'zástupce v nabídce Start: Aladin'
 
 # Na ploše se neptáme znovu toho, kdo zástupce už má — jen ho přejmenujeme.
 $desktopOld = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Claude Code.lnk'
-$desktopNew = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Claude Code Hub.lnk'
+$desktopNew = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aladin.lnk'
 if ((Remove-OurOldShortcut $desktopOld) -or (Test-Path $desktopNew)) {
     New-Shortcut $desktopNew
-    Write-Ok 'zástupce na ploše: Claude Code Hub'
+    Write-Ok 'zástupce na ploše: Aladin'
 } elseif (Want-Install 'Přidat zástupce i na plochu?') {
     New-Shortcut $desktopNew
     Write-Ok 'zástupce na ploše'
@@ -819,7 +819,7 @@ if ($ClaudeCli) {
 try { & $Python (Join-Path $ClaudeDir 'claude-hub.py') --doctor } catch { }
 
 Write-Host ''
-Write-Host '  ✦ Hotovo. Spusť zástupce Claude Code Hub v nabídce Start.' -ForegroundColor DarkYellow
+Write-Host '  ✦ Hotovo. Spusť zástupce Aladin v nabídce Start.' -ForegroundColor DarkYellow
 Write-Dim  "Kontrola prostředí:  `"$Python`" `"$(Join-Path $ClaudeDir 'claude-hub.py')`" --doctor"
 Write-Dim  'První spuštění Claude Code: v tabu napiš /login a přihlas se svým účtem.'
 Write-Dim  "Kdyby okno zůstalo prázdné, důvod je v $(Join-Path $ClaudeDir 'hub.log')"

@@ -562,7 +562,7 @@
     const klic = (state.config && state.config.verxee_debug_klic) || '';
     if (state.config && state.config.gateway_user) {
       wrap.appendChild(el('div', 'set-note', klic
-        ? 'Tlačítko vpravo dole posílá hlášení správci Paluby (Verxee Debug).'
+        ? 'Tlačítko vpravo dole posílá hlášení správci Aladina (Verxee Debug).'
         : 'Tlačítko na hlášení chyb a návrhů na tomhle serveru zapíná správce.'));
       return wrap;
     }
@@ -1804,7 +1804,7 @@
      chce „napojit Freelo", ne registrovat MCP server: popisek účtu, Přihlásit,
      a na serveru vložit adresu, kam přihlášení přesměrovalo. Víc účtů u jedné
      služby je normální (firma, osobní). `filtr` vybere, které karty se
-     ukážou (WhatsApp patří do Paluba Marketu, ostatní do Claude Code). */
+     ukážou (WhatsApp patří do Aladin Marketu, ostatní do Claude Code). */
   function sluzby(onData, filtr) {
     const wrap = el('div', 'svc-list');
     wrap.appendChild(el('div', 'set-dim', 'Načítám služby…'));
@@ -2462,8 +2462,8 @@
   /* Napojení a pluginy: dva obchody vedle sebe.
        Claude Code Marketplace — co rozšiřuje Clauda: pluginy (katalog),
          MCP (služby a napojení) a skilly (moje příkazy, z pluginů, z Obsidianu).
-       Paluba Market — co rozšiřuje samotnou appku: pluginy appky, motivy,
-         napojení, která Paluba přináší (WhatsApp, prohlížeč…), a přibalené skilly.
+       Aladin Market — co rozšiřuje samotnou appku: pluginy appky, motivy,
+         napojení, která Aladin přináší (WhatsApp, prohlížeč…), a přibalené skilly.
      Záložka s Moje | Objevit má u sebe přepínač; volba se pamatuje. */
   const TRHY = {
     cc: {
@@ -2471,7 +2471,7 @@
       tabs: [['pluginy', 'Pluginy', 'i-plus', true], ['mcp', 'MCP', 'i-hub', true], ['skilly', 'Skilly', 'i-book', false]],
     },
     paluba: {
-      nazev: 'Paluba Market', pod: 'Pluginy, motivy, MCP a skilly pro Palubu', ico: 'i-paluba',
+      nazev: 'Aladin Market', pod: 'Pluginy, motivy, MCP a skilly pro Aladina', ico: 'i-paluba',
       tabs: [['pluginy', 'Pluginy', 'i-plus', true], ['motivy', 'Motivy', 'i-sun', true],
              ['mcp', 'MCP', 'i-hub', false], ['skilly', 'Skilly', 'i-bolt', false]],
     },
@@ -2481,7 +2481,7 @@
   function rozsireni() {
     const box = section('Napojení a pluginy',
       'Claude Code Marketplace rozšiřuje Clauda — pluginy, napojení na služby a skilly. ' +
-      'Paluba Market rozšiřuje samotnou appku — pluginy, motivy vzhledu a to, co Paluba přináší sama.');
+      'Aladin Market rozšiřuje samotnou appku — pluginy, motivy vzhledu a to, co Aladin přináší sama.');
     const uloz = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* soukromé okno */ } };
     const cti = (k) => { try { return localStorage.getItem(k) || ''; } catch (_) { return ''; } };
     // Záložky z doby před dvěma obchody (hub-roz-tab) se převezmou jednou.
@@ -2531,7 +2531,7 @@
         const d = (state.palette && state.palette.dark) || {};
         return [d.BG, d.BG_CARD, d.AMBER, d.CLOUD, d.FG_BRIGHT].filter(Boolean);
       })(),
-      // Po instalaci pluginu z katalogu Paluby: zpátky do Moje, kde se zapíná.
+      // Po instalaci pluginu z katalogu Aladina: zpátky do Moje, kde se zapíná.
       poInstalaci: () => { const t = prepinac.querySelector('.plg-tab[data-k="moje"]'); if (t) t.click(); },
     });
 
@@ -2585,13 +2585,13 @@
     return box;
   }
 
-  /* Paluba Market → MCP: napojení, která přináší Paluba sama. WhatsApp
+  /* Aladin Market → MCP: napojení, která přináší Aladin sama. WhatsApp
      (karta služby z hub/connect.py) a „Součást appky" — prohlížeč, spojení
      s počítačem a sdílená napojení od kolegů. Ty spravuje hub, odebrat nejdou. */
   function palubaMcp() {
     const box = el('div');
     box.appendChild(el('div', 'set-note',
-      'Napojení, která přináší Paluba: WhatsApp, přes který ti Claude píše a ptá se tě, ' +
+      'Napojení, která přináší Aladin: WhatsApp, přes který ti Claude píše a ptá se tě, ' +
       'a nástroje appky — prohlížeč, spojení s počítačem a napojení sdílená od kolegů.'));
     box.appendChild(el('div', 'set-title plg-podnadpis', 'WhatsApp'));
     box.appendChild(sluzby(null, (svc) => svc.id === 'whatsapp'));
@@ -2602,7 +2602,7 @@
     const naServeru = !!(state.config && state.config.gateway_user);
     const PEVNE = [
       {nazev: 'Prohlížeč pro Clauda', ico: 'i-globe', popis: 'vestavěný prohlížeč, který vidíš v appce',
-       chybi: 'Paluba ho napojí sama, jakmile je v appce zapnutý vestavěný prohlížeč.'},
+       chybi: 'Aladin ho napojí sama, jakmile je v appce zapnutý vestavěný prohlížeč.'},
       {nazev: 'Spojení s počítačem', ico: 'i-laptop', popis: 'Claude ze serveru sahá na tvůj počítač',
        chybi: naServeru ? 'Napojí se samo, když je tvůj prostor na serveru spojený s počítačem.'
                         : 'Funguje v prostoru na serveru — Claude odtamtud sahá na tenhle počítač. Tady ho nepotřebuješ.'},
@@ -2693,7 +2693,7 @@
       'Další najdeš v záložce Objevit.'));
     box.appendChild(el('div', 'set-title plg-podnadpis', 'Služby'));
     let sluzbyServery = null;            // MCP servery, které už mají karty služeb
-    // WhatsApp patří do Paluba Marketu → MCP (palubaMcp).
+    // WhatsApp patří do Aladin Marketu → MCP (palubaMcp).
     box.appendChild(sluzby((d) => {
       const nove = (d.servers || []).join('|');
       if (sluzbyServery && [...sluzbyServery].join('|') === nove) return;   // bez blikání při kontrole
@@ -2731,7 +2731,7 @@
       // Funkční nahoře, pak co chce přihlásit, pak zbytek; uvnitř podle abecedy.
       const PORADI = {ok: 0, auth: 1, local: 2};
       const mimoSluzby = sluzbyServery ? servers.filter((x) => !sluzbyServery.has(x.name)) : servers;
-      // Součást appky a WhatsApp ukazuje Paluba Market → MCP (palubaMcp).
+      // Součást appky a WhatsApp ukazuje Aladin Market → MCP (palubaMcp).
       const ostatni = mimoSluzby.filter((x) => !soucastAppky(x) && x.name !== 'whatsapp');
       // Počty jen za to, co je tady vidět (služby mají stav ve svých kartách).
       summary.textContent = '';

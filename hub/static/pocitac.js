@@ -814,7 +814,7 @@
       } else {
         body.appendChild(el('div', 'set-note',
           'Claude v prostoru teď na žádný tvůj počítač nedosáhne. Zapíná se v aplikaci ' +
-          'Paluba na počítači (Nastavení → Účet → Claude ze serveru na tomhle ' +
+          'Aladin na počítači (Nastavení → Účet → Claude ze serveru na tomhle ' +
           'počítači) a funguje, dokud je aplikace otevřená. Co má počkat, než se počítač ' +
           'připojí, řekni Claudovi — nechá mu úkol a Claude na počítači ho pak dodělá.'));
       }

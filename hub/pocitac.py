@@ -278,7 +278,7 @@ def _loop():
                 continue
             if not ok:
                 _set("unsupported", "Server tohle ještě neumí — potřebuje novější verzi "
-                                    "Paluby (aktualizuje se sama v noci).")
+                                    "Aladina (aktualizuje se sama v noci).")
                 _WAKE.wait(15 * 60)
                 continue
             checked = base

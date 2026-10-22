@@ -2676,11 +2676,11 @@ function placeName() {
 }
 
 /* Vlastní název a ikona appky (Nastavení → Vzhled, hub/vzhled.py): v liště,
-   v šuplíku a na úvodní stránce. Bez nastavení zůstává „Paluba"
+   v šuplíku a na úvodní stránce. Bez nastavení zůstává „Aladin"
    (app.shown = vlastní název, jinak výchozí ze serveru). */
 function renderBranding() {
   const app = STATE.app || {};
-  const name = app.shown || 'Paluba';
+  const name = app.shown || 'Aladin';
   // Titulek = název okna appky (Chrome v režimu appky, záložka prohlížeče).
   document.title = titulekOkna(app.name ? app.name : name + ' ' + placeName());
   const home = $('btn-home');
@@ -2801,7 +2801,7 @@ function renderPlace() {
   const u = STATE.config.gateway_user;
   renderGuestBar();
   const app = STATE.app || {};
-  const shown = app.shown || 'Paluba';
+  const shown = app.shown || 'Aladin';
   document.title = titulekOkna(app.name ? app.name : shown + ' ' + placeName());
   const big = $('welcome-place');
   if (big) big.textContent = placeName();
@@ -4956,7 +4956,7 @@ function hubIO() {
     pickFolder,
     reload,
     refreshState: async () => { STATE = await api('state'); markAdvanced(); renderBranding(); applyMotiv(STATE.motiv); HubVerxee.apply(STATE); },
-    // Motiv přepnutý v Nastavení → Paluba Market → Motivy, bez obnovení okna.
+    // Motiv přepnutý v Nastavení → Aladin Market → Motivy, bez obnovení okna.
     setMotiv: applyMotiv,
     openWizard: () => HubOnboarding.open({...hubIO(), state: STATE}),
     /* Přihlášení jiným účtem. `/login` žije uvnitř Claude Code, ne v shellu,
@@ -5618,7 +5618,7 @@ function startSplash() {
   root.innerHTML = `
     <div class="ss-box">
       <div class="ss-ring"><svg class="ico"><use href="#i-hub"/></svg></div>
-      <div class="ss-title">Paluba</div>
+      <div class="ss-title">Aladin</div>
       <div class="ss-text"></div>
       <div class="ss-steps"><span data-s="check">Kontrola</span><span data-s="download">Stahování</span><span data-s="install">Instalace</span></div>
     </div>`;

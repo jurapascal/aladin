@@ -1,7 +1,7 @@
 <resources>
-    <string name="app_name">Paluba</string>
+    <string name="app_name">Aladin</string>
     <string name="setup_title">Připojit k hubu</string>
-    <string name="setup_hint">Na počítači otevři Palubu → Nastavení → Telefon a naskenuj QR kód.</string>
+    <string name="setup_hint">Na počítači otevři Aladina → Nastavení → Telefon a naskenuj QR kód.</string>
     <string name="setup_scan">Naskenovat QR kód</string>
     <string name="setup_url">…nebo sem vlož adresu</string>
     <string name="setup_connect">Připojit</string>

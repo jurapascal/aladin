@@ -2,7 +2,7 @@
   "name": "Ukázkový plugin",
   "version": "1.0.0",
   "description": "Šablona pro vlastní rozšíření appky: tlačítko „Shrň chat“ v Rychlých akcích, počítadlo nástrojů, které Claude spustil, a vlastní nastavení.",
-  "author": "Paluba",
+  "author": "Aladin",
   "main": "plugin.js",
   "style": "plugin.css"
 }

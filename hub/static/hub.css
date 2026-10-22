@@ -2569,6 +2569,7 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-tool.open .cteni-caret { transform: rotate(90deg); }
 .cteni-ico { color: var(--accent); font-size: 12px; flex: none; display: inline-flex; align-items: center; }
 .cteni-ico svg { display: block; }
+.cteni-ico-logo { display: block; width: 15px; height: 15px; border-radius: 3px; object-fit: contain; }
 .cteni-tool.chyba .cteni-ico { color: var(--red); }
 .cteni-title {
   color: var(--fg); min-width: 0;

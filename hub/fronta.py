@@ -294,6 +294,30 @@ def _pripraven(s, cesta):
     return not _pracuje(cesta)
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Za-z0-9]")
+_DIALOG = ("esc to cancel", "do you want", "enter to select", "❯ 1.", "❯1.", "(y/n)")
+
+
+def _lze_za_behu(s, cesta, text):
+    """Claude zrovna pracuje (běží nástroj, píše odpověď) — Claude Code si zprávu
+    napsanou za běhu zařadí do své fronty a vezme ji u nejbližšího nástroje,
+    stejně jako při psaní do okna přímo. Jde to jen tehdy, když na obrazovce
+    není dialog (povolení, otázka, plán) — tam by se text trefil do něj.
+    Dialog se pozná z konce výstupu terminálu: poslední „esc to interrupt“
+    musí být novější než jakákoli nabídka k potvrzení."""
+    if text.lstrip().startswith("/"):
+        return False                                 # slash příkaz fronta nebere
+    try:
+        konec = bytes(s.buffer[-6000:]).decode("utf-8", "replace")
+    except Exception:
+        return False
+    obraz = _ANSI.sub("", konec).lower()
+    beh = obraz.rfind("to interrupt")
+    if beh < 0:
+        return False
+    return all(obraz.rfind(m) < beh for m in _DIALOG)
+
+
 def _napis(s, text):
     """Text a Enter zvlášť, s pauzou: slepené by je Claude Code vzal jako vložení."""
     vlozit = "\n" in text or text.startswith("?")
@@ -352,6 +376,10 @@ def _krok():
             cekaji_ted[p["chat"]] = True
             continue
         pripraven = _pripraven(s, cesta)
+        if not pripraven and not s.uspany and time.time() - s.started >= ROZJEZD_S \
+                and getattr(s, "_fronta", None) is None and not p.get("ihned") \
+                and _pracuje(cesta) and _lze_za_behu(s, cesta, p["text"]):
+            pripraven = True                        # za běhu do fronty Claude Code
         if not pripraven and not s.uspany and time.time() - s.started >= ROZJEZD_S \
                 and getattr(s, "_fronta", None) is None:
             if p.get("ihned"):

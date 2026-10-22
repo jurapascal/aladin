@@ -74,6 +74,13 @@
     [/server|pocitac|computer/i, 'server'], [/spolubydl|apartment|ubyt|accom|nemovit/i, 'budova'],
     [/obsidian|vault|brain|notes?/i, 'soubor'],
   ];
+  // Doména služby, ze které hub stáhne favicon (/api/logo?k=d:doména).
+  const MCP_DOMENA = [
+    [/beeper/i, 'beeper.com'], [/blender/i, 'blender.org'], [/canva/i, 'canva.com'], [/clockify/i, 'clockify.me'],
+    [/eleven/i, 'elevenlabs.io'], [/figma/i, 'figma.com'], [/google/i, 'google.com'], [/playwright/i, 'playwright.dev'],
+    [/roblox/i, 'roblox.com'], [/shopify/i, 'shopify.com'], [/spolubydl/i, 'spolubydlim.cz'],
+    [/claude_ai_Claude_Docs|claude/i, 'claude.ai'],
+  ];
   function druhIkony(name) {
     if (NASTROJ_IKONA[name]) return NASTROJ_IKONA[name];
     if (String(name).startsWith('mcp__')) {
@@ -90,6 +97,17 @@
     s.setAttribute('aria-hidden', 'true');
     s.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" ' +
       'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + IKONA[druh] + '</svg>';
+    // MCP nástroj: místo čárové ikonky favicon služby (když se ho podaří stáhnout).
+    const sluzba = String(name).startsWith('mcp__') ? String(name).split('__')[1] || '' : '';
+    const hit = sluzba && MCP_DOMENA.find(([re]) => re.test(sluzba));
+    if (hit) {
+      const tok = typeof TOKEN !== 'undefined' ? TOKEN : new URLSearchParams(location.search).get('t') || '';
+      const img = new Image();
+      img.className = 'cteni-ico-logo';
+      img.alt = '';
+      img.onload = () => { s.textContent = ''; s.appendChild(img); };
+      img.src = '/api/logo?k=' + encodeURIComponent('d:' + hit[1]) + '&t=' + encodeURIComponent(tok);
+    }
     return s;
   }
 

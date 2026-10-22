@@ -95,7 +95,7 @@ jobs:
         if: runner.os == 'macOS'
         continue-on-error: true
         run: |
-          HUB_DESKTOP_EXE="$PWD/dist/mac/Claude Code Hub.app/Contents/MacOS/Claude Code Hub" npm test
+          HUB_DESKTOP_EXE="$PWD/dist/mac/Aladin.app/Contents/MacOS/Aladin" npm test
 
       - uses: actions/upload-artifact@v4
         with:

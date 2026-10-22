@@ -88,8 +88,8 @@ jobs:
         if: matrix.arch == 'arm64'
         run: |
           hdiutil attach dist/*.dmg -mountpoint /tmp/hubdmg
-          "/tmp/hubdmg/Claude Code Hub.app/Contents/Resources/python/bin/python3" \
-            "/tmp/hubdmg/Claude Code Hub.app/Contents/Resources/hub/claude-hub.py" --doctor
+          "/tmp/hubdmg/Aladin.app/Contents/Resources/python/bin/python3" \
+            "/tmp/hubdmg/Aladin.app/Contents/Resources/hub/claude-hub.py" --doctor
           hdiutil detach /tmp/hubdmg
       - uses: actions/upload-artifact@v4
         with:

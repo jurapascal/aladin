@@ -35,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
                fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
-               uspavani, vzhled)
+               uspavani, vzhled, soubory_hledani)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -1363,6 +1363,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"model": "", "label": "", "at": ""})
             return self._json(core.tab_model(session.id, session.path or core.HOME,
                                              session.started))
+        if name == "soubory-hledani":
+            # Našeptávač `@soubor` v bublině (hub/soubory_hledani.py). Kořen se
+            # bere z tabu na serveru, od klienta chodí jen dotaz.
+            try:
+                session = HUB.sessions.get(int((query.get("id") or ["0"])[0]))
+            except ValueError:
+                session = None
+            koren = soubory_hledani.koren_tabu(session.path or core.HOME) if session else None
+            if not koren:
+                return self._json({"items": [], "cut": False})
+            return self._json(soubory_hledani.hledej(koren, (query.get("q") or [""])[0]))
         if name == "setup":
             # Instalace v okně (hub/setup.py): bez akce jen průběh.
             action = payload.get("action") if isinstance(payload, dict) else ""

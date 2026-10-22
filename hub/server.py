@@ -28,6 +28,7 @@ import socketserver
 import string
 import subprocess
 import struct
+import sys
 import threading
 import time
 import urllib.parse
@@ -940,7 +941,13 @@ class Handler(BaseHTTPRequestHandler):
         # mohl sám zapnout třeba přístup Clauda na tenhle počítač.
         if not self._origin_ok():
             return self._send(403, b"Cizi puvod.")
-        length = int(self.headers.get("Content-Length") or 0)
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if length < 0:                                # záporná délka by čtení nechala viset do zavření spojení
+            self.close_connection = True
+            return self._json({"ok": False, "error": "Neplatná délka požadavku."}, 400)
         if parsed.path == "/api/vault-upload":
             # Soubor do osobního trezoru: tělo je soubor sám, ne JSON.
             # Velikost se hlídá dřív, než se cokoli přečte.
@@ -950,9 +957,15 @@ class Handler(BaseHTTPRequestHandler):
                                    f"{core.VAULT_UPLOAD_MAX // (1024 * 1024)} MB."}, 413)
             raw = self.rfile.read(length) if length > 0 else b""
             return self._api("vault-upload", query, {"raw": raw})
+        # Největší JSON tělo je nahraný soubor v base64 (core.MAX_UPLOAD) — víc se do paměti nečte.
+        if length > core.MAX_UPLOAD * 4 // 3 + 1024 * 1024:
+            self.close_connection = True
+            return self._json({"ok": False, "error": "Požadavek je moc velký."}, 413)
         try:
             payload = json.loads(self.rfile.read(length) or b"{}")
         except Exception:
+            payload = {}
+        if not isinstance(payload, dict):             # `[]`, `5`, `"x"` — akce čtou jen objekty
             payload = {}
         return self._api(parsed.path[5:], query, payload)
 
@@ -1043,6 +1056,8 @@ class Handler(BaseHTTPRequestHandler):
     def _api(self, name, query, payload=None):
         try:
             return self._api_inner(name, query, payload)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+            raise                                   # klient odešel — řeší handle_error, není to chyba akce
         except Exception as exc:
             # Bez tohohle by chyba skončila jen ve stacktrace, který nikdo
             # nevidí — okno na Windows nemá konzoli.
@@ -2490,6 +2505,15 @@ class HubHTTPServer(ThreadingHTTPServer):
         self.token = token
         self.remote = remote
         self.origins = set()
+
+    def handle_error(self, request, client_address):
+        # Klient zavřel spojení uprostřed odpovědi (zavřená karta, telefon bez
+        # signálu, proxy): není to chyba hubu a výchozí výpis traceback do logu
+        # jen zahlcuje skutečné chyby.
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (BrokenPipeError, ConnectionResetError, ConnectionAbortedError, TimeoutError)):
+            return
+        super().handle_error(request, client_address)
 
     def server_bind(self):
         # HTTPServer.server_bind volá socket.getfqdn() — zpětný dotaz do DNS na

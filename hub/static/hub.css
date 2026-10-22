@@ -2567,7 +2567,8 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-head:hover { background: var(--bg-card); border-color: var(--border); }
 .cteni-caret { font-size: 9px; transition: transform .12s; color: var(--section); }
 .cteni-tool.open .cteni-caret { transform: rotate(90deg); }
-.cteni-ico { color: var(--accent); font-size: 12px; flex: none; }
+.cteni-ico { color: var(--accent); font-size: 12px; flex: none; display: inline-flex; align-items: center; }
+.cteni-ico svg { display: block; }
 .cteni-tool.chyba .cteni-ico { color: var(--red); }
 .cteni-title {
   color: var(--fg); min-width: 0;

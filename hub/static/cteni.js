@@ -33,6 +33,66 @@
     peer: '✉', hub: '↻',
   };
 
+  /* Ikonka u nástroje v konverzaci: obrázek podle druhu (soubor, tužka, terminál,
+     hledání, prohlížeč…), u MCP podle služby (název je mcp__služba__nástroj).
+     Čárové ikony na mřížce 24, barvu bere z textu (currentColor). */
+  const IKONA = {
+    soubor: '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h5M9.5 15.5h5"/>',
+    tuzka: '<path d="M4 20l1-4L16.5 4.5a2.1 2.1 0 013 3L8 19z"/><path d="M14.5 6.5l3 3"/>',
+    terminal: '<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M7 10l3 2.5L7 15M12.5 15h4.5"/>',
+    hledani: '<circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l5 5"/>',
+    svet: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.6 5.2 3.6 8.5s-1 6.1-3.6 8.5c-2.6-2.4-3.6-5.2-3.6-8.5s1-6.1 3.6-8.5z"/>',
+    agent: '<rect x="5" y="8" width="14" height="10" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9.5 16h5"/>',
+    seznam: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>',
+    otazka: '<circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.5a2.5 2.5 0 114 2c-.9.6-1.6 1.1-1.6 2.3M12 16.8h.01"/>',
+    hodiny: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/>',
+    zprava: '<rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M4 7l8 6 8-6"/>',
+    chat: '<path d="M5 5.5h14a2 2 0 012 2v7a2 2 0 01-2 2h-6l-4.5 3.5V16.5H5a2 2 0 01-2-2v-7a2 2 0 012-2z"/>',
+    budova: '<path d="M5 20V5.5a1.5 1.5 0 011.5-1.5h7A1.5 1.5 0 0115 5.5V20M15 10h3.5A1.5 1.5 0 0120 11.5V20M3.5 20h17M8.5 8h3M8.5 12h3M8.5 16h3"/>',
+    nakup: '<path d="M5.5 8h13l-1 12h-11z"/><path d="M9 8V6.5a3 3 0 016 0V8"/>',
+    mikrofon: '<rect x="9" y="3.5" width="6" height="10" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0013 0M12 18v3"/>',
+    kostka: '<path d="M12 3.5l8 4.5v8.5l-8 4.5-8-4.5V8z"/><path d="M4 8l8 4.5L20 8M12 12.5V21"/>',
+    paleta: '<path d="M12 3.5a8.5 8.5 0 100 17c1.3 0 1.8-1 1.3-2-.5-1 .1-2 1.2-2H17a3.5 3.5 0 003.5-3.5C20.5 7 16.8 3.5 12 3.5z"/><path d="M8 11h.01M11 7.5h.01M15.5 8.5h.01"/>',
+    zasuvka: '<path d="M9 3.5v5M15 3.5v5M6.5 8.5h11v3a5.5 5.5 0 01-11 0zM12 17v3.5"/>',
+    server: '<rect x="4" y="4" width="16" height="6.5" rx="2"/><rect x="4" y="13.5" width="16" height="6.5" rx="2"/><path d="M8 7.2h.01M8 16.7h.01"/>',
+    kalendar: '<rect x="4" y="5.5" width="16" height="14.5" rx="2.5"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/>',
+    kladivo: '<path d="M14 6l4 4-8.5 8.5a2 2 0 01-3-3zM13 7l-3-3 3-1 4 4-1 3"/>',
+    obnov: '<path d="M19.5 12a7.5 7.5 0 01-13.2 4.9M4.5 12a7.5 7.5 0 0113.2-4.9"/><path d="M18.5 3.5v4h-4M5.5 20.5v-4h4"/>',
+  };
+  const NASTROJ_IKONA = {
+    Read: 'soubor', Edit: 'tuzka', Write: 'tuzka', NotebookEdit: 'tuzka', Bash: 'terminal',
+    Grep: 'hledani', Glob: 'hledani', WebSearch: 'hledani', ToolSearch: 'hledani',
+    WebFetch: 'svet', Task: 'agent', Agent: 'agent', TodoWrite: 'seznam', TaskCreate: 'seznam',
+    TaskUpdate: 'seznam', AskUserQuestion: 'otazka', ScheduleWakeup: 'hodiny', Monitor: 'hodiny',
+    SendMessage: 'zprava', peer: 'zprava', hub: 'obnov', KillShell: 'kladivo', BashOutput: 'terminal',
+  };
+  // MCP: podle služby v názvu (mcp__<služba>__<nástroj>).
+  const MCP_IKONA = [
+    [/playwright|browser|prohlizec/i, 'svet'], [/beeper|whatsapp|slack|discord|telegram/i, 'chat'],
+    [/clockify|calendar|kalend/i, 'hodiny'], [/google/i, 'zprava'], [/shopify|woocommerce|eshop|shop/i, 'nakup'],
+    [/eleven|voice|hlas|speech/i, 'mikrofon'], [/blender|roblox|3d/i, 'kostka'], [/figma|canva|design/i, 'paleta'],
+    [/server|pocitac|computer/i, 'server'], [/spolubydl|apartment|ubyt|accom|nemovit/i, 'budova'],
+    [/obsidian|vault|brain|notes?/i, 'soubor'],
+  ];
+  function druhIkony(name) {
+    if (NASTROJ_IKONA[name]) return NASTROJ_IKONA[name];
+    if (String(name).startsWith('mcp__')) {
+      const sluzba = String(name).split('__')[1] || '';
+      const hit = MCP_IKONA.find(([re]) => re.test(sluzba));
+      return hit ? hit[1] : 'zasuvka';
+    }
+    return 'kladivo';
+  }
+  function ikonaNastroje(name) {
+    const druh = druhIkony(name);
+    const s = el('span', 'cteni-ico');
+    s.dataset.druh = druh;
+    s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" ' +
+      'stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' + IKONA[druh] + '</svg>';
+    return s;
+  }
+
   // Každý člověk sdíleného chatu má svou barvu — stejnou v bublinách i v hlavičce.
   const KDO_PALETA = ['#a371f7', '#3fb950', '#e0843c', '#2bb3a8', '#e05d8a', '#d29922'];
   function kdoBarva(jmeno) {
@@ -735,7 +795,7 @@
       const box = el('div', 'cteni-tool');
       const head = el('button', 'cteni-head');
       head.appendChild(el('span', 'cteni-caret', '▸'));
-      head.appendChild(el('span', 'cteni-ico', ZNAK[b.name] || '•'));
+      head.appendChild(ikonaNastroje(b.name));
       head.appendChild(el('span', 'cteni-title', b.title || b.name || 'krok'));
       head.appendChild(el('span', 'cteni-bezi'));
       const meta = el('span', 'cteni-meta', b.meta || '');
@@ -2302,7 +2362,7 @@
       for (const t of q('.cteni-flow').querySelectorAll('.cteni-tool:not([data-auto])')) {
         t.dataset.auto = '1';
         const ico = t.querySelector('.cteni-ico');
-        if (ico && ico.textContent === '✎' && t.querySelector('.cteni-detail') &&
+        if (ico && ico.dataset.druh === 'tuzka' && t.querySelector('.cteni-detail') &&
             t.querySelector('.cteni-detail').textContent) {
           t.querySelector('.cteni-head').click();
         }

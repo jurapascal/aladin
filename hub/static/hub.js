@@ -1737,6 +1737,15 @@ async function resumeChat(c, prompt, preneseny) {
                 : 'Tuhle konverzaci jsi poslal na počítač — pokračuj v ní tam.');
     return;
   }
+  // Chat už je otevřený v tabu tohohle hubu: přepnout na něj, ne otevírat další
+  // (druhý Claude v téže konverzaci, případně „kopie“ — v seznamu pak byl dvakrát).
+  const otevreny = TABS.find((t) => !t.exited && (t.chat || t.resume) === c.id);
+  if (otevreny) {
+    activate(otevreny);
+    if (otevreny.uspany) send({t: 'wake', id: otevreny.id});
+    closeDrawer();
+    return;
+  }
   // Změněná před chvílí a v žádném tabu hubu neběží: nejspíš je otevřená
   // jinde (terminál, jiné okno). Dva Claudy v jedné konverzaci by si
   // přepisovaly historii — otevře se proto její kopie.

@@ -492,6 +492,17 @@
       wrap.appendChild(t);
     }
     box.appendChild(wrap);
+    // Stavový řádek nad konverzací (stavradek.js) — model, větev, odhad ceny, čas.
+    if (window.HubStav) {
+      const sr = el('label', 'onb-row');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = HubStav.zapnuto();
+      cb.onchange = () => HubStav.nastav(cb.checked);
+      sr.append(cb, el('span', null, 'Stavový řádek nad konverzací (model, větev, odhad ceny, čas)'));
+      sr.title = 'Jen na tomhle zařízení.';
+      box.appendChild(sr);
+    }
     return box;
   }
 

@@ -4576,3 +4576,23 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 .pristup-pridat { flex-wrap: wrap; gap: 6px; }
 .pristup-pridat select { flex: 1 1 150px; min-width: 0; max-width: 100%; }
 .pristup-pridat .btn { flex: none; }
+
+/* Stavový řádek tabu (stavradek.js): jeden nenápadný řádek nad konverzací.
+   Nikdy nepřetéká — větev se zkracuje třemi tečkami, čas jde pryč na úzkém okně. */
+.stavradek {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 3px 20px; min-width: 0; overflow: hidden; white-space: nowrap;
+  font-size: 11.5px; line-height: 1.5; color: var(--muted, #8b949e);
+  border-bottom: 1px solid var(--border);
+}
+.stavradek[hidden], .stavradek > [hidden] { display: none; }
+.stavradek > span { flex: none; }
+.stavradek > .sr-vetev { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.stavradek > .sr-model { font-weight: 600; }
+@media (max-width: 640px) {
+  .stavradek { padding: 3px 14px; gap: 10px; }
+  .stavradek > .sr-cas { display: none; }
+}
+@media (max-width: 400px) {
+  .stavradek { gap: 8px; font-size: 11px; }
+}

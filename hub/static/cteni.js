@@ -445,7 +445,8 @@
 
   function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null,
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
-                                  odpovez = null, stahovani = null} = {}) {
+                                  odpovez = null, stahovani = null, znovu = null, jeOnline = null,
+                                  pozastaveno = null, pozastavit = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -829,6 +830,8 @@
        Co se odešle z bubliny, je vidět hned — i když Claude zrovna pracuje
        a zprávu si vezme až za chvíli. Stav pod ní říká, kde je:
          odesílá se → ve frontě (Claude ji zatím nevidí) → v konverzaci. */
+    const RETRY_MS = 20000;      // nepřevzatou zprávu hub sám pošle znovu (nejvýš RETRY_MAX×)
+    const RETRY_MAX = 4;
     const NEDOSLO_MS = 30000;   // bublina zkouší Enter ~25 s (composer.js, posliJednu)
     function norm(t) {
       return String(t || '').replace(/<\/?pasted_content\b[^>]*>/g, '')
@@ -842,7 +845,7 @@
     const STITEK = {
       start: 'Čeká, až se Claude připraví…',
       odesila: 'Odesílá se…',
-      nedoslo: 'Claude zprávu zatím nepřevzal — zkus to za chvíli znovu',
+      nedoslo: 'Claude zprávu zatím nepřevzal — zkusím ji poslat znovu',
       // Claude ještě dělá předchozí úkol: zpráva čeká ve frontě a vezme si ji
       // hned potom (Adam, 22. 10. 2026 — šestiminutové čekání vypadalo jako chyba).
       fronta: 'Claude ještě dokončuje práci — zprávu si vezme hned potom',
@@ -865,6 +868,8 @@
       m.row.querySelector('.cteni-stitek').textContent = stitek(stav);
       clearTimeout(m.timer);
       if (stav === 'odesila') m.timer = setTimeout(() => nastavMistni(m, pr.pracuje ? 'fronta' : 'nedoslo'), NEDOSLO_MS);
+      if (stav === 'nedoslo') m.timer = setTimeout(() => zkusZnovu(m), RETRY_MS);
+      ukazPomoc(m);
       if (stav === 'prikaz') m.timer = setTimeout(() => potvrdMistni(m), PRIKAZ_MS);
       if (stav === 'start') {
         m.timer = setTimeout(() => {
@@ -874,6 +879,47 @@
           }
         }, START_DLOUHO_MS);
       }
+    }
+    /* Zpráva, kterou Claude nepřevzal (nejčastěji po restartu prostoru, kdy se
+       ještě rozjíždí), odejde sama znovu, jakmile je spojení. Když Claude
+       pracuje, zpráva čeká ve frontě u něj a znovu se neposílá — vznikl by
+       duplikát. Pozastavené odesílání se nepokouší. */
+    function zkusZnovu(m, rucne) {
+      if (m.stav !== 'nedoslo' || !mistni.includes(m)) return;
+      if (pr.pracuje) { nastavMistni(m, 'fronta'); return; }
+      const jeSpojeni = !jeOnline || jeOnline();
+      if (!rucne && ((pozastaveno && pozastaveno()) || !jeSpojeni || (m.pokusy || 0) >= RETRY_MAX)) {
+        if ((m.pokusy || 0) < RETRY_MAX && !(pozastaveno && pozastaveno())) m.timer = setTimeout(() => zkusZnovu(m), RETRY_MS);
+        return;
+      }
+      m.pokusy = (m.pokusy || 0) + 1;
+      if (znovu && znovu(m.text)) nastavMistni(m, 'odesila');
+      else m.timer = setTimeout(() => zkusZnovu(m), RETRY_MS);
+    }
+    /* Pod zprávou, která nedošla: co se děje a dvě tlačítka — poslat hned znovu
+       a pozastavit odesílání (když Claude blbne, ať se do něj nehrne další). */
+    function ukazPomoc(m) {
+      let box = m.row.querySelector('.cteni-pomoc');
+      if (m.stav !== 'nedoslo') { if (box) box.remove(); return; }
+      if (!box) {
+        box = el('div', 'cteni-pomoc');
+        box.append(el('span', 'cteni-pomoc-text'));
+        const znovuBtn = el('button', 'cteni-pomoc-btn', 'Poslat znovu');
+        znovuBtn.type = 'button';
+        znovuBtn.onclick = () => { m.pokusy = 0; zkusZnovu(m, true); };
+        const stopBtn = el('button', 'cteni-pomoc-btn', '');
+        stopBtn.type = 'button';
+        stopBtn.onclick = () => { if (pozastavit) pozastavit(!(pozastaveno && pozastaveno())); ukazPomoc(m); };
+        box.append(znovuBtn, stopBtn);
+        m.row.appendChild(box);
+      }
+      const stop = !!(pozastaveno && pozastaveno());
+      const proc = (jeOnline && !jeOnline()) ? 'Spojení se serverem spadlo.'
+        : pr.pracuje ? 'Claude pracuje, zpráva čeká ve frontě u něj.'
+        : 'Claude teď zprávy nebere — nejspíš se po restartu ještě rozjíždí.';
+      box.querySelector('.cteni-pomoc-text').textContent = proc +
+        (stop ? ' Odesílání je pozastavené.' : ' Zkusím to znovu' + ((m.pokusy || 0) >= RETRY_MAX ? ' — už to nezkouším, klikni na Poslat znovu.' : ' sám.'));
+      box.querySelector('.cteni-pomoc-btn:last-child').textContent = stop ? 'Povolit odesílání' : 'Pozastavit odesílání';
     }
     function potvrdMistni(m) {
       clearTimeout(m.timer);
@@ -1688,6 +1734,8 @@
     const proud = flow(mount, io.imageUrl, {
       openLink: io.openLink, notice: io.notice, copy: io.copy, odpovez: io.odpovez,
       sdileny: io.sdileny || null,
+      znovu: io.znovu || null, jeOnline: io.jeOnline || null,
+      pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
       zive: () => nacteno && !!global.HubHlas && global.HubHlas.auto.get() &&
                   (!io.aktivni || io.aktivni()),
       naPrehled: () => { if (io.prehled) io.prehled(); },

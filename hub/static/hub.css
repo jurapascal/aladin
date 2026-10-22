@@ -2656,6 +2656,13 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 }
 .cteni-ceka.nedoslo .cteni-bubble { border-color: color-mix(in srgb, var(--red) 55%, var(--border)); }
 .cteni-ceka.nedoslo .cteni-stitek { color: var(--red); }
+.cteni-pomoc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 2px 4px; font-size: 12px; color: var(--dim); }
+.cteni-pomoc-text { flex-basis: 100%; line-height: 1.4; }
+.cteni-pomoc-btn {
+  font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 8px; cursor: pointer;
+  background: var(--bg-card); color: var(--fg); border: 1px solid var(--border);
+}
+.cteni-pomoc-btn:hover { border-color: var(--accent); }
 .cteni-ceka.nedoslo .cteni-stitek::before { background: var(--red); }
 
 /* Nástroj, na jehož výsledek se čeká — malé kolečko, dokud Claude pracuje. */

@@ -1001,9 +1001,27 @@
       }
     }
 
+    /* Znovu doručit zprávu, kterou Claude nepřevzal (volá čtení po restartu
+       prostoru). Text, co už stojí v poli Claude Code, se jen odešle Enterem;
+       co už čeká ve frontě, se nezdvojuje. */
+    function znovu(text) {
+      const body = String(text || '').replace(/\r/g, '');
+      if (!body.trim() || konec() || !tab.id || !online()) return false;
+      if (fronta.includes(body)) return true;
+      const zacatek = body.split('\n')[0].trim().slice(0, 24);
+      const vlozit = body.includes('\n') || body.startsWith('?');
+      if (AG.full && zacatek && vPoli(zacatek, vlozit)) { toPty('\r'); return true; }
+      doruc(body);
+      return true;
+    }
+
     function submit(text, opts = {}) {
       const body = text.replace(/\r/g, '');
       if (!body.trim()) return;
+      if (io.pozastaveno && io.pozastaveno()) {
+        if (io.notice) io.notice('Odesílání zpráv je pozastavené — povol ho pod zprávou, která nedošla.');
+        return;
+      }
       const ef = /^\/effort\s+(low|medium|high|xhigh|max)\b/i.exec(body.trim());
       if (ef) { effort = ef[1].toLowerCase(); syncModel(); }
       /* Tab právě vznikl a Claude Code se ještě rozjíždí. Co by se teď poslalo
@@ -2332,6 +2350,7 @@
       focus: () => { if (shown) input.focus(); },
       // Rozepsaná zpráva — přežije restart prostoru při aktualizaci (hub.js).
       draft: () => input.value,
+      znovu,
       setDraft: (text) => { if (!input.value) { input.value = text; autogrow(); } },
       visible: () => shown,
       hide: () => { hiddenByUser = true; apply(true); },

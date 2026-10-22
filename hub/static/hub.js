@@ -3514,6 +3514,11 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
       (agent || STATE.default_agent || 'claude') === 'claude') {
     tab.cteni = HubCteni.install(tab, {api, notice: toast, imageUrl, openLink, copy: copyText,
                                        aktivni: () => ACTIVE === tab,
+                                       // Nepřevzatá zpráva se po restartu pošle sama znovu; odesílání jde pozastavit.
+                                       znovu: (text) => !!(tab.composer && tab.composer.znovu && tab.composer.znovu(text)),
+                                       jeOnline: online,
+                                       pozastaveno: () => !!tab.pozastaveno,
+                                       pozastavit: (on) => { tab.pozastaveno = !!on; },
                                        // Majitelův chat, který už je sdílený: bubliny podle lidí.
                                        sdileny: () => { const r = relaceTabu(tab); return r ? {ja: r.majitel, majitel: r.majitel} : null; },
                                        // Tlačítko rychlé odpovědi pod odpovědí Clauda.
@@ -3526,6 +3531,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
   if (kind === 'project' || kind.startsWith('slash:')) {
     tab.composer = HubComposer.install(tab, {
       send,
+      pozastaveno: () => !!tab.pozastaveno,
       // Úhoz v bublině: sdílející vidí, že tu píšu.
       pise: () => { tab.pisuOd = Date.now(); },
       online,

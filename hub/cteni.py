@@ -679,7 +679,11 @@ def read(path, start=0, tail=False):
         except ValueError:
             continue
         if isinstance(entry, dict):
-            bloky.extend(rewind.oznac(entry, _bloky_zpravy(entry), os.path.basename(path)[:-6]))
+            for blok in rewind.oznac(entry, _bloky_zpravy(entry), os.path.basename(path)[:-6]):
+                # Kde zpráva v přepisu stojí — podle toho se z ní dá rozvětvit (hub/vetev.py).
+                if blok.get("kind") == "me" and isinstance(entry.get("uuid"), str):
+                    blok.setdefault("uuid", entry["uuid"])
+                bloky.append(blok)
     return {"blocks": bloky[-MAX_BLOCKS:], "next": start + konec + 1, "ready": True}
 
 

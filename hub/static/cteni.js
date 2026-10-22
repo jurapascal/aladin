@@ -525,7 +525,8 @@
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
                                   pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null,
-                                  serverSeznam = null, serverUprav = null, serverSmaz = null} = {}) {
+                                  serverSeznam = null, serverUprav = null, serverSmaz = null,
+                                  rozvetvit = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -902,6 +903,24 @@
       if (b.text) bubble.appendChild(textSOdkazy(b.text));
       row.appendChild(bubble);
       if (stitek) row.appendChild(el('div', 'cteni-stitek', stitek));
+      // Rozvětvit odsud: nový chat jen do tohohle místa (hub/vetev.py). Jen u zpráv,
+      // které už jsou v přepisu (mají uuid), ne u těch, co teprve čekají na odeslání.
+      if (rozvetvit && b.uuid && !sd && !/fronta|ceka/.test(cls || '')) {
+        const vetev = el('button', 'cteni-vetev', '⑂ Rozvětvit odsud');
+        vetev.type = 'button';
+        vetev.title = 'Otevře nový chat s konverzací jen do tohohle místa (před touhle zprávou). Původní zůstane, jak je.';
+        vetev.onclick = async (ev) => {
+          ev.stopPropagation();
+          if (vetev.disabled) return;
+          vetev.disabled = true;               // dvojklik nezaloží druhou větev
+          vetev.textContent = 'Větvím…';
+          try { await rozvetvit(b.uuid); } finally {
+            vetev.disabled = false;
+            vetev.textContent = '⑂ Rozvětvit odsud';
+          }
+        };
+        row.appendChild(vetev);
+      }
       return row;
     }
 
@@ -2006,6 +2025,7 @@
       znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
       serverSeznam: io.serverSeznam || null, serverUprav: io.serverUprav || null, serverSmaz: io.serverSmaz || null,
       pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
+      rozvetvit: io.rozvetvit ? (uuid) => io.rozvetvit({id: tab.id}, uuid) : null,
       zive: () => nacteno && !!global.HubHlas && global.HubHlas.auto.get() &&
                   (!io.aktivni || io.aktivni()),
       naPrehled: () => { if (io.prehled) io.prehled(); },
@@ -2258,7 +2278,8 @@
 
     const scroll = q('.cteni-scroll');
     const proud = flow(q('.cteni-flow'), io.imageUrl, {historie: true, openLink: io.openLink,
-                                                        notice: io.notice, copy: io.copy});
+                                                        notice: io.notice, copy: io.copy,
+                                                        rozvetvit: io.rozvetvit ? (uuid) => io.rozvetvit({chat: chat.id}, uuid, zavrit) : null});
     const data = zdroj(io, 'chat=' + encodeURIComponent(chat.id));
 
     (async () => {

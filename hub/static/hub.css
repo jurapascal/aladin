@@ -4668,3 +4668,10 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 @media (max-width: 400px) {
   .stavradek { gap: 8px; font-size: 11px; }
 }
+/* Větvení konverzace: tlačítko pod bublinou se zadáním (cteni.js, hub/vetev.py) */
+.cteni-vetev { align-self: flex-end; background: none; border: 0; padding: 2px 6px; font-size: 11.5px;
+  color: var(--muted, #8b8b93); cursor: pointer; opacity: 0; border-radius: 6px; }
+.cteni-me:hover .cteni-vetev, .cteni-vetev:focus-visible, .cteni-vetev:disabled { opacity: 1; }
+.cteni-vetev:hover { color: var(--fg, inherit); background: color-mix(in srgb, currentColor 10%, transparent); }
+.cteni-vetev:disabled { cursor: progress; }
+@media (hover: none) { .cteni-vetev { opacity: .7; } }

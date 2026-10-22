@@ -3533,6 +3533,10 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
                                        },
                                        serverZnovu: (id) => { if (tab.id) api('fronta-znovu', {tab: tab.id, id}).catch(() => {}); },
                                        serverIhned: (id) => { if (tab.id) api('fronta-ihned', {tab: tab.id, id}).catch(() => {}); },
+                                       // Úprava a smazání zprávy, která ještě čeká (vrací odpověď serveru, nebo null při pádu spojení).
+                                       serverSeznam: async () => { try { return tab.id ? await api('fronta?tab=' + tab.id) : null; } catch (_) { return null; } },
+                                       serverUprav: (id, text) => api('fronta-uprav', {tab: tab.id, id, text}),
+                                       serverSmaz: (id) => api('fronta-zrus', {tab: tab.id, id}),
                                        // Majitelův chat, který už je sdílený: bubliny podle lidí.
                                        sdileny: () => { const r = relaceTabu(tab); return r ? {ja: r.majitel, majitel: r.majitel} : null; },
                                        // Tlačítko rychlé odpovědi pod odpovědí Clauda.

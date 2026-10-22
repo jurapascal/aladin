@@ -524,7 +524,8 @@
   function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null,
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
-                                  pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null} = {}) {
+                                  pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null,
+                                  serverSeznam = null, serverUprav = null, serverSmaz = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -952,6 +953,7 @@
       if (stav === 'odesila') m.timer = setTimeout(() => nastavMistni(m, pr.pracuje ? 'fronta' : 'nedoslo'), NEDOSLO_MS);
       if (stav === 'nedoslo' && !m.server) m.timer = setTimeout(() => zkusZnovu(m), RETRY_MS);
       ukazPomoc(m);
+      ukazAkce(m);
       if (stav === 'prikaz') m.timer = setTimeout(() => potvrdMistni(m), PRIKAZ_MS);
       if (stav === 'start') {
         m.timer = setTimeout(() => {
@@ -1020,6 +1022,12 @@
     function odServeru(msg) {
       const m = mistni.find((x) => x.fid && x.fid === msg.id);
       if (!m) return;
+      if (msg.stav === 'upraveno') { zmenText(m, msg.text, !m.zamek); return; }   // zamek = vlastní uložení právě běží
+      if (msg.stav === 'smazano') { potvrdMistni(m); return; }
+      if (m.edit && msg.stav !== 'zaseklo') {          // zpráva mezitím odešla — úprava už nejde
+        zavriEditor(m);
+        hlaska('Zpráva mezitím odešla Claudovi — upravit ji už nejde.');
+      }
       if (msg.stav === 'nedoslo') nastavMistni(m, 'nedoslo');
       else if (msg.stav === 'zaseklo') nastavMistni(m, 'zaseklo');
       else if (msg.stav === 'odeslano' || msg.stav === 'doruceno') nastavMistni(m, 'predano');
@@ -1033,6 +1041,147 @@
         const m = mistni[mistni.length - 1];
         if (z.stav === 'nedoslo') nastavMistni(m, 'nedoslo');
         else if (z.stav === 'odeslano') nastavMistni(m, 'predano');
+      }
+    }
+    /* ── úprava a smazání zprávy, která ještě čeká ────────────────────────────
+       Jde to jen dokud server zprávu nenapsal Claudovi (hub/fronta.py: stav
+       „ceka“). Server rozhoduje — okno jen ukáže tlačítka a po odpovědi se
+       srovná podle skutečného stavu (i když mezitím zpráva odešla). */
+    const hlaska = (t) => { if (notice) notice(t); };
+    const MAX_UPRAVA = 20000;
+    function ukazAkce(m) {
+      let box = m.row.querySelector('.cteni-akce');
+      const lze = m.server && m.fid && serverUprav && (m.stav === 'server' || m.stav === 'zaseklo');
+      if (!lze) { if (box) box.remove(); if (m.edit) zavriEditor(m); return; }
+      if (box) return;
+      box = el('div', 'cteni-akce');
+      const uprBtn = el('button', 'cteni-pomoc-btn cteni-akce-uprav', 'Upravit');
+      uprBtn.type = 'button';
+      uprBtn.onclick = () => otevriEditor(m);
+      const smazBtn = el('button', 'cteni-pomoc-btn cteni-akce-smaz', 'Smazat');
+      smazBtn.type = 'button';
+      smazBtn.onclick = () => smazZpravu(m);
+      box.append(uprBtn, smazBtn);
+      m.row.appendChild(box);
+    }
+    function zmenText(m, text, odjinud) {
+      m.text = String(text || '').trim();
+      m.norm = norm(m.text);
+      const bubble = m.row.querySelector('.cteni-bubble');
+      if (bubble) {
+        for (const ch of Array.from(bubble.children)) if (!ch.classList.contains('cteni-imgs')) ch.remove();
+        bubble.appendChild(textSOdkazy(m.text));
+      }
+      if (m.edit) {                               // jiné okno předběhlo; rozepsaný text se zahodí
+        zavriEditor(m);
+        if (odjinud) hlaska('Zprávu mezitím upravilo jiné okno — ukazuju její novou podobu.');
+      }
+    }
+    function zavriEditor(m) {
+      if (!m.edit) return;
+      m.edit.remove();
+      m.edit = null;
+      const bubble = m.row.querySelector('.cteni-bubble');
+      if (bubble) bubble.hidden = false;
+      const box = m.row.querySelector('.cteni-akce');
+      if (box) box.hidden = false;
+    }
+    /* Server řekl, že zpráva upravit/smazat nejde: srovnat okno se skutečností. */
+    function vysledekNeslo(m, r) {
+      hlaska((r && r.duvod) || 'Zprávu teď nejde změnit.');
+      if (!r || r.stav === 'neni') potvrdMistni(m);                // doručená nebo smazaná — přepis ukáže pravdu
+      else if (r.stav === 'odeslano' || r.stav === 'nedoslo') { zavriEditor(m); nastavMistni(m, r.stav === 'nedoslo' ? 'nedoslo' : 'predano'); }
+    }
+    async function otevriEditor(m) {
+      if (m.edit || m.zamek || !serverSeznam) return;
+      m.zamek = true;
+      try {
+        // Upravuje se text, který drží server (ten může mít navíc cesty k přílohám).
+        const r = await serverSeznam();
+        const z = r && (r.zpravy || []).find((x) => x.id === m.fid);
+        if (!r) { hlaska('Nepodařilo se spojit se serverem — zkus to za chvíli.'); return; }
+        if (!z) { vysledekNeslo(m, {stav: 'neni', duvod: 'Zpráva už ve frontě není — Claude ji převzal, nebo byla smazaná.'}); return; }
+        if (z.stav !== 'ceka') {
+          vysledekNeslo(m, {stav: z.stav, duvod: 'Zpráva už je napsaná Claudovi, upravit ji nejde.'});
+          return;
+        }
+        const box = el('div', 'cteni-editor');
+        const ta = el('textarea', 'cteni-editor-pole');
+        ta.value = z.text;
+        ta.maxLength = MAX_UPRAVA;
+        ta.rows = Math.min(12, Math.max(3, z.text.split('\n').length + 1));
+        const tl = el('div', 'cteni-pomoc');
+        const ulozBtn = el('button', 'cteni-pomoc-btn', 'Uložit');
+        ulozBtn.type = 'button';
+        const zrusBtn = el('button', 'cteni-pomoc-btn', 'Zrušit');
+        zrusBtn.type = 'button';
+        zrusBtn.onclick = () => zavriEditor(m);
+        ulozBtn.onclick = () => ulozUpravu(m, ta, ulozBtn);
+        ta.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Escape') { ev.preventDefault(); zavriEditor(m); }
+          else if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); ulozBtn.click(); }
+        });
+        tl.append(ulozBtn, zrusBtn);
+        box.append(ta, tl);
+        const bubble = m.row.querySelector('.cteni-bubble');
+        if (bubble) bubble.hidden = true;
+        const akce = m.row.querySelector('.cteni-akce');
+        if (akce) akce.hidden = true;
+        m.row.insertBefore(box, m.row.querySelector('.cteni-stitek'));
+        m.edit = box;
+        ta.focus();
+      } catch (_) {
+        hlaska('Úpravu se nepodařilo otevřít.');
+      } finally {
+        m.zamek = false;
+      }
+    }
+    async function ulozUpravu(m, ta, btn) {
+      if (m.zamek) return;                        // dvojklik
+      const text = ta.value;
+      if (!text.trim()) {                         // prázdná úprava = smazání, ale jen s potvrzením
+        m.zamek = true;
+        try {
+          const dlg = global.HubDialog;
+          const ano = dlg ? await dlg.confirm('Zpráva je prázdná. Smazat ji z fronty?', {ok: 'Smazat', title: 'Smazat zprávu'})
+                          : global.confirm('Zpráva je prázdná. Smazat ji z fronty?');
+          if (!ano) return;
+        } finally { m.zamek = false; }
+        return smazZpravu(m, true);
+      }
+      if (text.length > MAX_UPRAVA) { hlaska('Zpráva je moc dlouhá (nejvýš ' + MAX_UPRAVA + ' znaků).'); return; }
+      m.zamek = true;
+      btn.disabled = true;
+      try {
+        const r = await serverUprav(m.fid, text);
+        if (r && r.ok) { zmenText(m, r.text, false); zavriEditor(m); }
+        else if (r && r.stav === 'ceka') hlaska(r.duvod || 'Úprava se nepovedla.');   // chyba vstupu — editor zůstane
+        else vysledekNeslo(m, r);
+      } catch (_) {
+        hlaska('Nepodařilo se spojit se serverem — zkus to za chvíli.');
+      } finally {
+        m.zamek = false;
+        btn.disabled = false;
+      }
+    }
+    async function smazZpravu(m, bezPtani) {
+      if (m.zamek && !bezPtani) return;
+      if (!serverSmaz) return;
+      m.zamek = true;
+      try {
+        if (!bezPtani) {
+          const dlg = global.HubDialog;
+          const ano = dlg ? await dlg.confirm('Smazat tuto zprávu z fronty? Claude ji nedostane.', {ok: 'Smazat', title: 'Smazat zprávu'})
+                          : global.confirm('Smazat tuto zprávu z fronty? Claude ji nedostane.');
+          if (!ano) return;
+        }
+        const r = await serverSmaz(m.fid);
+        if (r && r.ok) potvrdMistni(m);
+        else vysledekNeslo(m, r);
+      } catch (_) {
+        hlaska('Nepodařilo se spojit se serverem — zkus to za chvíli.');
+      } finally {
+        m.zamek = false;
       }
     }
     function potvrdMistni(m) {
@@ -1851,6 +2000,7 @@
       openLink: io.openLink, notice: io.notice, copy: io.copy, odpovez: io.odpovez,
       sdileny: io.sdileny || null,
       znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
+      serverSeznam: io.serverSeznam || null, serverUprav: io.serverUprav || null, serverSmaz: io.serverSmaz || null,
       pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
       zive: () => nacteno && !!global.HubHlas && global.HubHlas.auto.get() &&
                   (!io.aktivni || io.aktivni()),

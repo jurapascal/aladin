@@ -72,8 +72,10 @@ def _uloz():
                 json.dump({"zpravy": _polozky, "pauza": sorted(_pauza)}, fh, ensure_ascii=False)
             os.replace(tmp, SOUBOR)
             os.chmod(SOUBOR, 0o600)
+            return True
         except OSError as exc:
             core.log(f"fronta zpráv: nejde uložit ({exc})", "warn")
+            return False
 
 
 # ── API pro okna ─────────────────────────────────────────────────────────────
@@ -87,14 +89,20 @@ def seznam(chat):
         return [_verejne(p) for p in _polozky if p["chat"] == chat]
 
 
-def pridej(chat, text, id_):
-    """Uloží zprávu do fronty konverzace. Stejné `id` podruhé nic nepřidá."""
-    _nacti()
-    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1a\x1c-\x1f\x7f]", "", str(text or "")).replace("\r", "")
+def _cisti(text):
+    """Text zprávy bez řídicích znaků; prázdný nebo moc dlouhý = ValueError."""
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", str(text or "")).replace("\r", "")
     if not text.strip():
         raise ValueError("Zpráva je prázdná.")
     if len(text) > MAX_ZPRAVA:
-        raise ValueError("Zpráva je moc dlouhá.")
+        raise ValueError(f"Zpráva je moc dlouhá (nejvýš {MAX_ZPRAVA} znaků).")
+    return text
+
+
+def pridej(chat, text, id_):
+    """Uloží zprávu do fronty konverzace. Stejné `id` podruhé nic nepřidá."""
+    _nacti()
+    text = _cisti(text)
     id_ = re.sub(r"[^A-Za-z0-9_-]", "", str(id_ or ""))[:40] or f"z{int(time.time() * 1000)}"
     with _lock:
         for p in _polozky:
@@ -136,15 +144,73 @@ def ihned(chat, id_):
     return False
 
 
-def zrus(chat, id_):
+def _nejde(p):
+    """Proč zprávu nejde upravit ani smazat (None = jde). Volat pod `_lock`."""
+    if p is None:
+        return "Zpráva už ve frontě není — Claude ji převzal, nebo byla smazaná."
+    if p["typed"] or p["stav"] != "ceka":
+        return "Zpráva už je napsaná Claudovi, upravit ani smazat ji nejde."
+    return None
+
+
+def _stav_p(p):
+    return p["stav"] if p is not None else "neni"
+
+
+def _najdi(chat, id_):
+    for p in _polozky:
+        if p["chat"] == chat and p["id"] == id_:
+            return p
+    return None
+
+
+def uprav(chat, id_, novy_text):
+    """Změní text zprávy, která ještě čeká (do terminálu se nic nepsalo).
+    Kontrola stavu i změna jsou pod jedním zámkem, a `_krok` si text bere pod
+    stejným zámkem — zpráva se tedy nikdy nenapíše starým textem a napsaná se
+    nedá měnit. Vrací {ok, stav, text|duvod}."""
+    _nacti()
+    try:
+        text = _cisti(novy_text)
+    except ValueError as exc:
+        return {"ok": False, "stav": "ceka", "duvod": str(exc)}
+    if re.match(r"\s*[/!]", text):
+        return {"ok": False, "stav": "ceka", "duvod": "Zpráva nesmí začínat lomítkem ani vykřičníkem — to jsou příkazy, ty se neposílají přes frontu."}
+    with _lock:
+        p = _najdi(chat, id_)
+        duvod = _nejde(p)
+        if duvod:
+            return {"ok": False, "stav": _stav_p(p), "duvod": duvod}
+        if p["text"] == text:
+            return {"ok": True, "stav": "ceka", "text": text, "zmena": False}
+        stary = p["text"]
+        p["text"] = text
+        if not _uloz():
+            p["text"] = stary                       # do souboru to nejde — ať se po restartu neztratí
+            return {"ok": False, "stav": "ceka", "duvod": "Změnu se nepodařilo uložit na server."}
+    _oznam(_session(chat), p, "upraveno", text)
+    return {"ok": True, "stav": "ceka", "text": text, "zmena": True}
+
+
+def smaz(chat, id_):
+    """Smaže zprávu, která ještě čeká. Stejná pravidla jako `uprav`."""
     _nacti()
     with _lock:
-        n = len(_polozky)
-        _polozky[:] = [p for p in _polozky if not (p["chat"] == chat and p["id"] == id_)]
-        if len(_polozky) != n:
-            _uloz()
-            return True
-    return False
+        p = _najdi(chat, id_)
+        duvod = _nejde(p)
+        if duvod:
+            return {"ok": False, "stav": _stav_p(p), "duvod": duvod}
+        pozice = _polozky.index(p)
+        _polozky.remove(p)
+        if not _uloz():
+            _polozky.insert(pozice, p)
+            return {"ok": False, "stav": "ceka", "duvod": "Smazání se nepodařilo uložit na server."}
+    _oznam(_session(chat), p, "smazano")
+    return {"ok": True, "stav": "smazano"}
+
+
+def zrus(chat, id_):
+    return smaz(chat, id_)["ok"]
 
 
 def pauza(chat, zapnout=None):
@@ -328,10 +394,16 @@ def _napis(s, text):
     s.pty.write(b"\r")
 
 
-def _oznam(s, p, stav):
-    from . import server
-    server.HUB.broadcast({"t": "fronta", "tab": s.id if s else 0, "chat": p["chat"],
-                          "id": p["id"], "stav": stav})
+def _oznam(s, p, stav, text=None):
+    try:
+        from . import server
+        zprava = {"t": "fronta", "tab": s.id if s else 0, "chat": p["chat"],
+                  "id": p["id"], "stav": stav}
+        if text is not None:
+            zprava["text"] = text
+        server.HUB.broadcast(zprava)
+    except Exception as exc:                        # oznámení nesmí shodit úpravu ani doručení
+        core.log(f"fronta zpráv: oznámení selhalo ({exc})", "warn")
 
 
 def _krok():
@@ -397,14 +469,25 @@ def _krok():
                 _oznam(s, p, "zaseklo")
                 zmena = True
         if pripraven:
+            # Zpráva se „zabere“ pod zámkem: od té chvíle ji nejde upravit ani
+            # smazat a text se bere až teď (ne z kopie před úpravou). Smazaná
+            # nebo jinak změněná zpráva se nepíše vůbec.
+            with _lock:
+                if not any(x is p for x in _polozky) or p["typed"] or p["stav"] != "ceka":
+                    continue
+                text = p["text"]
+                p["typed"] = int(time.time() * 1000)
+                p["pokusy"] += 1
+                p["stav"] = "odeslano"
+                _uloz()
             try:
-                _napis(s, p["text"])
+                _napis(s, text)
             except Exception as exc:                # pty zrovna zaniklo — příště znovu
                 _core.log(f"fronta zpráv: zápis do tabu {s.id} selhal ({exc})", "warn")
+                with _lock:
+                    p.update(typed=0, stav="ceka", pokusy=max(0, p["pokusy"] - 1))
+                    _uloz()
                 continue
-            p["typed"] = int(time.time() * 1000)
-            p["pokusy"] += 1
-            p["stav"] = "odeslano"
             _oznam(s, p, "odeslano")
             cekaji_ted[p["chat"]] = True
             zmena = True

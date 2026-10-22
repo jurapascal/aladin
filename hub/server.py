@@ -1302,7 +1302,9 @@ class Handler(BaseHTTPRequestHandler):
             if name == "fronta-ihned":
                 return self._json({"ok": fronta.ihned(chat, str(payload.get("id") or ""))})
             if name == "fronta-zrus":
-                return self._json({"ok": fronta.zrus(chat, str(payload.get("id") or ""))})
+                return self._json(fronta.smaz(chat, str(payload.get("id") or "")))
+            if name == "fronta-uprav":
+                return self._json(fronta.uprav(chat, str(payload.get("id") or ""), payload.get("text")))
             if name == "fronta-pauza":
                 return self._json({"ok": True, "pauza": fronta.pauza(chat, bool(payload.get("on")))})
         if name == "cteni-pozadi":

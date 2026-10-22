@@ -216,12 +216,44 @@ def chat_tabu(session):
     return (getattr(session, "chat_id", "") or getattr(session, "resume", "") or "") if session else ""
 
 
+_PRIKAZ = ("<command-name>", "<local-command-stdout>", "<local-command-caveat>", "<command-message>")
+
+
 def _pracuje(cesta):
+    """Čeká Claude na výsledek nástroje, odpověď v dialogu, nebo zpracovává
+    zprávu? Podle konce přepisu — ale bez příkazů (/model, /effort…), které
+    hub posílá sám hned po startu: v čerstvém chatu jsou jediným obsahem a
+    bez odpovědi Clauda by chat vypadal navždy zaneprázdněný (zpráva by
+    se nikdy nedoručila)."""
     from . import mcp_tools
     try:
-        return bool(mcp_tools._pracuje(cesta))
-    except Exception:
-        return True                                 # nevíme → radši nesahat
+        age = time.time() - os.path.getmtime(cesta)
+        if age < mcp_tools._PRACUJE_MTIME_S:
+            return True
+        if age > mcp_tools._PRACUJE_STARE_S:
+            return False
+        with open(cesta, "rb") as fh:
+            fh.seek(0, 2)
+            fh.seek(max(0, fh.tell() - 65536))
+            radky = fh.read().decode("utf-8", "replace").splitlines()
+    except OSError:
+        return False
+    for radek in reversed(radky):
+        try:
+            e = json.loads(radek)
+        except ValueError:
+            continue
+        typ = e.get("type")
+        if typ not in ("user", "assistant") or e.get("isSidechain") or e.get("isMeta"):
+            continue
+        zprava = e.get("message") or {}
+        if typ == "user":
+            text = _text_z_obsahu(zprava.get("content"))
+            if text.lstrip().startswith(_PRIKAZ):
+                continue                            # příkaz, ne zadání pro Clauda
+            return True
+        return zprava.get("stop_reason") in (None, "tool_use")
+    return False
 
 
 def _pripraven(s, cesta):

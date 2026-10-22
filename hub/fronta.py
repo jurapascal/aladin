@@ -33,6 +33,7 @@ MAX_ZPRAVA = 20000
 MAX_VE_FRONTE = 50
 ROZJEZD_S = 10.0             # po startu Claude Code chvíli nic nebere
 KLID_S = 1.5                 # výstup musí ztichnout
+VSTUP_KLID_S = 2.0           # a okno nesmí právě psát do terminálu (/model, /effort, odpověď v dialogu)
 POTVRZENI_S = 20.0           # tak dlouho se čeká na přepis, než se zkusí Enter
 ZASEKLE_S = 150.0            # tak dlouho bez změny v přepisu = Claude se zdá zaseklý
 PO_ENTERU_S = 25.0           # a tak dlouho po Enteru, než je zpráva „nedošla"
@@ -346,6 +347,13 @@ def _stari(cesta):
         return 0.0
 
 
+def _okno_pise(s):
+    """Píše do terminálu zrovna okno (automatické /model a /effort, odpověď na
+    dotaz, nebo člověk v terminálu)? Dva zapisovače naráz se v poli Claude Code
+    proplétají: příkaz se přilepí ke zprávě, nebo text zmizí. Server proto počká."""
+    return time.time() - (getattr(s, "_vstup_at", 0.0) or 0.0) < VSTUP_KLID_S
+
+
 def _pripraven(s, cesta):
     if s.uspany:
         threading.Thread(target=s.probud, daemon=True).start()
@@ -356,6 +364,8 @@ def _pripraven(s, cesta):
     if not v or time.time() - v < KLID_S:
         return False
     if getattr(s, "_fronta", None) is not None:      # právě se probouzí
+        return False
+    if _okno_pise(s):
         return False
     return not _pracuje(cesta)
 
@@ -450,7 +460,7 @@ def _krok():
         pripraven = _pripraven(s, cesta)
         if not pripraven and not s.uspany and time.time() - s.started >= ROZJEZD_S \
                 and getattr(s, "_fronta", None) is None and not p.get("ihned") \
-                and _pracuje(cesta) and _lze_za_behu(s, cesta, p["text"]):
+                and not _okno_pise(s) and _pracuje(cesta) and _lze_za_behu(s, cesta, p["text"]):
             pripraven = True                        # za běhu do fronty Claude Code
         if not pripraven and not s.uspany and time.time() - s.started >= ROZJEZD_S \
                 and getattr(s, "_fronta", None) is None:

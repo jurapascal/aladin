@@ -260,6 +260,7 @@ class Session:
         self.vlastni_nazev = False
         self.posledni = time.time()
         self._vystup_at = 0.0
+        self._vstup_at = 0.0
         # Vstup, který přišel do uspaného (nebo právě se probouzejícího) tabu;
         # doručí se, až Claude naběhne. None = píše se rovnou.
         self._fronta = None
@@ -437,7 +438,7 @@ class Session:
     def write(self, data):
         """Vstup do tabu. Uspaný tab se probudí a vstup dostane, až Claude naběhne."""
         with self._lock:
-            self.posledni = time.time()
+            self.posledni = self._vstup_at = time.time()   # _vstup_at: kdy psalo okno (fronta.py)
             if self._fronta is not None:
                 self._fronta.append(data)
                 spi = self.uspany

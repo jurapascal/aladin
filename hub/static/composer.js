@@ -1100,9 +1100,19 @@
       }
       if (pres_server) {
         const fid = 'z' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-        io.naServer(body, fid).then((ok) => {
+        /* Automatické /model a /effort píše do terminálu okno samo (fronta níž).
+           Zpráva z kopie na serveru by se do pole psala zároveň a obojí by se
+           proplétalo: příkaz se přilepil ke zprávě, nebo text zmizel. Na server
+           proto jde až po dopsání příkazů; bublina je vidět hned. */
+        const cekaPrikaz = fronta.length > 0 || pumpuje;
+        if (cekaPrikaz) ohlas(body, Object.assign({}, opts, {fid}), 'odesila');
+        const naServer = cekaPrikaz
+          ? dokud(() => konec() || (!pumpuje && !fronta.length)).then(() => !konec() && io.naServer(body, fid))
+          : io.naServer(body, fid);
+        naServer.then((ok) => {
           if (ok) { ohlas(body, Object.assign({}, opts, {fid}), 'server'); return; }
-          ohlas(body, opts, 'odesila');          // server zprávu nevzal — stará cesta
+          if (konec()) return;
+          if (!cekaPrikaz) ohlas(body, opts, 'odesila');          // server zprávu nevzal — stará cesta
           doruc(body);
         });
       } else {

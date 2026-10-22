@@ -1219,6 +1219,14 @@
         for (const m of mistni) if (m.stav === 'start' || m.stav === 'spojeni') nastavMistni(m, 'odesila');
         return;
       }
+      // Zpráva, co čekala na dopsání příkazů okna (composer.js submit), už bublinu
+      // má — jen se jí změní stav, ať se neukáže dvakrát.
+      const byla = z.fid && mistni.find((x) => x.fid === z.fid);
+      if (byla) {
+        if (stav === 'server') byla.server = true;
+        nastavMistni(byla, stav === 'server' ? 'server' : 'odesila');
+        return;
+      }
       const m = {norm: norm(z.text), text: String(z.text || '').trim(), row: bublina(z, '', ' '),
                  fid: z.fid || '', server: stav === 'server'};
       mistni.push(m);

@@ -1,7 +1,7 @@
 {
   "name": "claude-code-hub-desktop",
   "productName": "Aladin",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Okno pro Aladina: vlastní aplikace s vlastním menu a novými okny místo karty v Chromu.",
   "main": "main.js",
   "license": "MIT",
@@ -60,7 +60,13 @@
       "category": "Development",
       "executableName": "claude-code-hub"
     },
-    "afterPack": "tools/adhoc-podpis.cjs"
+    "afterPack": "tools/adhoc-podpis.cjs",
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      }
+    ]
   },
   "desktopName": "claude-code-hub.desktop"
 }

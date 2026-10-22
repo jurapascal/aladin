@@ -111,7 +111,10 @@ def spanek(zapnout):
         # `handle-lid-switch`: zavřené víko spánek nespustí (pokud to systém neřídí jinak).
         _zamek["proc"] = subprocess.Popen(
             ["systemd-inhibit", "--what=sleep:idle:handle-lid-switch", "--who=Aladin",
-             "--why=Appka běží na pozadí", "--mode=block", "sleep", "infinity"],
+             "--why=Appka běží na pozadí", "--mode=block",
+             # Drží, jen dokud žije hub (jako caffeinate -w na Macu). Se
+             # `sleep infinity` zámek přežil pád hubu a spánek blokoval dál.
+             "tail", f"--pid={os.getpid()}", "-f", "/dev/null"],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     core.log("spánek: počítač nebude usínat, dokud appka běží")
 

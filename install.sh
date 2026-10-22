@@ -602,8 +602,11 @@ if ls "$CLAUDE_DIR"/commands/*.md >/dev/null 2>&1; then
 fi
 
 # ── 6. Ikona + položka v nabídce ─────────────────────────────────────────────
-cp "$SRC/assets/claude-code.png" "$ICON_DIR/claude-code.png" 2>/dev/null && \
-    ok "ikona v $ICON_DIR/claude-code.png"
+cp "$SRC/assets/claude-code.png" "$ICON_DIR/claude-code.png" 2>/dev/null
+# Ikona v nabídce pod vlastním jménem: GNOME si obrázek pamatuje podle cesty,
+# takže přepsaný claude-code.png by na liště zůstal ten starý (loďka).
+cp "$SRC/assets/claude-code.png" "$ICON_DIR/aladin.png" 2>/dev/null && \
+    ok "ikona v $ICON_DIR/aladin.png"
 
 cat > "$APP_DIR/claude-code-hub.desktop" <<EOF
 [Desktop Entry]
@@ -611,7 +614,7 @@ Version=1.0
 Type=Application
 Name=Aladin
 Comment=Aladin — projekty a paměť v jednom okně s taby
-Icon=$ICON_DIR/claude-code.png
+Icon=$ICON_DIR/aladin.png
 Terminal=false
 Categories=Development;Utility;
 Exec="$PY" "$CLAUDE_DIR/claude-hub.py"

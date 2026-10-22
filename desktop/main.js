@@ -34,6 +34,17 @@ const RELEASES = 'https://github.com/jurapascal/claude-code-hub/releases/latest'
 const HUB_URL = /^http:\/\/127\.0\.0\.1:\d+(\/|$)/;
 
 const claudeDir = () => process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
+
+/* Ikona okna: z nainstalovaného hubu (~/.claude/hub/static) — mění se spolu
+   s hubem, takže nová ikona nečeká na novou verzi appky. Zabalená appka
+   assets/ z repa nemá (v1.1.1 tak ukazovala loďku zapečenou při sestavení);
+   ve vývoji se vezme z repa, nakonec ta přibalená k appce. */
+function ikonaAppky() {
+  const kandidati = [path.join(claudeDir(), 'hub', 'static', 'icon-512.png'),
+                     path.join(__dirname, '..', 'assets', 'claude-code.png'),
+                     path.join(process.resourcesPath || '', 'icon.png')];
+  return kandidati.find((p) => { try { return fs.statSync(p).isFile(); } catch (_) { return false; } }) || '';
+}
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; } };
 // Adresa hubu z příkazové řádky (hub/appka.py → --hub-url=…): hub už běží
 // a okno má jít rovnou k němu.
@@ -230,11 +241,11 @@ function noveOkno(url) {
   } else if (Number.isInteger(saved.x) && Number.isInteger(saved.y)) {
     Object.assign(opts, { x: saved.x, y: saved.y });
   }
-  const icon = path.join(__dirname, '..', 'assets', 'claude-code.png');
+  const icon = ikonaAppky();
   const win = new BrowserWindow({
     ...opts, minWidth: 720, minHeight: 480, title: 'Aladin',
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0d0f12' : '#ffffff',
-    ...(fs.existsSync(icon) ? { icon } : {}),
+    ...(icon ? { icon } : {}),
     // Menu kreslí hub v liště (window.hubApp) — nativní lišta je schovaná a Alt
     // ji ukáže. Starší hub, který menu nekreslí, ji dostane zpátky (níž).
     autoHideMenuBar: !IS_MAC,
@@ -467,8 +478,8 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(async () => {
     app.setName('Aladin');
     if (IS_MAC && app.dock) {
-      const png = path.join(__dirname, '..', 'assets', 'claude-code.png');
-      if (fs.existsSync(png)) app.dock.setIcon(png);
+      const png = ikonaAppky();
+      if (png) app.dock.setIcon(png);
     }
     povoleni();
     sestavMenu();

@@ -2898,7 +2898,12 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   .drawer-toggle { display: inline-flex; }
   .topbar .iconbtn { width: 42px; height: 42px; padding: 10px; border-radius: 12px; }
   .topbar .iconbtn .ico { width: 21px; height: 21px; }
-  .topbar-title { flex: 1; justify-content: center; min-width: 0; gap: 8px; }
+  /* `safe center`: když se do lišty nevejde logo, název prostoru a štítky
+     (dlouhé jméno firmy + Server), obsah se nesmí vysunout doleva přes tlačítko
+     nabídky — zůstane od začátku a štítek prostoru se zkrátí (Adam, 22. 10. 2026). */
+  .topbar-title { flex: 1; justify-content: safe center; min-width: 0; gap: 8px; overflow: hidden; }
+  .topbar-title .topbar-home { flex: none; }
+  .topbar-title #btn-place { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-new { display: inline-flex; }
   .topbar-tab {
     display: block; order: 1; min-width: 0;

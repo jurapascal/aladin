@@ -3573,6 +3573,8 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
       skills: () => STATE.skills || [],
       // Čím Claude v tabu doopravdy odpověděl (z přepisu konverzace na serveru).
       tabModel: (id) => api('tab-model?id=' + encodeURIComponent(id)),
+      // Našeptávač `@soubor` v bublině (hub/soubory_hledani.py); kořen určí server z tabu.
+      souboryHledej: (id, q) => api('soubory-hledani?id=' + encodeURIComponent(id) + '&q=' + encodeURIComponent(q)),
       // Druhý názor na model a effort ke zprávě (hub/automodel.py, Haiku).
       autoModel: (text) => api('auto-model', {text}),
       autoKeep: (extend) => api('auto-model-keep', {extend: !!extend}),

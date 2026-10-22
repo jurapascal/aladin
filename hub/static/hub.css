@@ -4615,3 +4615,19 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
   background: none; color: var(--dim); font: inherit; font-size: 11px; cursor: pointer;
 }
 .hl-export:hover { color: var(--accent); border-color: var(--accent); }
+/* Našeptávač @soubor v bublině (composer.js) */
+.composer.on .composer-box { position: relative; }
+.composer-sugg {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px); z-index: 8;
+  max-height: min(260px, 40vh); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg-sidebar); border: 1px solid var(--section);
+  border-radius: var(--radius); padding: 4px;
+}
+.composer-sugg[hidden] { display: none; }
+.composer-sugg-it {
+  display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 6px;
+  font-size: 12px; color: var(--fg-bright); cursor: pointer; min-height: 20px;
+}
+.composer-sugg-it .n { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-sugg-it .d { flex: 1; min-width: 0; color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.composer-sugg-it.on, .composer-sugg-it:hover { background: var(--card-hover); }

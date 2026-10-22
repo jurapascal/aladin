@@ -2291,6 +2291,136 @@
       return false;
     });
 
+    /* ── @soubor: našeptávač souborů z pracovní složky ───────────────────── */
+    /* `@` na začátku slova otevře nabídku souborů projektu (server:
+       hub/soubory_hledani.py), šipky + Enter/Tab vloží `@cesta`, Esc zavře.
+       Psaní nikdy neblokuje: chyba, pomalý server nebo prázdná odpověď = nabídka
+       prostě zmizí. Platí jen poslední dotaz (poradi), starší odpovědi se zahodí. */
+    const sugg = el('div', 'composer-sugg');
+    sugg.hidden = true;
+    sugg.setAttribute('role', 'listbox');
+    root.querySelector('.composer-box').appendChild(sugg);
+    let suggItems = [];
+    let suggAt = 0;
+    let suggCtx = null;          // {start, end, query} — co se právě našeptává
+    let suggTimer = null;
+    let suggPoradi = 0;
+    // `@` jen na začátku slova: v „alice@example.com“ ani uprostřed slova nic.
+    const SUGG_RE = /(^|\s)@("?)([^\s@"]*)$/;
+
+    function suggClose() {
+      suggPoradi++;              // pozdní odpověď už nic neotevře
+      clearTimeout(suggTimer);
+      suggItems = [];
+      suggCtx = null;
+      sugg.hidden = true;
+      sugg.textContent = '';
+    }
+
+    function suggContext() {
+      if (input.selectionStart !== input.selectionEnd) return null;
+      const caret = input.selectionStart;
+      if (caret == null) return null;
+      const m = SUGG_RE.exec(input.value.slice(0, caret));
+      if (!m) return null;
+      const query = m[3];
+      return {start: caret - m[2].length - query.length - 1, end: caret, query};
+    }
+
+    function suggRender() {
+      sugg.textContent = '';
+      suggItems.forEach((it, i) => {
+        const b = el('div', 'composer-sugg-it' + (i === suggAt ? ' on' : ''));
+        b.setAttribute('role', 'option');
+        const slash = it.path.lastIndexOf('/', it.path.length - 2);
+        const name = it.path.slice(slash + 1);
+        b.appendChild(el('span', 'n', (it.dir ? '▸ ' : '') + name));
+        if (slash > 0) b.appendChild(el('span', 'd', it.path.slice(0, slash + 1)));
+        // pointerdown + preventDefault: pole neztratí fokus (mobil: klávesnice zůstane)
+        b.addEventListener('pointerdown', (ev) => { ev.preventDefault(); suggAccept(i); });
+        sugg.appendChild(b);
+      });
+      sugg.hidden = !suggItems.length;
+      const on = sugg.querySelector('.on');
+      if (on && on.scrollIntoView) on.scrollIntoView({block: 'nearest'});
+    }
+
+    function suggAsk() {
+      const ctx = suggContext();
+      if (!ctx || !tab.id || !io.souboryHledej || !online()) { suggClose(); return; }
+      suggCtx = ctx;
+      const mine = ++suggPoradi;
+      clearTimeout(suggTimer);
+      suggTimer = setTimeout(() => {
+        let done = false;
+        const cut = setTimeout(() => { done = true; if (mine === suggPoradi) suggClose(); }, 2500);
+        Promise.resolve().then(() => io.souboryHledej(tab.id, ctx.query)).then((r) => {
+          clearTimeout(cut);
+          if (done || mine !== suggPoradi) return;
+          // Mezitím se mohl text změnit (odeslání, historie) — platí jen stejný kontext.
+          const now = suggContext();
+          if (!now || now.start !== ctx.start || now.query !== ctx.query) { suggClose(); return; }
+          const items = r && Array.isArray(r.items) ? r.items.filter(
+            (x) => x && typeof x.path === 'string' && x.path && !x.path.includes('\n')) : [];
+          suggItems = items.slice(0, 30);
+          suggAt = 0;
+          suggCtx = ctx;
+          suggRender();
+        }).catch(() => { clearTimeout(cut); if (mine === suggPoradi) suggClose(); });
+      }, 70);
+    }
+
+    function suggAccept(i) {
+      const it = suggItems[i];
+      const now = suggContext();
+      if (!it || !suggCtx || !now || now.start !== suggCtx.start) { suggClose(); return; }
+      // Cesta s mezerou se pro Claude Code zapisuje v uvozovkách: @"moje složka/a b.txt".
+      const space = /\s/.test(it.path);
+      const open = !it.dir || !space;          // složka bez mezer se dá rozepsat dál
+      const ref = space ? '@"' + it.path + '"' : '@' + it.path;
+      const tail = it.dir && !space ? '' : ' ';
+      const v = input.value;
+      const next = v.slice(0, now.start) + ref + tail + v.slice(now.end);
+      const pos = now.start + ref.length + tail.length;
+      input.value = next;
+      input.setSelectionRange(pos, pos);
+      autogrow();
+      input.focus();
+      if (io.pise) io.pise();
+      if (it.dir && open) suggAsk(); else suggClose();
+    }
+
+    // Klávesy dřív než ostatní posluchače (capture na předkovi): jen když je
+    // nabídka otevřená; IME a skládání znaků (keyCode 229) se nikdy nechytá.
+    root.addEventListener('keydown', (ev) => {
+      if (sugg.hidden || ev.target !== input || ev.isComposing || ev.keyCode === 229) return;
+      const k = ev.key;
+      const stop = () => { ev.preventDefault(); ev.stopPropagation(); ev.stopImmediatePropagation(); };
+      if (k === 'ArrowDown' || k === 'ArrowUp') {
+        stop();
+        suggAt = (suggAt + (k === 'ArrowDown' ? 1 : suggItems.length - 1)) % suggItems.length;
+        suggRender();
+      } else if ((k === 'Enter' && !ev.shiftKey) || (k === 'Tab' && !ev.shiftKey)) {
+        stop();
+        suggAccept(suggAt);
+      } else if (k === 'Escape') {
+        stop();
+        suggClose();
+      }
+    }, true);
+    input.addEventListener('input', (ev) => {
+      // Uprostřed skládání znaků (diakritika) se nesahá na nic; dohodí to compositionend.
+      if (ev.isComposing) return;
+      suggAsk();
+    });
+    input.addEventListener('compositionend', () => setTimeout(suggAsk, 0));
+    input.addEventListener('blur', suggClose);
+    input.addEventListener('click', () => { if (!sugg.hidden) suggAsk(); });
+    input.addEventListener('keyup', (ev) => {
+      if (!sugg.hidden && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight' ||
+                           ev.key === 'Home' || ev.key === 'End')) suggAsk();
+    });
+
     root.querySelector('.composer-send').onclick = send;
     root.querySelector('.composer-peek').onclick = () => {
       hiddenByUser = false;
@@ -2379,6 +2509,7 @@
         offResize.dispose();
         sizes.disconnect();
         if (pending) clearTimeout(pending);
+        suggClose();
         clearTimeout(askOffTimer);
         root.remove();
         askRoot.remove();

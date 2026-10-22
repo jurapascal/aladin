@@ -2905,9 +2905,13 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
      nabídky — zůstane od začátku a štítek prostoru se zkrátí (Adam, 22. 10. 2026). */
   .topbar-title { flex: 1; justify-content: safe center; min-width: 0; gap: 8px; overflow: hidden; }
   .topbar-title .topbar-home { flex: none; }
-  /* Úzký telefon a vlastní štítek prostoru: odznak PC/Server říká totéž a nevešel by se. */
-  @media (max-width: 420px) {
+  /* Úzký telefon: lišta nese jen to nejdůležitější — nabídku, štítek prostoru
+     (celé jméno), Chybu/Návrh a nový chat. Logo a odznak PC/Server říkají totéž
+     co štítek a bral by mu místo (v lištách pod 400 px zbylo z jména jen „A…“). */
+  @media (max-width: 560px) {
+    .topbar-title .topbar-home { display: none; }
     .topbar-title:has(.topbar-prostor:not([hidden])) .topbar-badge { display: none; }
+    .topbar-title { justify-content: flex-start; }
   }
   .topbar-title #btn-place { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .topbar-new { display: inline-flex; }

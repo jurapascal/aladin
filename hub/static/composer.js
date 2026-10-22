@@ -107,6 +107,12 @@
   // Ctrl+V dorazí dvakrát (keydown i paste) během jednotek milisekund.
   const PASTE_GAP = 400;   // ms
 
+  // Trvalá volba v kartě je po objevení chvíli zamčená a odpověď se neposílá
+  // dvakrát (ms): mezera mezi dvěma kliknutími a nejdelší zámek jednoho dotazu.
+  const PERM_ARM_MS = 450;
+  const SENT_GAP = 700;
+  const ANSWER_LOCK_MS = 4000;
+
   // Kolik řádků nahoru se dialog čte. Nabídka oprávnění má i s rámečkem
   // a textem příkazu k dvaceti řádkům.
   const DIALOG_ROWS = 24;
@@ -309,6 +315,7 @@
      dvakrát a ještě anglicky. Píše se proto, co v kartě opravdu platí. */
   const HINT_NUM = 'Odpovědět jde i číslem · Enter potvrdí vybranou volbu';
   const HINT_PLAIN = 'Enter potvrdí vybranou volbu';
+  const HINT_PERM = 'Odpovědět jde i číslem · Čárkovaná volba platí i příště, ne jen teď';
 
   /* Dotaz s víc otázkami nebo se zaškrtávátky (AskUserQuestion). Naměřeno
      v Claude Code 2.1.283:
@@ -347,6 +354,48 @@
     return label;
   }
 
+  /* Trvalé povolení v dialogu oprávnění. Claude Code vedle jednorázového
+     „Yes" nabízí „Yes, and don't ask again for <příkaz> commands in <složka>"
+     (do nastavení) nebo „Yes, allow all edits during this session (shift+tab)"
+     (do konce relace). V kartě mají vypadat jinak než jednorázové Ano, aby se
+     na ně nešlo trefit omylem, a česky říct, co se tím povolí. Vrací null,
+     když volba trvalá není. Nic nezapisuje — trvalost řeší Claude Code, karta
+     jen klikne volbu. */
+  const PERM_ALWAYS = /don['’]t ask again|always allow|during this session|for this session|rest of (this|the) session/i;
+  const PERM_SESSION = /during this session|for this session|rest of (this|the) session/i;
+  const PERM_FOLDER = /^(.*?)\s+in\s+((?:\/|~|\.{1,2}[\/\\]|[A-Za-z]:[\\\/]).*)$/;
+  function permInfo(full) {
+    const raw = String(full || '').replace(/\s+/g, ' ').trim();
+    if (!PERM_ALWAYS.test(raw)) return null;
+    // Klávesová nápověda na konci („(shift+tab)") k popisu nepatří.
+    const text = raw.replace(/\s*\((?:shift\+tab|[^()]*\btab)\)\s*$/i, '');
+    const session = PERM_SESSION.test(text);
+    let what = '', folder = '';
+    const m = /don['’]t ask again for:?\s*(.+)$/i.exec(text);
+    if (m) {
+      what = m[1];
+      const f = PERM_FOLDER.exec(what);
+      if (f) { what = f[1]; folder = f[2]; }
+      what = what.replace(/\s+commands?$/i, '').trim();
+    }
+    const where = folder ? ' ve složce ' + folder : '';
+    let detail;
+    if (/allow all edits/i.test(text)) {
+      detail = 'Povolí všechny úpravy souborů do konce této relace' + where + '.';
+    } else if (what) {
+      detail = 'Povolí „' + what + '"' + where +
+        (session ? ' do konce této relace.' : ' napořád — zapíše se do nastavení Claude Code.');
+    } else {
+      detail = (session ? 'Povolí to do konce této relace.' : 'Povolí to napořád.') +
+        ' Přesné znění volby je níž.';
+    }
+    return {
+      label: session ? 'Ano, do konce relace' : 'Ano a příště se neptat',
+      badge: session ? 'Do konce relace' : 'Napořád',
+      detail, raw,
+    };
+  }
+
   /* Záložky otázek z řádku „←  ☒ Barvy  ☐ Jidlo  ✔ Submit  →". Submit je
      vždycky s fajfkou, tak se vynechává — patří mu tlačítko Další. */
   function scanTabs(line) {
@@ -358,6 +407,14 @@
       out.push({label, done: m[1] !== '☐' && m[1] !== '□'});
     }
     return out;
+  }
+
+  // Trvalé povolení u každé z voleb (null = jednorázová), i když se znění zalomilo.
+  function permsOf(lines, opts) {
+    return opts.map((o, i) => {
+      const end = i + 1 < opts.length ? opts[i + 1].row : lines.length;
+      return permInfo(o.label + ' ' + optionDesc(lines, o.row, end));
+    });
   }
 
   /* Popis pod volbou (odsazené řádky mezi ní a další volbou). Bez něj by
@@ -1490,6 +1547,22 @@
       term.focus();
     }
 
+    /* Odpověď na dotaz se pošle nejvýš jednou. Dvojklik by druhou číslici
+       poslal už do dalšího dotazu (nebo do vstupního pole), a tam může
+       znamenat něco jiného. Tlačítka po kliknutí zešednou; odemknou se, až
+       se karta změní nebo zmizí, a pro jistotu po ANSWER_LOCK_MS. */
+    let sentAt = 0, sentSig = null;
+    function answerOnce(key) {
+      const now = Date.now();
+      if (now - sentAt < SENT_GAP || (sentSig === answerSig && now - sentAt < ANSWER_LOCK_MS)) return;
+      sentAt = now;
+      sentSig = answerSig;
+      const btns = [...askOpts.querySelectorAll('button')];
+      btns.forEach((b) => { b.disabled = true; });
+      setTimeout(() => btns.forEach((b) => { b.disabled = false; }), ANSWER_LOCK_MS);
+      press(key);
+    }
+
     function renderAnswer() {
       // Rozebírat cizí dialogy podle regexů naměřených na Claudeovi by
       // znamenalo odpovídat naslepo — u ostatních se karta nekreslí.
@@ -1550,10 +1623,20 @@
           });
         });
       } else if (opts.length) {
-        for (const o of opts) {
-          rows.push({key: o.key, label: o.label, sel: o.sel, row: o.row,
-                     run: () => press(o.key)});
-        }
+        /* Trvalé povolení se pozná z celého znění volby — na úzkém okně se
+           zalomí a složka je až na dalším řádku. Jednorázové Ano/Ne dostanou
+           česky jen tam, kde je vedle nich trvalá volba, aby se daly srovnat. */
+        const perms = permsOf(lines, opts);
+        const anyPerm = perms.some(Boolean);
+        opts.forEach((o, i) => {
+          const p = perms[i];
+          const row = {key: o.key, label: o.label, sel: o.sel, row: o.row,
+                       run: () => answerOnce(o.key)};
+          if (p) Object.assign(row, {perm: p, label: p.label, desc: p.detail, raw: p.raw, sel: false});
+          else if (anyPerm && /^Yes$/i.test(o.label)) row.label = 'Ano, jen tentokrát';
+          else if (anyPerm && /^No$/i.test(o.label)) row.label = 'Ne';
+          rows.push(row);
+        });
       } else if (plain.length) {
         const now = plain.findIndex(o => o.sel);
         for (const o of plain) {
@@ -1577,7 +1660,8 @@
         ? dialogBody(lines.slice(top), (numbered ? rows[0].row : lines.length) - top) : [];
       const hint = !rows.length ? ''
                  : multi ? HINT_MULTI : asking ? HINT_TABS
-                 : opts.length ? HINT_NUM : plain.length ? HINT_PLAIN : '';
+                 : opts.length ? (rows.some(r => r.perm) ? HINT_PERM : HINT_NUM)
+                 : plain.length ? HINT_PLAIN : '';
       let blocks = bodyBlocks(body);
       /* „Esc to cancel" v textu je nápověda ke klávese, ne věta dotazu —
          v kartě ji zastupuje tlačítko. */
@@ -1619,7 +1703,7 @@
       // Překreslovat se má jen při změně: jinak by tlačítko zmizelo pod prstem
       // uprostřed kliknutí, protože terminál překresluje i sám od sebe.
       const sig = [
-        rows.map(r => (r.sel ? '*' : '') + (r.key || '') + r.label).join('|'),
+        rows.map(r => (r.sel ? '*' : '') + (r.key || '') + r.label + (r.raw || '')).join('|'),
         tabs.map(t => (t.done ? '+' : '') + t.label).join('|'),
         asking ? 'nav' : '',
         title,
@@ -1635,6 +1719,7 @@
       }
       if (sig === answerSig) return;
       answerSig = sig;
+      sentSig = null;      // karta se změnila (i na prázdno) — další odpověď je nová
 
       // Nový dotaz = nová otázka, na kterou se má člověk podívat. Odsunutí
       // karty platilo pro ten předchozí.
@@ -1670,16 +1755,26 @@
         askBody.hidden = !blocks.length;
         askOpts.textContent = '';
         for (const r of rows) {
-          const btn = el('button', 'ask-opt' + (r.sel ? ' sel' : '') + (r.check ? ' check' : ''));
+          const btn = el('button', 'ask-opt' + (r.sel ? ' sel' : '') + (r.check ? ' check' : '') +
+                                   (r.perm ? ' perm' : ''));
           btn.type = 'button';
           if (r.check) btn.appendChild(el('span', 'ask-box', r.sel ? '✓' : ''));
           else if (r.key) btn.appendChild(el('span', 'ask-num', r.key));
           const text = el('span', 'ask-opt-label', r.label);
+          if (r.perm) text.appendChild(el('span', 'ask-badge', r.perm.badge));
           if (r.desc) text.appendChild(el('small', 'ask-desc', r.desc));
+          // Přesné znění od Claude Code — kdyby překlad něco zamlčel.
+          if (r.perm) text.appendChild(el('small', 'ask-raw', r.raw));
           btn.appendChild(text);
           // Na kterou volbu ukazuje ❯ v terminálu — tam padne Enter.
           if (r.sel && !r.check) btn.insertAdjacentHTML('beforeend', icon('i-check'));
           btn.onclick = r.run;
+          // Trvalá volba se hned po objevení karty neklikne: dotaz mohl
+          // naskočit pod prstem, který mířil na jiné tlačítko.
+          if (r.perm) {
+            btn.disabled = true;
+            setTimeout(() => { btn.disabled = false; }, PERM_ARM_MS);
+          }
           askOpts.appendChild(btn);
         }
         askHint.textContent = hint;
@@ -2389,6 +2484,6 @@
     };
   }
 
-  global.HubComposer = {install, installKeys};
+  global.HubComposer = {install, installKeys, _test: {scanOptions, permInfo, permsOf, dialogBody, bodyBlocks}};
 
 })(window);

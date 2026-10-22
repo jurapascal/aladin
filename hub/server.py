@@ -33,7 +33,7 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import (account, automodel, chats, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
+from . import (account, automodel, chats, hledani, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
                fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
                uspavani, vzhled)
 
@@ -1048,6 +1048,50 @@ class Handler(BaseHTTPRequestHandler):
             core.log_error(f"/api/{name} selhalo", exc)
             return self._json({"error": f"Chyba serveru: {exc}"}, 500)
 
+    def _hledani(self, name, query, payload):
+        """Hledání v konverzacích (běží na pozadí, tady se jen zahájí / zeptá na stav)
+        a stažení konverzace jako .md."""
+        if not isinstance(payload, dict):
+            payload = {}
+        if name == "chat-hledej-zrus":
+            hledani.zrus()
+            return self._json({"ok": True})
+        if name == "chat-hledej":
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            try:
+                return self._json(dict(hledani.spust(payload.get("q"), payload.get("nastroje") is True), ok=True))
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
+        if name == "chat-hledej-stav":
+            snimek = hledani.stav(payload.get("job"))
+            if snimek is None:
+                return self._json({"ok": False, "nahrazeno": True})
+            bezi = HUB.chat_tabs()
+            for r in snimek["vysledky"]:
+                r["tab"] = bezi.get(r["id"])
+            return self._json(dict(snimek, ok=True))
+        # chat-export: soubor ke stažení jako příloha, stejně jako /api/soubor
+        chat_id = query.get("id", [""])[0]
+        if not cteni.je_id(chat_id):
+            return self._json({"error": "Neplatná konverzace."}, 400)
+        if not hledani.export_povolen():
+            return self._json({"error": "Právě se exportuje jiná konverzace, zkus to za chvíli."}, 429)
+        try:
+            fname, data = hledani.export_md(chat_id)
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 404)
+        except Exception as exc:
+            core.log_error("export konverzace", exc)
+            return self._json({"error": "Export se nepovedl."}, 500)
+        finally:
+            hledani.export_hotov()
+        ascii_name = re.sub(r'[^A-Za-z0-9._-]+', "_", fname) or "konverzace.md"
+        return self._send(200, data, "text/markdown; charset=utf-8", {
+            "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; "
+                                   f"filename*=UTF-8''{urllib.parse.quote(fname)}",
+            "Content-Security-Policy": "default-src 'none'; sandbox"})
+
     def _soubor_ke_stazeni(self, query, guest):
         """Soubor z prostoru ke stažení (čtení → „Stáhnout").
 
@@ -1250,6 +1294,12 @@ class Handler(BaseHTTPRequestHandler):
             running = HUB.chat_tabs()
             return self._json({"chats": [dict(c, tab=running.get(c["id"]))
                                          for c in chats.list_chats()]})
+        if name in ("chat-hledej", "chat-hledej-stav", "chat-hledej-zrus", "chat-export"):
+            # Hledání napříč konverzacemi a export do Markdownu (hub/hledani.py).
+            # Cizí historii host nečte.
+            if guest:
+                return self._json({"error": "Historii konverzací smí číst jen vlastník prostoru."}, 403)
+            return self._hledani(name, query, payload)
         if name == "chat-delete":
             # Smazání konverzace z panelu Chaty (do koše, hub/chats.py). Jen
             # vlastník prostoru — host cizí historii nemaže. Běžící v tabu ne:

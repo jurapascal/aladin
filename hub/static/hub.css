@@ -4576,3 +4576,35 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 .pristup-pridat { flex-wrap: wrap; gap: 6px; }
 .pristup-pridat select { flex: 1 1 150px; min-width: 0; max-width: 100%; }
 .pristup-pridat .btn { flex: none; }
+
+/* ── Hledání v textu konverzací + export (hledani.js) ───────────────────── */
+.hl-blok { margin: 2px 8px 6px; }
+.hl-toggle {
+  width: 100%; min-height: 32px; padding: 6px 10px; border: 1px dashed var(--border); border-radius: var(--radius);
+  background: none; color: var(--accent); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  touch-action: manipulation;
+}
+.hl-toggle:hover { background: var(--card-hover); }
+.hl-panel { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.hl-panel[hidden] { display: none; }
+.hl-input {
+  width: 100%; box-sizing: border-box; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--bg-card); color: var(--fg); font: inherit; font-size: 13px;
+}
+.hl-nastroje, .hl-stav { color: var(--dim); font-size: 11px; }
+.hl-vysledky { display: flex; flex-direction: column; gap: 6px; }
+.hl-vysledek { border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 8px; background: var(--bg-card); }
+.hl-hlava {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 0; border: 0; background: none;
+  color: inherit; font: inherit; text-align: left; cursor: pointer; min-width: 0;
+}
+.hl-titulek { color: var(--fg-bright); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-meta { color: var(--dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-uryvek { margin-top: 5px; font-size: 12px; line-height: 1.4; color: var(--fg); cursor: pointer; overflow-wrap: anywhere; }
+.hl-role { color: var(--dim); font-size: 10px; text-transform: uppercase; margin-right: 6px; }
+.hl-mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+.hl-export {
+  margin-top: 6px; padding: 3px 8px; border: 1px solid var(--border); border-radius: var(--radius);
+  background: none; color: var(--dim); font: inherit; font-size: 11px; cursor: pointer;
+}
+.hl-export:hover { color: var(--accent); border-color: var(--accent); }

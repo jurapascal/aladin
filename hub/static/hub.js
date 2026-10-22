@@ -1664,6 +1664,7 @@ function renderChats() {
       ];
       const p = prenosMoznost();
       if (p) items.push({icon: 'i-up', label: p.label, run: () => prenosPoslat(c.id, c.title, true)});
+      if (window.HubHledani) items.push({icon: 'i-save', label: 'Exportovat do Markdownu', run: () => HubHledani.exportovat(c)});
       items.push({icon: 'i-trash', label: 'Smazat', color: 'var(--red)', run: () => deleteChat(c)});
       showMenu(ev.clientX, ev.clientY, items);
     };
@@ -1768,6 +1769,7 @@ async function resumeChat(c, prompt, preneseny) {
 function initChats() {
   for (const b of document.querySelectorAll('.side-tab')) b.onclick = () => sidebarView(b.dataset.view);
   $('chats-search').addEventListener('input', () => { chatsShown = CHATS_PAGE; renderChats(); });
+  if (window.HubHledani) HubHledani.mount({api, toast, openChat, token: TOKEN, chats: () => CHATS});
   const box = $('chats');
   box.addEventListener('pointerdown', () => { chatsTouch = Date.now(); });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) box.addEventListener(ev, chatsTouchEnd);

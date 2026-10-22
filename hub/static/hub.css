@@ -4631,3 +4631,22 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 .composer-sugg-it .n { flex: none; max-width: 70%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-sugg-it .d { flex: 1; min-width: 0; color: var(--dim); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .composer-sugg-it.on, .composer-sugg-it:hover { background: var(--card-hover); }
+/* Stavový řádek tabu (stavradek.js): jeden nenápadný řádek nad konverzací.
+   Nikdy nepřetéká — větev se zkracuje třemi tečkami, čas jde pryč na úzkém okně. */
+.stavradek {
+  flex: none; display: flex; align-items: center; gap: 12px;
+  padding: 3px 20px; min-width: 0; overflow: hidden; white-space: nowrap;
+  font-size: 11.5px; line-height: 1.5; color: var(--muted, #8b949e);
+  border-bottom: 1px solid var(--border);
+}
+.stavradek[hidden], .stavradek > [hidden] { display: none; }
+.stavradek > span { flex: none; }
+.stavradek > .sr-vetev { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.stavradek > .sr-model { font-weight: 600; }
+@media (max-width: 640px) {
+  .stavradek { padding: 3px 14px; gap: 10px; }
+  .stavradek > .sr-cas { display: none; }
+}
+@media (max-width: 400px) {
+  .stavradek { gap: 8px; font-size: 11px; }
+}

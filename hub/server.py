@@ -35,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, hledani, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
                fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
-               uspavani, vzhled, soubory_hledani)
+               stavradek, uspavani, vzhled, soubory_hledani)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -1368,6 +1368,13 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"tasks": cteni.pozadi(core.transcript_for(session),
                                                      int(session.started * 1000)),
                                "now": int(time.time() * 1000)})
+        if name == "stav-radek":
+            # Model, větev, odhad ceny a start tabu (hub/stavradek.py).
+            try:
+                session = HUB.sessions.get(int((query.get("id") or ["0"])[0]))
+            except ValueError:
+                session = None
+            return self._json(stavradek.zjisti(session))
         if name in ("cteni", "cteni-agenti"):
             # Konverzace jako text (hub/cteni.py). Buď z tabu, který běží,
             # nebo ze starého přepisu podle id konverzace.

@@ -1991,6 +1991,9 @@
     root.append(scroll, dolu);
     tab.pane.appendChild(root);
     tab.pane.classList.add('cteni-on');
+    // Stavový řádek (model, větev, cena, čas) — stavradek.js; bez něj se jede dál.
+    let stavr = null;
+    try { stavr = global.HubStav ? global.HubStav.install(root, tab, io) : null; } catch (_) { stavr = null; }
     // Claudíci nad polem na psaní (claudici.js) — bez souboru se jede dál.
     const hriste = global.HubClaudici ? global.HubClaudici.hriste(root, claudik) : null;
 
@@ -2083,6 +2086,7 @@
           proud.add(blocks);
           prazdno.hidden = true;
           prazdnych = 0;
+          if (stavr) stavr.zmena();
           if (uDna) { proud.orez(); scroll.scrollTop = scroll.scrollHeight; }
           else hlidejDno();          // přibylo pod rukama — šipka se ukáže
           // Nový agent: hned zjistit, co dělá, ne až za dvě vteřiny.
@@ -2127,6 +2131,7 @@
         clearTimeout(timer);
         clearTimeout(agTimer);
         clearTimeout(bgTimer);
+        if (stavr) { try { stavr.release(); } catch (_) { /* nic */ } }
         proud.stav(null);
         proud.zavri();
         if (hriste) hriste.release();
@@ -2141,7 +2146,10 @@
         prazdno.hidden = true;
       },
       // Po přepnutí na tab se doptá hned, ať čtení není o vteřinu pozadu.
-      wake() { if (zivy) { clearTimeout(timer); timer = setTimeout(tik, 60); } },
+      wake() {
+        if (zivy) { clearTimeout(timer); timer = setTimeout(tik, 60); }
+        if (zivy && stavr) stavr.wake();
+      },
       /* Zpráva odešla z bubliny (composer.js). Ve čtení je vidět hned, ještě
          než ji Claude Code zapíše — a pod ní, jestli už ji Claude vidí.
          `z` = null: zprávy čekající na start Claude Code právě odešly. */

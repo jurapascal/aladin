@@ -3575,6 +3575,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
       tabModel: (id) => api('tab-model?id=' + encodeURIComponent(id)),
       // Našeptávač `@soubor` v bublině (hub/soubory_hledani.py); kořen určí server z tabu.
       souboryHledej: (id, q) => api('soubory-hledani?id=' + encodeURIComponent(id) + '&q=' + encodeURIComponent(q)),
+      tabContext: (id, m1) => api('tab-context?id=' + encodeURIComponent(id) + (m1 ? '&m1=1' : '')),
       // Druhý názor na model a effort ke zprávě (hub/automodel.py, Haiku).
       autoModel: (text) => api('auto-model', {text}),
       autoKeep: (extend) => api('auto-model-keep', {extend: !!extend}),

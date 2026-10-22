@@ -35,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, hledani, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
                fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
-               stavradek, uspavani, vzhled, rewind, soubory_hledani)
+               stavradek, uspavani, vzhled, rewind, soubory_hledani, kontext)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -1441,6 +1441,22 @@ class Handler(BaseHTTPRequestHandler):
             if not koren:
                 return self._json({"items": [], "cut": False})
             return self._json(soubory_hledani.hledej(koren, (query.get("q") or [""])[0]))
+        if name == "tab-context":
+            # Kolik kontextového okna zabírá konverzace v tabu (hub/kontext.py).
+            try:
+                session = HUB.sessions.get(int((query.get("id") or ["0"])[0]))
+            except ValueError:
+                session = None
+            if not session:
+                return self._json(kontext.stav(""))
+            try:
+                transcript = core._tab_transcript(session.id, session.path or core.HOME,
+                                                  session.started)
+                nastaveni = "[1m]" in core.current_model().lower()
+            except Exception:
+                return self._json(kontext.stav(""))
+            return self._json(kontext.stav(transcript, (query.get("m1") or [""])[0] == "1",
+                                           nastaveni))
         if name == "setup":
             # Instalace v okně (hub/setup.py): bez akce jen průběh.
             action = payload.get("action") if isinstance(payload, dict) else ""

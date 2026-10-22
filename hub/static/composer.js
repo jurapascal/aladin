@@ -551,6 +551,7 @@
           <button class="composer-chip" data-act="model"
                   title="Přepne model.">Model: <span class="val"></span> ▾</button>
           <button class="composer-chip" data-act="slash">/ příkazy</button>
+          <button class="composer-chip composer-ctx" data-act="ctx" hidden></button>
           <button class="composer-chip" data-act="history"
                   title="Dřívější zadání. Co je napsané v poli, tím se seznam rovnou filtruje.">${icon('i-refresh')} Historie</button>
           <button class="composer-chip" data-act="file">${icon('i-image')} Příloha</button>
@@ -599,6 +600,7 @@
     const modeChip = modeBtn.querySelector('.val');
     const agentBtn = root.querySelector('[data-act=agent]');
     const slashBtn = root.querySelector('[data-act=slash]');
+    const ctxBtn = root.querySelector('[data-act=ctx]');
     const askTermBtn = askRoot.querySelector('[data-act=term]');
     // Historie zadání. Ukládá se po projektech, ať přežije zavření okna —
     // jinak by pro ni člověk musel do Claudeova vlastního hledání v terminálu.
@@ -678,6 +680,7 @@
     // Model z hlavičky Claude Code („Opus 5 (1M context) · API Usage Billing").
     // Je tam od startu, takže chip nemusí čekat na první odpověď.
     let banner = '';
+    let banner1m = false;    // hlavička hlásí „(1M context)" — okno kontextu je 1 milion
     let picked = false;      // model se v tomhle tabu přepínal z nabídky
 
     /* ── automatická volba modelu a effortu ─────────────────────────────────
@@ -1178,6 +1181,7 @@
         const m = line.match(BANNER_RE);
         if (m) {
           banner = m[1] + ' ' + m[2];
+          if (/1M context/i.test(line)) banner1m = true;
           // „Sonnet 5.5 with low effort" — s čím tab nastartoval. Bez toho by
           // automatika první zprávu vždycky začínala přepnutím /effort.
           const ef = line.match(/with (low|medium|high|xhigh|max) effort/i);
@@ -1204,6 +1208,60 @@
         }).catch(() => { /* bez odpovědi zůstane, co je */ });
       }, wait);
     }
+
+    /* Ukazatel kontextu: kolik okna zabírá konverzace (hub/kontext.py čte konec
+       přepisu). Ptá se nejvýš jednou za pět sekund a jen když je bublina vidět;
+       bez odpovědi zůstane, co bylo, nebo se chip schová. */
+    let ctxAsked = 0;
+    let ctxBusy = false;
+    let ctxLast = null;
+    const kTok = (n) => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, '') + 'M'
+      : n >= 1000 ? Math.round(n / 1000) + 'k' : String(n);
+    function paintContext(r) {
+      ctxLast = r;
+      if (!r || (r.tokens == null && !r.compact)) { ctxBtn.hidden = true; return; }
+      ctxBtn.hidden = false;
+      ctxBtn.style.color = '';
+      if (r.tokens == null) {
+        ctxBtn.textContent = 'Kontext: po /compact';
+        ctxBtn.title = 'Konverzace byla právě zhuštěná. Nová velikost kontextu se ukáže po další odpovědi Clauda.';
+        return;
+      }
+      let text = 'Kontext: ' + kTok(r.tokens);
+      let tip = 'Kontext konverzace: ' + r.tokens.toLocaleString('cs-CZ') + ' tokenů.';
+      if (r.window > 0) {
+        const pct = Math.min(100, Math.round(r.tokens * 100 / r.window));
+        text += ' / ' + kTok(r.window) + (r.sure ? '' : '?') + ' · ' + pct + ' %';
+        ctxBtn.style.color = pct >= 80 ? 'var(--red)' : pct >= 60 ? 'var(--amber)' : 'var(--green)';
+        tip += ' Okno ' + (r.sure ? '' : 'odhaduju na ') + r.window.toLocaleString('cs-CZ') + ' tokenů (' + pct + ' %).' +
+          (r.sure ? '' : ' Velikost okna z přepisu nepoznám, je to odhad.') +
+          (pct >= 80 ? ' Je načase /compact — Claude Code brzy zhušťuje sám.'
+            : pct >= 60 ? ' Dává smysl zvážit /compact, než začneš něco nového.'
+              : ' Zatím je dost místa, /compact netřeba.') +
+          ' Kliknutím nabídka.';
+      } else {
+        tip += ' Velikost okna tohohle modelu neznám, procenta neukazuju.';
+      }
+      ctxBtn.textContent = text;
+      ctxBtn.title = tip;
+    }
+    function refreshContext() {
+      if (!AG.full || !io.tabContext || !tab.id || ctxBusy || Date.now() - ctxAsked < 5000) return;
+      ctxBusy = true;
+      ctxAsked = Date.now();
+      io.tabContext(tab.id, banner1m).then(paintContext).catch(() => { /* bez odpovědi zůstane, co je */ })
+        .finally(() => { ctxBusy = false; });
+    }
+    // Přepis se dopisuje i bez překreslení terminálu — číslo proto hlídá i časovač.
+    const ctxHlidac = setInterval(() => { if (!document.hidden && !tab.exited) refreshContext(); }, 6000);
+    ctxBtn.onclick = (ev) => {
+      const [x, y] = anchor(ev);
+      const items = [{icon: 'i-refresh', label: 'Zhustit konverzaci (/compact)', run: () => submit('/compact')}];
+      if (ctxLast && ctxLast.tokens != null) {
+        items.unshift({icon: 'i-bulb', label: ctxBtn.textContent.replace('Kontext: ', ''), run: () => {}});
+      }
+      io.menu(x, y, items, {above: true});
+    };
 
     /* Přepnutí modelu má u každého agenta jinou cenu:
 
@@ -2127,9 +2185,11 @@
         if (root.style.minHeight) root.style.minHeight = '';
         if (reserved !== 0) { reserved = 0; io.reserve(0); }
         refreshModel();
+        refreshContext();
       } else if (shown) {
         fitOver();
         refreshModel();
+        refreshContext();
         // Tab otevřený rovnou do režimu (Bypass po potvrzení): přepne se,
         // jakmile Claude Code čeká na zadání a nápověda s režimem je čitelná.
         if (tab.wantMode && !switching) {
@@ -2502,6 +2562,7 @@
         pryc = true;
         fronta.length = 0;
         clearInterval(cekaHlidac);
+        clearInterval(ctxHlidac);
         levelWatch.disconnect();
         offRender.dispose();
         offScroll.dispose();

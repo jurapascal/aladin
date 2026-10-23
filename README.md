@@ -916,7 +916,7 @@ curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get
 | `memory_autosave` | paměť se ukládá sama (přepíná se v ⚙ → Paměť) | `true` |
 | `memory_autosave_idle` | po kolika minutách ticha se session uloží | `20` |
 | `memory_autosave_model` | model pro ukládání na pozadí | `sonnet` |
-| `uspat_taby_min` | po kolika minutách klidu se tab s Claudem uspí (proces skončí, otevřením nebo zprávou se vrátí `--resume` do téže konverzace); nepracující tab bez úloh na pozadí, ne ten, na který se člověk dívá; u prostoru nad 70 % stropu paměti už po 3 min; `0` = vypnuto. Jde i přes `HUB_USPAT_TABY_MIN` | `10` na serveru, `0` na počítači |
+| `uspat_taby_min` | po kolika minutách klidu se tab s Claudem uspí (proces skončí, otevřením nebo zprávou se vrátí `--resume` do téže konverzace); nepracující tab bez úloh na pozadí, ne ten, na který se člověk dívá; u prostoru nad 70 % stropu paměti už po 2 min; `0` = vypnuto. Jde i přes `HUB_USPAT_TABY_MIN` | `5` na serveru, `0` na počítači |
 | `verxee_debug_klic` | tlačítko Nahlásit chybu / Podat návrh ([Verxee Debug](https://alba-rosa.cz/debug/)); veřejný klíč `vxd_…` z portálu → Klíče a domény, mezi doménami `127.0.0.1` a `localhost` (na serveru adresa brány, klíč tam nastaví `claude-hub-admin verxee set`). Hlásí se jménem a e-mailem účtu na serveru, na počítači bez něj účtu claude.ai. Ve výchozím stavu je v hubu klíč, který hlásí do portálu správce; prázdný řetězec tlačítko vypne. Přepíná se v ⚙ → Ostatní | výchozí klíč hubu |
 
 Projekt se do panelu dostane, když ve složce je `.git`, `package.json`, `composer.json`,

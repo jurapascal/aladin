@@ -1436,7 +1436,32 @@
         }
         kresliAgenta(k);
       }
+      uklidAgenty();
       hlidej();
+    }
+
+    /* Agent, jehož hláška o konci nikdy nepřišla (Claude ho zabil, prostor se
+       restartoval, přepis skončil uprostřed kroku), by běžel navěky. Na
+       pozadí agent platí jen dokud ho server vidí mezi úlohami (ty, co
+       naběhly před startem procesu Claude Code, tam nejsou); agent, na
+       kterého Claude čeká, musí aspoň psát — jinak je hotovo, jakmile Claude
+       sám přestal pracovat. */
+    const AGENT_TICHO_MS = 90000;
+    let ulohyNacteny = false;
+    function uklidAgenty() {
+      if (historie || !ulohyNacteny) return;
+      const ted = Date.now() - posun;
+      const zije = new Set(ulohyData.map((u) => u.id));
+      let zmenil = false;
+      for (const k of bezici()) {
+        if (zije.has(k.id)) continue;
+        if (!k.posledni || ted - k.posledni < AGENT_TICHO_MS) continue;
+        if (!k.bg && pr.pracuje) continue;
+        dobehl(k, 'hotovo', '');
+        kresliAgenta(k);
+        zmenil = true;
+      }
+      if (zmenil) { hlidej(); zmenaPrehledu(); }
     }
 
     function trvani(ms) {
@@ -1476,6 +1501,8 @@
       if (res.now) posun = Date.now() - res.now;
       const otevrene = new Set([...ulohy.querySelectorAll('details[open]')].map((d) => d.dataset.id));
       ulohyData = res.tasks || [];
+      ulohyNacteny = true;
+      uklidAgenty();
       kresliUlohy();
       zmenaPrehledu();
       // Rozbalený detail zůstane rozbalený i po překreslení.

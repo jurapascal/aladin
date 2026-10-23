@@ -25,7 +25,7 @@ _CACHE = {}                      # cesta -> (velikost, mtime, info)
 _LOCK = threading.Lock()
 # Mezipaměť přežije restart hubu: bez ní první načtení seznamu po startu četlo
 # začátek a konec každého přepisu (stovky souborů, přes vteřinu čekání).
-_DISK_VERSION = 1
+_DISK_VERSION = 2
 _disk_loaded = False
 _disk_saved = [0.0]              # kdy naposled — rozepsaný chat se mění pořád
 # Značky, které Claude Code vkládá do uživatelských zpráv a člověk je nepsal.
@@ -92,6 +92,8 @@ def _info(path, size):
     except OSError:
         return None
     title = custom = prompt = cwd = ""
+    own = os.path.basename(path)[:-6]
+    parents = []
     entries = list(_entries(head, False))
     if tail:
         entries += list(_entries(tail, True))
@@ -103,13 +105,20 @@ def _info(path, size):
             custom = entry["customTitle"]
         if not cwd and isinstance(entry.get("cwd"), str):
             cwd = entry["cwd"]
+        # Obnovená konverzace (`--resume`) je nový přepis s okopírovanou
+        # historií; zkopírované záznamy nesou `session_id` původní konverzace.
+        old = entry.get("session_id")
+        if isinstance(old, str) and old != own and old not in parents \
+                and core.SESSION_ID.fullmatch(old) and len(parents) < 8:
+            parents.append(old)
         if not prompt:
             prompt = prompt_text(entry)
     name = " ".join((custom or title or prompt).split())
     if not name:
         return None                  # prázdná konverzace (tab otevřený a hned zavřený)
     return {"id": os.path.basename(path)[:-6], "title": name[:120], "prompt": prompt,
-            "cwd": cwd, "project": os.path.basename(cwd.rstrip("/\\")) if cwd else ""}
+            "cwd": cwd, "project": os.path.basename(cwd.rstrip("/\\")) if cwd else "",
+            "parents": parents}
 
 
 def _disk_path():
@@ -207,6 +216,14 @@ def list_chats(limit=1000):
     if changed and time.monotonic() - _disk_saved[0] > 30:
         _disk_saved[0] = time.monotonic()
         _save_disk()
+    # Obnovená konverzace nahradí tu, ze které vznikla — jinak by se ve seznamu
+    # objevily dvě se stejným názvem. Starší zůstane, když je novější než kopie
+    # (kopie vznikla dřív, než se do původní psalo dál).
+    updated = {c["id"]: c["updated"] for c in out}
+    kryte = {p for c in out for p in c.get("parents", ())
+             if p in updated and updated[p] <= c["updated"]}
+    out = [{k: v for k, v in c.items() if k != "parents"}
+           for c in out if c["id"] not in kryte]
     out.sort(key=lambda c: c["updated"], reverse=True)
     return out[:limit]
 

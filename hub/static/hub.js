@@ -1754,6 +1754,22 @@ async function rozvetvitChat(zdroj, uuid, zavrit) {
   }
 }
 
+/* Kdy hub sám zavřel (nebo mu skončil) tab s danou konverzací. Změna přepisu
+   hned po zavření je jeho vlastní poslední zápis, ne důkaz, že konverzace běží
+   jinde — jinak by se po zavření a rychlém znovuotevření nabízela „kopie“
+   a seznam měl konverzaci dvakrát. */
+const ZAVRENE_CHATY = new Map();
+const PO_ZAVRENI_MS = 20000;         // tak dlouho po zavření Claude Code ještě dopisuje
+function zapamatujZavreny(tab) {
+  const id = tab && (tab.chat || tab.resume);
+  if (id) ZAVRENE_CHATY.set(id, Date.now());
+  if (ZAVRENE_CHATY.size > 200) ZAVRENE_CHATY.delete(ZAVRENE_CHATY.keys().next().value);
+}
+function psanoPoNasemZavreni(c) {
+  const zavreno = ZAVRENE_CHATY.get(c.id);
+  return !zavreno || c.updated * 1000 > zavreno + PO_ZAVRENI_MS;
+}
+
 /* Pokračovat v konverzaci: tohle už je nový tab s Claude Code. `prompt` je
    zpráva napsaná v okně se čtením — Claude na ní začne dělat hned po startu. */
 async function resumeChat(c, prompt, preneseny) {
@@ -1776,7 +1792,7 @@ async function resumeChat(c, prompt, preneseny) {
   // přepisovaly historii — otevře se proto její kopie.
   let fork = false;
   // Prave preneseny chat je cerstvy jen proto, ze jsme ho pred chvili zapsali - nikde jinde nebezi.
-  if (!preneseny && Date.now() / 1000 - c.updated < 180) {
+  if (!preneseny && Date.now() / 1000 - c.updated < 180 && psanoPoNasemZavreni(c)) {
     if (!(await HubDialog.confirm(`Konverzace „${c.title}" se změnila před chvílí — nejspíš ještě běží jinde.\n\n` +
                  'Otevřít její kopii? Původní konverzace zůstane, jak je.', {title: 'Konverzace možná běží jinde', ok: 'Otevřít kopii'}))) return;
     fork = true;
@@ -4170,6 +4186,7 @@ function escapeHtml(text) {
 /* `remote` = zavřelo ho jiné okno: server už o tom ví, tady se jen uklidí. */
 function closeTab(tab, {remote = false} = {}) {
   if (tab.id && !remote) send({t: 'close', id: tab.id});
+  zapamatujZavreny(tab);
   /* Úklid nesmí uprostřed spadnout — tab by zůstal napůl: terminál bez
      vykreslování v okně a každý pohyb myši nad ním by házel chybu. */
   const uklid = (f) => { try { f(); } catch (e) { reportToLog('zavření tabu: ' + (e && e.message || e)); } };
@@ -4719,6 +4736,7 @@ function handle(msg) {
     const tab = TABS.find(t => t.id === msg.id);
     if (tab) {
       tab.exited = true;
+      zapamatujZavreny(tab);
       tab.el.classList.add('exited');
       // Ve čtení terminál není vidět — bez hlášky by jen přestalo přibývat.
       if (tab.cteni) tab.cteni.upozorni('Claude Code v tomhle tabu skončil. Konverzaci otevřeš znovu v seznamu Konverzace.');

@@ -1009,7 +1009,11 @@
        a pozastavit odesílání (když Claude blbne, ať se do něj nehrne další). */
     function ukazPomoc(m) {
       let box = m.row.querySelector('.cteni-pomoc');
-      if (m.stav !== 'nedoslo' && !(m.server && (m.stav === 'server' || m.stav === 'zaseklo'))) { if (box) box.remove(); return; }
+      // Čekající zpráva má nabídku v každém stavu, ne jen když nedošla: „Odesílá se…“
+      // a „čeká ve frontě“ trvají, dokud Claude pracuje, a právě tehdy je potřeba
+      // zprávu poslat hned (jedna zpráva pak měla tlačítka a ta nad ní ne).
+      const ceka = m.stav === 'odesila' || m.stav === 'fronta';
+      if (m.stav !== 'nedoslo' && !ceka && !(m.server && (m.stav === 'server' || m.stav === 'zaseklo'))) { if (box) box.remove(); return; }
       if (!box) {
         box = el('div', 'cteni-pomoc');
         box.append(el('span', 'cteni-pomoc-text'));
@@ -1023,10 +1027,17 @@
         ihnedBtn.type = 'button';
         ihnedBtn.onclick = () => { if (serverIhned && m.fid) { serverIhned(m.fid); nastavMistni(m, 'server'); } };
         box.append(znovuBtn, ihnedBtn, stopBtn);
+        box._znovu = znovuBtn;
+        box._ihned = ihnedBtn;
         m.row.appendChild(box);
       }
       const stop = !!(pozastaveno && pozastaveno());
-      const proc = m.stav === 'zaseklo'
+      // „Poslat znovu“ dává smysl jen u zprávy, která nedošla; „poslat hned“ jen když ji drží server.
+      box._znovu.hidden = ceka;
+      box._ihned.hidden = !(m.server && m.fid && serverIhned);
+      const proc = ceka ? (pr.pracuje ? 'Claude pracuje, zpráva čeká ve frontě a odejde, jakmile bude připravený.'
+                                      : 'Zpráva se odesílá Claudovi.')
+        : m.stav === 'zaseklo'
         ? 'Claude už několik minut nic nezapsal — nejspíš se zasekl na nástroji. Zpráva čeká; můžeš práci přerušit a poslat ji hned.'
         : m.stav === 'server'
         ? 'Zpráva je uložená na serveru a odejde Claudovi, jakmile dokončí práci a bude připravený.'
@@ -1035,6 +1046,7 @@
         : 'Claude teď zprávy nebere — nejspíš se po restartu ještě rozjíždí.';
       box.querySelector('.cteni-pomoc-text').textContent = proc +
         (stop ? ' Odesílání je pozastavené.'
+          : ceka ? ''
           : m.server ? (m.stav === 'nedoslo' ? ' Klikni na Poslat znovu.' : '')
           : ' Zkusím to znovu' + ((m.pokusy || 0) >= RETRY_MAX ? ' — už to nezkouším, klikni na Poslat znovu.' : ' sám.'));
       box.querySelector('.cteni-pomoc-stop').textContent = stop ? 'Povolit odesílání' : 'Pozastavit odesílání';

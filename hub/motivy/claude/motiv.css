@@ -213,3 +213,6 @@ html, body { font-family: var(--font-sans); }
 }
 .cteni-akce button:hover { background: var(--claude-hover); color: var(--fg-bright); }
 .cteni-akce-smaz:hover { color: var(--red); background: var(--claude-hover); }
+/* Režim se na úzké liště zkrátí s třemi tečkami místo useknutí; model zůstává celý. */
+.composer-chip[data-act=mode] { flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.composer-chip[data-act=mode] .val { overflow: hidden; text-overflow: ellipsis; }

@@ -1588,7 +1588,7 @@ function prostorNazev(slug) {
 /* Patří tab k tomuhle chatu? Číslo konverzace se po obnově může změnit (nová kopie),
    proto se hledá podle všech tří: id tabu, aktuální konverzace i té, ze které tab vznikl. */
 function tabPatriChatu(t, c) {
-  return !!t && !t.exited && (t.id === c.tab || (t.chat && t.chat === c.id) || (t.resume && t.resume === c.id));
+  return !!t && !t.exited && ((c.tab && t.id === c.tab) || (t.chat && t.chat === c.id) || (t.resume && t.resume === c.id));
 }
 const bezi = (c) => TABS.some((t) => tabPatriChatu(t, c));
 
@@ -1605,6 +1605,15 @@ function prepniPripnuti(id) {
   try { localStorage.setItem(PRIPNUTE_KEY, JSON.stringify(v.slice(0, 50))); } catch (_) { /* nic */ }
   chatsSig = '';
   renderChats();
+}
+
+/* Okno se nikdy nesmí posunout do strany (fokus nebo scrollIntoView v širokém terminálu to umí): panel vlevo by zmizel. */
+window.addEventListener('scroll', () => {
+  const e = document.scrollingElement;
+  if (e && (e.scrollLeft || e.scrollTop)) { e.scrollLeft = 0; e.scrollTop = 0; }
+}, {passive: true});
+for (const el of [document.documentElement, document.body]) {
+  el.addEventListener('scroll', () => { if (el.scrollLeft) el.scrollLeft = 0; }, {passive: true});
 }
 
 function renderChats() {

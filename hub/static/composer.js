@@ -88,6 +88,7 @@
      konverzace nezapíše, takže pod čtením by zůstala prázdná stránka. */
   // Claude Code skončil a v tabu zbyl shell (hub/core.py cmd_agent).
   const ENDED = /\[ session ukon/;
+  const TERM_RADKU = 14;      // kolik řádků u dna výpisu se prohledává (needsTerminal)
   const TERM_NEEDED = /oauth\/authorize|Opening browser to sign in|Browser didn't open\?|Paste (the )?code here|Press Enter to (continue|retry)|\[ session ukon/i;
 
   /* Dialog, který volby nečísluje — stojí prostě pod sebou a vybranou označuje
@@ -2211,9 +2212,21 @@
     function needsTerminal() {
       if (!AG.full || !tab.cteni) return false;
       const buf = term.buffer.active;
+      /* Hledá se jen u dna výpisu (posledních TERM_RADKU neprázdných řádků), ne v celé viditelné ploše:
+         když Claude v odpovědi sám vypíše odkaz „oauth/authorize" (přihlášení k napojení) nebo
+         „Paste code here", nesmí kvůli tomu čtení zůstat navždy zavřené a místo něj se ukázat
+         surový terminál. Skutečné přihlášení Claude Code kreslí naspod pod výzvu. */
+      let last = -1;
+      for (let i = term.rows - 1; i >= 0; i--) {
+        const row = buf.getLine(buf.viewportY + i);
+        if (row && row.translateToString(true).trim()) { last = i; break; }
+      }
+      if (last < 0) return false;
+      let first = Math.max(0, last - TERM_RADKU + 1);
+      while (first > 0 && buf.getLine(buf.viewportY + first) && buf.getLine(buf.viewportY + first).isWrapped) first--;
       let line = '';
-      for (let i = 0; i <= term.rows; i++) {
-        const row = i < term.rows ? buf.getLine(buf.viewportY + i) : null;
+      for (let i = first; i <= last + 1; i++) {
+        const row = i <= last ? buf.getLine(buf.viewportY + i) : null;
         if (row && row.isWrapped) {
           line += row.translateToString(true);
           continue;
@@ -2272,6 +2285,7 @@
     // čekající zpráva se proto kontroluje i sama, jednou za vteřinu.
     const cekaHlidac = setInterval(() => { if (cekaZprava && !odchazi) apply(); }, 1000);
 
+    let termHoldSince = 0;     // od kdy už terminál nikdo nepotřebuje (přihlašovací výzva zmizela)
     function apply(force) {
       const idle = looksIdle();
       if (idle && !idleNow) idleSince = Date.now();
@@ -2295,8 +2309,12 @@
           cekaTimer = setTimeout(() => apply(), READY_MS - vydrzel + 30);
         }
       }
-      if (needsTerminal()) termHold = true;
-      else if (termHold && idle && !codePrompt) termHold = false;
+      /* Terminál se drží, dokud je u dna přihlašovací výzva. Zmizela-li (přihlášení doběhlo, odkaz odrolovala
+         další odpověď), pustí se i bez klidového promptu — dřív zůstal terminál navždy. */
+      const potrebuje = needsTerminal();
+      if (potrebuje) { termHold = true; termHoldSince = 0; }
+      else if (termHold && ((idle && !codePrompt) || (termHoldSince && Date.now() - termHoldSince > 2500))) termHold = false;
+      else if (termHold && !termHoldSince) { termHoldSince = Date.now(); setTimeout(schedule, 2600); }
       const naTerminal = termHold && AG.full && !!tab.cteni;
       tab.pane.classList.toggle('terminal', naTerminal);
       const cteni = !!tab.cteni && !naTerminal && !tab.pane.classList.contains('asking');

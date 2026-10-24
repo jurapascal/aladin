@@ -346,3 +346,21 @@ html, body { font-family: var(--font-sans); }
 .cteni-odp-btn { width: 28px; height: 28px; border: none; border-radius: 8px; background: none; color: var(--dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
 .cteni-odp-btn:hover { background: var(--claude-hover); color: var(--fg-bright); }
 .cteni-odp-btn .ico { width: 15px; height: 15px; }
+
+/* ── drobnosti podle claude.ai ───────────────────────────────────────────── */
+/* Akce pod zprávou člověka (Rozvětvit, Vrátit soubory) se ukážou až pod myší, jako ikonky u zprávy na claude.ai. */
+.cteni-me .cteni-vetev, .cteni-me .rw-tlacitko { opacity: 0; transition: opacity .12s; font-size: 12px; }
+.cteni-me:hover .cteni-vetev, .cteni-me:hover .rw-tlacitko, .cteni-vetev:focus-visible, .rw-tlacitko:focus-visible { opacity: 1; }
+@media (hover: none) { .cteni-me .cteni-vetev, .cteni-me .rw-tlacitko { opacity: .75; } }
+/* „Hledat v textu konverzací“ pod hledáním v panelu: obyčejný odkaz místo čárkovaného rámečku. */
+.sidebar .chats-more, .sidebar .chats-toggle { border: none; background: none; padding: 6px 10px; margin: 2px 8px; min-height: 0; color: var(--dim); font-size: 13px; }
+.sidebar .chats-more:hover, .sidebar .chats-toggle:hover { background: var(--claude-hover); color: var(--fg-bright); }
+/* Stavový řádek nad konverzací tišší. */
+.cteni-stav, .stavradek { color: var(--dim); font-size: 12px; }
+/* Prázdná konverzace: bez nápisu, jako nový chat na claude.ai. */
+.cteni-empty { color: var(--dim); font-size: 14px; }
+/* Taby se zavírají křížkem jen pod myší, název chatu v panelu má víc místa. */
+.open-tab .open-name { font-weight: 400; }
+.open-tab.on .open-name { font-weight: 500; }
+.hl-toggle { border: none !important; background: none !important; color: var(--dim) !important; font-size: 13px; padding: 6px 10px; text-align: left; }
+.hl-toggle:hover { background: var(--claude-hover) !important; color: var(--fg-bright) !important; }

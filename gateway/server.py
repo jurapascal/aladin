@@ -1151,7 +1151,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._gw_shared(user)
             if route == "/gw/relace/soubor":
                 return self._relace_soubor(method, user)
-            if route in ("/gw/relace", "/gw/relace/cteni", "/gw/relace/poslat", "/gw/relace/pokracovat",
+            if route in ("/gw/relace", "/gw/relace/cteni", "/gw/relace/poslat", "/gw/relace/priloha", "/gw/relace/pokracovat",
                         "/gw/relace/zapnout", "/gw/relace/pritomnost"):
                 return self._gw_relace(route, method, user)
             if route == "/gw/tym":
@@ -2002,7 +2002,22 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
 
         # Čtení a psaní — vždycky přes majitelův hub, a jen když mu prostor běží
         # (kvůli dívání se neprobouzí spící prostor).
-        if route == "/gw/relace/poslat":
+        if route == "/gw/relace/priloha":
+            if method != "POST" or not self._account_post_ok():
+                return self._json({"error": "Přílohu jde poslat jen z hubu."}, 403)
+            if int(self.headers.get("Content-Length") or 0) > 40 * 1024 * 1024:
+                return self._json({"error": "Soubor je moc velký."}, 413)
+            form = self._read_form()
+            rid = str(form.get("id") or "")
+            try:
+                entry, _role = relace.ziskat(user, rid, psat=True)
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 403)
+            if not relace.smi_poslat(user):
+                return self._json({"error": "Posíláš moc rychle, chvilku počkej."}, 429)
+            tool, args = "sdilet_priloha", {"chat": entry["chat"], "name": str(form.get("name") or ""),
+                                            "data": str(form.get("data") or "")}
+        elif route == "/gw/relace/poslat":
             if method != "POST" or not self._account_post_ok():
                 return self._json({"error": "Zpráva jde odeslat jen z hubu."}, 403)
             form = self._read_form()

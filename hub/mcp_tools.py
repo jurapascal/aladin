@@ -404,6 +404,27 @@ def sdilet_poslat(args):
     return {"odeslano": True}
 
 
+def sdilet_priloha(args):
+    """Příloha od kolegy ve sdíleném chatu: uloží se do prostoru majitele jako
+    každá vložená příloha a vrátí se cesta, kterou kolega připojí ke zprávě —
+    Claude ji v chatu majitele přečte stejně jako vlastní obrázek."""
+    import base64
+    cid = str(args.get("chat") or "")
+    if not cteni.je_id(cid):
+        raise ToolError("Chybí číslo chatu.")
+    if not _relace_session(cid):
+        raise ToolError("Majitel má chat zavřený — příloha by nikam nedošla.")
+    try:
+        raw = base64.b64decode(str(args.get("data") or ""), validate=True)
+    except ValueError:
+        raise ToolError("Poškozená data.") from None
+    if not raw:
+        raise ToolError("Prázdný soubor.")
+    if len(raw) > core.MAX_UPLOAD:
+        raise ToolError(f"Soubor je větší než {core.MAX_UPLOAD // (1024 * 1024)} MB.")
+    return {"path": core.save_upload(str(args.get("name") or ""), raw)}
+
+
 def prenos_prijmout(args):
     """Kus balíčku s chatem z počítače (volá brána, hub/prenos.py). Kusy se
     skládají v domově; s posledním se chat rozbalí do složky projektů tohoto
@@ -475,6 +496,7 @@ TOOLS = {
     "session_seznam": session_seznam,
     "sdilet_cteni": sdilet_cteni,
     "sdilet_poslat": sdilet_poslat,
+    "sdilet_priloha": sdilet_priloha,
     "sdilet_otevrit": sdilet_otevrit,
     "prenos_prijmout": prenos_prijmout,
 }

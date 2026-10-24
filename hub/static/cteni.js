@@ -2388,8 +2388,12 @@
           <div class="cteni-write">
             <textarea class="cteni-input" rows="1" spellcheck="false" autocomplete="off"
                       data-form-type="other" data-1p-ignore data-lpignore="true"></textarea>
+            <button class="cteni-attach" title="Přiložit soubor nebo obrázek" type="button"><svg class="ico"><use href="#i-image"/></svg></button>
+            <button class="cteni-mic composer-mic" title="Diktovat česky — klikni, mluv, klikni znovu" type="button" hidden><svg class="ico"><use href="#i-mic"/></svg></button>
             <button class="cteni-send" title="Odeslat (Enter)">↑</button>
-          </div>`;
+            <input type="file" class="cteni-picker" multiple hidden>
+          </div>
+          <div class="cteni-prilohy" hidden></div>`;
     /* Jeden řádek: čí chat a co smíš · stav (jednou, s tečkou) · kdo je tu · akce. */
     const lista = `
         <div class="relace-lista">
@@ -2453,7 +2457,10 @@
         return r.json().catch(() => ({ok: false}));
       },
     };
-    const proud = flow(q('.cteni-flow'), io.imageUrl, {openLink: io.openLink, notice: io.notice, copy: io.copy,
+    // Obrázek z prostoru majitele (hub-images) se v mém hubu otevřít nedá — bez náhledu
+    // je to lepší než rozbitý obrázek; kdo chat vede, ho vidí.
+    const obrazek = (p) => (/[\\/]hub-images[\\/]/.test(p) ? '' : io.imageUrl(p));
+    const proud = flow(q('.cteni-flow'), obrazek, {openLink: io.openLink, notice: io.notice, copy: io.copy,
                                                          sdileny: sdilenoInfo, stahovani});
     scroll.addEventListener('scroll', () => {
       uDna = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < U_DNA;
@@ -2482,26 +2489,95 @@
       q('.cteni-write').hidden = !psat;
       pole.disabled = offline;
       q('.cteni-send').disabled = offline;
+      q('.cteni-attach').disabled = offline;
       pole.placeholder = offline
         ? `Psát půjde, až ${share.majitel} zapne prostor`
         : psat ? `Napiš do chatu (uvidí to ${share.majitel} i Claude)…` : '';
     }
     psaniPole();
+    /* Přílohy a hlas: soubor se přes bránu uloží do prostoru majitele (tam ho
+       Claude přečte) a k zprávě se připojí jeho cesta, tak jako u vlastního
+       chatu. Diktování běží v mém hubu a do pole napíše text. */
+    const prilohy = [];                       // {name, path}; path je prázdná, dokud se nahrává
+    const boxPrilohy = q('.cteni-prilohy');
+    const picker = q('.cteni-picker');
+    const base64Soubor = (file) => new Promise((ok, fail) => {
+      const r = new FileReader();
+      r.onload = () => ok(String(r.result).split(',')[1] || '');
+      r.onerror = () => fail(new Error('Soubor se nepodařilo přečíst.'));
+      r.readAsDataURL(file);
+    });
+    function kresliPrilohy() {
+      boxPrilohy.textContent = '';
+      boxPrilohy.hidden = !prilohy.length;
+      for (const a of prilohy) {
+        const chip = el('span', 'cteni-priloha' + (a.path ? '' : ' nahrava'), a.name);
+        const x = el('button', 'cteni-priloha-x', '×');
+        x.type = 'button';
+        x.title = 'Odebrat přílohu';
+        x.onclick = () => { prilohy.splice(prilohy.indexOf(a), 1); kresliPrilohy(); pole.focus(); };
+        chip.appendChild(x);
+        boxPrilohy.appendChild(chip);
+      }
+    }
+    async function pridejSoubory(files) {
+      if (!psat || offline) return;
+      for (const file of files) {
+        if (file.size > 25 * 1024 * 1024) { io.notice(`„${file.name}“ je větší než 25 MB.`); continue; }
+        const a = {name: file.name || 'obrazek.png', path: ''};
+        prilohy.push(a);
+        kresliPrilohy();
+        try {
+          const r = await io.gw('/priloha', {id: share.id, name: a.name, data: await base64Soubor(file)});
+          if (r && r.offline) throw new Error(r.zprava || 'Majitel má prostor vypnutý.');
+          a.path = r.path;
+        } catch (err) {
+          prilohy.splice(prilohy.indexOf(a), 1);
+          io.notice(err.message);
+        }
+        kresliPrilohy();
+      }
+      pole.focus();
+    }
+    q('.cteni-attach').onclick = () => picker.click();
+    picker.onchange = () => { if (picker.files && picker.files.length) pridejSoubory([...picker.files]); picker.value = ''; };
+    pole.addEventListener('paste', (ev) => {
+      const files = [...((ev.clipboardData && ev.clipboardData.files) || [])];
+      if (files.length) { ev.preventDefault(); pridejSoubory(files); }
+    });
+    const zona = q('.relace-telo') || box;
+    zona.addEventListener('dragover', (ev) => {
+      if (psat && ev.dataTransfer && [...ev.dataTransfer.types].includes('Files')) ev.preventDefault();
+    });
+    zona.addEventListener('drop', (ev) => {
+      const files = ev.dataTransfer && [...ev.dataTransfer.files];
+      if (psat && files && files.length) { ev.preventDefault(); pridejSoubory(files); }
+    });
+    if (global.HubHlas) global.HubHlas.mic(q('.cteni-mic'), pole, {notice: io.notice});
+
     async function odeslat() {
-      const text = pole.value.trim();
-      if (!text || !psat) return;
+      if (!psat) return;
+      if (prilohy.some((a) => !a.path)) return io.notice('Počkej, příloha se ještě nahrává.');
+      const puvodni = pole.value.trim();
+      const cesty = prilohy.map((a) => a.path);
+      const text = cesty.length ? (puvodni ? puvodni + ' ' : 'Příloha: ') + cesty.join(' ') : puvodni;
+      if (!text) return;
+      const zaloha = prilohy.slice();
       pole.value = '';
       pole.style.height = 'auto';
+      prilohy.length = 0;
+      kresliPrilohy();
+      const vrat = () => { pole.value = puvodni; prilohy.push(...zaloha); kresliPrilohy(); };
       try {
         const r = await io.gw('/poslat', {id: share.id, text});
         if (r && r.offline) {
-          pole.value = text;
+          vrat();
           io.notice(r.zprava || 'Majitel má prostor vypnutý — zpráva by nikam nedošla.');
           return;
         }
         nastavStav('Zpráva odeslána', 'ceka');
       } catch (err) {
-        pole.value = text;
+        vrat();
         io.notice(err.message);
       }
       tik(true);

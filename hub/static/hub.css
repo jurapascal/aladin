@@ -2901,6 +2901,27 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   font-size: 15px; cursor: pointer;
 }
 .cteni-send:hover { filter: brightness(1.08); }
+.cteni-attach {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+  background: none; border: 1px solid transparent; color: var(--dim); font-size: 16px;
+}
+.cteni-attach:hover:not(:disabled) { color: var(--fg-bright); background: var(--card-hover); border-color: var(--border); }
+.cteni-attach:disabled { opacity: .4; cursor: default; }
+.cteni-mic { width: 34px; height: 34px; margin: 0; }
+.cteni-prilohy {
+  display: flex; flex-wrap: wrap; gap: 6px; flex: none;
+  padding: 6px 14px 0; background: var(--bg-card);
+}
+.cteni-prilohy[hidden] { display: none; }
+.cteni-priloha {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 220px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; padding: 3px 4px 3px 9px; border-radius: 999px;
+  font-size: 12px; color: var(--fg); background: var(--bg); border: 1px solid var(--border);
+}
+.cteni-priloha.nahrava { opacity: .6; }
+.cteni-priloha-x { background: none; border: none; color: var(--dim); cursor: pointer; font-size: 14px; line-height: 1; padding: 0 4px; }
+.cteni-priloha-x:hover { color: var(--fg-bright); }
 
 @media (max-width: 820px) {
   .cteni-scroll { padding: 12px 14px calc(var(--composer-h, 0px) + 14px); }

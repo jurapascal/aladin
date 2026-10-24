@@ -1512,30 +1512,36 @@
        filtračního políčka slouží to, co je zrovna napsané v poli. */
     function historyMenu(ev) {
       const [x, y] = anchor(ev);
-      const needle = input.value.trim().toLowerCase();
-      const seen = new Set();
-      const items = [];
-      for (let i = history.length - 1; i >= 0 && items.length < 40; i--) {
-        const text = history[i];
-        if (seen.has(text)) continue;
-        seen.add(text);
-        if (needle && !text.toLowerCase().includes(needle)) continue;
-        items.push({
-          icon: text.startsWith('/') ? 'i-terminal' : 'i-note',
-          // Víceřádkové zadání by nabídku roztáhlo; v poli se pak ukáže celé.
-          label: text.replace(/\s+/g, ' ').slice(0, 80),
-          run: () => {
-            input.value = text;
-            autogrow();
-            input.focus();
-            input.setSelectionRange(text.length, text.length);
-          },
-        });
-      }
+      const typed = input.value.trim().toLowerCase();
+      const collect = (needle) => {
+        const seen = new Set();
+        const out = [];
+        for (let i = history.length - 1; i >= 0 && out.length < 40; i--) {
+          const text = history[i];
+          if (seen.has(text)) continue;
+          seen.add(text);
+          if (needle && !text.toLowerCase().includes(needle)) continue;
+          out.push({
+            icon: text.startsWith('/') ? 'i-terminal' : 'i-note',
+            // Víceřádkové zadání by nabídku roztáhlo; v poli se pak ukáže celé.
+            label: text.replace(/\s+/g, ' ').slice(0, 80),
+            run: () => {
+              input.value = text;
+              autogrow();
+              input.focus();
+              input.setSelectionRange(text.length, text.length);
+            },
+          });
+        }
+        return out;
+      };
+      // Rozepsaný text seznam zužuje; když by z něj nezbylo nic, ukáže se
+      // celá historie — prázdná nabídka „Nic takového tu není“ jen mátla,
+      // zvlášť u tlačítka bez popisku.
+      let items = collect(typed);
+      if (!items.length && typed) items = collect('');
       if (!items.length) {
-        items.push({icon: 'i-bulb',
-                    label: needle ? 'Nic takového tu není' : 'Zatím prázdno',
-                    run: () => input.focus()});
+        items.push({icon: 'i-bulb', label: 'Zatím prázdno', run: () => input.focus()});
       }
       io.menu(x, y, items, {above: true});
     }

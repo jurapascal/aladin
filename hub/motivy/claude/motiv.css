@@ -239,3 +239,52 @@ html, body { font-family: var(--font-sans); }
   .set-modal .onb-box { border-radius: 0; height: 100%; }
   .set-nav { width: auto; padding: 8px; }
 }
+
+/* ── Napojení a pluginy jako Customize na claude.ai ──────────────────────
+   Nadpis stránky patkovým písmem, záložky Pluginy / MCP / Skilly a Moje /
+   Objevit jako šedé pilulky (ne oranžové), karty ve dvou sloupcích s dlaždicí
+   ikony a tichým tlačítkem, nadpisy sekcí a hledání s ikonou. */
+.set-panel .set-title:first-child { font-family: var(--font-serif); font-weight: 400; font-size: 24px; letter-spacing: -.01em; }
+.plg-tabs { background: transparent; border: none; padding: 0; gap: 4px; margin: 4px 0 14px; }
+.plg-tab { color: var(--fg-bright); font-size: 14px; font-weight: 500; padding: 6px 14px; border-radius: 8px; }
+.plg-tab:hover { background: var(--claude-hover); }
+.plg-tab.on { background: var(--claude-on); color: var(--fg-bright); }
+.roz-hlava { gap: 24px; }
+.plg-chip { border-color: var(--claude-prsten); color: var(--fg-bright); border-radius: 8px; }
+.plg-chip.on { background: var(--claude-on); border-color: transparent; color: var(--fg-bright); }
+.plg-hledat, .plg-filtry input { background: transparent; border: 1px solid var(--claude-prsten); border-radius: 10px; height: 36px; }
+.plg-seznam { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+.plg-seznam > .plg-radek { margin: 0; }
+.plg-seznam > :not(.plg-radek) { grid-column: 1 / -1; }
+.plg-radek {
+  background: var(--bg-card); border: none; border-radius: 12px; padding: 16px; gap: 14px;
+  box-shadow: 0 0 0 1px var(--claude-prsten);
+}
+.plg-radek.plg-klik:hover { background: var(--claude-hover); }
+.plg-info b { font-size: 15px; font-weight: 500; }
+.plg-meta { display: block; margin: 2px 0 0; font-size: 12.5px; }
+.plg-popis { font-size: 13.5px; }
+.plg-ikona {
+  width: 48px; height: 48px; border-radius: 10px; background: var(--claude-bublina) !important;
+  box-shadow: 0 0 0 1px var(--claude-prsten);
+}
+.plg-ikona .ico { color: var(--fg-bright); width: 22px; height: 22px; }
+.plg-ikona.s-logem { background: #fff !important; }
+.plg-btns .btn, .plg-radek .btn { border-radius: 8px; }
+.plg-radek .btn.primary { background: var(--claude-bublina); color: var(--fg-bright); box-shadow: 0 0 0 1px var(--claude-prsten); }
+.plg-radek .btn.primary:hover { background: var(--claude-on); }
+/* Zdroje (Claude Code Marketplace / Aladin Market) jako karty s tenkým rámem; vybraný nepřebarvený. */
+.roz-zdroje .onb-tile, .set-panel .onb-tile { border-radius: 12px; }
+.set-panel .onb-tile.on { border-color: var(--fg-bright); box-shadow: inset 0 0 0 1px var(--fg-bright); background: var(--bg-card); }
+.mtv-karta { border-radius: 12px; }
+.mtv-karta.on { border-color: var(--fg-bright); box-shadow: inset 0 0 0 1px var(--fg-bright); }
+/* Zdroje (Claude Code Marketplace / Aladin Market) a tlačítko pod popisem karty. */
+.trh-volba { gap: 10px; }
+.trh-karta { border-radius: 12px; background: var(--bg-card); border: none; box-shadow: 0 0 0 1px var(--claude-prsten); color: var(--fg-bright); }
+.trh-karta:hover { background: var(--claude-hover); }
+.trh-karta.on { background: var(--bg-card); box-shadow: 0 0 0 1.5px var(--fg-bright); }
+.plg-seznam > .plg-radek { flex-wrap: wrap; }
+.plg-seznam > .plg-radek .plg-info { flex: 1 1 0; min-width: 0; }
+.plg-seznam > .plg-radek .plg-btns { flex: 1 0 100%; justify-content: flex-end; margin-top: 2px; }
+.plg-seznam > .plg-radek .plg-meta { white-space: normal; }
+.plg-radek .btn.primary { border: none; }

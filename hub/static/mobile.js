@@ -115,11 +115,15 @@
     const active = tabs.find((t) => t.classList.contains('active'));
     const name = (t) => (t.querySelector('.tab-title') || t).textContent.trim();
     if (tabTitle) tabTitle.textContent = active ? name(active) : '';
+    // Statistika vedle názvu patří aktivnímu chatu — při přepnutí se nejdřív smaže, doplní ji stavradek.js.
+    const stav = $('topbar-stav');
+    if (stav && active !== syncTabs.posledni) { stav.textContent = ''; syncTabs.posledni = active; }
     document.body.classList.toggle('has-tab', !!active);
     openSection.hidden = !tabs.length;
     openBox.textContent = '';
     for (const t of tabs) {
       const row = document.createElement('div');
+      row.dataset.vseznamu = t.dataset.vseznamu || '';
       row.className = 'open-tab' + (t === active ? ' on' : '') +
                       (t.classList.contains('exited') ? ' exited' : '') +
                       (t.classList.contains('ceka') ? ' ceka' : '') +
@@ -219,7 +223,7 @@
       cancelAnimationFrame(pending);
       pending = requestAnimationFrame(syncTabs);
     }).observe(tabbar, {childList: true, subtree: true, characterData: true,
-                        attributes: true, attributeFilter: ['class', 'style', 'hidden']});
+                        attributes: true, attributeFilter: ['class', 'style', 'hidden', 'data-vseznamu']});
     syncTabs();
   }
 

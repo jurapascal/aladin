@@ -331,10 +331,31 @@ html, body { font-family: var(--font-sans); }
   .open-x:hover { background: var(--claude-on); color: var(--fg-bright); }
   .open-x .ico { width: 14px; height: 14px; }
   .open-input { flex: 1; min-width: 0; margin: 3px 0; padding: 4px 8px; border: 1px solid var(--claude-prsten); border-radius: 8px; outline: none; background: var(--bg); color: var(--fg-bright); font: inherit; font-size: 14px; }
-  /* Název otevřeného chatu nahoře vedle názvu appky. */
+  /* Název otevřeného chatu nahoře a vedle něj statistiky (model, větev, cena, čas) — ne pod ním. */
   .topbar { position: relative; }
-  .topbar-tab { display: block; position: absolute; left: calc(var(--sidebar-w) + 16px); max-width: 38vw; overflow: hidden;
+  .topbar-tabwrap { display: flex; align-items: baseline; gap: 14px; position: absolute; left: calc(var(--sidebar-w) + 16px);
+    max-width: calc(100vw - var(--sidebar-w) - 420px); min-width: 0; }
+  .topbar-tab { display: block; flex: 0 1 auto; min-width: 0; max-width: 34vw; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; color: var(--fg-bright); font-size: 14px; font-weight: 500; }
+  .topbar-stav { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    color: var(--dim); font-size: 12.5px; }
+  .stavradek { display: none !important; }
+  /* Panel: hledání nahoře, pod ním (jen když jsou) taby bez řádku v seznamu, pak chaty. Otevřený chat je v seznamu
+     označený zelenou tečkou, proto se v „Otevřených“ neopakuje. */
+  .sidebar { display: flex; flex-direction: column; }
+  .sidebar > .side-nav { order: 1; }
+  .sidebar > .section-head { order: 2; }
+  #chats-view { display: contents; }
+  #chats-view > .searchwrap { order: 3; }
+  #chats-view > #hledani-blok { order: 3; }
+  .sidebar > .open-section { order: 4; }
+  #chats-view > #chats { order: 5; }
+  .sidebar > #memory-section, .sidebar > #shared-section, .sidebar > #relace-section { order: 6; }
+  .sidebar > .spacer { order: 7; }
+  .sidebar > .footer { order: 8; }
+  .open-tab[data-vseznamu="1"] { display: none; }
+  .open-section:not(:has(.open-tab:not([data-vseznamu="1"]))) { display: none; }
+  .chat-item.running .chat-title::before { content: "● "; color: var(--green); }
   /* Panel nahoře už tabbar nepřekrývá — hlavní plocha začíná hned pod lištou. */
   .main { margin-top: 0; }
 }
@@ -366,3 +387,5 @@ html, body { font-family: var(--font-sans); }
 .hl-toggle:hover { background: var(--claude-hover) !important; color: var(--fg-bright) !important; }
 .cteni-odp-btn.on { color: var(--fg-bright); background: var(--claude-on); }
 .chat-pin { right: 6px; }
+
+@media (max-width: 820px) { .topbar-tabwrap { display: contents; } .topbar-stav { display: none; } }

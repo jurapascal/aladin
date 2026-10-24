@@ -99,8 +99,17 @@
           : '. Cenu nelze spočítat (model není v ceníku).') + (data.partial ? ' Přepis se ještě dopočítává.' : '');
       nastavText(eSpotreba, (data.partial ? '… ' : '') + sp, sTitle);
       tikCas();
+      nahoru();
       const videt = !!(eModel.textContent || eVetev.textContent || eSpotreba.textContent || eCas.textContent);
       if (rad.hidden === videt) rad.hidden = !videt;
+    }
+
+    /* Totéž vedle názvu chatu v horní liště (motiv Claude ho ukazuje místo řádku nad konverzací). */
+    function nahoru() {
+      const h = document.getElementById('topbar-stav');
+      if (!h || (io.aktivni && !io.aktivni())) return;
+      const text = [eModel, eVetev, eSpotreba, eCas].map((e) => (e.hidden ? '' : e.textContent)).filter(Boolean).join('  ·  ');
+      if (h.textContent !== text) h.textContent = text;
     }
 
     function tikCas() {
@@ -162,13 +171,15 @@
     return {
       zmena,
       // Přepnutí na tab: dohnat, co se mezitím mohlo změnit (a srovnat čas).
-      wake() { if (!zivy) return; if (data) tikCas(); if (nutne || Date.now() - posledni > MIN_MEZERA) zmena(); },
+      wake() { if (!zivy) return; if (data) { tikCas(); vykresli(); } if (nutne || Date.now() - posledni > MIN_MEZERA) zmena(); },
       release() {
         zivy = false;
         clearTimeout(timer);
         clearInterval(caser);
         document.removeEventListener('hub-stavradek', naNastaveni);
         rad.remove();
+        const h = document.getElementById('topbar-stav');
+        if (h) h.textContent = '';
       },
     };
   }

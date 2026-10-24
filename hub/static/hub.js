@@ -1618,6 +1618,12 @@ function renderChats() {
     })
     : scope;
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
+  // Otevřený chat je v seznamu chatů (zelená tečka) — v panelu Otevřené zůstanou jen taby bez řádku v seznamu.
+  for (const t of TABS) {
+    if (!t.el) continue;
+    const v = t.id && scope.some((c) => c.tab === t.id) ? '1' : '';
+    if ((t.el.dataset.vseznamu || '') !== v) t.el.dataset.vseznamu = v;
+  }
   box.textContent = '';
   const toggle = () => {
     if (!filtrovat || !others) return;

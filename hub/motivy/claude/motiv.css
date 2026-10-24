@@ -129,34 +129,31 @@ html, body { font-family: var(--font-sans); }
 .cteni-volba:hover { background: var(--claude-hover); }
 
 /* ── rozložení na počítači ────────────────────────────────────────────────
-   Na claude.ai jde panel přes celou výšku a název je nahoře v něm; vpravo
-   v téže řádce je název chatu a tlačítka. Tady lišta zůstává, jen je nad
-   panelem v jeho barvě a nad plochou průhledná, a řádek s taby se posune
-   nahoru vedle tlačítek. Na telefonu (≤ 820 px) zůstává rozložení Aladina. */
+   Na claude.ai jde panel přes celou výšku a název je nahoře v něm. Tady lišta
+   zůstává přes celou šířku, ale vlevo v barvě panelu a vpravo v barvě plochy,
+   takže panel vypadá jako by šel nahoru. Taby jsou pod ní, v samostatném
+   řádku — na serveru je v liště navíc prostor, počítač a odznaky a vedle
+   tabů by se překrývaly. Na telefonu (≤ 820 px) zůstává rozložení Aladina. */
 @media (min-width: 821px) {
   .topbar {
-    position: relative; z-index: 6; height: var(--claude-lista); pointer-events: none;
-    padding: 0 12px 0 10px; border-bottom: none;
+    height: var(--claude-lista); padding: 0 12px 0 10px; border-bottom: none;
     background: linear-gradient(to right,
       var(--bg-sidebar) calc(var(--sidebar-w) - 1px),
       var(--border) calc(var(--sidebar-w) - 1px) var(--sidebar-w),
-      transparent var(--sidebar-w));
+      var(--bg) var(--sidebar-w));
   }
-  .topbar > * { pointer-events: auto; }
   .topbar-home { font: 500 20px/1 var(--font-serif); letter-spacing: -.01em; color: var(--fg-bright); }
-  .main { margin-top: calc(-1 * var(--claude-lista)); }
   .tabbar {
-    height: var(--claude-lista); padding: 0 300px 0 12px; gap: 2px; align-items: center;
-    background: var(--bg); border-bottom: none;
+    height: 40px; padding: 0 12px; gap: 2px; align-items: center;
+    background: var(--bg); border-bottom: 1px solid var(--border);
   }
   .tab {
-    height: 32px; min-width: 0; max-width: 240px; padding: 0 6px 0 10px;
+    height: 30px; flex: none; min-width: 110px; max-width: 260px; padding: 0 6px 0 10px;
     border: none; border-radius: 8px; color: var(--dim);
   }
   .tab:hover { background: var(--claude-hover); color: var(--fg-bright); }
-  .tab.active { background: none; box-shadow: none; color: var(--fg-bright); font-weight: 500; }
-  .tab.active:hover { background: var(--claude-hover); }
-  .tabplus { height: 32px; border-radius: 8px; }
+  .tab.active { background: var(--claude-on); box-shadow: none; color: var(--fg-bright); font-weight: 500; }
+  .tabplus { height: 30px; border-radius: 8px; flex: none; }
   .tabplus:hover { background: var(--claude-hover); }
 }
 

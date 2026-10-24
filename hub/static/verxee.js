@@ -75,6 +75,22 @@
     }
   }
 
+  // Icons of the top-bar button come from debug.js (VerxeeDebugIkona), so a new
+  // ladybug there shows here after a reload, without a hub release; the
+  // symbols in index.html are only the fallback until the script loads.
+  function ikony() {
+    const f = global.VerxeeDebugIkona;
+    const b = document.getElementById('btn-verxee');
+    if (typeof f !== 'function' || !b) return;
+    for (const [sel, druh] of [['.vx-chyba', 'chyba'], ['.vx-navrh', 'navrh']]) {
+      const old = b.querySelector(sel + ' svg');
+      if (!old) continue;
+      const svg = f(druh);
+      svg.classList.add('ico');
+      old.replaceWith(svg);
+    }
+  }
+
   function apply(state) {
     if (!state) return;
     const klic = String((state.config || {}).verxee_debug_klic || '').trim();
@@ -99,6 +115,7 @@
     s.src = SKRIPT + '?v=' + Date.now();
     s.async = true;
     s.onload = () => {
+      ikony();
       // Tlačítko vzniká při spuštění skriptu, někdy až po DOMContentLoaded.
       let n = 0;
       const t = setInterval(() => { if (uprav() || ++n > 40) clearInterval(t); }, 250);

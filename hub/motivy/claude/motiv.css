@@ -1,0 +1,161 @@
+/* Claude — rozložení a písmo jako claude.ai (barvy jsou v motiv.json).
+   Měřeno z claude.ai: panel 288 px, položky 32 px se zaoblením 8 px, pole na
+   psaní 14 px se stínem a tenkým prstencem, zpráva člověka jako šedá bublina,
+   odpověď Clauda bez bubliny patkovým písmem. Vlastní písma claude.ai se
+   nepřibalují — bere se nejbližší písmo, které je v systému. */
+:root {
+  --sidebar-w: 288px;
+  --radius: 8px;
+  --radius-lg: 14px;
+  --claude-lista: 48px;
+  --font-sans: system-ui, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: "Tiempos Text", "Tiempos Headline", Georgia, "Source Serif 4", "Source Serif Pro",
+                Charter, "Noto Serif", "DejaVu Serif", serif;
+  /* Průsvitné vrstvy jako na claude.ai: v obou režimech z barvy písma. */
+  --claude-hover: color-mix(in srgb, var(--fg-bright) 7%, transparent);
+  --claude-on: color-mix(in srgb, var(--fg-bright) 13%, transparent);
+  --claude-prsten: color-mix(in srgb, var(--fg-bright) 10%, transparent);
+  --claude-bublina: color-mix(in srgb, var(--fg-bright) 6%, transparent);
+}
+
+html, body { font-family: var(--font-sans); }
+
+/* ── postranní panel ──────────────────────────────────────────────────────── */
+.side-nav { padding: 8px 8px 4px; gap: 2px; }
+.nav-item {
+  height: 32px; padding: 0 10px; gap: 10px; border-radius: 8px;
+  font-size: 14px; font-weight: 500; color: var(--fg-bright);
+}
+.nav-item:hover { background: var(--claude-hover); }
+.nav-item.on { background: var(--claude-on); font-weight: 500; }
+.nav-ico, .nav-item.on .nav-ico { color: var(--fg-bright); }
+/* „Nový chat“ jako „New“ na claude.ai: obyčejné plus, žádné barevné kolečko. */
+.nav-new { color: var(--fg-bright); font-weight: 500; }
+.nav-plus { background: none; color: var(--fg-bright); width: 20px; height: 20px; }
+.nav-plus .ico { width: 16px; height: 16px; }
+
+.section { color: var(--section); font-size: 12px; font-weight: 600; margin: 18px 18px 6px; }
+.section-count { color: var(--section); }
+/* Skupiny chatů (Dnes, Včera…) jako data na claude.ai: bez čáry, s mezerou. */
+.chats .group-head {
+  color: var(--section); font-size: 12px; font-weight: 600;
+  margin: 18px 18px 6px; padding-top: 0; border-top: none;
+}
+
+.searchwrap { margin: 0 8px 6px; }
+#chats-search, #search {
+  height: 32px; padding-top: 0; padding-bottom: 0; border-radius: 8px;
+  background: transparent; border-color: transparent; font-size: 14px;
+}
+#chats-search:hover, #search:hover { background: var(--claude-hover); }
+#chats-search:focus, #search:focus { background: var(--claude-hover); border-color: var(--claude-prsten); }
+
+/* Chaty: jeden řádek s názvem, jako seznam na claude.ai. */
+.chat-item, body:not(.pokrocile) .chat-item {
+  margin: 0 8px; padding: 0 10px; min-height: 32px; justify-content: center;
+  border: none; border-radius: 8px;
+}
+.chat-item:hover { background: var(--claude-hover); }
+.chat-title { font-size: 14px; color: var(--fg-bright); }
+.chat-meta { display: none; }
+
+.footer { border-top: 1px solid var(--border); padding: 8px; }
+.footer-me { padding: 4px 6px; margin: 0; border-radius: 8px; }
+.footer-me:hover { background: var(--claude-hover); }
+.footer-avatar {
+  width: 24px; height: 24px; font-size: 11px; font-weight: 600;
+  background: var(--claude-on); color: var(--fg-bright);
+}
+.footer-name { font-size: 14px; }
+
+/* ── hlavní plocha ────────────────────────────────────────────────────────── */
+.tab { font-size: 14px; }
+.tabplus .ico { color: var(--fg-bright); }
+
+/* Úvod: pozdrav patkovým písmem s terakotovou hvězdičkou, bez scény se sluncem. */
+.welcome-scene { display: none; }
+.welcome-greet {
+  font: 400 32px/1.2 var(--font-serif); color: var(--fg-bright);
+  letter-spacing: -.01em; margin: 0 0 22px;
+}
+.welcome-greet::before { content: "✻"; color: var(--amber); margin-right: 12px; font-family: var(--font-sans); }
+
+/* Pole na psaní jako na claude.ai: plné, 14 px zaoblení, jemný stín a prstenec,
+   bez barevného nádechu. Uprostřed, nejvýš 768 px. */
+.composer.on .composer-box {
+  width: 100%; max-width: 768px; margin: 0 auto;
+  background: var(--bg-card); border: none; border-radius: 14px;
+  padding: 10px 12px 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .075), 0 0 0 1px var(--claude-prsten);
+}
+.composer.on .composer-box:focus-within {
+  background: var(--bg-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .075), 0 0 0 1px color-mix(in srgb, var(--fg-bright) 22%, transparent);
+}
+.composer-input { font: 15px/21px var(--font-sans); }
+/* Model a režim pod polem jako „Opus 5.5 Medium“ na claude.ai: neutrální písmo. */
+.composer-chip .val { color: var(--fg-bright); font-weight: 500; }
+.composer-send { border-radius: 8px; width: 32px; height: 32px; }
+
+/* ── konverzace ───────────────────────────────────────────────────────────── */
+.cteni-flow { max-width: 768px; gap: 18px; }
+/* Zpráva člověka: šedá bublina vpravo, bezpatkové písmo. */
+.cteni-bubble {
+  background: var(--claude-bublina); border: none; border-radius: 12px;
+  padding: 12px 16px; color: var(--fg-bright);
+  font: 15px/21px var(--font-sans);
+}
+.cteni-img { border-color: var(--border); }
+/* Odpověď Clauda: bez bubliny, přes celou šířku, patkové písmo. */
+.cteni-say {
+  max-width: 100%; padding: 0 4px; background: none; border: none; border-radius: 0;
+  font: 15.5px/1.6 var(--font-serif); color: var(--fg-bright);
+}
+.cteni-say code, .cteni-say pre, .cteni-say kbd, .cteni-say samp {
+  font-family: ui-monospace, "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+}
+.cteni-say code { background: var(--claude-bublina); border-radius: 4px; }
+.cteni-say pre { background: var(--claude-bublina); border: 1px solid var(--border); border-radius: 8px; }
+/* Psaní pod konverzací (čtení, sdílený chat): stejné pole jako dole v tabu. */
+.cteni-write { background: var(--bg); border-top: none; }
+.cteni-input {
+  padding: 12px 14px; border: none; border-radius: 14px; background: var(--bg-card);
+  font: 15px/21px var(--font-sans);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .075), 0 0 0 1px var(--claude-prsten);
+}
+.cteni-input:focus { box-shadow: 0 4px 20px rgba(0, 0, 0, .075), 0 0 0 1px color-mix(in srgb, var(--fg-bright) 22%, transparent); }
+.cteni-send { border-radius: 8px; }
+.cteni-volba { color: var(--fg-bright); border-color: var(--claude-prsten); }
+.cteni-volba:hover { background: var(--claude-hover); }
+
+/* ── rozložení na počítači ────────────────────────────────────────────────
+   Na claude.ai jde panel přes celou výšku a název je nahoře v něm; vpravo
+   v téže řádce je název chatu a tlačítka. Tady lišta zůstává, jen je nad
+   panelem v jeho barvě a nad plochou průhledná, a řádek s taby se posune
+   nahoru vedle tlačítek. Na telefonu (≤ 820 px) zůstává rozložení Aladina. */
+@media (min-width: 821px) {
+  .topbar {
+    position: relative; z-index: 6; height: var(--claude-lista); pointer-events: none;
+    padding: 0 12px 0 10px; border-bottom: none;
+    background: linear-gradient(to right,
+      var(--bg-sidebar) calc(var(--sidebar-w) - 1px),
+      var(--border) calc(var(--sidebar-w) - 1px) var(--sidebar-w),
+      transparent var(--sidebar-w));
+  }
+  .topbar > * { pointer-events: auto; }
+  .topbar-home { font: 500 20px/1 var(--font-serif); letter-spacing: -.01em; color: var(--fg-bright); }
+  .main { margin-top: calc(-1 * var(--claude-lista)); }
+  .tabbar {
+    height: var(--claude-lista); padding: 0 300px 0 12px; gap: 2px; align-items: center;
+    background: var(--bg); border-bottom: none;
+  }
+  .tab {
+    height: 32px; min-width: 0; max-width: 240px; padding: 0 6px 0 10px;
+    border: none; border-radius: 8px; color: var(--dim);
+  }
+  .tab:hover { background: var(--claude-hover); color: var(--fg-bright); }
+  .tab.active { background: none; box-shadow: none; color: var(--fg-bright); font-weight: 500; }
+  .tab.active:hover { background: var(--claude-hover); }
+  .tabplus { height: 32px; border-radius: 8px; }
+  .tabplus:hover { background: var(--claude-hover); }
+}

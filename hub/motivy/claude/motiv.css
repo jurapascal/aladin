@@ -213,3 +213,29 @@ html, body { font-family: var(--font-sans); }
 /* Režim se na úzké liště zkrátí s třemi tečkami místo useknutí; model zůstává celý. */
 .composer-chip[data-act=mode] { flex: 0 1 auto; min-width: 0; overflow: hidden; }
 .composer-chip[data-act=mode] .val { overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Nastavení jako na claude.ai ──────────────────────────────────────────
+   Široké okno, hlavička jen s názvem a křížkem, vlevo hledání a skupiny
+   (Předvolby / Přizpůsobit / Platforma), vpravo řádky s ovládáním. */
+.set-modal .onb-box { width: min(1020px, 100%); height: min(800px, 92vh); border-radius: 14px; }
+.set-modal .onb-head { padding: 16px 20px; gap: 12px; border-bottom: 1px solid var(--border); }
+.set-modal .onb-mark, .set-modal .onb-sub { display: none; }
+.set-modal .onb-title { font: 500 16px/1.2 var(--font-sans); color: var(--fg-bright); }
+.set-nav { width: 212px; padding: 14px 12px; background: var(--bg-sidebar); }
+.set-tab {
+  height: 32px; padding: 0 10px; gap: 10px; border-radius: 8px; font-size: 14px; font-weight: 500;
+  color: var(--fg-bright);
+}
+.set-tab:hover { background: var(--claude-hover); }
+.set-tab .ico, .set-tab.on .ico { color: var(--fg-bright); }
+.set-tab.on { background: var(--claude-on); font-weight: 500; }
+.set-search { background: transparent; border-color: var(--claude-prsten); }
+.set-panel { padding: 22px 28px; }
+.set-modal .set-sec > .set-title:first-child, .set-panel .set-title:first-child { font: 500 16px/1.3 var(--font-sans); }
+.set-select, .set-seg { background: var(--bg-card); border-color: var(--claude-prsten); }
+.set-seg-btn.on { background: var(--claude-on); }
+.onb-foot { border-top: 1px solid var(--border); padding: 10px 20px; }
+@media (max-width: 720px) {
+  .set-modal .onb-box { border-radius: 0; height: 100%; }
+  .set-nav { width: auto; padding: 8px; }
+}

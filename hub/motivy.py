@@ -93,8 +93,14 @@ def _polozka(mid, path, vlastni):
             "nahled": nahled, "vlastni": vlastni}
 
 
+# Kdo si motiv nikdy nevybral (v konfigu klíč `motiv` chybí), dostane tenhle.
+# Výchozí vzhled Aladina zůstává na výběr — uložené `motiv: ""` ho zapne.
+VYCHOZI_MOTIV = "claude"
+
+
 def aktivni():
-    mid = str(core.CONFIG.get("motiv") or "")
+    mid = core.CONFIG.get("motiv") if "motiv" in core.CONFIG else VYCHOZI_MOTIV
+    mid = str(mid or "")
     return mid if _kde(mid) else ""
 
 
@@ -116,6 +122,19 @@ def seznam():
     return {"motivy": list(out.values()), "aktivni": akt, "dir": slozka()}
 
 
+def _verze_souboru(mid, styl):
+    """Nejnovější změna motiv.json nebo jeho CSS — adresa stylu se mění s ním,
+    jinak prohlížeč drží starý motiv.css, i když se změnil jen on."""
+    base = _kde(mid)
+    stamps = []
+    for name in ("motiv.json", styl):
+        try:
+            stamps.append(int(os.path.getmtime(os.path.join(base, name))))
+        except (OSError, TypeError):
+            pass
+    return max(stamps) if stamps else 0
+
+
 def data():
     """Zapnutý motiv pro okno: přepsaná paleta a adresa stylu (do stavu hubu)."""
     mid = aktivni()
@@ -123,7 +142,7 @@ def data():
         return {"id": ""}
     m = _manifest(_kde(mid)) or {}
     return {"id": mid, "barvy": _barvy(m.get("barvy")), "style": _styl(m.get("style")),
-            "v": int(os.path.getmtime(os.path.join(_kde(mid), "motiv.json")))}
+            "v": _verze_souboru(mid, _styl(m.get("style")))}
 
 
 def nastav(mid):

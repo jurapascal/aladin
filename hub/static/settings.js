@@ -42,6 +42,12 @@
     ['ostatni',    'Ostatní',   'i-gear',     () => ostatni()],
   ];
 
+  let navHledat = '';
+  // Skupiny v panelu vlevo (pořadí sekcí zůstává, mění se jen nadpisy).
+  const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', taby: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
+                   ucet: 'Předvolby', firmy: 'Předvolby', hlas: 'Předvolby',
+                   rozsireni: 'Přizpůsobit', aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
+
   function el(tag, cls, text) {
     const node = document.createElement(tag);
     if (cls) node.className = cls;
@@ -70,6 +76,8 @@
             <div class="onb-title">Nastavení</div>
             <div class="onb-sub"></div>
           </div>
+          <span class="spacer"></span>
+          <button class="set-x" title="Zavřít (Esc)" aria-label="Zavřít">×</button>
         </div>
         <div class="onb-body set-body">
           <nav class="set-nav"></nav>
@@ -91,6 +99,7 @@
     root.querySelector('.onb-mark').appendChild(svg);
     root.querySelector('.onb-sub').textContent = 'Verze ' + state.version.version;
     root.querySelector('.set-close').onclick = close;
+    root.querySelector('.set-x').onclick = close;
     root.querySelector('.set-wizard').onclick = () => {
       close();
       io.openWizard();
@@ -127,7 +136,19 @@
     if (!shown.some(([id]) => id === active)) active = shown[0][0];
 
     nav.textContent = '';
+    // Hledání v sekcích a skupiny s nadpisy jako v Nastavení na claude.ai.
+    const hledej = el('input', 'set-search');
+    hledej.type = 'search';
+    hledej.placeholder = 'Hledat';
+    hledej.value = navHledat;
+    hledej.autocomplete = 'off';
+    nav.appendChild(hledej);
+    const needle = navHledat.trim().toLowerCase();
+    let skupina = '';
     for (const [id, label, ico] of shown) {
+      if (needle && !label.toLowerCase().includes(needle)) continue;
+      const g = SKUPINY[id] || 'Předvolby';
+      if (!needle && g !== skupina) { nav.appendChild(el('div', 'set-group', g)); skupina = g; }
       const b = el('button', 'set-tab' + (id === active ? ' on' : ''));
       b.innerHTML = '<svg class="ico"><use href="#' + ico + '"/></svg><span></span>';
       b.querySelector('span').textContent = label;
@@ -139,6 +160,13 @@
       };
       nav.appendChild(b);
     }
+    hledej.oninput = () => {
+      navHledat = hledej.value;
+      const pos = hledej.selectionStart;
+      render();
+      const n = root.querySelector('.set-search');
+      if (n) { n.focus(); n.setSelectionRange(pos, pos); }
+    };
 
     panel.textContent = '';
     const build = (shown.find(([id]) => id === active) || shown[0])[3];
@@ -469,17 +497,79 @@
     return box;
   }
 
+  /* Řádek nastavení jako na claude.ai: vlevo název (a popis), vpravo ovládání,
+     mezi řádky tenká čára. */
+  function radek(nazev, popis, ovladani) {
+    const r = el('div', 'set-row');
+    const l = el('div', 'set-row-text');
+    l.appendChild(el('div', 'set-row-name', nazev));
+    if (popis) l.appendChild(el('div', 'set-row-desc', popis));
+    r.append(l, ovladani);
+    return r;
+  }
+  function vyber(moznosti, hodnota, zmena) {
+    const sel = el('select', 'set-select');
+    for (const [v, t] of moznosti) {
+      const o = el('option', null, t);
+      o.value = v;
+      sel.appendChild(o);
+    }
+    sel.value = hodnota;
+    sel.onchange = () => zmena(sel.value);
+    return sel;
+  }
+  /* Volby vzhledu platí jen na tomhle zařízení (localStorage) a hned — CSS je
+     čte z atributů na <html> (hub.css, „Vzhled podle claude.ai“). */
+  const VZHLED_KLICE = {pismo: 'hub-pismo-odpovedi', velikost: 'hub-velikost-textu', sirka: 'hub-sirka-konverzace', pohyb: 'hub-pohyb'};
+  function vzhledNacti() {
+    const h = document.documentElement;
+    for (const [k, ls] of Object.entries(VZHLED_KLICE)) {
+      let v = '';
+      try { v = localStorage.getItem(ls) || ''; } catch (_) { /* soukromé okno */ }
+      if (v) h.dataset['v' + k] = v; else delete h.dataset['v' + k];
+    }
+  }
+  function vzhledNastav(k, v) {
+    try { if (v) localStorage.setItem(VZHLED_KLICE[k], v); else localStorage.removeItem(VZHLED_KLICE[k]); } catch (_) { /* nic */ }
+    vzhledNacti();
+  }
+  global.HubVzhled = {nacti: vzhledNacti};
+  vzhledNacti();
+
   function vzhled() {
     const box = section('Vzhled');
-    const wrap = el('div', 'onb-tiles');
-    const current = localStorage.getItem('hub-theme') || 'system';
-    for (const [key, label, dark] of [['dark', 'Tmavý', true],
-                                      ['light', 'Světlý', false],
-                                      ['system', 'Podle systému', null]]) {
-      const t = el('button', 'onb-tile' + (current === key ? ' on' : ''));
-      t.appendChild(el('span', 'onb-swatch ' + key));
-      t.appendChild(el('span', null, label));
-      t.onclick = () => {
+    const rows = el('div', 'set-rows');
+    const dnes = (k, vychozi) => { try { return localStorage.getItem(VZHLED_KLICE[k]) || vychozi; } catch (_) { return vychozi; } };
+
+    // Motiv: seznam se doplní, až se načte (přibalené i nainstalované).
+    const motivSel = el('select', 'set-select');
+    motivSel.appendChild(Object.assign(el('option', null, 'Výchozí Aladin'), {value: ''}));
+    rows.appendChild(radek('Motiv', 'Barvy, písmo a rozložení okna. Další najdeš v Aladin Marketu.', motivSel));
+    io.api('pluginy?jen=motivy').then((d) => {
+      for (const m of (d && d.motivy) || []) {
+        if (m.error) continue;
+        motivSel.appendChild(Object.assign(el('option', null, m.name || m.id), {value: m.id}));
+      }
+      motivSel.value = (d && d.aktivni) || '';
+    }).catch(() => {});
+    motivSel.onchange = async () => {
+      try {
+        const r = await io.api('pluginy', {akce: 'motiv-nastav', id: motivSel.value});
+        if (r.ok === false) throw new Error(r.message || 'Motiv se nezapnul.');
+        if (io.setMotiv) io.setMotiv(r.motiv || {id: ''}); else location.reload();
+      } catch (err) { if (io.notice) io.notice(err.message); }
+    };
+
+    // Režim: tři ikony jako na claude.ai (podle systému / světlý / tmavý).
+    const cur = localStorage.getItem('hub-theme') || 'system';
+    const seg = el('div', 'set-seg');
+    for (const [key, ico, label, dark] of [['system', 'i-laptop', 'Podle systému', null], ['light', 'i-sun', 'Světlý', false], ['dark', 'i-moon', 'Tmavý', true]]) {
+      const b = el('button', 'set-seg-btn' + (cur === key ? ' on' : ''));
+      b.type = 'button';
+      b.title = label;
+      b.setAttribute('aria-label', label);
+      b.innerHTML = '<svg class="ico"><use href="#' + ico + '"/></svg>';
+      b.onclick = () => {
         if (key === 'system') {
           localStorage.removeItem('hub-theme');
           io.api('config', {theme: ''}).catch(() => {});
@@ -489,20 +579,29 @@
         }
         render();
       };
-      wrap.appendChild(t);
+      seg.appendChild(b);
     }
-    box.appendChild(wrap);
+    rows.appendChild(radek('Režim', null, seg));
+
+    rows.appendChild(radek('Písmo odpovědí', 'Čím se píše text Claudových odpovědí.',
+      vyber([['', 'Výchozí (patkové)'], ['sans', 'Bezpatkové'], ['serif', 'Patkové']], dnes('pismo', ''), (v) => vzhledNastav('pismo', v))));
+    rows.appendChild(radek('Velikost textu konverzace', null,
+      vyber([['s', 'Menší'], ['', 'Střední'], ['l', 'Větší'], ['xl', 'Největší']], dnes('velikost', ''), (v) => vzhledNastav('velikost', v))));
+    rows.appendChild(radek('Šířka konverzace', null,
+      vyber([['narrow', 'Úzká'], ['', 'Výchozí'], ['wide', 'Široká']], dnes('sirka', ''), (v) => vzhledNastav('sirka', v))));
+    rows.appendChild(radek('Animace', 'Skřítci, plynulé přechody a pulzování.',
+      vyber([['', 'Podle systému'], ['off', 'Vypnuté'], ['on', 'Zapnuté']], dnes('pohyb', ''), (v) => vzhledNastav('pohyb', v))));
+
     // Stavový řádek nad konverzací (stavradek.js) — model, větev, odhad ceny, čas.
     if (window.HubStav) {
-      const sr = el('label', 'onb-row');
       const cb = el('input');
       cb.type = 'checkbox';
       cb.checked = HubStav.zapnuto();
       cb.onchange = () => HubStav.nastav(cb.checked);
-      sr.append(cb, el('span', null, 'Stavový řádek nad konverzací (model, větev, odhad ceny, čas)'));
-      sr.title = 'Jen na tomhle zařízení.';
-      box.appendChild(sr);
+      const r = radek('Stavový řádek nad konverzací', 'Model, větev, odhad ceny a čas. Jen na tomhle zařízení.', cb);
+      rows.appendChild(r);
     }
+    box.appendChild(rows);
     return box;
   }
 

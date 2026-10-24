@@ -2568,6 +2568,10 @@ def _fetch_source():
     funguje i tomu, kdo hub dostal jako ZIP a git nemá.
     """
     if GIT and os.path.isdir(os.path.join(SRC_DIR, ".git")):
+        # Repo se přejmenovalo (claude-code-hub → aladin): klon, který míří na
+        # starý název, se přepne na nový — přesměrování GitHubu je jen záplata.
+        subprocess.run([GIT, "-C", SRC_DIR, "remote", "set-url", "origin", f"https://github.com/{REPO}.git"],
+                       capture_output=True, text=True, timeout=30)
         r = subprocess.run([GIT, "-C", SRC_DIR, "pull", "--ff-only", "--quiet"],
                            capture_output=True, text=True, timeout=180)
         if r.returncode != 0:

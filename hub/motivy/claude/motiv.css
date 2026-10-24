@@ -187,3 +187,29 @@ html, body { font-family: var(--font-sans); }
 /* Model a režim bez popisku „Model:“ / „Režim:“ — jako „Opus 5.5 Medium“ na claude.ai. */
 .composer-chip[data-act=model], .composer-chip[data-act=mode] { font-size: 0; gap: 0; }
 .composer-chip[data-act=model] .val, .composer-chip[data-act=mode] .val { font-size: 13px; }
+
+/* ── zpráva čekající ve frontě ────────────────────────────────────────────
+   Jako na claude.ai: stejná šedá bublina jako odeslaná, jen o něco bledší
+   (bez přerušovaného rámečku), pod ní tichý stavový řádek, nabídky jako
+   obyčejné malé tlačítko a Upravit / Smazat jen textem. */
+.cteni-fronta { gap: 6px; }
+.cteni-ceka .cteni-bubble, .cteni-me.ztracena .cteni-bubble {
+  background: var(--claude-bublina); border: none; opacity: .7; color: var(--fg-bright);
+}
+.cteni-ceka.nedoslo .cteni-bubble, .cteni-me.ztracena .cteni-bubble {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--red) 55%, transparent);
+}
+.cteni-stitek { font-size: 12px; }
+.cteni-pomoc { padding: 0 4px; gap: 4px 6px; justify-content: flex-end; }
+.cteni-pomoc-text { text-align: right; font-size: 12px; }
+.cteni-pomoc-btn {
+  background: none; border: 1px solid var(--claude-prsten); border-radius: 8px;
+  color: var(--fg-bright); font-size: 12.5px; padding: 3px 10px;
+}
+.cteni-pomoc-btn:hover { background: var(--claude-hover); border-color: var(--claude-prsten); }
+.cteni-akce { justify-content: flex-end; padding: 0 4px; gap: 2px; }
+.cteni-akce .cteni-pomoc-btn, .cteni-akce button {
+  border-color: transparent; color: var(--dim); background: none;
+}
+.cteni-akce button:hover { background: var(--claude-hover); color: var(--fg-bright); }
+.cteni-akce-smaz:hover { color: var(--red); background: var(--claude-hover); }

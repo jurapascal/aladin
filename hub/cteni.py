@@ -743,7 +743,7 @@ def _zapocti(stav, entry):
             stav["tools"] += 1
             nadpis, meta, _ = _popis(cast.get("name"), cast.get("input"))
             stav["last"].append({"name": str(cast.get("name") or ""),
-                                 "title": _zkrat(nadpis, 160), "meta": meta})
+                                 "title": _zkrat(nadpis, 160), "meta": meta, "ts": cas})
             del stav["last"][:-AG_KROKU]
         elif cast.get("type") == "text" and str(cast.get("text") or "").strip():
             stav["text"] = _zkrat(" ".join(str(cast["text"]).split()), 240)

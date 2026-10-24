@@ -2834,6 +2834,13 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .ag-krok.nove { animation: ag-prijezd .35s ease-out; }
 .ag-krok-ico { color: var(--ag); flex: none; width: 12px; text-align: center; }
 .ag-krok:not(.ted) .ag-krok-ico { opacity: .6; }
+.ag-krok-cas { margin-left: auto; padding-left: 10px; flex: none; color: var(--dim); font-size: 11px; font-variant-numeric: tabular-nums; }
+.ag-krok.ted .ag-krok-cas { color: var(--ag); }
+/* Dílky průběhu: jeden na každý krok agenta, poslední dýchá. */
+.ag-prubeh { display: flex; gap: 3px; margin: 2px 0 6px 15px; }
+.ag-prubeh[hidden] { display: none; }
+.ag-prubeh i { flex: 1; max-width: 46px; height: 3px; border-radius: 2px; background: var(--ag); opacity: .85; }
+.ag-prubeh i.ted { animation: cteni-puls 1.2s ease-in-out infinite; }
 .ag-krok-t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 /* Začátek výsledku — plný se rozbalí tlačítkem. */
 .ag-nahled {

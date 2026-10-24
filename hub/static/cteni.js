@@ -344,7 +344,9 @@
   const AG_PALETA = ['#4c97f0', '#e0843c', '#3fb950', '#a371f7', '#e05d8a', '#2bb3a8', '#d4a72c', '#f0636b'];
   let agPoradi = 0;
   const AG_STAV = {bezi: 'Běží', hotovo: 'Hotovo', chyba: 'Selhal', stop: 'Zastaven'};
-  const AG_KROKU = 3;          // kolik posledních kroků je na kartě vidět
+  const AG_KROKU = 5;          // kolik posledních kroků je na kartě vidět
+
+  const casKroku = (ms) => (ms < 10000 ? (ms / 1000).toFixed(1) : Math.round(ms / 1000)) + 's';
 
   const dalsiBarva = () => AG_PALETA[agPoradi++ % AG_PALETA.length];
 
@@ -1269,6 +1271,7 @@
           </span>
           <span class="ag-stav"><i></i><span class="ag-stav-t"></span><span class="ag-cas"></span></span>
         </div>
+        <div class="ag-prubeh" aria-hidden="true"></div>
         <ol class="ag-kroky"></ol>
         <div class="ag-nahled vault-md" hidden></div>
         <div class="ag-pata">
@@ -1313,8 +1316,10 @@
       q('.ag-bg').hidden = !k.bg || k.stav !== 'bezi';
       const kroky = q('.ag-kroky');
       kroky.hidden = k.stav !== 'bezi';
+      const prubeh = q('.ag-prubeh');
+      prubeh.hidden = k.stav !== 'bezi' || !k.tools;
       if (k.stav === 'bezi') {
-        const sig = k.kroky.map((x) => x.title).join('\n');
+        const sig = k.kroky.map((x) => x.title + '|' + (x.ts || 0)).join('\n');
         if (sig !== kroky.dataset.sig) {
           const stare = kroky.dataset.sig ? kroky.dataset.sig.split('\n') : [];
           kroky.dataset.sig = sig;
@@ -1324,12 +1329,22 @@
           if (!ukazat.length) kroky.appendChild(el('li', 'ag-krok prazdny', 'Rozjíždí se…'));
           ukazat.forEach((x, i) => {
             const li = el('li', 'ag-krok');
-            li.append(el('span', 'ag-krok-ico', ZNAK[x.name] || '•'), el('span', 'ag-krok-t', x.title));
+            li.append(el('span', 'ag-krok-ico', ZNAK[x.name] || '•'), el('span', 'ag-krok-t', x.title),
+                      el('span', 'ag-krok-cas'));
             if (i === ukazat.length - 1) li.classList.add('ted');
-            if (!stare.includes(x.title)) li.classList.add('nove');
+            if (!stare.some((r) => r.startsWith(x.title + '|'))) li.classList.add('nove');
             kroky.appendChild(li);
           });
         }
+        // Dílky průběhu: kolik kroků agent udělal (celkem se dopředu nedá znát).
+        const dilku = Math.min(k.tools, 12);
+        if (prubeh.childElementCount !== dilku) {
+          prubeh.textContent = '';
+          for (let i = 0; i < dilku; i++) prubeh.appendChild(el('i'));
+        }
+        prubeh.classList.toggle('plny', k.tools > 12);
+        const posl = prubeh.lastElementChild;
+        for (const d of prubeh.children) d.classList.toggle('ted', d === posl);
       }
       const nahled = q('.ag-nahled');
       if (k.vysledek && nahled.dataset.src !== k.vysledek) {
@@ -1353,6 +1368,20 @@
     }
 
     function tikAgenta(k) {
+      // Doba kroků: u hotových do začátku dalšího, u posledního do teď.
+      if (k.stav === 'bezi') {
+        const radky = k.box.querySelectorAll('.ag-krok');
+        const ukazat = k.kroky.slice(-AG_KROKU);
+        if (radky.length === ukazat.length) {
+          const ted = Date.now() - posun;
+          ukazat.forEach((x, i) => {
+            const dalsi = ukazat[i + 1];
+            const od = x.ts || 0, do_ = dalsi ? dalsi.ts || 0 : ted;
+            const c = radky[i].querySelector('.ag-krok-cas');
+            if (c) c.textContent = od && do_ >= od ? casKroku(do_ - od) : '';
+          });
+        }
+      }
       const t = k.q('.ag-cas');
       if (k.stav === 'bezi') t.textContent = k.start ? cas(Date.now() - posun - k.start) : '';
       else t.textContent = '';

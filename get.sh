@@ -1,7 +1,7 @@
 #!/bin/bash
 # Aladin — jednořádková instalace.
 #
-#     curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.sh | bash
+#     curl -fsSL https://raw.githubusercontent.com/jurapascal/aladin/main/get.sh | bash
 #
 # Stáhne repo do ~/.claude/hub-src a spustí install.sh. Nic jiného nedělá —
 # všechna rozhodnutí (co doinstalovat, kde máš projekty, paměť) padají tam.
@@ -10,7 +10,7 @@
 #     HUB_REPO=owner/repo   HUB_BRANCH=main   HUB_DEST=~/jinam   HUB_YES=1
 set -eu
 
-REPO="${HUB_REPO:-jurapascal/claude-code-hub}"
+REPO="${HUB_REPO:-jurapascal/aladin}"
 BRANCH="${HUB_BRANCH:-main}"
 DEST="${HUB_DEST:-$HOME/.claude/hub-src}"
 

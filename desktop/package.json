@@ -5,7 +5,7 @@
   "description": "Okno pro Aladina: vlastní aplikace s vlastním menu a novými okny místo karty v Chromu.",
   "main": "main.js",
   "license": "MIT",
-  "repository": "https://github.com/jurapascal/claude-code-hub",
+  "repository": "https://github.com/jurapascal/aladin",
   "author": "Aladin",
   "scripts": {
     "start": "electron .",

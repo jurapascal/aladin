@@ -254,7 +254,7 @@ if ((Test-Path $hub) -and $py) {
 } else {
     Write-Host ''
     Write-Host '  Hub ještě není nainstalovaný. Nainstaluj ho:' -ForegroundColor DarkGray
-    Write-Host '    irm https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.ps1 | iex' -ForegroundColor DarkGray
+    Write-Host '    irm https://raw.githubusercontent.com/jurapascal/aladin/main/get.ps1 | iex' -ForegroundColor DarkGray
 }
 
 Write-Host ''

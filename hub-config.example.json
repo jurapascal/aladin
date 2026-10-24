@@ -7,7 +7,7 @@
   "memory_autosave": true,
   "memory_autosave_idle": 20,
 
-  "icon": "~/.local/share/icons/claude-code.png",
+  "icon": "~/.local/share/icons/aladin.png",
 
   "ftp_deploy_script": "~/.claude/ftp-deploy.sh",
 

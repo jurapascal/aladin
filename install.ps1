@@ -422,7 +422,7 @@ $ProjectDirsList = (@($cfg.project_dirs) | ForEach-Object { To-Slash $_ }) -join
 # Hotové postupy, ze kterých si Claude sám vybírá. Existující složku nikdy
 # nepřepisujeme — kdo si tam něco napsal, o to nesmí přijít.
 $SkillsRepo = if ($env:HUB_SKILLS_REPO) { $env:HUB_SKILLS_REPO }
-              else { 'jurapascal/paluba-market' }
+              else { 'jurapascal/aladin-marketplace' }
 
 function Count-Skills($path) {
     if (-not (Test-Path $path)) { return 0 }

@@ -32,7 +32,7 @@
 #     --no-restart  bránu nerestartovat ani po změně (běžící prostory zůstanou)
 #
 # Na čistém serveru bez repa stačí stáhnout jen tenhle skript:
-#     curl -fsSLO https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/gateway/install.sh
+#     curl -fsSLO https://raw.githubusercontent.com/jurapascal/aladin/main/gateway/install.sh
 #     bash install.sh --domain test.alba-rosa.cz --admin jmeno@firma.cz
 #
 # Celý skript je ve funkcích a spouští se až posledním řádkem: bash ho tak
@@ -40,7 +40,7 @@
 # a bez toho by bash dočítal už přepsaný soubor.
 set -euo pipefail
 
-REPO_URL="https://github.com/jurapascal/claude-code-hub.git"
+REPO_URL="https://github.com/jurapascal/aladin.git"
 REPO_DIR="/opt/claude-code-hub"
 HUB_USER="hub"
 HUB_HOME="/home/hub"

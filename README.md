@@ -227,10 +227,10 @@ a pak naváže průvodce.
 
 | Systém | Soubor |
 |---|---|
-| **Windows** 10/11 | [Claude-Code-Hub-Setup.exe](https://github.com/jurapascal/claude-code-hub/releases/latest/download/Claude-Code-Hub-Setup.exe) |
-| **macOS** Apple Silicon (M1–M4) | [Claude-Code-Hub-mac-apple-silicon.dmg](https://github.com/jurapascal/claude-code-hub/releases/latest/download/Claude-Code-Hub-mac-apple-silicon.dmg) |
-| **macOS** Intel | [Claude-Code-Hub-mac-intel.dmg](https://github.com/jurapascal/claude-code-hub/releases/latest/download/Claude-Code-Hub-mac-intel.dmg) |
-| **Linux** (x86_64) | [Claude-Code-Hub-x86_64.AppImage](https://github.com/jurapascal/claude-code-hub/releases/latest/download/Claude-Code-Hub-x86_64.AppImage) |
+| **Windows** 10/11 | [Claude-Code-Hub-Setup.exe](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-Setup.exe) |
+| **macOS** Apple Silicon (M1–M4) | [Claude-Code-Hub-mac-apple-silicon.dmg](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-mac-apple-silicon.dmg) |
+| **macOS** Intel | [Claude-Code-Hub-mac-intel.dmg](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-mac-intel.dmg) |
+| **Linux** (x86_64) | [Claude-Code-Hub-x86_64.AppImage](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-x86_64.AppImage) |
 
 Instalačky nejsou podepsané certifikátem Microsoftu ani Applu, takže poprvé
 se systém ohradí:
@@ -260,7 +260,7 @@ parameter name 'fsSL'`, protože `curl` je v PowerShellu jenom jiné jméno pro
 ### Linux a macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jurapascal/aladin/main/get.sh | bash
 ```
 
 ### Windows
@@ -268,7 +268,7 @@ curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get
 V PowerShellu (**bez** práv správce):
 
 ```powershell
-irm https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.ps1 | iex
+irm https://raw.githubusercontent.com/jurapascal/aladin/main/get.ps1 | iex
 ```
 
 Obojí stáhne repo do `~/.claude/hub-src` a spustí instalačku. Podruhé spuštěný
@@ -305,7 +305,7 @@ powershell -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\tools\windows
 ### Z klonu
 
 ```bash
-git clone https://github.com/jurapascal/claude-code-hub.git
+git clone https://github.com/jurapascal/aladin.git
 cd claude-code-hub
 bash install.sh                                          # Linux / macOS
 powershell -ExecutionPolicy Bypass -File install.ps1     # Windows
@@ -328,7 +328,7 @@ sama** — otázka navíc byla hlavní důvod, proč instalace nebyla rychlá:
 | **Playwright MCP** | prohlížeč pro Claude Code (~115 MB, potřebuje Node.js 20+) |
 | **Clockify MCP** | volitelně, jen když zadáš API klíč (nebo ho máš v `CLOCKIFY_API_KEY`) |
 | **hooky** | `Stop` (uloží stav session) a `SessionStart` (načte kategorie skillů z vaultu a stav minulé session) do `settings.json` |
-| **skilly** | 571 hotových postupů z [paluba-market](https://github.com/jurapascal/paluba-market) do vaultu — existující složku nikdy nepřepíše |
+| **skilly** | 571 hotových postupů z [paluba-market](https://github.com/jurapascal/aladin-marketplace) do vaultu — existující složku nikdy nepřepíše |
 
 Zeptá se jen na to, co uhádnout nejde:
 
@@ -890,7 +890,7 @@ takové době jen mátly, tak se zahodí.
 Z příkazové řádky je to pořád ten samý jeden řádek:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jurapascal/aladin/main/get.sh | bash
 ```
 
 ## Konfigurace

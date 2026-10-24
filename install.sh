@@ -493,7 +493,7 @@ fi
 # ── 3b. Skilly do vaultu ─────────────────────────────────────────────────────
 # 571 hotových postupů, ze kterých si Claude sám vybírá. Existující složku
 # nikdy nepřepisujeme — kdo si tam něco napsal, o to nesmí přijít.
-SKILLS_REPO="${HUB_SKILLS_REPO:-jurapascal/paluba-market}"
+SKILLS_REPO="${HUB_SKILLS_REPO:-jurapascal/aladin-marketplace}"
 
 install_skills() {
     local target="$1"

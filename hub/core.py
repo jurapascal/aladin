@@ -84,7 +84,7 @@ VERXEE_KLIC_VYCHOZI = "vxd_acc213c5649c28723f438849"
 DEFAULTS = {
     "project_dirs": ["~/Desktop", "~/Projects", "~/dev", "/opt/lampp/htdocs"],
     "brain_dir": "~/Obsidian/Claude-Brain",
-    "icon": "~/.local/share/icons/claude-code.png",
+    "icon": "~/.local/share/icons/aladin.png",
     "ftp_deploy_script": "~/.claude/ftp-deploy.sh",
     "bash": "",     # Windows: path to Git for Windows bash.exe; empty = autodetect
     "browser": "",  # empty = autodetect an app-window capable browser
@@ -2253,7 +2253,7 @@ def vault_git_push(message="paměť: automatická záloha"):
 # „Aktualizovat" a „načíst znovu" jsou dvě různé věci: ⟳ v hlavičce jen přečte
 # projekty a paměť, tohle mění samotnou aplikaci. Proto se to jmenuje jinak
 # a proto se tu drží číslo verze, ať je vidět, co je nainstalované.
-REPO = "jurapascal/claude-code-hub"
+REPO = "jurapascal/aladin"
 SRC_DIR = os.path.join(CLAUDE_DIR, "hub-src")
 
 

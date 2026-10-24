@@ -40,7 +40,7 @@ cizí paměť, projekty i přihlášení.
 
 Server se staví skriptem, ne ručně — na čistém Ubuntu 24.04 jako root:
 
-    curl -fsSLO https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/gateway/install.sh
+    curl -fsSLO https://raw.githubusercontent.com/jurapascal/aladin/main/gateway/install.sh
     bash install.sh --domain test.alba-rosa.cz --email ja@firma.cz --admin jmeno@firma.cz
 
 Skript doinstaluje balíčky, Node a Claude Code (do `/usr` — sandbox jinam
@@ -492,7 +492,7 @@ objeví po jeho dalším startu**; `claude-hub-admin stop <e-mail>` to uspíší
 
 Instalačka je zavádí sama (`setup_company_skills`) a při dalším běhu
 aktualizuje; nahrané z vlastní složky nechá být. Zdroj je
-`jurapascal/paluba-market`, přebije ho `HUB_SKILLS_REPO`. Přepsat je
+`jurapascal/aladin-marketplace`, přebije ho `HUB_SKILLS_REPO`. Přepsat je
 `skills install --force` — co tam bylo, se odloží vedle trezoru jako
 `_skilly-<čas>`.
 

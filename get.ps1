@@ -1,6 +1,6 @@
 # Aladin — jednořádková instalace pro Windows.
 #
-#     irm https://raw.githubusercontent.com/jurapascal/claude-code-hub/main/get.ps1 | iex
+#     irm https://raw.githubusercontent.com/jurapascal/aladin/main/get.ps1 | iex
 #
 # Stáhne repo do %USERPROFILE%\.claude\hub-src a spustí install.ps1. Nic jiného
 # nedělá — všechna rozhodnutí padají tam.
@@ -17,7 +17,7 @@
 
 $ErrorActionPreference = 'Stop'
 
-$repo   = if ($env:HUB_REPO)   { $env:HUB_REPO }   else { 'jurapascal/claude-code-hub' }
+$repo   = if ($env:HUB_REPO)   { $env:HUB_REPO }   else { 'jurapascal/aladin' }
 $branch = if ($env:HUB_BRANCH) { $env:HUB_BRANCH } else { 'main' }
 $dest   = if ($env:HUB_DEST)   { $env:HUB_DEST }   else { Join-Path $env:USERPROFILE '.claude\hub-src' }
 

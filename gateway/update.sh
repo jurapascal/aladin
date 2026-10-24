@@ -28,7 +28,7 @@ set -uo pipefail
 CONF=/etc/claude-hub/install.conf
 STATUS=/etc/claude-hub/update.json
 LOG=/var/log/claude-hub-update.log
-REPO_URL="https://github.com/jurapascal/claude-code-hub.git"
+REPO_URL="https://github.com/jurapascal/aladin.git"
 # Připravené verze pro prostory. Musí sedět s gateway/workspace.py (VERZE_DIR).
 VERZE_DIR=/opt/claude-code-hub-verze
 # Kolik starších verzí nechat. Ta, ze které ještě jede nějaký prostor, se

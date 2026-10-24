@@ -30,7 +30,7 @@ const path = require('path');
 const TEST = !!process.env.HUB_DESKTOP_TEST;
 const IS_WIN = process.platform === 'win32';
 const IS_MAC = process.platform === 'darwin';
-const RELEASES = 'https://github.com/jurapascal/claude-code-hub/releases/latest';
+const RELEASES = 'https://github.com/jurapascal/aladin/releases/latest';
 const HUB_URL = /^http:\/\/127\.0\.0\.1:\d+(\/|$)/;
 
 const claudeDir = () => process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude');
@@ -372,7 +372,7 @@ function sestavMenu() {
       { label: 'Maximalizovat', click: (_i, win) => { if (win) { if (win.isMaximized()) win.unmaximize(); else win.maximize(); } } },
     ] },
     { label: 'Nápověda', submenu: [
-      { label: 'Aladin na GitHubu', click: () => ven('https://github.com/jurapascal/claude-code-hub') },
+      { label: 'Aladin na GitHubu', click: () => ven('https://github.com/jurapascal/aladin') },
     ] },
   ];
   // Každá položka dostane id — podle něj ji spouští menu nakreslené v hubu.

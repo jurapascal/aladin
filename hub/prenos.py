@@ -21,9 +21,14 @@ import time
 import zipfile
 
 SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
-MAX_ZIP = 40 * 1024 * 1024            # strop balíčku; větší jde jen po částech (CAST níž) a tenhle chat už je moc velký
+# Strop balíčku. Přepisy s obrázky se stlačí jen asi na polovinu, takže chat,
+# který Claude Code ještě unese, má i po stlačení stovky MB. Jde po kusech
+# (CAST níž) a rozbaluje se proudem, takže se celý nikdy nedrží v paměti
+# rozbalený.
+MAX_ZIP = 300 * 1024 * 1024
 CAST = 7 * 1024 * 1024               # po kolika bajtech se balíček dělí na kusy pro bránu
-MAX_ROZBALENO = 600 * 1024 * 1024     # ochrana před „zip bombou"
+MAX_KUSU = -(-MAX_ZIP // CAST)       # kolik kusů se nejvýš přijme
+MAX_ROZBALENO = 3 * 1024 * 1024 * 1024  # ochrana před „zip bombou"
 MAX_SOUBORU = 400
 SUBAGENT = re.compile(r"[A-Za-z0-9._-]{1,120}")
 
@@ -93,35 +98,53 @@ def zabal(claude_dir, chat_id, titulek="", odkud=""):
 
 
 def kusy(data):
-    """Balíček rozdělený na kusy pro bránu (každý ≤ CAST)."""
-    return [data[i:i + CAST] for i in range(0, len(data), CAST)] or [b""]
+    """Balíček rozdělený na kusy pro bránu (každý ≤ CAST). Pohledy do `data`,
+    ne kopie — u balíčku o stovkách MB by se paměť zdvojila."""
+    view = memoryview(data)
+    return [view[i:i + CAST] for i in range(0, len(data), CAST)] or [b""]
 
 
-def _prepis_cwd(data, cwd):
-    """Řádky přepisu mají `cwd` — přepíše se na složku, ve které se bude pokračovat."""
-    out = []
-    for line in data.decode("utf-8", "replace").split("\n"):
-        if '"cwd"' in line:
+def _zip(src):
+    """Balíček z bajtů nebo ze souboru na disku (kusy složené do souboru)."""
+    try:
+        return zipfile.ZipFile(io.BytesIO(src) if isinstance(src, (bytes, bytearray)) else src)
+    except (zipfile.BadZipFile, OSError):
+        raise ValueError("Balíček chatu je poškozený.") from None
+
+
+def _prepis_cwd(fh, cwd):
+    """Řádky přepisu mají `cwd` — přepíše se na složku, ve které se bude pokračovat.
+    Čte a vrací po řádcích, přepis o stovkách MB se do paměti nenačte celý."""
+    for raw in fh:
+        if b'"cwd"' in raw:
+            konec = b"\n" if raw.endswith(b"\n") else b""
             try:
-                obj = json.loads(line)
+                obj = json.loads(raw)
             except ValueError:
-                out.append(line)
+                yield raw
                 continue
             if isinstance(obj, dict) and isinstance(obj.get("cwd"), str):
                 obj["cwd"] = cwd
-                line = json.dumps(obj, ensure_ascii=False, separators=(",", ":"))
-        out.append(line)
-    return "\n".join(out).encode("utf-8")
+                raw = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8") + konec
+        yield raw
 
 
-def rozbal(data, cwd, zapis):
-    """Rozbalí chat pro pokračování ve složce `cwd`. `zapis(rel, bajty)` ukládá
-    soubor relativně ke složce projektu (`projects/<slug(cwd)>/`) — počítač píše
-    rovnou na disk, brána přes `safefs`. Vrací `meta`; neplatný zip → ValueError."""
-    try:
-        z = zipfile.ZipFile(io.BytesIO(data))
-    except zipfile.BadZipFile:
-        raise ValueError("Balíček chatu je poškozený.") from None
+def _proud(z, info):
+    """Obsah souboru v balíčku po kusech."""
+    with z.open(info) as fh:
+        while True:
+            kus = fh.read(1024 * 1024)
+            if not kus:
+                return
+            yield kus
+
+
+def rozbal(src, cwd, zapis):
+    """Rozbalí chat pro pokračování ve složce `cwd`. `src` jsou bajty balíčku
+    nebo cesta k němu. `zapis(rel, kusy)` ukládá soubor (iterátor bajtů)
+    relativně ke složce projektu (`projects/<slug(cwd)>/`). Vrací `meta`;
+    neplatný zip → ValueError."""
+    z = _zip(src)
     infos = z.infolist()
     if len(infos) > MAX_SOUBORU + 5 or sum(i.file_size for i in infos) > MAX_ROZBALENO:
         raise ValueError("Balíček chatu je podezřele velký.")
@@ -137,19 +160,22 @@ def rozbal(data, cwd, zapis):
     for info in infos:
         name = info.filename
         if name == cid + ".jsonl":
-            body = _prepis_cwd(z.read(info), cwd)
-            zapis(name, body)
+            with z.open(info) as fh:
+                zapis(name, _prepis_cwd(fh, cwd))
             nasel = True
         elif sub.fullmatch(name):
-            body = z.read(info)
-            zapis(name, _prepis_cwd(body, cwd) if name.endswith(".jsonl") else body)
+            if name.endswith(".jsonl"):
+                with z.open(info) as fh:
+                    zapis(name, _prepis_cwd(fh, cwd))
+            else:
+                zapis(name, _proud(z, info))
     if not nasel:
         raise ValueError("V balíčku chybí přepis chatu.")
     return {"id": cid, "title": " ".join(str(meta.get("title") or "").split())[:120] or "Chat",
             "from": str(meta.get("from") or "")[:80]}
 
 
-def rozbal_na_disk(data, claude_dir, cwd):
+def rozbal_na_disk(src, claude_dir, cwd):
     """Totéž pro počítač: soubory rovnou do `<claude_dir>/projects/<slug(cwd)>/`.
 
     Chat, který tu už je (poslal se tam a vrací se), se přepíše na místě — ve
@@ -158,8 +184,8 @@ def rozbal_na_disk(data, claude_dir, cwd):
     jako `<id>.jsonl.bak`."""
     folder = os.path.join(claude_dir, "projects", slug(cwd))
     try:
-        cid = json.loads(zipfile.ZipFile(io.BytesIO(data)).read("meta.json").decode("utf-8")).get("id", "")
-    except (zipfile.BadZipFile, KeyError, ValueError):
+        cid = json.loads(_zip(src).read("meta.json").decode("utf-8")).get("id", "")
+    except (KeyError, ValueError):
         cid = ""
     stary, _sub = najdi(claude_dir, cid)
     if stary:
@@ -176,9 +202,23 @@ def rozbal_na_disk(data, claude_dir, cwd):
         os.makedirs(os.path.dirname(target), exist_ok=True)
         tmp = target + ".prenos-tmp"
         with open(tmp, "wb") as fh:
-            fh.write(body)
+            for kus in body:
+                fh.write(kus)
         os.replace(tmp, target)
-    return rozbal(data, cwd, zapis)
+    return rozbal(src, cwd, zapis)
+
+
+def sloz(kusy_cesty, cil):
+    """Kusy balíčku (soubory v pořadí) složí do jednoho souboru `cil` bez
+    načtení do paměti. Vrací `cil`."""
+    import shutil
+    tmp = cil + ".tmp"
+    with open(tmp, "wb") as out:
+        for cesta in kusy_cesty:
+            with open(cesta, "rb") as fh:
+                shutil.copyfileobj(fh, out, 1024 * 1024)
+    os.replace(tmp, cil)
+    return cil
 
 
 # ── chaty, které přišly z druhé strany a čekají na otevření ──────────────────

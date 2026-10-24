@@ -10,6 +10,7 @@ Přenos chatu mezi počítačem a serverem — strana hubu (balení v prenos.py)
 import base64
 import json
 import os
+import secrets
 import socket
 import urllib.error
 import urllib.request
@@ -61,13 +62,31 @@ def na_pocitac(chat, titulek=""):
     if not core.on_gateway() or not url or not token:
         raise ValueError("Tohle se dělá z okna na serveru, kde je vidět most na počítač.")
     data, meta = _balicek(chat, titulek)
-    kusy = prenos.kusy(data)
-    files = [{"name": f"chat-{i:02d}.bin", "data": base64.b64encode(k).decode("ascii")}
-             for i, k in enumerate(kusy, 1)]
-    body = json.dumps({"op": "ukol-novy", "args": {
+    # Kusy jdou bráně po jednom a ta je složí do úkolu až nakonec — celý
+    # balíček v jednom požadavku by držel v paměti stovky MB několikrát.
+    nahravani = secrets.token_urlsafe(18)
+    for i, kus in enumerate(prenos.kusy(data), 1):
+        _volani(url, token, "ukol-kus", {"nahravani": nahravani, "name": f"chat-{i:02d}.bin",
+                                         "data": base64.b64encode(kus).decode("ascii")})
+    _volani(url, token, "ukol-novy", {
         "title": meta["title"], "kind": "chat",
         "text": f"Chat „{meta['title']}“ ze serveru — otevře se na počítači a pokračuje se v něm.",
-        "files": files}}).encode("utf-8")
+        "nahravani": nahravani})
+    core.log(f"přenos: chat „{meta['title']}\" nechán počítači ({len(data) // 1024} kB)")
+    # Chat se stěhuje, nekopíruje: na serveru zmizí ze seznamu. Přepis zůstane
+    # vedle jako `<id>.jsonl.preneseno`, kdyby se na cestě něco ztratilo.
+    stary, _sub = prenos.najdi(core.CLAUDE_DIR, meta["id"])
+    if stary:
+        try:
+            os.replace(stary, stary + ".preneseno")
+        except OSError:
+            pass
+    return {"ok": True, "chat": meta["id"], "title": meta["title"],
+            "message": f"Chat „{meta['title']}“ je na cestě na počítač a ze serveru zmizel — otevře se tam, jakmile bude online."}
+
+
+def _volani(url, token, op, args):
+    body = json.dumps({"op": op, "args": args}).encode("utf-8")
     req = urllib.request.Request(url + "/gw/pocitac/volani", data=body, method="POST",
                                  headers={"Content-Type": "application/json", "X-Hub-Pocitac": token})
     try:
@@ -83,17 +102,7 @@ def na_pocitac(chat, titulek=""):
         raise ValueError(f"Brána neodpovídá: {getattr(exc, 'reason', exc)}") from None
     if not out.get("ok"):
         raise ValueError(out.get("error") or "Počítači se chat nepodařilo nechat.")
-    core.log(f"přenos: chat „{meta['title']}\" nechán počítači ({len(data) // 1024} kB)")
-    # Chat se stěhuje, nekopíruje: na serveru zmizí ze seznamu. Přepis zůstane
-    # vedle jako `<id>.jsonl.preneseno`, kdyby se na cestě něco ztratilo.
-    stary, _sub = prenos.najdi(core.CLAUDE_DIR, meta["id"])
-    if stary:
-        try:
-            os.replace(stary, stary + ".preneseno")
-        except OSError:
-            pass
-    return {"ok": True, "chat": meta["id"], "title": meta["title"],
-            "message": f"Chat „{meta['title']}“ je na cestě na počítač a ze serveru zmizel — otevře se tam, jakmile bude online."}
+    return out
 
 
 def prijmout(tid):

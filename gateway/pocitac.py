@@ -65,13 +65,16 @@ UKOL_TEXT = 8000
 UKOL_TITLE = 120
 UKOL_FILES = 20
 UKOL_BYTES = 15 * 1024 * 1024       # přílohy dohromady, jako jeden přenos mostem
-CHAT_BYTES = 45 * 1024 * 1024       # totéž u chatu z prostoru (hub/prenos.py, balíček po kusech)
+CHAT_BYTES = 310 * 1024 * 1024      # chat z prostoru (hub/prenos.py MAX_ZIP), přichází po kusech
+CHAT_FILES = 48                     # kusů balíčku po 7 MB (hub/prenos.py CAST)
+NAHRAVANI_KEEP = 3600               # nedokončené nahrávání chatu po hodině pryč
 UKOL_WAITING = 20                   # nevyzvednutých úkolů na účet
 UKOL_KEEP = 30 * 86400              # nevyzvednutý úkol po měsíci propadne
 UKOL_HISTORY = 14 * 86400           # vyřízený se ukazuje ještě dva týdny
 UKOL_STATES = {"ceka": "čeká na počítač", "prevzato": "na počítači čeká na spuštění",
                "spusteno": "spuštěný na počítači", "zahozeno": "zahozený na počítači"}
 _UKOL_ID = re.compile(r"[a-f0-9]{16}")
+_NAHRAVANI_ID = re.compile(r"[A-Za-z0-9_-]{16,64}")
 
 
 def _text(value, limit=200):
@@ -455,7 +458,12 @@ class Broker:
             return {"ok": False, "error": (
                 f"Zadání má {len(text)} znaků, vejde se nejvýš {UKOL_TEXT}. Zkrať ho, "
                 "nebo podrobnosti ulož do souboru a přilož ho.")}
-        files, error = decode_files(args.get("files"), CHAT_BYTES if kind else None)
+        staged = ""
+        if kind and args.get("nahravani"):
+            # Chat poslaný předem po kusech (ukol_kus) — tady se jen převezme.
+            staged, files, error = self._nahravani_hotove(uid, args.get("nahravani"))
+        else:
+            files, error = decode_files(args.get("files"), CHAT_BYTES if kind else None)
         if error:
             return {"ok": False, "error": error}
         now = time.time()
@@ -468,14 +476,19 @@ class Broker:
         record = {"id": secrets.token_hex(8), "title": title, "text": text, "kind": kind,
                   "folder": _text(args.get("folder"), 500),
                   "computer": _text(args.get("computer"), 80),
-                  "files": [{"name": name, "size": len(data)} for name, data in files],
+                  "files": [{"name": name, "size": len(data) if isinstance(data, bytes) else data}
+                            for name, data in files],
                   "created": int(now), "state": "ceka", "by": "", "by_id": "", "changed": 0}
         base = os.path.join(self._user_dir(uid), record["id"])
         try:
             # Přílohy se píšou mimo zámek — patnáct megabajtů nesmí zdržet
             # dotazy ostatních počítačů.
-            os.makedirs(os.path.join(base, "soubory"), mode=0o700, exist_ok=True)
-            for name, data in files:
+            if staged:
+                os.makedirs(base, mode=0o700, exist_ok=True)
+                os.replace(staged, os.path.join(base, "soubory"))
+            else:
+                os.makedirs(os.path.join(base, "soubory"), mode=0o700, exist_ok=True)
+            for name, data in files if not staged else ():
                 fd = os.open(os.path.join(base, "soubory", name),
                              os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
                 with os.fdopen(fd, "wb") as fh:
@@ -488,6 +501,61 @@ class Broker:
             self._load(uid, now)[record["id"]] = record
             self._cond.notify_all()
         return {"ok": True, "ukol": self._public(record)}
+
+    def ukol_kus(self, uid, args):
+        """Jeden kus chatu z prostoru, předem a zvlášť: celý balíček (až stovky
+        MB) by jedním požadavkem držel v paměti brány i prostoru několikrát.
+        Kusy čekají v `nahravani/<id>`, dokud je `ukol_new` nepřevezme."""
+        if not self.ukoly_dir:
+            return {"ok": False, "error": "Tahle brána úkoly na později neumí."}
+        args = args if isinstance(args, dict) else {}
+        nid = str(args.get("nahravani") or "")
+        name = file_name(args.get("name"))
+        if not _NAHRAVANI_ID.fullmatch(nid) or not name:
+            return {"ok": False, "error": "Kus chatu nemá platné označení."}
+        try:
+            data = base64.b64decode(str(args.get("data") or ""), validate=True)
+        except ValueError:
+            return {"ok": False, "error": "Kus chatu je poškozený."}
+        root = os.path.join(self._user_dir(uid), "nahravani")
+        folder = os.path.join(root, nid)
+        now = time.time()
+        try:
+            for old in os.listdir(root):                 # opuštěná nahrávání pryč
+                full = os.path.join(root, old)
+                if old != nid and now - os.path.getmtime(full) > NAHRAVANI_KEEP:
+                    shutil.rmtree(full, ignore_errors=True)
+        except OSError:
+            pass
+        try:
+            os.makedirs(folder, mode=0o700, exist_ok=True)
+            names = [n for n in os.listdir(folder) if n != name]
+            total = sum(os.path.getsize(os.path.join(folder, n)) for n in names) + len(data)
+            if len(names) + 1 > CHAT_FILES or total > CHAT_BYTES:
+                shutil.rmtree(folder, ignore_errors=True)
+                return {"ok": False, "error": (
+                    f"Chat má i po stlačení přes {CHAT_BYTES // (1024 * 1024)} MB — "
+                    "začni v novém chatu a tenhle si nech.")}
+            fd = os.open(os.path.join(folder, name), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+        except OSError as exc:
+            return {"ok": False, "error": f"Kus chatu se na bráně nepodařilo uložit: {exc}"}
+        return {"ok": True}
+
+    def _nahravani_hotove(self, uid, nid):
+        """Složka s kusy z `ukol_kus` → (složka, [(jméno, velikost)], chyba)."""
+        nid = str(nid or "")
+        folder = os.path.join(self._user_dir(uid), "nahravani", nid)
+        if not _NAHRAVANI_ID.fullmatch(nid) or not os.path.isdir(folder):
+            return "", None, "Kusy chatu na bráně nejsou — pošli ho znovu."
+        try:
+            files = [(n, os.path.getsize(os.path.join(folder, n))) for n in sorted(os.listdir(folder))]
+        except OSError:
+            return "", None, "Kusy chatu na bráně nejsou — pošli ho znovu."
+        if not files:
+            return "", None, "Kusy chatu na bráně nejsou — pošli ho znovu."
+        return folder, files, ""
 
     def ukoly(self, uid):
         """Úkoly na později tohohle účtu, nejnovější první."""
@@ -525,8 +593,10 @@ class Broker:
                  "size": sum(f["size"] for f in r["files"])}
                 for r in sorted(offer, key=lambda r: r["created"])]
 
-    def ukol_take(self, uid, cid, tid):
-        """Celý úkol i s přílohami pro počítač. Stav se nemění — to až `ukol_mark`."""
+    def ukol_take(self, uid, cid, tid, bez_dat=False):
+        """Celý úkol i s přílohami pro počítač. Stav se nemění — to až `ukol_mark`.
+        `bez_dat`: jen jména a velikosti, přílohy si počítač stáhne po jedné
+        (`ukol_soubor`) — chat o stovkách MB by v jedné odpovědi neprošel."""
         with self._cond:
             comp = self.computers.get((uid, str(cid or "")))
             record = (self._load(uid, time.time()) if self.ukoly_dir else {}).get(str(tid or ""))
@@ -538,6 +608,9 @@ class Broker:
             record = dict(record)
         folder = os.path.join(self._user_dir(uid), record["id"], "soubory")
         files = []
+        if bez_dat:
+            files = [{"name": f["name"], "size": f["size"]} for f in record["files"]]
+            return {"ok": True, "ukol": dict(self._public(record), text=record["text"], files=files)}
         try:
             for f in record["files"]:
                 with open(os.path.join(folder, f["name"]), "rb") as fh:
@@ -546,6 +619,26 @@ class Broker:
         except OSError:
             return {"ok": False, "gone": True, "error": "Úkol se mezitím zrušil."}
         return {"ok": True, "ukol": dict(self._public(record), text=record["text"], files=files)}
+
+    def ukol_soubor(self, uid, cid, tid, name):
+        """Jedna příloha úkolu pro počítač (k `ukol_take` s `bez_dat`)."""
+        with self._cond:
+            comp = self.computers.get((uid, str(cid or "")))
+            record = (self._load(uid, time.time()) if self.ukoly_dir else {}).get(str(tid or ""))
+            if not comp or not comp.access:
+                return {"ok": False, "error": "Počítač není připojený s povoleným přístupem."}
+            if not record or record["state"] != "ceka" or not self._for(record, comp):
+                return {"ok": False, "gone": True,
+                        "error": "Úkol tu už není — vyřízený, zrušený, nebo pro jiný počítač."}
+            names = [f["name"] for f in record["files"]]
+        if name not in names:
+            return {"ok": False, "error": "Taková příloha u úkolu není."}
+        try:
+            with open(os.path.join(self._user_dir(uid), record["id"], "soubory", name), "rb") as fh:
+                data = fh.read()
+        except OSError:
+            return {"ok": False, "gone": True, "error": "Úkol se mezitím zrušil."}
+        return {"ok": True, "name": name, "data": base64.b64encode(data).decode("ascii")}
 
     def ukol_mark(self, uid, cid, tid, state):
         """Počítač hlásí, kde úkol je: prevzato → spusteno / zahozeno."""

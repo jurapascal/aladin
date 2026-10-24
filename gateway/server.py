@@ -2746,7 +2746,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         form = self._read_form()
         broker = self.server.pocitac
         if form.get("action") == "take":
-            return self._json(broker.ukol_take(user["id"], form.get("computer"), form.get("id")))
+            return self._json(broker.ukol_take(user["id"], form.get("computer"), form.get("id"),
+                                               bez_dat=bool(form.get("bez_dat"))))
+        if form.get("action") == "soubor":
+            return self._json(broker.ukol_soubor(user["id"], form.get("computer"), form.get("id"),
+                                                 str(form.get("name") or "")))
         return self._json(broker.ukol_mark(user["id"], form.get("computer"), form.get("id"),
                                            str(form.get("state") or "")))
 
@@ -2774,6 +2778,8 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         # Úkoly na později: počítač teď připojený být nemusí.
         if op == "ukol-novy":
             return self._json(broker.ukol_new(user["id"], args))
+        if op == "ukol-kus":
+            return self._json(broker.ukol_kus(user["id"], args))
         if op == "ukol-zrusit":
             return self._json(broker.ukol_cancel(user["id"], args.get("id")))
         return self._json(broker.call(user["id"], op, args, str(form.get("computer") or "")))

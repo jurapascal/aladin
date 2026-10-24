@@ -440,7 +440,7 @@ def prenos_prijmout(args):
         part, parts = int(args.get("part")), int(args.get("parts"))
     except (TypeError, ValueError):
         raise ToolError("Chybí pořadí kusu.") from None
-    if not (1 <= parts <= 8 and 1 <= part <= parts):
+    if not (1 <= parts <= prenos.MAX_KUSU and 1 <= part <= parts):
         raise ToolError("Neplatné pořadí kusu.")
     try:
         body = base64.b64decode(str(args.get("zip") or ""), validate=True)
@@ -460,19 +460,19 @@ def prenos_prijmout(args):
     chunks = [os.path.join(tmp, f"{cid}.{i}") for i in range(1, parts + 1)]
     if not all(os.path.isfile(c) for c in chunks):
         return {"hotovo": False}
-    data = b""
-    for c in chunks:
-        with open(c, "rb") as fh:
-            data += fh.read()
-    for c in chunks:
-        try:
-            os.remove(c)
-        except OSError:
-            pass
+    # Kusy se skládají na disku, ne v paměti — balíček má i stovky MB.
+    balik = os.path.join(tmp, f"{cid}.zip")
     try:
-        meta = prenos.rozbal_na_disk(data, core.CLAUDE_DIR, core.HOME)
+        prenos.sloz(chunks, balik)
+        meta = prenos.rozbal_na_disk(balik, core.CLAUDE_DIR, core.HOME)
     except ValueError as exc:
         raise ToolError(str(exc)) from None
+    finally:
+        for c in chunks + [balik]:
+            try:
+                os.remove(c)
+            except OSError:
+                pass
     if args.get("title"):
         meta["title"] = " ".join(str(args["title"]).split())[:120]
     meta["from"] = str(args.get("from") or "")[:80]

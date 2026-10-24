@@ -1168,16 +1168,26 @@ def _fetch_ukol(tid, token):
     try:
         meta = _read_ukol(tid)
         if meta is None:
+            # Přílohy po jedné (`bez_dat`): chat ze serveru má i stovky MB.
+            # Starší brána `bez_dat` nezná a pošle je rovnou v odpovědi.
             data, err, _kind = account._call(
                 "/gw/pocitac/ukol", token=token, timeout=180,
-                payload={"action": "take", "computer": device_id(), "id": tid})
+                payload={"action": "take", "computer": device_id(), "id": tid, "bez_dat": True})
             if data is None or not data.get("ok"):
                 if not (data or {}).get("gone"):
                     core.log(f"počítač: úkol ze serveru se nepodařilo stáhnout — "
                              f"{(data or {}).get('error') or err}", "warn")
                 return
+
+            def stahni(name):
+                res, err2, _k = account._call(
+                    "/gw/pocitac/ukol", token=token, timeout=300,
+                    payload={"action": "soubor", "computer": device_id(), "id": tid, "name": name})
+                if res is None or not res.get("ok"):
+                    raise ValueError(f"příloha {name} se nestáhla — {(res or {}).get('error') or err2}")
+                return base64.b64decode(str(res.get("data") or ""), validate=True)
             try:
-                meta = _store_ukol(data.get("ukol") or {})
+                meta = _store_ukol(data.get("ukol") or {}, stahni)
             except (OSError, ValueError) as exc:
                 core.log_error("počítač: úkol ze serveru se nepodařilo uložit", exc)
                 return
@@ -1231,7 +1241,7 @@ def _write_ukol(meta):
                   json.dumps(meta, ensure_ascii=False, indent=1).encode("utf-8"))
 
 
-def _store_ukol(ukol):
+def _store_ukol(ukol, stahni=None):
     tid = str(ukol.get("id") or "")
     if not UKOL_ID.fullmatch(tid):
         raise ValueError("úkol bez platného id")
@@ -1241,7 +1251,10 @@ def _store_ukol(ukol):
         name = _file_name(item.get("name")) if isinstance(item, dict) else ""
         if not name or name.casefold() in (n.casefold() for n in names):
             continue
-        data = base64.b64decode(str(item.get("data") or ""), validate=True)
+        if "data" in item or stahni is None:
+            data = base64.b64decode(str(item.get("data") or ""), validate=True)
+        else:
+            data = stahni(item.get("name"))
         _atomic_write(os.path.join(_ukol_dir(tid), "soubory", name), data)
         names.append(name)
     meta = {"id": tid, "title": title, "text": str(ukol.get("text") or ""),
@@ -1336,18 +1349,20 @@ def prijmi_chat(tid):
     if meta is None or meta.get("kind") != "chat":
         raise ValueError("Takový chat tu nečeká.")
     folder = os.path.join(_ukol_dir(meta["id"]), "soubory")
+    balik = os.path.join(_ukol_dir(meta["id"]), "chat.zip")
     try:
         names = sorted(os.listdir(folder))
-        data = b""
-        for name in names:
-            with open(os.path.join(folder, name), "rb") as fh:
-                data += fh.read()
+        # Kusy se skládají na disku, ne v paměti — balíček má i stovky MB.
+        prenos.sloz([os.path.join(folder, name) for name in names], balik)
     except OSError:
         raise ValueError("Balíček chatu se nenašel.") from None
     try:
-        chat = prenos.rozbal_na_disk(data, core.CLAUDE_DIR, core.HOME)
-    except ValueError as exc:
-        raise ValueError(str(exc)) from None
+        chat = prenos.rozbal_na_disk(balik, core.CLAUDE_DIR, core.HOME)
+    finally:
+        try:
+            os.remove(balik)
+        except OSError:
+            pass
     _set_state(meta["id"], "spusteno")
     shutil.rmtree(folder, ignore_errors=True)
     core.log(f"počítač: chat „{chat['title']}\" ze serveru je tu")

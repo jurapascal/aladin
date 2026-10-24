@@ -830,8 +830,8 @@ Chat jde poslat z počítače na server a zpátky a pokračovat v něm na druhé
 (`hub/prenos.py`, `hub/prenos_hub.py`). Pravý klik na chat v seznamu → „Poslat na
 server“ / „Poslat na počítač“, nebo v panelu Průběh „Pokračovat na serveru / na počítači“.
 
-* Chat (přepis `.jsonl` a pomocníci) se zabalí do zipu (nejvýš 40 MB, posílá se po
-  kusech do 7 MB) a na druhé straně se zapíše do složky projektů tak, aby v něm
+* Chat (přepis `.jsonl` a pomocníci) se zabalí do zipu (nejvýš 300 MB, posílá se po
+  kusech do 7 MB a rozbaluje proudem, celý se v paměti nedrží) a na druhé straně se zapíše do složky projektů tak, aby v něm
   `claude --resume` pokračoval; `cwd` se přepíše na domovskou složku té strany.
   Chat, který tam už je (vrací se), se přepíše na místě a předchozí verze zůstane
   jako `<id>.jsonl.bak`.
@@ -840,6 +840,7 @@ server“ / „Poslat na počítač“, nebo v panelu Průběh „Pokračovat na
   „Chat z počítače je tady“ → Otevřít). Zapisuje hub, ne brána, takže soubory patří
   jemu a Claude Code do nich může dál psát.
 * Server → počítač: hub v prostoru nechá chat počítači jako úkol na později druhu `chat`
-  (`ukol-novy`, přílohy až `CHAT_BYTES` 45 MB). Počítač ho s plným přístupem přijme sám,
+  (kusy předem `ukol-kus`, pak `ukol-novy` s `nahravani`; nejvýš `CHAT_BYTES` 310 MB).
+  Počítač si kusy stáhne po jednom (`take` s `bez_dat`, pak `soubor`). Počítač ho s plným přístupem přijme sám,
   jinak čeká na souhlas v appce („Přijmout a otevřít“). Přepis může obsahovat citlivé
   věci z tool výstupů — proto se nic neposílá samo, vždy až po kliknutí.

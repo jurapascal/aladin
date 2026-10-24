@@ -2211,6 +2211,11 @@
        po řádcích nenašlo nikdy. */
     function needsTerminal() {
       if (!AG.full || !tab.cteni) return false;
+      /* Obyčejná konverzace má dole vstupní pole Claude Code s nápovědou (nebo „esc to interrupt“ při práci) —
+         tam není přihlašovací obrazovka, ať už se v textu odpovědi píše cokoli (třeba „oauth/authorize“
+         nebo „Paste code here“ v tomhle chatu o téhle chybě). Přihlášení nic z toho nekreslí. */
+      const dno = visibleBottom(term, PROBE_ROWS);
+      if (dno.some((l) => HINT.test(l) || /esc to interrupt/i.test(l))) return false;
       const buf = term.buffer.active;
       /* Hledá se jen u dna výpisu (posledních TERM_RADKU neprázdných řádků), ne v celé viditelné ploše:
          když Claude v odpovědi sám vypíše odkaz „oauth/authorize" (přihlášení k napojení) nebo

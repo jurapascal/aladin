@@ -159,3 +159,31 @@ html, body { font-family: var(--font-sans); }
   .tabplus { height: 32px; border-radius: 8px; }
   .tabplus:hover { background: var(--claude-hover); }
 }
+
+/* ── lišta pod polem na psaní ─────────────────────────────────────────────
+   Jako na claude.ai: vlevo jen „+“ (příloha), vpravo model a režim, mikrofon
+   a odeslání. Ostatní nástroje jsou ztlumené a ukážou se pod myší; popisky
+   Historie a Příloha se zkrátí na ikonu, ať se nic nepřetíná. */
+.composer-chip {
+  font-size: 13px; padding: 4px 8px; border-radius: 8px; color: var(--dim);
+}
+.composer-chip:hover { background: var(--claude-hover); border-color: transparent; color: var(--fg-bright); }
+.composer-tools { gap: 2px; }
+.composer-chip[data-act=file] { order: -1; font-size: 0; gap: 0; padding: 0; width: 32px; height: 32px; justify-content: center; }
+.composer-chip[data-act=file] .ico { width: 18px; height: 18px; font-size: 18px; }
+.composer-chip[data-act=history] { font-size: 0; gap: 0; padding: 0; width: 32px; height: 32px; justify-content: center; }
+.composer-chip[data-act=history] .ico { width: 15px; height: 15px; font-size: 15px; }
+.composer-chip[data-act=model] { order: 5; margin-left: auto; color: var(--fg-bright); font-weight: 500; }
+.composer-chip[data-act=mode] { order: 6; }
+.composer-chip .val { color: var(--fg-bright); font-weight: 500; }
+.composer-chip.composer-ctx { color: var(--dim); }
+.composer-chip.ghost { color: var(--dim); }
+.composer-mic { width: 32px; height: 32px; border-radius: 8px; font-size: 17px; }
+/* Agent jen tečkou v barvě (jméno je v hlavičce tabu), ať se na užší lištu vejde model. */
+.composer-chip[data-act=agent] { font-size: 0; gap: 0; padding: 0; width: 28px; height: 32px; justify-content: center; }
+.composer-chip[data-act=agent] .composer-dot { margin: 0; }
+.composer-chip[data-act=agent] .val { display: none; }
+.composer-chip[data-act=model], .composer-chip[data-act=mode] { flex: none; }
+/* Model a režim bez popisku „Model:“ / „Režim:“ — jako „Opus 5.5 Medium“ na claude.ai. */
+.composer-chip[data-act=model], .composer-chip[data-act=mode] { font-size: 0; gap: 0; }
+.composer-chip[data-act=model] .val, .composer-chip[data-act=mode] .val { font-size: 13px; }

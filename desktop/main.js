@@ -249,7 +249,10 @@ function noveOkno(url) {
     // Menu kreslí hub v liště (window.hubApp) — nativní lišta je schovaná a Alt
     // ji ukáže. Starší hub, který menu nekreslí, ji dostane zpátky (níž).
     autoHideMenuBar: !IS_MAC,
+    // Okno na pozadí nebo zakryté nesmí brzdit časovače: dotaz od Clauda
+    // (karta, svítící tab, upozornění) by jinak naskočil až po návratu.
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true, spellcheck: false,
+      backgroundThrottling: false,
       preload: path.join(__dirname, 'preload.cjs') },
   });
   // Nová stránka (i Znovu načíst, přechod na novou instanci hubu) menu kreslí

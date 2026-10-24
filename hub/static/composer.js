@@ -1150,6 +1150,8 @@
       atts.length = 0;
       renderAtts();
       autogrow();
+      konceptAktivni = true;
+      ulozKoncept(true);
       // Na telefonu po odeslání schovat klávesnici — jinak zakrývá půlku
       // obrazovky s odpovědí, na kterou se teď čeká. Na počítači zůstává
       // kurzor v poli, ať jde hned psát dál.
@@ -1158,6 +1160,7 @@
     }
 
     function insert(text, {focus = true} = {}) {
+      konceptAktivni = true;
       const at = input.selectionStart ?? input.value.length;
       const before = input.value.slice(0, at);
       const after = input.value.slice(input.selectionEnd ?? at);
@@ -1174,7 +1177,35 @@
       root.classList.toggle('ready', !!input.value.trim() || atts.length > 0);
     }
 
+    /* Koncept: co je v poli rozepsané (i přílohy), se po chvíli ticha uloží
+       (hub.js, ulozKoncept) — restart serveru ani reload ho nesmažou. Prázdné
+       pole koncept smaže, takže po odeslání nic nezůstává. */
+    let konceptT = null;
+    // Dokud člověk nic neudělal, nic se neukládá: bublina si při startu sama
+    // volá autogrow() s prázdným polem a smazala by koncept dřív, než ho hub
+    // stihne vrátit (obnovKoncept).
+    let konceptAktivni = false;
+    const konceptZacni = () => { konceptAktivni = true; };
+    input.addEventListener('keydown', konceptZacni);
+    input.addEventListener('paste', konceptZacni);
+    input.addEventListener('drop', konceptZacni);
+    input.addEventListener('input', konceptZacni);
+    function ulozKoncept(hned) {
+      if (!io.koncept || !konceptAktivni) return;
+      clearTimeout(konceptT);
+      konceptT = null;
+      const uloz = () => { konceptT = null; io.koncept(input.value, atts.slice()); };
+      if (hned) uloz();
+      else konceptT = setTimeout(uloz, 400);
+    }
+    // Zavření nebo obnovení okna nesmí spolknout posledních pár úhozů.
+    const konceptTed = () => { if (konceptT) ulozKoncept(true); };
+    window.addEventListener('pagehide', konceptTed);
+    window.addEventListener('beforeunload', konceptTed);
+    document.addEventListener('visibilitychange', () => { if (document.hidden) konceptTed(); });
+
     function autogrow() {
+      ulozKoncept();
       input.style.height = 'auto';
       // Strop je pět řádků: dál už by bublina ukrajovala z výpisu příliš.
       input.style.height = Math.min(input.scrollHeight, 5 * 20 + 12) + 'px';
@@ -1937,6 +1968,7 @@
 
     function insertPaths(paths) {
       if (!shown || !paths.length) return false;
+      konceptAktivni = true;
       for (const path of paths) {
         if (!atts.includes(path)) atts.push(path);
       }
@@ -1947,6 +1979,7 @@
     }
 
     function dropAtt(path) {
+      konceptAktivni = true;
       const at = atts.indexOf(path);
       if (at >= 0) atts.splice(at, 1);
       renderAtts();
@@ -1954,6 +1987,7 @@
     }
 
     function renderAtts() {
+      ulozKoncept();
       attBox.textContent = '';
       attBox.hidden = !atts.length;
       for (const path of atts) {
@@ -2361,7 +2395,19 @@
     }
 
     let pending = null;
+    let skrytoAt = 0;
     function schedule() {
+      /* Skryté okno (jiný program navrchu, zamčený telefon) má časovače
+         přibrzděné až na minuty — dotaz od Clauda by se pak ukázal a ohlásil
+         pozdě. Výpis z terminálu chodí událostí ze spojení, ta brzděná není,
+         takže se tu přečte rovnou (nejvýš čtyřikrát za vteřinu). */
+      if (document.hidden && Date.now() - skrytoAt >= 250) {
+        skrytoAt = Date.now();
+        clearTimeout(pending);
+        pending = null;
+        apply();
+        return;
+      }
       if (pending) return;
       pending = setTimeout(() => { pending = null; apply(); }, 90);
     }
@@ -2666,11 +2712,21 @@
       // Rozepsaná zpráva — přežije restart prostoru při aktualizaci (hub.js).
       draft: () => input.value,
       znovu,
-      setDraft: (text) => { if (!input.value) { input.value = text; autogrow(); } },
+      setDraft: (text, prilohy) => {
+        if (input.value || atts.length) return;          // rozepsané teď má přednost
+        konceptAktivni = true;
+        input.value = text || '';
+        for (const p of prilohy || []) if (!atts.includes(p)) atts.push(p);
+        if (atts.length) renderAtts();
+        autogrow();
+      },
       visible: () => shown,
       hide: () => { hiddenByUser = true; apply(true); },
       release: () => {
         pryc = true;
+        konceptTed();
+        window.removeEventListener('pagehide', konceptTed);
+        window.removeEventListener('beforeunload', konceptTed);
         fronta.length = 0;
         clearInterval(cekaHlidac);
         clearInterval(ctxHlidac);

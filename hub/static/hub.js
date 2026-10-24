@@ -31,9 +31,18 @@ function writePlace(patch) {
 }
 const LAST_PLACE = readPlace();
 let placeReady = false;           // do první obnovy se místo nepřepisuje
-const tabKey = (t) => ({kind: t.kind || '', path: t.path || '', title: t.title || '', vault: t.vault || ''});
+const tabKey = (t) => ({kind: t.kind || '', path: t.path || '', title: t.title || '', vault: t.vault || '',
+                        chat: t.chat || t.resume || ''});
 function findPlaceTab(key) {
   if (!key) return null;
+  /* Nejdřív podle konverzace: název chatu se po restartu může změnit (Claude
+     ho přejmenuje) a ve stejné složce bývá chatů víc — podle složky by se
+     otevřel jiný. */
+  const chat = key.chat || '';
+  if (chat) {
+    const t = TABS.find((x) => (x.chat || x.resume || '') === chat);
+    if (t) return t;
+  }
   const same = (t, strict) => (t.kind || '') === key.kind && (t.path || '') === key.path &&
     (t.vault || '') === (key.vault || '') && (!strict || (t.title || '') === key.title);
   return TABS.find((t) => same(t, true)) || TABS.find((t) => same(t, false)) || null;
@@ -3564,6 +3573,8 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
   if (kind === 'project' && window.HubCteni &&
       (agent || STATE.default_agent || 'claude') === 'claude') {
     tab.cteni = HubCteni.install(tab, {api, notice: toast, imageUrl, openLink, copy: copyText,
+                                       // Neodeslané zprávy z okna (ne z fronty na serveru) — přežijí reload.
+                                       odchozi: {nacti: () => nactiOdchozi(tab), uloz: (list) => ulozOdchozi(tab, list)},
                                        rozvetvit: rozvetvitChat,
                                        aktivni: () => ACTIVE === tab,
                                        // Nepřevzatá zpráva se po restartu pošle sama znovu; odesílání jde pozastavit.
@@ -3587,19 +3598,15 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
                                        // Panel Průběh vpravo (renderPrehled).
                                        prehled: () => { if (ACTIVE === tab) showActionbar(tab); }});
     // Co na serveru po restartu nebo reloadu ještě čeká, se ukáže znovu — i pozastavení.
-    if (tab.id) {
-      api('fronta?tab=' + tab.id).then((r) => {
-        if (!r) return;
-        if (r.pauza) tab.pozastaveno = true;
-        if (tab.cteni && r.zpravy && r.zpravy.length) tab.cteni.obnovFrontu(r.zpravy);
-      }).catch(() => {});
-    }
+    nactiFrontu(tab);
     // Úsilí mohla bublina zjistit dřív, než vzniklo hřiště — Claudík se převlékne hned.
     if (tab.effort && tab.cteni.hriste) tab.cteni.hriste.effort(tab.effort);
   }
   if (kind === 'project' || kind.startsWith('slash:')) {
     tab.composer = HubComposer.install(tab, {
       send,
+      // Průběžné uložení rozepsané zprávy (koncept) — přežije restart i reload.
+      koncept: (text, atts) => ulozKoncept(tab, text, atts),
       pozastaveno: () => !!tab.pozastaveno,
       // Zpráva se uloží na server a doručí Claudovi, až je připravený (hub/fronta.py).
       naServer: async (text, id) => {
@@ -3686,6 +3693,8 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
         refit(tab);
       },
     });
+    // Rozepsaná zpráva z minula (restart serveru, reload, zavřené okno).
+    obnovKoncept(tab);
   } else {
     // Bublina se v holém shellu neinstaluje, ale řádek kláves ano — na
     // telefonu je Tab i Ctrl+C jinak nedosažitelný. Na počítači ho CSS skryje.
@@ -4716,6 +4725,14 @@ function handle(msg) {
     const tab = TABS.find(t => t.ref === msg.ref);
     if (tab) {
       tab.id = msg.id;
+      // Obnovený tab zná své číslo až teď — zprávy, které na serveru čekají
+      // z doby před restartem, se mu ukážou až s ním (dřív se nenačetly vůbec).
+      nactiFrontu(tab);
+      // Místo, kam se po restartu vrátit, si pamatuje i konverzaci.
+      if (tab === ACTIVE && placeReady) writePlace({tab: tabKey(tab)});
+      // Rozepsaný text: chat tabu je teď známý, takže se najde i koncept,
+      // který se ukládal pod číslem konverzace.
+      obnovKoncept(tab);
       // Taby po restartu vznikají dřív, než server řekne jejich id — ikonka
       // prohlížeče a lišta se musí dopočítat teď, ne až při další změně.
       if (window.__brPouzij) window.__brPouzij();
@@ -4859,7 +4876,8 @@ async function restoreAfterRestart() {
   const key = LAST_PLACE.tab;
   const tadyKoncil = (t, strict) => !!key && (t.kind || '') === key.kind && (t.path || '') === key.path &&
     (t.vault || '') === (key.vault || '') && (!strict || (t.title || '') === key.title);
-  const hlavni = tabs.find((t) => tadyKoncil(t, true)) || tabs.find((t) => tadyKoncil(t, false))
+  const hlavni = (key && key.chat && tabs.find((t) => (t.resume || '') === key.chat))
+    || tabs.find((t) => tadyKoncil(t, true)) || tabs.find((t) => tadyKoncil(t, false))
     || tabs[tabs.length - 1];
   for (const t of tabs) {
     // `prompt`: připomínka úloh na pozadí, které restart zastavil (restart.py).
@@ -4907,6 +4925,10 @@ function restore(list) {
     }
     tab.bypass = !!info.bypass;
     tab.chat = info.chat || tab.chat || '';
+    // Číslo konverzace je známé teprve teď — koncept a zprávy z fronty se
+    // hledají až s ním (po reloadu nebo restartu serveru).
+    obnovKoncept(tab);
+    nactiFrontu(tab);
     oznacUspany(tab, info.uspany);
     if (info.vault !== undefined && (tab.vault || '') !== (info.vault || '')) {
       tab.vault = info.vault || '';
@@ -5623,6 +5645,82 @@ function closeServerUpdate() {
   if (srvCard) srvCard.remove();
   srvCard = null;
 }
+
+/* Zprávy z fronty na serveru (hub/fronta.py) — jednou na tab, jakmile má číslo. */
+function nactiFrontu(tab) {
+  if (!tab || !tab.id || tab.frontaNactena || !tab.cteni) return;
+  tab.frontaNactena = true;
+  api('fronta?tab=' + tab.id).then((r) => {
+    if (!r) return;
+    if (r.pauza) tab.pozastaveno = true;
+    if (tab.cteni && r.zpravy && r.zpravy.length) tab.cteni.obnovFrontu(r.zpravy);
+  }).catch(() => { tab.frontaNactena = false; });
+}
+
+/* Rozepsaná zpráva (koncept) se ukládá průběžně do úložiště prohlížeče —
+   restart serveru, aktualizace, pád okna ani zavřený tab ji nesmažou. Klíč je
+   konverzace (stejná i po obnově tabu), dokud ji tab nezná, složka a název. */
+const KONCEPT_PREFIX = 'hub.koncept.';
+const KONCEPT_STARI = 14 * 86400 * 1000;
+function konceptKlice(tab) {
+  const out = [];
+  const chat = tab.chat || tab.resume;
+  if (chat) out.push(KONCEPT_PREFIX + 'chat:' + chat);
+  out.push(KONCEPT_PREFIX + 'tab:' + (tab.kind || '') + '|' + (tab.path || '') + '|' + (tab.title || ''));
+  return out;
+}
+function ulozKoncept(tab, text, atts) {
+  const prazdny = !String(text || '').trim() && !(atts && atts.length);
+  const [hlavni, ...dalsi] = konceptKlice(tab);
+  try {
+    if (prazdny) {
+      for (const k of [hlavni, ...dalsi]) localStorage.removeItem(k);
+      return;
+    }
+    localStorage.setItem(hlavni, JSON.stringify({text: String(text || ''), atts: atts || [], at: Date.now()}));
+    // Starší klíč (bez čísla konverzace) by po obnově vrátil zastaralý text.
+    for (const k of dalsi) localStorage.removeItem(k);
+  } catch (_) { /* plné nebo zakázané úložiště */ }
+}
+function nactiKoncept(tab) {
+  for (const k of konceptKlice(tab)) {
+    try {
+      const v = JSON.parse(localStorage.getItem(k) || 'null');
+      if (v && (v.text || (v.atts && v.atts.length)) && Date.now() - (v.at || 0) < KONCEPT_STARI) return v;
+    } catch (_) { /* rozbitý záznam */ }
+  }
+  return null;
+}
+function odchoziKlic(tab) {
+  return konceptKlice(tab)[0].replace(KONCEPT_PREFIX, 'hub.odchozi.');
+}
+function ulozOdchozi(tab, list) {
+  try {
+    if (list && list.length) localStorage.setItem(odchoziKlic(tab), JSON.stringify({at: Date.now(), list}));
+    else localStorage.removeItem(odchoziKlic(tab));
+  } catch (_) { /* nic */ }
+}
+function nactiOdchozi(tab) {
+  try {
+    const v = JSON.parse(localStorage.getItem(odchoziKlic(tab)) || 'null');
+    if (v && Date.now() - (v.at || 0) < KONCEPT_STARI && Array.isArray(v.list)) return v.list;
+  } catch (_) { /* nic */ }
+  return [];
+}
+function obnovKoncept(tab) {
+  if (!tab || !tab.composer || !tab.composer.setDraft) return;
+  const v = nactiKoncept(tab);
+  if (v) tab.composer.setDraft(v.text, v.atts);
+}
+// Úklid starých konceptů jednou při startu, ať úložiště neroste donekonečna.
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (!k || !k.startsWith(KONCEPT_PREFIX)) continue;
+    const v = JSON.parse(localStorage.getItem(k) || 'null');
+    if (!v || Date.now() - (v.at || 0) > KONCEPT_STARI) localStorage.removeItem(k);
+  }
+} catch (_) { /* nic */ }
 
 function saveDrafts() {
   const drafts = [];

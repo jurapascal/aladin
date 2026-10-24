@@ -528,7 +528,7 @@
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
                                   pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null,
                                   serverSeznam = null, serverUprav = null, serverSmaz = null,
-                                  rozvetvit = null} = {}) {
+                                  rozvetvit = null, odchozi = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -965,6 +965,19 @@
     // Tak dlouho se start čeká bez poznámky; pak nejspíš visí na dotazu.
     const START_DLOUHO_MS = 45000;
     const jePrikaz = (m) => /^\/[a-z][\w:-]*(\s|$)/i.test(m.text || '');
+    /* Odchozí zprávy, které drží jen tohle okno (server je nepřevzal: Claude se
+       rozjíždí, spojení spadlo, příkaz z bubliny) — uložené v prohlížeči, ať je
+       reload nebo restart serveru nesmaže. Po obnově se ukážou znovu jako
+       „nedošla“; co mezitím Claude dostal, smaže přepis konverzace (potvrd),
+       zbytek se pošle znovu. Zprávy ve frontě na serveru se ukládají tam. */
+    const ODCHOZI_STAVY = new Set(['start', 'odesila', 'nedoslo', 'fronta', 'spojeni']);
+    function ulozOdchozi() {
+      if (!odchozi) return;
+      try {
+        odchozi.uloz(mistni.filter((m) => !m.server && ODCHOZI_STAVY.has(m.stav) && m.text)
+          .map((m) => ({text: m.text})));
+      } catch (_) { /* úložiště nedostupné */ }
+    }
     function nastavMistni(m, stav) {
       if (stav === 'odesila' && jePrikaz(m)) stav = 'prikaz';
       m.stav = stav;
@@ -976,6 +989,7 @@
       ukazPomoc(m);
       ukazAkce(m);
       if (stav === 'prikaz') m.timer = setTimeout(() => potvrdMistni(m), PRIKAZ_MS);
+      ulozOdchozi();
       if (stav === 'start') {
         m.timer = setTimeout(() => {
           if (m.stav === 'start') {
@@ -1222,6 +1236,20 @@
       m.row.remove();
       const i = mistni.indexOf(m);
       if (i >= 0) mistni.splice(i, 1);
+      ulozOdchozi();
+    }
+    // Obnova po reloadu / restartu: neodeslané zprávy z minula zpátky do fronty.
+    function obnovOdchozi() {
+      let ulozene = [];
+      try { ulozene = (odchozi && odchozi.nacti()) || []; } catch (_) { ulozene = []; }
+      for (const z of ulozene) {
+        const text = String((z && z.text) || '').trim();
+        if (!text || mistni.some((m) => m.text === text)) continue;
+        const m = {norm: norm(text), text, row: bublina({text}, '', ' '), fid: '', server: false};
+        mistni.push(m);
+        fronta.appendChild(m.row);
+        nastavMistni(m, 'nedoslo');
+      }
     }
     function odeslano(z, stav) {
       if (!z) {
@@ -1995,6 +2023,7 @@
       naKonec();
     }
 
+    obnovOdchozi();
     naKonec();
     return {
       upozorni,
@@ -2101,6 +2130,7 @@
       znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
       serverSeznam: io.serverSeznam || null, serverUprav: io.serverUprav || null, serverSmaz: io.serverSmaz || null,
       pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
+      odchozi: io.odchozi || null,
       rozvetvit: io.rozvetvit ? (uuid) => io.rozvetvit({id: tab.id}, uuid) : null,
       zive: () => nacteno && !!global.HubHlas && global.HubHlas.auto.get() &&
                   (!io.aktivni || io.aktivni()),

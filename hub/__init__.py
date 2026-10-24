@@ -2,4 +2,4 @@
 
 # Jediné místo, kde se čísluje verze. Aktualizace v aplikaci porovnává tohle
 # s nejnovější značkou na GitHubu, takže se to musí zvyšovat spolu s vydáním.
-__version__ = "2.97.2"
+__version__ = "2.97.3"

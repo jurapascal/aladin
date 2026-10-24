@@ -364,3 +364,5 @@ html, body { font-family: var(--font-sans); }
 .open-tab.on .open-name { font-weight: 500; }
 .hl-toggle { border: none !important; background: none !important; color: var(--dim) !important; font-size: 13px; padding: 6px 10px; text-align: left; }
 .hl-toggle:hover { background: var(--claude-hover) !important; color: var(--fg-bright) !important; }
+.cteni-odp-btn.on { color: var(--fg-bright); background: var(--claude-on); }
+.chat-pin { right: 6px; }

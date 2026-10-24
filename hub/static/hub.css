@@ -4764,3 +4764,17 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 .nav-claude { display: none; }
 .welcome-prompt { display: none; }
 .cteni-odp-akce { display: none; }
+
+/* Připnutí chatu: hvězdička u řádku v panelu, vidět pod myší nebo když je chat připnutý. */
+.chat-item { position: relative; }
+.chat-pin {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 24px; height: 24px; border-radius: 6px;
+  display: none; align-items: center; justify-content: center; color: var(--dim); cursor: pointer;
+}
+.chat-pin .ico { width: 13px; height: 13px; }
+.chat-item:hover .chat-pin, .chat-pin.on { display: inline-flex; }
+.chat-pin.on { color: var(--accent); }
+.chat-pin:hover { background: var(--card-hover); color: var(--fg-bright); }
+.chat-item:hover .chat-title, .chat-item .chat-pin.on ~ .chat-title { padding-right: 24px; }
+.chat-item .chat-title { padding-right: 0; }
+@media (hover: none) { .chat-pin { display: inline-flex; } }

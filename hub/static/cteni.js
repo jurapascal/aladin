@@ -1768,6 +1768,35 @@
           kop.innerHTML = '<svg class="ico"><use href="#i-copy"/></svg>';
           kop.onclick = () => { copy(b.text); if (notice) notice('Odpověď zkopírována.'); };
           ak.appendChild(kop);
+          /* Palec nahoru / dolů: jen záznam v tomhle prohlížeči (Claude Code nemá kam
+             hodnocení poslat) — ať je vidět, co se povedlo. Klepnutí podruhé ho zruší. */
+          const klic = 'hub.palec.' + (b.uuid || norm(b.text).slice(0, 60));
+          let hod = '';
+          try { hod = localStorage.getItem(klic) || ''; } catch (_) { hod = ''; }
+          const palec = (druh, ico, titul) => {
+            const t = el('button', 'cteni-odp-btn palec' + (hod === druh ? ' on' : ''));
+            t.type = 'button';
+            t.title = titul;
+            t.dataset.druh = druh;
+            t.innerHTML = '<svg class="ico"><use href="#' + ico + '"/></svg>';
+            t.onclick = () => {
+              hod = hod === druh ? '' : druh;
+              try { if (hod) localStorage.setItem(klic, hod); else localStorage.removeItem(klic); } catch (_) { /* nic */ }
+              for (const x of ak.querySelectorAll('.palec')) x.classList.toggle('on', x.dataset.druh === hod);
+            };
+            return t;
+          };
+          ak.append(palec('up', 'i-thumb-up', 'Dobrá odpověď'), palec('down', 'i-thumb-down', 'Špatná odpověď'));
+          /* Znovu: pošle Claudovi totéž zadání ještě jednou (Claude Code odpověď přegenerovat neumí). */
+          const zadani = pr.zadani.length ? pr.zadani[pr.zadani.length - 1].text : '';
+          if (odpovez && zadani) {
+            const znovuB = el('button', 'cteni-odp-btn');
+            znovuB.type = 'button';
+            znovuB.title = 'Zkusit znovu — pošle Claudovi totéž zadání';
+            znovuB.innerHTML = '<svg class="ico"><use href="#i-refresh"/></svg>';
+            znovuB.onclick = () => { if (!odpovez(zadani) && notice) notice('Teď to nejde odeslat — napiš to dole.'); };
+            ak.appendChild(znovuB);
+          }
           box.appendChild(ak);
         }
         // Přečíst nahlas (hlas.js) — tlačítko v rohu bubliny. Nová odpověď

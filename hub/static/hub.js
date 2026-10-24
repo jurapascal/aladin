@@ -1585,6 +1585,21 @@ function prostorNazev(slug) {
   return f ? (f.nazev || f.zkratka) : slug;
 }
 
+/* Připnuté chaty: seznam id v prohlížeči (jen tohle zařízení), nahoře v panelu. */
+const PRIPNUTE_KEY = 'hub.pripnute';
+function pripnute() {
+  try { const v = JSON.parse(localStorage.getItem(PRIPNUTE_KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (_) { return []; }
+}
+function jePripnuty(id) { return pripnute().includes(id); }
+function prepniPripnuti(id) {
+  const v = pripnute();
+  const i = v.indexOf(id);
+  if (i >= 0) v.splice(i, 1); else v.unshift(id);
+  try { localStorage.setItem(PRIPNUTE_KEY, JSON.stringify(v.slice(0, 50))); } catch (_) { /* nic */ }
+  chatsSig = '';
+  renderChats();
+}
+
 function renderChats() {
   const box = $('chats');
   const words = foldText($('chats-search').value.trim()).split(/\s+/).filter(Boolean);
@@ -1635,16 +1650,7 @@ function renderChats() {
       : t >= today - 6 * 86400 ? 'Posledních 7 dní'
         : t >= today - 29 * 86400 ? 'Posledních 30 dní'
           : new Date(t * 1000).toLocaleDateString('cs-CZ', {month: 'long', year: 'numeric'}));
-  let lastGroup = null;
-  for (const c of list.slice(0, chatsShown)) {
-    const group = groupOf(c.updated);
-    if (group !== lastGroup) {
-      lastGroup = group;
-      const head = document.createElement('div');
-      head.className = 'group-head';
-      head.textContent = group;
-      box.appendChild(head);
-    }
+  const buildItem = (c) => {
     const item = document.createElement('button');
     item.className = 'chat-item' + (c.tab ? ' running' : '') + (c.exists ? '' : ' gone');
     item.dataset.id = c.id;
@@ -1665,6 +1671,14 @@ function renderChats() {
     item.querySelector('.chat-meta').textContent =
       [c.project, when, c.tab ? 'otevřená' : ''].filter(Boolean).join('  ·  ');
     item.title = [c.prompt && c.prompt !== c.title ? c.prompt : '', c.cwd].filter(Boolean).join('\n\n');
+    // Špendlík u řádku: připnout / odepnout (jen na tomhle zařízení).
+    const pin = document.createElement('span');
+    pin.className = 'chat-pin' + (jePripnuty(c.id) ? ' on' : '');
+    pin.setAttribute('role', 'button');
+    pin.title = jePripnuty(c.id) ? 'Odepnout' : 'Připnout nahoru';
+    pin.innerHTML = '<svg class="ico"><use href="#i-star"/></svg>';
+    pin.onclick = (ev) => { ev.stopPropagation(); prepniPripnuti(c.id); };
+    item.appendChild(pin);
     item.onclick = () => openChat(c);
     item.oncontextmenu = (ev) => {
       ev.preventDefault();
@@ -1675,13 +1689,36 @@ function renderChats() {
       const p = prenosMoznost();
       if (p) items.push({icon: 'i-up', label: p.label, run: () => prenosPoslat(c.id, c.title, true)});
       if (window.HubHledani) items.push({icon: 'i-save', label: 'Exportovat do Markdownu', run: () => HubHledani.exportovat(c)});
+      items.unshift({icon: 'i-star', label: jePripnuty(c.id) ? 'Odepnout' : 'Připnout', run: () => prepniPripnuti(c.id)});
       items.push({icon: 'i-trash', label: 'Smazat', color: 'var(--red)', run: () => deleteChat(c)});
       showMenu(ev.clientX, ev.clientY, items);
     };
-    box.appendChild(item);
+    return item;
+  };
+  // Připnuté chaty nahoře (bez hledání; při hledání se prochází všechno).
+  const pripnuty = words.length ? [] : list.filter((c) => jePripnuty(c.id));
+  if (pripnuty.length) {
+    const head = document.createElement('div');
+    head.className = 'group-head pripnute';
+    head.textContent = 'Připnuté';
+    box.appendChild(head);
+    for (const c of pripnuty) box.appendChild(buildItem(c));
   }
-  if (list.length > chatsShown) {
-    const zbyva = list.length - chatsShown;
+  const ostatni = pripnuty.length ? list.filter((c) => !jePripnuty(c.id)) : list;
+  let lastGroup = null;
+  for (const c of ostatni.slice(0, chatsShown)) {
+    const group = groupOf(c.updated);
+    if (group !== lastGroup) {
+      lastGroup = group;
+      const head = document.createElement('div');
+      head.className = 'group-head';
+      head.textContent = group;
+      box.appendChild(head);
+    }
+    box.appendChild(buildItem(c));
+  }
+  if (ostatni.length > chatsShown) {
+    const zbyva = ostatni.length - chatsShown;
     const more = document.createElement('button');
     more.type = 'button';
     more.className = 'chats-more keep-drawer';

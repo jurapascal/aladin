@@ -1585,6 +1585,13 @@ function prostorNazev(slug) {
   return f ? (f.nazev || f.zkratka) : slug;
 }
 
+/* Patří tab k tomuhle chatu? Číslo konverzace se po obnově může změnit (nová kopie),
+   proto se hledá podle všech tří: id tabu, aktuální konverzace i té, ze které tab vznikl. */
+function tabPatriChatu(t, c) {
+  return !!t && !t.exited && (t.id === c.tab || (t.chat && t.chat === c.id) || (t.resume && t.resume === c.id));
+}
+const bezi = (c) => TABS.some((t) => tabPatriChatu(t, c));
+
 /* Připnuté chaty: seznam id v prohlížeči (jen tohle zařízení), nahoře v panelu. */
 const PRIPNUTE_KEY = 'hub.pripnute';
 function pripnute() {
@@ -1611,17 +1618,21 @@ function renderChats() {
   const others = CHATS.length - here.length;
   const vse = filtrovat && others > 0 && chatsVse();
   const scope = vse ? CHATS : here;
-  const list = words.length
+  const list0 = words.length
     ? scope.filter((c) => {
       const hay = foldText([c.title, c.prompt, c.project].join(' '));
       return words.every((w) => hay.includes(w));
     })
     : scope;
+  // Otevřený chat patří mezi dnešní a nahoru: má zelenou tečku a nemusí se hledat v „Otevřených“.
+  const nyni = Date.now() / 1000;
+  const uc = (c) => (bezi(c) ? Math.max(c.updated, nyni) : c.updated);
+  const list = list0.slice().sort((a, b) => uc(b) - uc(a));
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
   // Otevřený chat je v seznamu chatů (zelená tečka) — v panelu Otevřené zůstanou jen taby bez řádku v seznamu.
   for (const t of TABS) {
     if (!t.el) continue;
-    const v = t.id && scope.some((c) => c.tab === t.id) ? '1' : '';
+    const v = scope.some((c) => tabPatriChatu(t, c)) ? '1' : '0';
     if ((t.el.dataset.vseznamu || '') !== v) t.el.dataset.vseznamu = v;
   }
   box.textContent = '';
@@ -1658,7 +1669,7 @@ function renderChats() {
           : new Date(t * 1000).toLocaleDateString('cs-CZ', {month: 'long', year: 'numeric'}));
   const buildItem = (c) => {
     const item = document.createElement('button');
-    item.className = 'chat-item' + (c.tab ? ' running' : '') + (c.exists ? '' : ' gone');
+    item.className = 'chat-item' + (c.tab || bezi(c) ? ' running' : '') + (c.exists ? '' : ' gone');
     item.dataset.id = c.id;
     item.innerHTML = '<span class="chat-title"></span><span class="chat-meta"></span>';
     const kde = vse ? prostorCesty(c.cwd) : ted;
@@ -1713,7 +1724,7 @@ function renderChats() {
   const ostatni = pripnuty.length ? list.filter((c) => !jePripnuty(c.id)) : list;
   let lastGroup = null;
   for (const c of ostatni.slice(0, chatsShown)) {
-    const group = groupOf(c.updated);
+    const group = groupOf(uc(c));
     if (group !== lastGroup) {
       lastGroup = group;
       const head = document.createElement('div');
@@ -1748,7 +1759,7 @@ function closeDrawer() {
    navíc — kdo konverzaci otevírá, chce v ní většinou pokračovat. To okno
    zůstává v nabídce pravého tlačítka (dlouhého podržení) jako „Jen přečíst". */
 function openChat(c) {
-  const running = c.tab && TABS.find((t) => t.id === c.tab);
+  const running = TABS.find((t) => tabPatriChatu(t, c));
   closeDrawer();
   if (running) return activate(running);
   resumeChat(c);
@@ -1833,7 +1844,7 @@ async function resumeChat(c, prompt, preneseny) {
   }
   // Chat už je otevřený v tabu tohohle hubu: přepnout na něj, ne otevírat další
   // (druhý Claude v téže konverzaci, případně „kopie“ — v seznamu pak byl dvakrát).
-  const otevreny = TABS.find((t) => !t.exited && (t.chat || t.resume) === c.id);
+  const otevreny = TABS.find((t) => tabPatriChatu(t, c));
   if (otevreny) {
     activate(otevreny);
     if (otevreny.uspany) send({t: 'wake', id: otevreny.id});
@@ -3790,6 +3801,8 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
   paintAgent(tab);   // až teď — dřív tab své tlačítko ještě nemá
 
   TABS.push(tab);
+  // Seznam chatů ukazuje otevřený chat nahoře se zelenou tečkou — překreslit hned, ne až za 20 s.
+  if (typeof renderChatsSoon === 'function') { chatsSig = ''; renderChatsSoon(); }
   // Při prvním načtení (restore) se nepřepíná — appka zůstane na Domů.
   // Obnovený tab z jiného prostoru okno nepřepíná — zůstane schovaný.
   if (!background || (!ACTIVE && !START_HOME && (!STATE || !STATE.config
@@ -4277,6 +4290,8 @@ function closeTab(tab, {remote = false} = {}) {
   tab.el.remove();
   tab.pane.remove();
   TABS = TABS.filter(t => t !== tab);
+  chatsSig = '';
+  renderChatsSoon();
   if (tab.visi) { tab.visi.remove(); tab.visi = null; }
   document.body.classList.toggle('neco-ceka', TABS.some(t => t.ceka));
   document.title = titulekOkna(document.title);

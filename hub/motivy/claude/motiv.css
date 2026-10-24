@@ -353,8 +353,9 @@ html, body { font-family: var(--font-sans); }
   .sidebar > #memory-section, .sidebar > #shared-section, .sidebar > #relace-section { order: 6; }
   .sidebar > .spacer { order: 7; }
   .sidebar > .footer { order: 8; }
-  .open-tab[data-vseznamu="1"] { display: none; }
-  .open-section:not(:has(.open-tab:not([data-vseznamu="1"]))) { display: none; }
+  /* Ukáže se jen tab, o kterém hub ví, že nemá řádek v seznamu (data-vseznamu="0"); do té doby nic nebliká. */
+  .open-tab:not([data-vseznamu="0"]) { display: none; }
+  .open-section:not(:has(.open-tab[data-vseznamu="0"])) { display: none; }
   .chat-item.running .chat-title::before { content: "● "; color: var(--green); }
   /* Panel nahoře už tabbar nepřekrývá — hlavní plocha začíná hned pod lištou. */
   .main { margin-top: 0; }

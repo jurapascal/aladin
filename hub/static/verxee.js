@@ -95,7 +95,8 @@
     if (nacteno) return;
     nacteno = true;
     const s = document.createElement('script');
-    s.src = SKRIPT;
+    // Fresh URL on every start: WEDOS CDN once sent debug.js with a 30-day max-age.
+    s.src = SKRIPT + '?v=' + Date.now();
     s.async = true;
     s.onload = () => {
       // Tlačítko vzniká při spuštění skriptu, někdy až po DOMContentLoaded.

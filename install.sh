@@ -619,7 +619,7 @@ Terminal=false
 Categories=Development;Utility;
 Exec="$PY" "$CLAUDE_DIR/claude-hub.py"
 StartupNotify=true
-StartupWMClass=claude-code-hub
+StartupWMClass=aladin
 EOF
 chmod +x "$APP_DIR/claude-code-hub.desktop"
 update-desktop-database "$APP_DIR" >/dev/null 2>&1

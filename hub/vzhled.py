@@ -111,6 +111,11 @@ def manifest(name, icon_base, version=0):
 
 
 # ── počítač: spouštěč a okno ─────────────────────────────────────────────────
+# Třída okna, kterou Electron appka i okno z window.py hlásí systému; podle ní
+# dock spáruje okno se spouštěčem a vezme z něj ikonu.
+WM_CLASS = "aladin"
+
+
 def sync_desktop():
     """Linux: položka v nabídce aplikací (claude-code-hub.desktop) s vlastním
     názvem a ikonou. Jiné systémy si ikonu okna berou ze stránky."""
@@ -130,6 +135,8 @@ def sync_desktop():
             new = "Name=" + zobrazeny()
         elif line.startswith("Icon=") and icon:
             new = "Icon=" + icon
+        elif line.startswith("StartupWMClass="):
+            new = "StartupWMClass=" + WM_CLASS
         changed |= new != line
         out.append(new)
     if changed:

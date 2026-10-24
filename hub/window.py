@@ -108,7 +108,7 @@ def _open_chromium(browser, url):
         "--window-size=1360,860",
     ]
     if not core.IS_WINDOWS and not core.IS_MAC:
-        argv += ["--class=claude-code-hub", "--ozone-platform=x11"]  # matches StartupWMClass in the .desktop
+        argv += ["--class=aladin", "--ozone-platform=x11"]  # matches StartupWMClass in the .desktop
     return subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                             stderr=subprocess.DEVNULL)
 

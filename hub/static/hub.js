@@ -209,6 +209,7 @@ function applyMotiv(m) {
   }
   document.documentElement.dataset.motiv = motiv.id;
   applyTheme();
+  if (typeof renderNewTabButtons === 'function' && STATE) { try { renderNewTabButtons(); } catch (_) { /* ještě není vykresleno */ } }
 }
 
 /* Barva tabu: nad firemním trezorem fialová, jinak barva prostředí — na
@@ -3000,6 +3001,22 @@ function renderGreeting() {
   scene.appendChild(dayScene(part));
 }
 
+/* Úvod jako nový chat (motiv Claude): zpráva z pole na úvodu otevře nový chat
+   a pošle se mu, jakmile je bublina připravená (rozjezd Claude Code řeší composer). */
+function welcomeSend() {
+  const input = $('welcome-prompt-input');
+  const text = String(input.value || '').trim();
+  if (!text) return;
+  const tab = newChatHere();
+  if (!tab) return;
+  input.value = '';
+  let tries = 0;
+  const t = setInterval(() => {
+    if (++tries > 60 || !TABS.includes(tab)) return clearInterval(t);
+    if (tab.composer && tab.composer.run && tab.composer.run(text + '\r')) clearInterval(t);
+  }, 250);
+}
+
 function renderWelcome() {
   greetPart = '';                 // scéna se při plném překreslení kreslí vždy
   renderGreeting();
@@ -3018,6 +3035,7 @@ function renderWelcome() {
         f ? 'primary firma' : 'primary', () => newChatHere()]);
     }
   }
+  $('nav-terminal').hidden = !(cfg.shell !== false && STATE.config.dev_mode);
   if (cfg.shell !== false && STATE.config.dev_mode) {
     actions.push(['i-terminal', 'Otevřít terminál', 'ghost',
       () => openTab({kind: 'shell', path: '', title: 'Terminál'})]);
@@ -3379,7 +3397,8 @@ function renderNewTabButtons() {
   btn.classList.toggle('firma', firma);
   // Panel vlevo: „Server osobní" a pod ním fialový „Server firemní".
   const dn = $('btn-drawer-new');
-  if (dn) dn.querySelector('.nav-text').textContent = novyChatText();
+  // V motivu Claude je to prostě „Nový chat“ (název prostředí říká odznak v liště).
+  if (dn) dn.querySelector('.nav-text').textContent = document.documentElement.dataset.motiv === 'claude' ? 'Nový chat' : novyChatText();
   const df = $('btn-drawer-firma');
   if (df) df.hidden = true;
   if (dn) dn.classList.toggle('firma', firma);
@@ -5305,6 +5324,17 @@ async function main() {
   };
   $('btn-prostor').onclick = prostorMenu;
   $('nav-projekty').onclick = () => showProjekty(true);
+  // Položky panelu jako v appce Claude (viditelné v motivu Claude — hub.css).
+  $('nav-hledat').onclick = () => { const q = $('chats-search'); if (q) { q.scrollIntoView({block: 'nearest'}); q.focus(); } };
+  $('nav-customize').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'rozsireni'});
+  $('nav-terminal').onclick = () => openTab({kind: 'shell', path: '', title: 'Terminál'});
+  $('welcome-prompt-input').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !(window.HubIME && !window.HubIME.enterOdesle(ev))) {
+      ev.preventDefault();
+      welcomeSend();
+    }
+  });
+  $('welcome-prompt-send').onclick = () => welcomeSend();
   $('pp-q').oninput = renderProjekty;
   $('pp-sort').onclick = () => {
     ppSort = ppSort === 'recent' ? 'name' : ppSort === 'name' ? 'cena' : 'recent';

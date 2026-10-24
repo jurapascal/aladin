@@ -4759,3 +4759,8 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
   .set-search, .set-group { display: none; }
 }
 @media (max-width: 820px) { .set-seg { align-self: flex-start; } }
+
+/* Položky panelu a pole na úvodu, které patří jen k motivu Claude (motiv.css je ukáže). */
+.nav-claude { display: none; }
+.welcome-prompt { display: none; }
+.cteni-odp-akce { display: none; }

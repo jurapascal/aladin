@@ -145,12 +145,18 @@
         <span class="nav-ico nav-plus"><svg class="ico"><use href="#i-plus"/></svg></span> <span class="nav-text">Server firemní</span></button>
       <button id="btn-drawer-home" class="nav-item drawer-home">
         <span class="nav-ico"><svg class="ico"><use href="#i-hub"/></svg></span> Domů</button>
+      <button id="nav-hledat" class="nav-item nav-claude">
+        <span class="nav-ico"><svg class="ico"><use href="#i-search"/></svg></span> Hledat</button>
       <button id="nav-projekty" class="nav-item">
         <span class="nav-ico"><svg class="ico"><use href="#i-folder"/></svg></span> Projekty</button>
       <!-- Poznámky jsou jen v Obsidianu: jedna položka, osobní / firemní /
            sdílené se přepínají uvnitř (vault.js). -->
       <button id="btn-brain" class="nav-item" hidden>
         <span class="nav-ico"><svg class="ico"><use href="#i-book"/></svg></span> Obsidian</button>
+      <button id="nav-customize" class="nav-item nav-claude">
+        <span class="nav-ico"><svg class="ico"><use href="#i-plus"/></svg></span> Přizpůsobit</button>
+      <button id="nav-terminal" class="nav-item nav-claude" hidden>
+        <span class="nav-ico"><svg class="ico"><use href="#i-terminal"/></svg></span> Terminál</button>
     </nav>
     <div id="open-section" class="open-section" hidden>
       <div class="section">Otevřené</div>
@@ -244,6 +250,16 @@
         <div class="welcome-open" id="welcome-open" hidden></div>
         <!-- Nová verze: napřed aktualizovat, pak pracovat (hub.js, renderWelcomeUpdate). -->
         <div class="welcome-update" id="welcome-update" hidden></div>
+        <!-- Jen v motivu Claude (hub.css: .welcome-prompt je jinak skryté): úvod jako
+             nový chat — pole na psaní, odeslání otevře chat a pošle mu zprávu. -->
+        <div class="welcome-prompt" id="welcome-prompt">
+          <textarea id="welcome-prompt-input" rows="2" spellcheck="false" autocomplete="off"
+                    placeholder="Na čem budeme pracovat?"></textarea>
+          <div class="welcome-prompt-bar">
+            <span class="spacer"></span>
+            <button id="welcome-prompt-send" class="composer-send" title="Odeslat (Enter)" aria-label="Odeslat"><svg class="ico"><use href="#i-up"/></svg></button>
+          </div>
+        </div>
         <div class="welcome-actions" id="welcome-actions"></div>
         <!-- Firmy: dlaždice v osobním prostoru, přehled klientů ve firmě. -->
         <div class="welcome-firmy" id="welcome-firmy" hidden></div>

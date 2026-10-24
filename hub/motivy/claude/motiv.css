@@ -288,3 +288,61 @@ html, body { font-family: var(--font-sans); }
 .plg-seznam > .plg-radek .plg-btns { flex: 1 0 100%; justify-content: flex-end; margin-top: 2px; }
 .plg-seznam > .plg-radek .plg-meta { white-space: normal; }
 .plg-radek .btn.primary { border: none; }
+
+/* ── Úvod, panel a taby jako v appce claude.ai (jen počítač) ────────────────
+   Úvod je nový chat: pozdrav a pole na psaní uprostřed. Otevřené chaty jsou
+   v panelu vlevo místo tabů, nahoře stojí název chatu. */
+.nav-claude:not([hidden]) { display: flex; }
+.welcome-prompt:not([hidden]), .welcome-prompt { display: block; }
+.welcome-prompt { width: min(680px, 100%); margin: 0 auto 8px; text-align: left; }
+.welcome-prompt { background: var(--bg-card); border-radius: 14px; padding: 14px 14px 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, .075), 0 0 0 1px var(--claude-prsten); }
+.welcome-prompt:focus-within { box-shadow: 0 4px 20px rgba(0, 0, 0, .075), 0 0 0 1px color-mix(in srgb, var(--fg-bright) 22%, transparent); }
+.welcome-prompt textarea {
+  display: block; width: 100%; min-height: 54px; max-height: 220px; resize: none; border: none; outline: none;
+  background: none; color: var(--fg-bright); font: 15px/21px var(--font-sans); padding: 2px 2px 6px;
+}
+.welcome-prompt textarea::placeholder { color: var(--dim); }
+.welcome-prompt-bar { display: flex; align-items: center; }
+.welcome-prompt .composer-send { opacity: 1; }
+.welcome-actions, .welcome-open, .welcome-usage, .welcome-stats, .welcome-cols,
+.welcome-facts, .welcome-firmy { display: none !important; }
+.welcome-greet { margin-bottom: 18px; }
+
+@media (min-width: 821px) {
+  /* Otevřené chaty v panelu (zrcadlo tabbaru, mobile.js) místo lišty tabů. */
+  .tabbar { display: none; }
+  .open-section { display: block; flex: none; }
+  .open-tabs { display: flex; flex-direction: column; gap: 2px; padding: 0 8px; }
+  .open-tab { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 2px 0 10px; border-radius: 8px; }
+  .open-tab:hover { background: var(--claude-hover); }
+  .open-tab.on { background: var(--claude-on); }
+  .open-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+  .open-tab.exited .open-dot { opacity: .45; }
+  .open-tab.ceka .open-dot { background: var(--accent); animation: cteni-puls 1.2s ease-in-out infinite; }
+  .open-name {
+    flex: 1; min-width: 0; padding: 6px 0; text-align: left; background: none; border: none; cursor: pointer;
+    color: var(--fg-bright); font: inherit; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .open-tab.exited .open-name { opacity: .6; text-decoration: line-through; }
+  .open-stitek { margin-right: 6px; font-size: 11px; color: var(--dim); }
+  .open-x { display: none; width: 28px; height: 28px; flex: none; border-radius: 6px; background: none; border: none; color: var(--dim); cursor: pointer; align-items: center; justify-content: center; }
+  .open-tab:hover .open-x { display: inline-flex; }
+  .open-x:hover { background: var(--claude-on); color: var(--fg-bright); }
+  .open-x .ico { width: 14px; height: 14px; }
+  .open-input { flex: 1; min-width: 0; margin: 3px 0; padding: 4px 8px; border: 1px solid var(--claude-prsten); border-radius: 8px; outline: none; background: var(--bg); color: var(--fg-bright); font: inherit; font-size: 14px; }
+  /* Název otevřeného chatu nahoře vedle názvu appky. */
+  .topbar { position: relative; }
+  .topbar-tab { display: block; position: absolute; left: calc(var(--sidebar-w) + 16px); max-width: 38vw; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; color: var(--fg-bright); font-size: 14px; font-weight: 500; }
+  /* Panel nahoře už tabbar nepřekrývá — hlavní plocha začíná hned pod lištou. */
+  .main { margin-top: 0; }
+}
+
+/* Lišta pod odpovědí Clauda (kopírovat, předčíst) jako na claude.ai: tichá, ukáže se pod myší. */
+.cteni-say { position: relative; padding-bottom: 28px; }
+.cteni-odp-akce { display: flex; gap: 2px; position: absolute; left: 0; bottom: 0; opacity: 0; transition: opacity .12s; }
+.cteni-say:hover .cteni-odp-akce, .cteni-odp-akce:focus-within { opacity: 1; }
+.cteni-odp-btn { width: 28px; height: 28px; border: none; border-radius: 8px; background: none; color: var(--dim); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.cteni-odp-btn:hover { background: var(--claude-hover); color: var(--fg-bright); }
+.cteni-odp-btn .ico { width: 15px; height: 15px; }

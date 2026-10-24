@@ -1759,6 +1759,17 @@
           box.appendChild(volby);
         }
         pripojPoznamku(box, b.text);
+        // Lišta pod odpovědí jako na claude.ai: kopírovat (zobrazuje ji motiv Claude).
+        if (copy && b.text) {
+          const ak = el('div', 'cteni-odp-akce');
+          const kop = el('button', 'cteni-odp-btn');
+          kop.type = 'button';
+          kop.title = 'Kopírovat odpověď';
+          kop.innerHTML = '<svg class="ico"><use href="#i-copy"/></svg>';
+          kop.onclick = () => { copy(b.text); if (notice) notice('Odpověď zkopírována.'); };
+          ak.appendChild(kop);
+          box.appendChild(ak);
+        }
         // Přečíst nahlas (hlas.js) — tlačítko v rohu bubliny. Nová odpověď
         // v tabu, na který se člověk dívá, se se zapnutým předčítáním čte sama.
         if (global.HubHlas && b.text) {

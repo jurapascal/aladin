@@ -333,8 +333,13 @@ html, body { font-family: var(--font-sans); }
   .open-input { flex: 1; min-width: 0; margin: 3px 0; padding: 4px 8px; border: 1px solid var(--claude-prsten); border-radius: 8px; outline: none; background: var(--bg); color: var(--fg-bright); font: inherit; font-size: 14px; }
   /* Název otevřeného chatu nahoře a vedle něj statistiky (model, větev, cena, čas) — ne pod ním. */
   .topbar { position: relative; }
-  .topbar-tabwrap { display: flex; align-items: baseline; gap: 14px; position: absolute; left: calc(var(--sidebar-w) + 16px);
-    max-width: calc(100vw - var(--sidebar-w) - 420px); min-width: 0; }
+  /* V toku lišty, ne napevno: na serveru je před názvem chatu ještě prostor, počítač a odznaky a při pevné poloze se překrývaly. */
+  /* Logo, odznaky a prostor se vejdou do šířky panelu (na serveru je jich víc — název počítače se schová) a název chatu
+     začíná až nad hlavní plochou, vedle něj statistiky. Dřív se překrývaly. */
+  .topbar-title { flex: none; width: calc(var(--sidebar-w) - 24px); min-width: 0; overflow: hidden; }
+  .topbar-title .topbar-pc { display: none; }
+  .topbar-tabwrap { display: flex; align-items: baseline; gap: 14px; position: absolute; top: 50%; transform: translateY(-50%);
+    left: calc(var(--sidebar-w) + 16px); max-width: calc(100vw - var(--sidebar-w) - 460px); min-width: 0; }
   .topbar-tab { display: block; flex: 0 1 auto; min-width: 0; max-width: 34vw; overflow: hidden;
     text-overflow: ellipsis; white-space: nowrap; color: var(--fg-bright); font-size: 14px; font-weight: 500; }
   .topbar-stav { display: block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

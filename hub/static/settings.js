@@ -89,14 +89,14 @@
           <button class="btn primary set-close">Zavřít</button>
         </div>
       </div>`;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24');
-    svg.setAttribute('width', '34');
-    svg.setAttribute('height', '34');
-    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-    use.setAttribute('href', '#i-hub');
-    svg.appendChild(use);
-    root.querySelector('.onb-mark').appendChild(svg);
+    const ikona = document.createElement('img');
+    ikona.className = 'onb-ikona';
+    ikona.src = '/icon-192.png';
+    ikona.alt = '';
+    ikona.width = 34;
+    ikona.height = 34;
+    ikona.draggable = false;
+    root.querySelector('.onb-mark').appendChild(ikona);
     root.querySelector('.onb-sub').textContent = 'Verze ' + state.version.version;
     root.querySelector('.set-close').onclick = close;
     root.querySelector('.set-x').onclick = close;

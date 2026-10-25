@@ -5907,7 +5907,7 @@ function startSplash() {
   root.className = 'startsplash';
   root.innerHTML = `
     <div class="ss-box">
-      <div class="ss-ring"><svg class="ico"><use href="#i-hub"/></svg></div>
+      <div class="ss-ring"><img class="ss-ikona" src="/icon-192.png" alt="" draggable="false"></div>
       <div class="ss-title">Aladin</div>
       <div class="ss-text"></div>
       <div class="ss-steps"><span data-s="check">Kontrola</span><span data-s="download">Stahování</span><span data-s="install">Instalace</span></div>

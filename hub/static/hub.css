@@ -4788,3 +4788,9 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 
 /* Logo Aladina v liště: ikona (bílý čtverec s černým džinem), ne jednobarevná značka. */
 .brand-img { width: 24px; height: 24px; border-radius: 6px; vertical-align: -6px; flex: none; }
+
+/* Ikona Aladina místo jednobarevné značky: načítání, průvodce, okna s hlavičkou. */
+.ss-ring .ss-ikona { width: 52px; height: 52px; border-radius: 13px; display: block; }
+.onb-mark .onb-ikona { width: 34px; height: 34px; border-radius: 8px; display: block; }
+.brand-img { width: 24px; height: 24px; border-radius: 6px; flex: none; }
+@media (max-width: 820px) { .has-tab .brand-img { display: none; } }

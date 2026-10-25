@@ -1153,11 +1153,11 @@
       autogrow();
       konceptAktivni = true;
       ulozKoncept(true);
-      // Na telefonu po odeslání schovat klávesnici — jinak zakrývá půlku
-      // obrazovky s odpovědí, na kterou se teď čeká. Na počítači zůstává
-      // kurzor v poli, ať jde hned psát dál.
-      if (document.body.classList.contains('is-touch')) input.blur();
-      else input.focus();
+      /* Pole si po odeslání drží fokus i na telefonu. Dřív se klávesnice schovávala (blur), jenže její
+         zajíždění trvá a po celou dobu se výška okna přepočítávala po kouscích (mobile.js, visualViewport):
+         konverzace i pole poskakovaly nahoru a dolů, pokaždé když se něco odeslalo. Chat tak jede
+         v jednom kuse (jako v appkách na zprávy) a klávesnici si zavře člověk sám. */
+      input.focus({preventScroll: true});
     }
 
     function insert(text, {focus = true} = {}) {

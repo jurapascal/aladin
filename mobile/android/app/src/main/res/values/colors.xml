@@ -1,5 +1,6 @@
 <resources>
     <!-- Stejná paleta jako hub.css, ať se aplikace nerozsvítí jinak než stránka. -->
+    <color name="ikona_bg">#FFFFFF</color>
     <color name="hub_bg">#0d1117</color>
     <color name="ic_launcher_bg">#1a1540</color>
     <color name="hub_card">#1b2129</color>

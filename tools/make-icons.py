@@ -104,23 +104,20 @@ def verify_ico(path):
 
 
 def _master():
-    """Předloha 1024×1024: nejradši ze značky, jinak z uloženého PNG."""
-    try:
-        import cairosvg
-    except ImportError:
-        if not os.path.isfile(PNG):
-            sys.exit("Chybí cairosvg i " + PNG)
-        print("cairosvg není, beru hotové", os.path.basename(PNG))
-        return Image.open(PNG).convert("RGBA"), False
-    import io
-    raw = cairosvg.svg2png(url=SVG, output_width=MASTER, output_height=MASTER)
-    return Image.open(io.BytesIO(raw)).convert("RGBA"), True
+    """Předloha 1024×1024 = assets/claude-code.png (ikona Aladina: černý džin na bílém).
+
+    Dřív se kreslila z assets/hub-mark.svg, ale ikona je teď hotový obrázek
+    a SVG by ji přepsalo starou značkou. Zdrojem je tedy PNG; chceš-li ikonu
+    změnit, nahraď ho a pusť skript znovu."""
+    if not os.path.isfile(PNG):
+        sys.exit("Chybí " + PNG)
+    return Image.open(PNG).convert("RGBA"), False
 
 
 # Pozadí maskovatelné ikony. Android si z ní vyřízne kolečko nebo čtvereček
 # podle launcheru, takže značka musí sedět v prostředních 80 % a zbytek být
 # plocha — průhlednost by se na ploše projevila jako díra.
-MASKABLE_BG = (13, 17, 23, 255)      # --bg z hub.css
+MASKABLE_BG = (255, 255, 255, 255)      # bílé pozadí ikony Aladina
 
 
 def write_pwa_icons(src):
@@ -171,7 +168,7 @@ def write_android_icons(src):
         fh.write('<?xml version="1.0" encoding="utf-8"?>\n'
                  '<adaptive-icon xmlns:android='
                  '"http://schemas.android.com/apk/res/android">\n'
-                 '    <background android:drawable="@color/hub_bg"/>\n'
+                 '    <background android:drawable="@color/ikona_bg"/>\n'
                  '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>\n'
                  '</adaptive-icon>\n')
     return True

@@ -4785,3 +4785,6 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 /* Obal názvu chatu a statistik v liště: pro ostatní vzhledy průhledný, statistiky jen v motivu Claude. */
 .topbar-tabwrap { display: contents; }
 .topbar-stav { display: none; }
+
+/* Logo Aladina v liště: ikona (bílý čtverec s černým džinem), ne jednobarevná značka. */
+.brand-img { width: 24px; height: 24px; border-radius: 6px; vertical-align: -6px; flex: none; }

@@ -2822,8 +2822,15 @@ function renderBranding() {
       img.src = '/app-ikona/192.png?v=' + app.icon;
       if (svg) svg.style.display = 'none';
     } else {
-      if (img) img.remove();
-      if (svg) svg.style.display = '';
+      // Výchozí logo = ikona Aladina (bílý čtverec s černým džinem), ne jednobarevná značka.
+      if (!img) {
+        img = document.createElement('img');
+        img.className = 'brand-img';
+        img.alt = '';
+        home.insertBefore(img, home.firstChild);
+      }
+      img.src = '/icon-32.png';
+      if (svg) svg.style.display = 'none';
     }
   }
   const head = document.querySelector('.drawer-head strong');

@@ -2526,6 +2526,30 @@ class HubHTTPServer(ThreadingHTTPServer):
         self.server_port = port
 
 
+def _otevrit_server(token):
+    """Hub po každém startu na stejném portu, když je volný.
+
+    Prohlížeč drží uložené věci (poslední chat, rozepsané zprávy, připnuté
+    chaty, motiv) podle adresy včetně portu; při náhodném portu by po každém
+    zavření a otevření appky začal znovu prázdný. Zkušební hub (--test) a
+    obsazený port berou náhodný, jako dřív."""
+    soubor = os.path.join(core.CLAUDE_DIR, "hub-port")
+    if "--test" not in sys.argv:
+        try:
+            with open(soubor, encoding="utf-8") as fh:
+                return HubHTTPServer(token, ("127.0.0.1", int(fh.read().strip())))
+        except (OSError, ValueError, OverflowError):
+            pass
+    httpd = HubHTTPServer(token)
+    if "--test" not in sys.argv:
+        try:
+            with open(soubor, "w", encoding="utf-8") as fh:
+                fh.write(str(httpd.server_address[1]))
+        except OSError:
+            pass
+    return httpd
+
+
 def _zahrat_doctor():
     """Co chce první /api/state (agenti, projekty s gitem, obsluha obsidian://),
     se připraví souběžně se startem okna, ať první načtení stránky nečeká."""
@@ -2565,7 +2589,7 @@ def start():
     except Exception as exc:
         core.log_error("prostor: zápis webu selhal", exc)
     token = secrets.token_urlsafe(24)
-    httpd = HubHTTPServer(token)
+    httpd = _otevrit_server(token)
     port = httpd.server_address[1]
     httpd.origins = {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}
     threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.2},

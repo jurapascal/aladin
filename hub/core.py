@@ -4013,6 +4013,44 @@ def _mcp_target(entry):
     return " ".join(a for a in argv if a).strip()
 
 
+# Pod touhle hranicí volného místa se napojení spouštěná přes npx/uvx nemají kam
+# rozbalit a „nejdou" — uživatel to jinak nepozná.
+DISK_MIN_MB = 1024
+
+
+def _disk_pro_mcp():
+    """Kolik je volno tam, kde se napojení spouštějí; `nizko` pod DISK_MIN_MB."""
+    try:
+        volno = shutil.disk_usage(HOME).free // (1024 * 1024)
+    except OSError:
+        return {}
+    return {"volno_mb": int(volno), "nizko": volno < DISK_MIN_MB}
+
+
+_MCP_JEN_VESTAVENE = ("artifacts",)
+
+
+def _mcp_na_serveru(servers):
+    """V prostoru na serveru: co tam nikdy fungovat nemohlo, není chyba.
+
+    * Napojení na adresu 127.0.0.1 / localhost (třeba Beeper z počítače) tu
+      neposlouchá nic — patří počítači, takže je „jen na počítači", ne rozbité.
+    * Vestavěný konektor Artifacts nemá na serveru koncovou adresu a končí
+      chybou 404; do seznamu chyb nepatří.
+    """
+    out = []
+    for srv in servers:
+        if srv["state"] == "fail":
+            jmeno = srv["name"].lower()
+            if any(k in jmeno for k in _MCP_JEN_VESTAVENE):
+                continue
+            target = srv.get("target", "").lower()
+            if "://127.0.0.1" in target or "://localhost" in target or "://[::1]" in target:
+                srv = dict(srv, state="pc", status="jen na počítači — na serveru neběží")
+        out.append(srv)
+    return out
+
+
 def mcp_list():
     """Seznam napojení i s tím, jestli odpovídají. Nikdy nevyhazuje."""
     claude = shutil.which("claude")
@@ -4047,6 +4085,9 @@ def mcp_list():
                         "removable": scope == "user" and name not in ("playwright", "pocitac")
                         and not name.startswith("sdilene-")})
 
+    if on_gateway():
+        servers = _mcp_na_serveru(servers)
+
     seen = {s["name"] for s in servers}
     for entry in mcp_project_files():
         if entry["name"] in seen:
@@ -4066,7 +4107,7 @@ def mcp_list():
     missing = [k for k in MCP_CATALOG if not MCP_CATALOG[k].get("service") and not any(
         s["name"] == k or s["name"].startswith((k + " ", k + "-")) for s in servers)]
     return {"ok": True, "servers": servers, "counts": counts,
-            "available": missing, "checked": time.time()}
+            "available": missing, "checked": time.time(), "disk": _disk_pro_mcp()}
 
 
 def mcp_prereq(spec):

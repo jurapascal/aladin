@@ -934,6 +934,7 @@
     auth:    ['set-warn', '●', 'chce přihlásit'],
     fail:    ['set-bad', '●', 'nepřipojeno'],
     local:   ['set-dim', '○', 'jen v projektu'],
+    pc:      ['set-dim', '○', 'jen na počítači'],
     unknown: ['set-dim', '○', 'neznámý stav'],
   };
 
@@ -2838,8 +2839,12 @@
       }
       list.textContent = '';
       if (!servers.length) list.appendChild(el('div', 'empty', '(žádné napojení)'));
+      if (data.disk && data.disk.nizko) {
+        list.appendChild(el('div', 'set-note set-warn',
+          'Na disku zbývá jen ' + data.disk.volno_mb + ' MB. Napojení spouštěná přes npx se bez místa nerozbalí a nepřipojí — uvolni místo nebo napiš správci.'));
+      }
       // Funkční nahoře, pak co chce přihlásit, pak zbytek; uvnitř podle abecedy.
-      const PORADI = {ok: 0, auth: 1, local: 2};
+      const PORADI = {ok: 0, auth: 1, local: 2, pc: 2};
       const mimoSluzby = sluzbyServery ? servers.filter((x) => !sluzbyServery.has(x.name)) : servers;
       // Součást appky a WhatsApp ukazuje Aladin Market → MCP (palubaMcp).
       const ostatni = mimoSluzby.filter((x) => !soucastAppky(x) && x.name !== 'whatsapp');

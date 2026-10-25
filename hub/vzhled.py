@@ -116,6 +116,32 @@ def manifest(name, icon_base, version=0):
 WM_CLASS = "aladin"
 
 
+def _ikona_spoustece():
+    """Ikona pro spouštěč: kopie hub/static/icon-512.png s otiskem v názvu.
+    GNOME si drží obrázek podle cesty, takže nová ikona musí mít nový název,
+    jinak dock ukazuje starou, dokud se nerestartuje celá plocha."""
+    import hashlib
+    import shutil
+    src = os.path.join(STATIC, "icon-512.png")
+    try:
+        with open(src, "rb") as fh:
+            h = hashlib.sha1(fh.read()).hexdigest()[:8]
+        adr = os.path.expanduser("~/.local/share/icons")
+        os.makedirs(adr, exist_ok=True)
+        dst = os.path.join(adr, f"aladin-dzin-{h}.png")
+        if not os.path.isfile(dst):
+            shutil.copyfile(src, dst)
+        for f in os.listdir(adr):
+            if f.startswith("aladin-dzin-") and f != os.path.basename(dst):
+                try:
+                    os.remove(os.path.join(adr, f))
+                except OSError:
+                    pass
+        return dst
+    except OSError:
+        return core.ICON_PATH
+
+
 def sync_desktop():
     """Linux: položka v nabídce aplikací (claude-code-hub.desktop) s vlastním
     názvem a ikonou. Jiné systémy si ikonu okna berou ze stránky."""
@@ -127,7 +153,7 @@ def sync_desktop():
             lines = fh.read().splitlines()
     except OSError:
         return
-    icon = ikona(512) or core.ICON_PATH
+    icon = ikona(512) or _ikona_spoustece()
     out, changed = [], False
     for line in lines:
         new = line

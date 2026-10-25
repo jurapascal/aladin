@@ -2494,7 +2494,7 @@
       <div class="relace-telo">${telo}</div>` : `
       <div class="onb-box">
         <div class="onb-head">
-          <span class="onb-mark"><img class="onb-ikona" src="/icon-192.png" alt="" width="34" height="34" draggable="false"></span>
+          <span class="onb-mark"><svg class="ico" width="30" height="30"><use href="#i-aladin"/></svg></span>
           <div>
             <div class="onb-title"></div>
             <div class="onb-sub"></div>

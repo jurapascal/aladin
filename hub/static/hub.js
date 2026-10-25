@@ -2822,15 +2822,8 @@ function renderBranding() {
       img.src = '/app-ikona/192.png?v=' + app.icon;
       if (svg) svg.style.display = 'none';
     } else {
-      // Výchozí logo = ikona Aladina (bílý čtverec s černým džinem), ne jednobarevná značka.
-      if (!img) {
-        img = document.createElement('img');
-        img.className = 'brand-img';
-        img.alt = '';
-        home.insertBefore(img, home.firstChild);
-      }
-      img.src = '/icon-32.png';
-      if (svg) svg.style.display = 'none';
+      if (img) img.remove();
+      if (svg) svg.style.display = '';
     }
   }
   const head = document.querySelector('.drawer-head strong');
@@ -5907,7 +5900,7 @@ function startSplash() {
   root.className = 'startsplash';
   root.innerHTML = `
     <div class="ss-box">
-      <div class="ss-ring"><img class="ss-ikona" src="/icon-192.png" alt="" draggable="false"></div>
+      <div class="ss-ring"><svg class="ico"><use href="#i-aladin"/></svg></div>
       <div class="ss-title">Aladin</div>
       <div class="ss-text"></div>
       <div class="ss-steps"><span data-s="check">Kontrola</span><span data-s="download">Stahování</span><span data-s="install">Instalace</span></div>

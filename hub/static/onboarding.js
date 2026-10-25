@@ -44,15 +44,15 @@
 
   function mark(size) {
     // Značka aplikace — stejné tvary jako ikona, jen v currentColor.
-    // Ikona Aladina (černý džin na bílém), ne jednobarevná značka.
-    const img = document.createElement('img');
-    img.className = 'onb-ikona';
-    img.src = '/icon-192.png';
-    img.alt = '';
-    img.width = size;
-    img.height = size;
-    img.draggable = false;
-    return img;
+    // Džin Aladina jako vektor v barvě prostředí (currentColor).
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '17 25 1220 1220');
+    svg.setAttribute('width', size);
+    svg.setAttribute('height', size);
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', '#i-aladin');
+    svg.appendChild(use);
+    return svg;
   }
 
   function open(opts) {

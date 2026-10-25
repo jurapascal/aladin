@@ -4788,6 +4788,6 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 
 
 /* Džin Aladina jako vektor v barvě prostředí (--accent: na počítači jantarová, na serveru modrá). */
-.brand-ico { color: var(--accent); width: 26px; height: 26px; font-size: 26px; }
+.brand-ico { color: var(--accent); width: 40px; height: 40px; font-size: 40px; margin: -6px -4px -6px -6px; }
 .ss-ring .ico { width: 54px; height: 54px; }
 .onb-mark { color: var(--accent); }

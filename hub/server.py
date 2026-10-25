@@ -2533,15 +2533,16 @@ def _otevrit_server(token):
     chaty, motiv) podle adresy včetně portu; při náhodném portu by po každém
     zavření a otevření appky začal znovu prázdný. Zkušební hub (--test) a
     obsazený port berou náhodný, jako dřív."""
-    soubor = os.path.join(core.CLAUDE_DIR, "hub-port")
-    if "--test" not in sys.argv:
+    soubor = os.environ.get("HUB_PORT_SOUBOR") or os.path.join(core.CLAUDE_DIR, "hub-port")
+    zkouska = "--test" in sys.argv and not os.environ.get("HUB_PORT_SOUBOR")
+    if not zkouska:
         try:
             with open(soubor, encoding="utf-8") as fh:
                 return HubHTTPServer(token, ("127.0.0.1", int(fh.read().strip())))
         except (OSError, ValueError, OverflowError):
             pass
     httpd = HubHTTPServer(token)
-    if "--test" not in sys.argv:
+    if not zkouska:
         try:
             with open(soubor, "w", encoding="utf-8") as fh:
                 fh.write(str(httpd.server_address[1]))

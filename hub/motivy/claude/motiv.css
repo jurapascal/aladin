@@ -395,3 +395,35 @@ html, body { font-family: var(--font-sans); }
 .chat-pin { right: 6px; }
 
 @media (max-width: 820px) { .topbar-tabwrap { display: contents; } .topbar-stav { display: none; } }
+
+/* ── pole na psaní na telefonu jako v appce Claude ────────────────────────
+   Zaoblená karta přes celou šířku, text 16 px (iOS jinak přibližuje), dole
+   „+“ vlevo, model vpravo a kulaté odeslání. Zbytek nástrojů (příkazy,
+   historie, kontext, zastavit) se posouvá prstem a nezabírá místo. */
+@media (max-width: 820px) {
+  .composer { padding: 6px 10px calc(10px + env(safe-area-inset-bottom)); }
+  .composer.on .composer-box {
+    max-width: none; border-radius: 26px; padding: 12px 10px 8px 16px;
+    background: var(--bg-card); border: none;
+    box-shadow: 0 2px 14px rgba(0, 0, 0, .12), 0 0 0 1px var(--claude-prsten);
+  }
+  .composer.on .composer-box:focus-within {
+    box-shadow: 0 2px 14px rgba(0, 0, 0, .12), 0 0 0 1px color-mix(in srgb, var(--fg-bright) 28%, transparent);
+  }
+  .composer-input { font: 16px/22px var(--font-sans); padding: 2px 2px 8px; min-height: 24px; }
+  .composer-bar { gap: 2px; min-height: 40px; }
+  .composer-chip[data-act=file] {
+    width: 40px; height: 40px; border-radius: 50%; flex: none;
+    border: 1px solid var(--claude-prsten); color: var(--fg-bright); margin-right: 4px;
+  }
+  .composer-chip[data-act=file] .ico { width: 20px; height: 20px; font-size: 20px; }
+  .composer-chip { font-size: 13.5px; padding: 6px 10px; }
+  .composer-chip[data-act=model] .val, .composer-chip[data-act=mode] .val { font-size: 13.5px; }
+  .composer-chip[data-act=history], .composer-chip[data-act=slash], .composer-chip[data-act=agent] { display: none; }
+  .composer-chip.ghost { padding: 6px 8px; font-size: 13px; }
+  .composer-mic { width: 40px; height: 40px; border-radius: 50%; font-size: 19px; flex: none; }
+  .composer-send {
+    width: 40px; height: 40px; border-radius: 50%; font-size: 18px; flex: none;
+    background: var(--claude-akcent, var(--accent)); color: #fff;
+  }
+}

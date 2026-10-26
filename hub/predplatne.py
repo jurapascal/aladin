@@ -19,6 +19,18 @@ u něj na počítači.
 
 Jedno předplatné patří jednomu člověku. Brána ho proto váže na účet, který ho
 připojil, a nikomu jinému ho nedá.
+
+**Víc předplatných jednoho člověka** (Max v práci, Pro doma) jde: když
+jednomu dojde týdenní limit, přepne se na druhé a po obnovení zpátky.
+* V prostoru je drží brána (gateway/predplatna.py); appka jen přidává
+  (`start`, cil „server“) a posílá přepnutí, přejmenování a odebrání.
+* **Na počítači** (`lokal_*`): běžné přihlášení Claude Code (/login) zůstává
+  výchozí a nic se kvůli němu neukládá. Kdo si přidá další předplatné, tomu se
+  jeho token z `claude setup-token` uloží do ~/.claude/hub-predplatna.json
+  (0600) a vybrané předplatné dostanou nové taby jako CLAUDE_CODE_OAUTH_TOKEN
+  (core.cmd_agent). Proč soubor a ne klíčenka: Python ji bez cizího balíčku
+  neumí a Claude Code sám drží své (silnější, obnovitelné) přihlášení na
+  Linuxu i Windows stejně — v ~/.claude/.credentials.json s 0600.
 """
 import json
 import os
@@ -37,7 +49,8 @@ URL_RE = re.compile(rb"https://claude\.(?:com|ai)/[^\s\x07\x1b\]]*oauth/authoriz
 _ESC = re.compile(rb"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b[@-_]")
 WAIT = 10 * 60
 
-STATE = {"state": "idle", "url": "", "error": "", "restarted": False, "since": 0.0}
+STATE = {"state": "idle", "url": "", "error": "", "restarted": False, "since": 0.0,
+         "cil": "server", "id": ""}
 _LOCK = threading.Lock()
 _RUN = {"pty": None, "id": ""}
 
@@ -47,12 +60,16 @@ def claude_bin():
     return shutil.which("claude") or ""
 
 
-def server_state(timeout=10):
-    """Na čem Claude v prostoru jede, podle brány. {"mode", …} nebo {"error", "kind"}."""
+def server_state(timeout=10, limity=False, obnovit=False):
+    """Na čem Claude v prostoru jede, podle brány. {"mode", …} nebo {"error", "kind"}.
+    `limity` = i skutečný limit každého předplatného (počítá brána)."""
     token = core.CONFIG.get("gw_token") or ""
     if not token or not account._base():
         return {"error": "Appka není přihlášená k serveru.", "kind": account.AUTH}
-    data, err, kind = account._call("/gw/claude", token=token, timeout=timeout)
+    path = "/gw/claude"
+    if limity:
+        path += "?limity=1&cekat=6" + ("&obnovit=1" if obnovit else "")
+    data, err, kind = account._call(path, token=token, timeout=max(timeout, 20) if limity else timeout)
     if data is None:
         if kind == account.AUTH:
             # Starší brána /gw/claude nezná a odpoví jako na cizí token.
@@ -63,11 +80,11 @@ def server_state(timeout=10):
     return data
 
 
-def status(timeout=10):
+def status(timeout=10, limity=False, obnovit=False):
     with _LOCK:
         run = dict(STATE)
     return {"claude": bool(claude_bin()), "skip": bool(core.CONFIG.get("predplatne_skip")),
-            "connect": run, "server": server_state(timeout)}
+            "connect": run, "server": server_state(timeout, limity, obnovit)}
 
 
 def should_offer(timeout=6):
@@ -89,9 +106,14 @@ def _set(**changes):
         STATE.update(changes)
 
 
-def start():
-    """Spustí `claude setup-token` na pozadí. Vrací stav; sleduje se přes status()."""
+def start(cil="server", replace="", prenacti=None):
+    """Spustí `claude setup-token` na pozadí. Vrací stav; sleduje se přes status().
+
+    `cil`: „server“ = token jde bráně (předplatné pro prostor), „lokal“ =
+    další předplatné pro Claude Code na tomhle počítači. `replace` = id
+    předplatného, kterému se token obnovuje (Připojit znovu), jinak přibude nové."""
     exe = claude_bin()
+    cil = "lokal" if cil == "lokal" else "server"
     if not exe:
         _set(state="error", url="", error="Na tomhle počítači není Claude Code (příkaz claude).")
         return dict(STATE)
@@ -99,8 +121,9 @@ def start():
         if STATE["state"] in ("starting", "waiting", "saving"):
             return dict(STATE)
         run_id = secrets.token_hex(4)
-        _RUN["id"] = run_id
-        STATE.update(state="starting", url="", error="", restarted=False, since=time.time())
+        _RUN.update(id=run_id, cil=cil, replace=str(replace or "")[:16], prenacti=prenacti)
+        STATE.update(state="starting", url="", error="", restarted=False, since=time.time(),
+                     cil=cil, id="")
     argv = [exe, "setup-token"]
     if core.IS_WINDOWS and exe.lower().endswith((".cmd", ".bat")):
         argv = [os.environ.get("COMSPEC") or "cmd.exe", "/c", exe, "setup-token"]
@@ -180,9 +203,27 @@ def _deliver(token, run_id):
         _set(state="token")
         return
     _set(state="saving")
+    if _RUN.get("cil") == "lokal":
+        try:
+            sid = lokal_pridej(token, replace=_RUN.get("replace") or "")
+        except (OSError, ValueError) as exc:
+            _set(state="error", error=str(exc) if isinstance(exc, ValueError)
+                 else "Uložit předplatné na tenhle počítač se nepovedlo.")
+            core.log_error("předplatné: uložení na počítači", exc)
+            return
+        finally:
+            del token
+        _set(state="done", error="", restarted=True, id=sid)
+        core.log("předplatné: na počítači přibylo další předplatné — nové taby jedou na něm")
+        if _RUN.get("prenacti"):
+            _RUN["prenacti"]()
+        return
     gw = core.CONFIG.get("gw_token") or ""
+    # `source` říká bráně, že appka umí víc předplatných: přidá nové (nebo
+    # obnoví `replace`), místo aby přepsala to jediné.
     data, err, _kind = account._call("/gw/claude", token=gw, timeout=30,
-                                     payload={"token": token, "label": _machine()})
+                                     payload={"token": token, "source": _machine(), "label": "",
+                                              "replace": _RUN.get("replace") or ""})
     del token
     if not _current(run_id):
         return
@@ -190,7 +231,7 @@ def _deliver(token, run_id):
         _set(state="error", error=(data or {}).get("error") or err or "Server token nepřijal.")
         core.log("předplatné: server token nepřijal", "warn")
         return
-    _set(state="done", error="", restarted=not data.get("needs_restart"))
+    _set(state="done", error="", restarted=not data.get("needs_restart"), id=data.get("pridano") or "")
     core.log("předplatné: připojeno — Claude v prostoru jede na vlastním předplatném")
 
 
@@ -227,6 +268,225 @@ def disconnect():
     gw = core.CONFIG.get("gw_token") or ""
     data, err, _kind = account._call("/gw/claude", token=gw, timeout=20, payload={"remove": True})
     return data if data is not None else {"error": err}
+
+
+def _server_post(payload):
+    gw = core.CONFIG.get("gw_token") or ""
+    data, err, _kind = account._call("/gw/claude", token=gw, timeout=20, payload=payload)
+    return data if data is not None else {"error": err}
+
+
+# ── víc předplatných pro Claude Code na tomhle počítači ─────────────────────
+LOKAL_SOUBOR = "hub-predplatna.json"
+LOKAL_MAX = 10
+_LOKAL_LOCK = threading.Lock()
+_LIMITY = {}
+
+
+def _limity():
+    if "x" not in _LIMITY:
+        from . import limity
+        _LIMITY["x"] = limity.Limity()
+    return _LIMITY["x"]
+
+
+def _lokal_path():
+    return os.path.join(core.CLAUDE_DIR, LOKAL_SOUBOR)
+
+
+def _lokal_nacti():
+    """(předplatná s tokeny, id vybraného — "" = běžné přihlášení Claude Code)."""
+    try:
+        with open(_lokal_path(), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return [], ""
+    if not isinstance(data, dict) or not isinstance(data.get("items"), list):
+        return [], ""
+    items = []
+    for it in data["items"]:
+        if (isinstance(it, dict) and re.fullmatch(r"[a-z0-9]{1,16}", str(it.get("id") or ""))
+                and TOKEN_RE.fullmatch(str(it.get("token") or ""))):
+            items.append({"id": it["id"], "token": it["token"], "created": int(it.get("created") or 0),
+                          "label": str(it.get("label") or "")[:80]})
+    active = str(data.get("active") or "")
+    return items, (active if active in {it["id"] for it in items} else "")
+
+
+def _lokal_uloz(items, active):
+    path = _lokal_path()
+    if not items:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        return
+    os.makedirs(core.CLAUDE_DIR, exist_ok=True)
+    tmp = f"{path}.{secrets.token_hex(4)}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump({"v": 1, "active": active, "items": items}, fh, ensure_ascii=False)
+    os.replace(tmp, path)
+
+
+def _nazev(label):
+    return re.sub(r"\s+", " ", str(label or "")).strip()[:80]
+
+
+def lokal_pridej(token, label="", replace=""):
+    """Další předplatné pro Claude Code na počítači; rovnou se vybere. Vrací id."""
+    token = str(token or "").strip()
+    if not TOKEN_RE.fullmatch(token):
+        raise ValueError("Tohle nevypadá jako token předplatného Claude (sk-ant-oat01-…).")
+    with _LOKAL_LOCK:
+        items, _active = _lokal_nacti()
+        same = next((it for it in items if it["token"] == token), None)
+        old = next((it for it in items if it["id"] == replace), None) if replace else None
+        if same or old:
+            item = same or old
+            item.update(token=token, created=item["created"] if same else int(time.time()))
+        else:
+            if len(items) >= LOKAL_MAX:
+                raise ValueError("Víc než %d předplatných mít nejde — nejdřív nějaké odeber." % LOKAL_MAX)
+            used = {it["label"].lower() for it in items}
+            n = len(items) + 2                 # 1 = běžné přihlášení
+            while f"předplatné {n}" in used:
+                n += 1
+            item = {"id": secrets.token_hex(4), "token": token, "created": int(time.time()),
+                    "label": f"Předplatné {n}"}
+            items.append(item)
+        if _nazev(label):
+            item["label"] = _nazev(label)
+        _lokal_uloz(items, item["id"])
+    return item["id"]
+
+
+def lokal_token():
+    """Token předplatného, na kterém mají jet nové taby s Claude Code.
+    "" = běžné přihlášení Claude Code (/login) — výchozí, nic se neukládá."""
+    if core.on_gateway():
+        return ""
+    items, active = _lokal_nacti()
+    return next((it["token"] for it in items if it["id"] == active), "")
+
+
+def lokal_stav(limity=False, cekat=0.0, obnovit=False):
+    """Předplatná pro Claude Code na počítači bez tokenů (do stránky).
+    Limity: "" = běžné přihlášení, jinak podle id."""
+    items, active = _lokal_nacti()
+    out = {"ucet": core.claude_account(), "aktivni": active,
+           "predplatna": [{"id": it["id"], "label": it["label"] or "Předplatné", "since": it["created"],
+                           "expires": it["created"] + 365 * 86400 if it["created"] else 0,
+                           "expiring": bool(it["created"]) and it["created"] + 335 * 86400 < time.time(),
+                           "active": it["id"] == active} for it in items]}
+    if limity and items:
+        from . import usage
+        tokeny = {it["id"]: it["token"] for it in items}
+        own = usage.own_token()
+        if own:
+            tokeny[""] = own
+        out["limity"], out["limity_pocita"] = _limity().zjisti(tokeny, cekat=cekat, obnovit=obnovit)
+    return out
+
+
+def lokal_limit_aktivni(refresh=False):
+    """Limit vybraného předplatného pro Statistiky (plan-usage), nebo None,
+    když se jede na běžném přihlášení (to umí usage.own)."""
+    tok = lokal_token()
+    if not tok:
+        return None
+    data, _pocita = _limity().zjisti({"a": tok}, cekat=12.0, obnovit=refresh)
+    return data.get("a") or {"ok": False, "druh": "chyba", "chyba": "Limit se teď nepodařilo zjistit."}
+
+
+def _lokal_zmen(fn):
+    with _LOKAL_LOCK:
+        items, active = _lokal_nacti()
+        out = fn(items, active)
+    return out
+
+
+def lokal_aktivni(sid):
+    """Přepne, na kterém předplatném jedou nové taby ("" = běžné přihlášení).
+    Vrací, jestli se změnilo."""
+    sid = str(sid or "")
+
+    def zmen(items, active):
+        if sid and sid not in {it["id"] for it in items}:
+            raise ValueError("Tohle předplatné už neexistuje — otevři nastavení znovu.")
+        if sid == active:
+            return False
+        _lokal_uloz(items, sid)
+        return True
+    return _lokal_zmen(zmen)
+
+
+def lokal_prejmenuj(sid, label):
+    label = _nazev(label)
+    if not label:
+        raise ValueError("Napiš název, třeba „Max — práce“.")
+
+    def zmen(items, active):
+        item = next((it for it in items if it["id"] == sid), None)
+        if not item:
+            raise ValueError("Tohle předplatné už neexistuje — otevři nastavení znovu.")
+        item["label"] = label
+        _lokal_uloz(items, active)
+    return _lokal_zmen(zmen)
+
+
+def lokal_odeber(sid):
+    """Odebere předplatné z počítače (token se smaže). Vrací, jestli se tím
+    změnilo, na čem jedou taby — pak zpátky na běžné přihlášení."""
+    def zmen(items, active):
+        left = [it for it in items if it["id"] != sid]
+        if not sid or len(left) == len(items):
+            raise ValueError("Tohle předplatné už neexistuje — otevři nastavení znovu.")
+        _lokal_uloz(left, active if active != sid else "")
+        return active == sid
+    return _lokal_zmen(zmen)
+
+
+def akce(action, payload, query, prenacti=None):
+    """Víc předplatných z Nastavení → Účet (/api/predplatne). Vrací odpověď,
+    nebo None, když akci řeší server.py po staru."""
+    def q(k):
+        return (query.get(k) or [""])[0]
+    sid = str(payload.get("id") or "")
+    try:
+        if action == "start":
+            return start(payload.get("cil") or "server", payload.get("replace") or "", prenacti)
+        if action == "server-aktivni":
+            return _server_post({"activate": sid})
+        if action == "server-prejmenovat":
+            return _server_post({"rename": sid, "label": str(payload.get("label") or "")})
+        if action == "server-odebrat":
+            return _server_post({"remove": True, "id": sid})
+        if action == "lokal-aktivni":
+            if lokal_aktivni(sid):
+                core.log("předplatné: nové taby na počítači jedou na "
+                         + ("vybraném předplatném" if sid else "běžném přihlášení Claude Code"))
+                if prenacti:
+                    prenacti()
+            return lokal_stav()
+        if action == "lokal-prejmenovat":
+            lokal_prejmenuj(sid, payload.get("label"))
+            return lokal_stav()
+        if action == "lokal-odebrat":
+            if lokal_odeber(sid) and prenacti:
+                prenacti()
+            return lokal_stav()
+    except ValueError as exc:
+        return {"error": str(exc)}
+    except OSError as exc:
+        core.log_error("předplatné na počítači", exc)
+        return {"error": "Uložit to na tenhle počítač se nepovedlo."}
+    if not action and q("lokal"):
+        return lokal_stav(limity=q("limity") == "1", cekat=6.0 if q("limity") == "1" else 0.0,
+                          obnovit=q("obnovit") == "1")
+    if not action and q("limity"):
+        return status(limity=True, obnovit=q("obnovit") == "1")
+    return None
 
 
 # ── Správa předplatného hostem (gateway/pristup.py) ─────────────────────────

@@ -86,7 +86,9 @@ def disk():
         return [("disk", f"Na disku brány zbývá {volno_gb:.1f} GB ({u.free / u.total:.0%}). "
                          "Až dojde, prostorům spadne práce a záloha se neudělá. "
                          "Uvolnit: cache (`uv cache prune`, `npm cache clean --force` v domovech "
-                         "/home/hub/users/*), staré zálohy, velká data v prostorech (`du -xsh /home/hub/users/*`).")]
+                         "/home/hub/users/*), staré zálohy, velká data v prostorech — kdo kolik "
+                         "zabírá a čím: `claude-hub-admin uloziste`, sloučení mezipamětí: "
+                         "`claude-hub-admin uklid`.")]
     return []
 
 
@@ -235,6 +237,24 @@ def stranky():
     return out
 
 
+VELIKOSTI = "/var/lib/claude-hub/velikosti.json"
+
+
+def zapis_velikosti():
+    """Kolik berou zálohy — pro Nastavení → Úložiště (gateway/uloziste.py).
+    Brána běží jako `hub` a do složky záloh (jen root) nevidí; bez tohohle
+    by se 14 GB záloh ztratilo v „systému"."""
+    try:
+        zalohy = sum(os.path.getsize(f) for f in glob.glob(os.path.join(ZALOHY, "*")) if os.path.isfile(f))
+        os.makedirs(os.path.dirname(VELIKOSTI), exist_ok=True)
+        with open(VELIKOSTI + ".tmp", "w", encoding="utf-8") as fh:
+            json.dump({"zalohy": zalohy, "cas": int(time.time())}, fh)
+        os.chmod(VELIKOSTI + ".tmp", 0o644)
+        os.replace(VELIKOSTI + ".tmp", VELIKOSTI)
+    except OSError:
+        pass
+
+
 def zkontroluj():
     problemy = []
     for kontrola in (disk, pamet, zaloha, zaloha_plna, brana, oom, stranky):
@@ -272,6 +292,8 @@ def nahlas(problemy, nove, domena):
 
 def main():
     problemy = zkontroluj()
+    if "--vypis" not in sys.argv:
+        zapis_velikosti()
     if "--vypis" in sys.argv:
         for k, text in problemy:
             print(f"[{k}] {text}")

@@ -93,20 +93,62 @@ CATALOG = {
         "skills": False,
         "composer": "basic",
     },
-    "gemini": {
+    # Gemini přes Antigravity CLI (`agy`) — nástupce gemini-cli pro osobní
+    # Google účty. Jede na předplatném Google AI Pro, takže má vlastní týdenní
+    # limit vedle Claudeova. Tentýž `agy` volá i Claude jako pomocníka
+    # (hub/gemini.py, MCP mcp__gemini__*) na obrázky, nahrávky a videa.
+    "antigravity": {
         "label": "Gemini",
         "short": "gemini",
         "color": "#4285f4",
         "ansi": 33,
+        "bin": "agy",
+        "note": "Gemini od Googlu přes Antigravity CLI. Jede na předplatném Google AI Pro "
+                "(osobní Google účet) a má vlastní týdenní limit — šetří ten Claudeův.",
+        "install": {
+            "linux": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+            "mac": "curl -fsSL https://antigravity.google/cli/install.sh | bash",
+            "windows": 'powershell -NoProfile -ExecutionPolicy Bypass -Command '
+                       '"irm https://antigravity.google/cli/install.ps1 | iex"',
+        },
+        # Přihlášení se pouští v pracovní složce pomocníka (tools/gemini_pomoc.py):
+        # agy se napoprvé ptá, jestli složce věří, a tady se to vyřídí rovnou
+        # s přihlášením — neinteraktivní volání pak nemá na co čekat.
+        "auth": {"cmd": "agy",
+                 # Tab s přihlášením nedostává PATH od hubu — agy z čerstvé
+                 # instalace (~/.local/bin, na Windows AppData) by nenašel.
+                 "run": 'PATH="$HOME/.local/bin:$HOME/AppData/Local/agy/bin:$PATH"; '
+                        'mkdir -p "$HOME/.cache/aladin-gemini" && cd "$HOME/.cache/aladin-gemini" && agy',
+                 "note": "Spustí se Gemini a napoprvé otevře přihlášení Google účtem "
+                         "v prohlížeči. Na serveru vypíše odkaz: otevři ho, přihlas se "
+                         "a kód vlož zpátky do tabu. Pak ho zavři (Ctrl+D)."},
+        "login_probe": "gemini",    # stav přihlášení zná hub/gemini.py
+        "models": "agy",            # nabídka z `agy models` (hub/gemini.py)
+        "model_arg": "--model {model}",
+        # agy nebere úvodní prompt jako holý argument — má na to přepínač.
+        "prompt_arg": "--prompt-interactive {prompt}",
+        "slash": ["/usage", "/clear", "/resume", "/plan", "/effort", "/permissions",
+                  "/context", "/undo", "/logout"],
+        "skills": False,
+        "composer": "basic",
+    },
+    # Starší Gemini CLI (npm @google/gemini-cli). Osobní Google účty od
+    # 18. 6. 2026 neobsluhuje — zůstává pro ty, kdo jedou na klíči z AI Studia.
+    "gemini": {
+        "label": "Gemini CLI (klíč z AI Studia)",
+        "short": "gemini-cli",
+        "color": "#8ab4f8",
+        "ansi": 111,
         "bin": "gemini",
-        "note": "Agent od Googlu. Přihlášení Google účtem nebo klíč z AI Studia.",
+        "note": "Starší Gemini CLI od Googlu. Osobní Google účty už neobsluhuje — jede "
+                "jen s klíčem z AI Studia. S předplatným Google AI Pro použij Gemini výš.",
         "install": {
             "linux": "npm install -g @google/gemini-cli",
             "mac": "npm install -g @google/gemini-cli",
             "windows": "npm install -g @google/gemini-cli",
         },
         "auth": {"cmd": "gemini", "slash": "/auth",
-                 "note": "Spustí se Gemini CLI, účet se vybírá v /auth."},
+                 "note": "Spustí se Gemini CLI, v /auth vyber klíč z AI Studia (GEMINI_API_KEY)."},
         "models": [],
         "model_arg": "-m {model}",
         "model_cmd": "/model",
@@ -190,7 +232,7 @@ CATALOG = {
     },
 }
 
-ORDER = ["claude", "codex", "gemini", "opencode", "aider", "ollama"]
+ORDER = ["claude", "antigravity", "codex", "gemini", "opencode", "aider", "ollama"]
 
 
 def platform_key():
@@ -252,6 +294,8 @@ def extra_bin_dirs():
     if os.name == "nt" and os.environ.get("LOCALAPPDATA"):
         # winget dává odkazy na nainstalované CLI sem (Claude Code, gh).
         dirs.append(os.path.join(os.environ["LOCALAPPDATA"], "Microsoft", "WinGet", "Links"))
+        # Antigravity CLI (Gemini) se na Windows instaluje sem.
+        dirs.append(os.path.join(os.environ["LOCALAPPDATA"], "agy", "bin"))
     return [d for d in dirs if os.path.isdir(d)]
 
 
@@ -403,7 +447,10 @@ def detect(extra=None, with_version=True):
             "version": _version(path, spec) if (path and with_version) else "",
             "install": install_cmd(spec),
             "auth": spec.get("auth") or {},
-            "models": models_for(spec, path),
+            # True / False / None (nedá se poznat) — jen u agentů, u kterých to hub umí zjistit.
+            "logged": login_state(spec, path),
+            # Čerstvý seznam modelů (spuštěním CLI) jen v úloze na pozadí s verzemi.
+            "models": models_for(spec, path, fresh=with_version),
             "needs_model": bool(spec.get("needs_model")),
             "slash": spec.get("slash") or [],
             "skills": bool(spec.get("skills")),
@@ -557,7 +604,17 @@ def claude_models(path):
     return [list(m) for m in models]
 
 
-def models_for(spec, path=""):
+def login_state(spec, path=""):
+    """Je agent přihlášený? None = neumíme poznat (většina agentů)."""
+    if spec.get("login_probe") == "gemini":
+        if not path:
+            return False
+        from . import gemini
+        return gemini.prihlaseni()
+    return None
+
+
+def models_for(spec, path="", fresh=False):
     """Nabídka modelů pro chip v bublině.
 
     U Claudea z nainstalovaného Claude Code (claude_models), jinak statický
@@ -575,6 +632,10 @@ def models_for(spec, path=""):
     if models == "ollama":
         prefix = spec.get("model_prefix") or ""
         return [[m, prefix + m] for m in ollama_models()]
+    if models == "agy" and path:
+        # Gemini: co nabízí `agy models` (drží se den na disku, hub/gemini.py).
+        from . import gemini
+        return gemini.modely(cerstve=fresh)
     return []
 
 
@@ -689,5 +750,10 @@ def launch_args(spec, model="", prompt="", bypass=True, resume="", fork=False,
     # Přepínače navíc (tab s úkolem ze serveru: --settings, --permission-mode).
     args += list(extra or [])
     if prompt:
-        args.append(prompt)
+        # Agent, který úvodní prompt bere přepínačem (agy: --prompt-interactive).
+        template = spec.get("prompt_arg") or ""
+        if template:
+            args += [part.replace("{prompt}", prompt) for part in template.split(" ") if part]
+        else:
+            args.append(prompt)
     return args

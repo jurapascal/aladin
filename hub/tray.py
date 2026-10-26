@@ -10,13 +10,17 @@ Samostatný proces, který pouští claude-hub.py a který skončí s ním:
 * Windows: NotifyIcon z .NET přes PowerShell (skrytě).
 
 Klik na ikonku otevře okno appky (POST /api/okno-otevrit), v nabídce je
-Otevřít a Ukončit (POST /api/quit).
+Otevřít a Ukončit (POST /api/quit). Ukončit se napřed zeptá — zavřou se
+všechny chaty (uloží se a příště vrátí) a utnula by se práce, která běží.
 
     python3 -m hub.tray <adresa s ?t=token> <pid appky> <ikona.png>
 """
+import json
 import os
+import shutil
 import subprocess
 import sys
+import threading
 import urllib.parse
 import urllib.request
 
@@ -30,9 +34,45 @@ def _api(base, name):
     req = urllib.request.Request(url, data=b"{}", method="POST",
                                  headers={"Content-Type": "application/json"})
     try:
-        urllib.request.urlopen(req, timeout=5).close()
+        with urllib.request.urlopen(req, timeout=5) as res:
+            return json.loads(res.read() or b"{}")
     except Exception:
-        pass
+        return {}
+
+
+def _otazka_konec(base):
+    """Text dotazu před ukončením: kolik chatů se zavře a jestli se něco utne."""
+    info = _api(base, "konec-info")
+    taby, pracuje = int(info.get("taby") or 0), int(info.get("pracuje") or 0)
+    if not taby:
+        return f"Ukončit {NAZEV}?"
+    slovo = "chat" if taby == 1 else "chaty" if taby < 5 else "chatů"
+    text = f"Ukončit {NAZEV}? Zavře se {taby} {slovo}."
+    if pracuje:
+        text += (f" Claude teď pracuje v {pracuje} z nich — rozdělaná práce se přeruší."
+                 if taby > 1 else " Claude v něm teď pracuje — rozdělaná práce se přeruší.")
+    return text + "\n\nVšechno se uloží a po dalším spuštění se chaty vrátí."
+
+
+def _potvrd_konec_linux(base):
+    """True = ukončit. Dialog přes zenity / kdialog, jinak okénko GTK; bez
+    čehokoli z toho se ukončí bez ptaní (jako dřív)."""
+    text = _otazka_konec(base)
+    try:
+        if shutil.which("zenity"):
+            return subprocess.run(["zenity", "--question", "--title", NAZEV, "--text", text,
+                                   "--ok-label", "Ukončit", "--cancel-label", "Zrušit",
+                                   "--icon-name", "dialog-warning", "--width", "380"]).returncode == 0
+        if shutil.which("kdialog"):
+            return subprocess.run(["kdialog", "--title", NAZEV, "--yesno", text,
+                                   "--yes-label", "Ukončit", "--no-label", "Zrušit"]).returncode == 0
+        kod = ("import gi,sys;gi.require_version('Gtk','3.0');from gi.repository import Gtk;"
+               "d=Gtk.MessageDialog(message_type=Gtk.MessageType.QUESTION,text=sys.argv[1]);"
+               "d.set_title(sys.argv[2]);d.add_buttons('Zrušit',0,'Ukončit',1);"
+               "sys.exit(0 if d.run()==1 else 1)")
+        return subprocess.run([sys.executable, "-c", kod, text, NAZEV], timeout=600).returncode == 0
+    except Exception:
+        return True
 
 
 def _zije(pid):
@@ -143,8 +183,13 @@ def linux(base, ppid, ikona):
         _api(base, "okno-otevrit")
 
     def ukonci():
-        _api(base, "quit")
-        GLib.timeout_add(1500, lambda: loop.quit() or False)
+        # Dialog čeká na člověka — mimo smyčku, ať ikonka mezitím odpovídá.
+        def jed():
+            if not _potvrd_konec_linux(base):
+                return
+            _api(base, "quit")
+            GLib.timeout_add(2500, lambda: loop.quit() or False)
+        threading.Thread(target=jed, daemon=True).start()
 
     sni_props = {
         "Category": GLib.Variant("s", "ApplicationStatus"),
@@ -240,8 +285,20 @@ Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 $base = $env:HUB_TRAY_URL; $ppid_ = [int]$env:HUB_TRAY_PID
 function Hub($name) {
   $u = [Uri]$base; $t = [Web.HttpUtility]::ParseQueryString($u.Query)['t']
-  try { Invoke-WebRequest -UseBasicParsing -Method Post -ContentType 'application/json' -Body '{}' `
-        -Uri ("{0}://{1}/api/{2}?t={3}" -f $u.Scheme, $u.Authority, $name, [Uri]::EscapeDataString($t)) | Out-Null } catch {}
+  try { return Invoke-RestMethod -Method Post -ContentType 'application/json' -Body '{}' `
+        -Uri ("{0}://{1}/api/{2}?t={3}" -f $u.Scheme, $u.Authority, $name, [Uri]::EscapeDataString($t)) } catch { return $null }
+}
+function Konec {
+  $i = Hub 'konec-info'; $n = [int]$i.taby; $p = [int]$i.pracuje
+  $txt = "Ukončit $($env:HUB_TRAY_NAME)?"
+  if ($n -gt 0) {
+    $txt += " Zavře se chatů: $n."
+    if ($p -gt 0) { $txt += " Claude teď pracuje v $p z nich — rozdělaná práce se přeruší." }
+    $txt += "`n`nVšechno se uloží a po dalším spuštění se chaty vrátí."
+  }
+  $r = [System.Windows.Forms.MessageBox]::Show($txt, $env:HUB_TRAY_NAME, 'OKCancel', 'Question')
+  if ($r -ne 'OK') { return }
+  Hub 'quit' | Out-Null; Start-Sleep -Milliseconds 1500; $ni.Visible = $false; [System.Windows.Forms.Application]::Exit()
 }
 Add-Type -AssemblyName System.Web
 $ni = New-Object System.Windows.Forms.NotifyIcon
@@ -251,7 +308,7 @@ $ni.Text = $env:HUB_TRAY_NAME
 $m = New-Object System.Windows.Forms.ContextMenuStrip
 $m.Items.Add('Otevřít ' + $env:HUB_TRAY_NAME, $null, { Hub 'okno-otevrit' }) | Out-Null
 $m.Items.Add('-') | Out-Null
-$m.Items.Add('Ukončit appku', $null, { Hub 'quit'; $ni.Visible = $false; [System.Windows.Forms.Application]::Exit() }) | Out-Null
+$m.Items.Add('Ukončit appku', $null, { Konec }) | Out-Null
 $ni.ContextMenuStrip = $m
 $ni.add_MouseClick({ param($s, $e) if ($e.Button -eq 'Left') { Hub 'okno-otevrit' } })
 $ni.Visible = $true

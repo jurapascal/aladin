@@ -395,50 +395,210 @@ def api_key(user=None):
 
 # ── vlastní předplatné Claude ────────────────────────────────────────────────
 # Token z `claude setup-token` (platí rok, jen na používání Clauda). Připojuje ho
-# appka na počítači toho člověka, případně správce (`claude-hub-admin
-# predplatne set`). Leží u brány podle čísla účtu, 0600 ve složce 0700 — do
-# prostoru přijde jen tomu, komu patří, jako CLAUDE_CODE_OAUTH_TOKEN.
+# appka na počítači toho člověka, prostor sám (Nastavení → Účet), případně
+# správce (`claude-hub-admin predplatne set`). Leží u brány podle čísla účtu,
+# 0600 ve složce 0700 — do prostoru přijde jen tomu, komu patří, jako
+# CLAUDE_CODE_OAUTH_TOKEN.
+#
+# Předplatných může mít jeden člověk víc (Max v práci, Pro doma): když jednomu
+# dojde týdenní limit, přepne na druhé. Jedno je vždycky aktivní — na tom jede
+# Claude v prostoru. Pořád ale platí „jedno předplatné = jeden člověk“: tokeny
+# patří účtu, který je připojil, a nikomu jinému se nedají.
 OAUTH_TOKEN_RE = re.compile(r"sk-ant-oat01-[A-Za-z0-9_-]{20,400}")
 TOKEN_DAYS = 365
+MAX_PREDPLATNYCH = 10
+NAZEV_PREDPLATNEHO = "Předplatné"
+_PREDPLATNE_LOCK = threading.Lock()
 
 
 def _predplatne_path(user):
     return os.path.join(config.CLAUDE_TOKENS_DIR, "%d.json" % int(user["id"]))
 
 
-def predplatne(user):
-    """{"token", "created", "label"} připojeného předplatného, nebo None."""
+@contextlib.contextmanager
+def _predplatne_zamek(user):
+    """Seznam mění brána (víc vláken naráz — appka, prostor, host) i
+    claude-hub-admin (jiný proces). Bez zámku by se dvě přidání přepsala."""
+    with _PREDPLATNE_LOCK:
+        os.makedirs(config.CLAUDE_TOKENS_DIR, mode=0o700, exist_ok=True)
+        os.chmod(config.CLAUDE_TOKENS_DIR, 0o700)
+        with open(_predplatne_path(user) + ".lock", "a") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def predplatna(user):
+    """(seznam předplatných s tokeny, id aktivního). Jen pro bránu — ven
+    (do prohlížeče, do appky) jde vždycky predplatna_verejne."""
     try:
         with open(_predplatne_path(user), encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict) or not OAUTH_TOKEN_RE.fullmatch(str(data.get("token") or "")):
-        return None
-    return data
+        return [], ""
+    if not isinstance(data, dict):
+        return [], ""
+    items = data.get("items")
+    if not isinstance(items, list):
+        # Dřív jeden token na účet: {"token", "created", "label"}, kde label
+        # říkal, odkud přišel („appka na notebooku“). Id se odvodí z tokenu, aby
+        # bylo stejné při každém čtení, dokud se soubor nepřepíše novým tvarem.
+        tok = str(data.get("token") or "")
+        if not OAUTH_TOKEN_RE.fullmatch(tok):
+            return [], ""
+        item = {"id": "p" + hashlib.sha256(tok.encode()).hexdigest()[:10], "token": tok,
+                "created": int(data.get("created") or 0), "label": "",
+                "source": str(data.get("label") or "")[:80]}
+        return [item], item["id"]
+    clean = []
+    for it in items:
+        if (isinstance(it, dict) and re.fullmatch(r"[a-z0-9]{1,16}", str(it.get("id") or ""))
+                and OAUTH_TOKEN_RE.fullmatch(str(it.get("token") or ""))):
+            clean.append({"id": it["id"], "token": it["token"], "created": int(it.get("created") or 0),
+                          "label": str(it.get("label") or "")[:80],
+                          "source": str(it.get("source") or "")[:80]})
+    active = str(data.get("active") or "")
+    if clean and active not in {it["id"] for it in clean}:
+        active = clean[0]["id"]
+    return clean, (active if clean else "")
 
 
-def save_predplatne(user, token, label=""):
-    token = str(token or "").strip()
-    if not OAUTH_TOKEN_RE.fullmatch(token):
-        raise ValueError("Tohle nevypadá jako token předplatného Claude (sk-ant-oat01-…).")
-    os.makedirs(config.CLAUDE_TOKENS_DIR, mode=0o700, exist_ok=True)
-    os.chmod(config.CLAUDE_TOKENS_DIR, 0o700)
+def _uloz_predplatna(user, items, active):
+    """Zapíše seznam (0600, atomicky). Prázdný seznam = soubor pryč.
+
+    Aktivní předplatné je navíc i nahoře ve starém tvaru (token, created,
+    label): starší brána by po návratu verze zpátky jinak nenašla nic a
+    Claude v prostoru by spadl na „nepřihlášený“."""
     path = _predplatne_path(user)
+    if not items:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        return
+    cur = next(it for it in items if it["id"] == active)
+    data = {"v": 2, "active": active, "items": items,
+            "token": cur["token"], "created": cur["created"], "label": cur["source"]}
     tmp = f"{path}.{secrets.token_hex(4)}.tmp"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump({"token": token, "created": int(time.time()),
-                   "label": str(label or "")[:80]}, fh)
+        json.dump(data, fh, ensure_ascii=False)
     os.replace(tmp, path)
 
 
-def remove_predplatne(user):
-    try:
-        os.remove(_predplatne_path(user))
-        return True
-    except FileNotFoundError:
-        return False
+def predplatne(user):
+    """Aktivní předplatné {"id", "token", "created", "label", "source"}, nebo None."""
+    items, active = predplatna(user)
+    return next((it for it in items if it["id"] == active), None)
+
+
+def _volny_nazev(items):
+    """Výchozí název nového předplatného: „Předplatné“, pak „Předplatné 2“…
+    Člověk si ho hned po připojení přejmenuje (třeba „Max — práce“) — z tokenu
+    se e-mail ani tarif zjistit nedá (setup-token má jen právo používat Clauda)."""
+    used = {(it.get("label") or NAZEV_PREDPLATNEHO).strip().lower() for it in items}
+    if not items:
+        return NAZEV_PREDPLATNEHO
+    n = len(items) + 1
+    while f"{NAZEV_PREDPLATNEHO} {n}".lower() in used:
+        n += 1
+    return f"{NAZEV_PREDPLATNEHO} {n}"
+
+
+def save_predplatne(user, token, source="", label="", replace="", activate=True):
+    """Přidá předplatné (nebo obnoví token u `replace`) a vrátí jeho id.
+
+    Nové se rovnou zapne — kdo právě klikl na Authorize, chce na něm jet.
+    Tentýž token podruhé nepřibude, jen se zapne. `source` = odkud přišlo
+    (appka na počítači, prostor, správce), `label` = jak mu člověk říká."""
+    token = str(token or "").strip()
+    if not OAUTH_TOKEN_RE.fullmatch(token):
+        raise ValueError("Tohle nevypadá jako token předplatného Claude (sk-ant-oat01-…).")
+    label = re.sub(r"\s+", " ", str(label or "")).strip()[:80]
+    source = str(source or "").strip()[:80]
+    with _predplatne_zamek(user):
+        items, active = predplatna(user)
+        same = next((it for it in items if it["token"] == token), None)
+        old = next((it for it in items if it["id"] == replace), None) if replace else None
+        if same:
+            sid = same["id"]
+            if label:
+                same["label"] = label
+        elif old:
+            # Připojit znovu (token brzy vyprší): stejné místo v seznamu i název.
+            old.update(token=token, created=int(time.time()), source=source or old["source"])
+            if label:
+                old["label"] = label
+            sid = old["id"]
+        else:
+            if len(items) >= MAX_PREDPLATNYCH:
+                raise ValueError("Víc než %d předplatných mít nejde — nejdřív nějaké odeber."
+                                 % MAX_PREDPLATNYCH)
+            sid = secrets.token_hex(4)
+            items.append({"id": sid, "token": token, "created": int(time.time()),
+                          "label": label or _volny_nazev(items), "source": source})
+        if activate or not active:
+            active = sid
+        _uloz_predplatna(user, items, active)
+    return sid
+
+
+def remove_predplatne(user, sid=None):
+    """Odebere jedno předplatné (`sid`), nebo všechna (bez `sid` — „Odpojit“
+    ze starší appky a claude-hub-admin). Když odejde aktivní, zapne se další
+    v pořadí: Claude v prostoru má radši jet na jiném vlastním předplatném než
+    spadnout na firemní klíč. Vrací, jestli se něco odebralo."""
+    with _predplatne_zamek(user):
+        items, active = predplatna(user)
+        left = [it for it in items if sid and it["id"] != sid]
+        if len(left) == len(items):
+            return False
+        if active not in {it["id"] for it in left}:
+            active = left[0]["id"] if left else ""
+        _uloz_predplatna(user, left, active)
+    return True
+
+
+def set_active_predplatne(user, sid):
+    """Přepne, na kterém předplatném Claude v prostoru jede. Vrací, jestli se změnilo."""
+    with _predplatne_zamek(user):
+        items, active = predplatna(user)
+        if sid not in {it["id"] for it in items}:
+            raise ValueError("Tohle předplatné už neexistuje — obnov stránku.")
+        if sid == active:
+            return False
+        _uloz_predplatna(user, items, sid)
+    return True
+
+
+def rename_predplatne(user, sid, label):
+    label = re.sub(r"\s+", " ", str(label or "")).strip()[:80]
+    if not label:
+        raise ValueError("Napiš název, třeba „Max — práce“.")
+    with _predplatne_zamek(user):
+        items, active = predplatna(user)
+        item = next((it for it in items if it["id"] == sid), None)
+        if not item:
+            raise ValueError("Tohle předplatné už neexistuje — obnov stránku.")
+        item["label"] = label
+        _uloz_predplatna(user, items, active)
+
+
+def predplatne_verejne(item, active=""):
+    """Předplatné bez tokenu — tohle smí ven (prohlížeč, appka, výpis správce)."""
+    created = int(item.get("created") or 0)
+    expires = created + TOKEN_DAYS * 86400 if created else 0
+    return {"id": item["id"], "label": item.get("label") or NAZEV_PREDPLATNEHO,
+            "source": item.get("source") or "", "since": created, "expires": expires,
+            "expiring": bool(expires) and expires - time.time() < 30 * 86400,
+            "active": item["id"] == active}
+
+
+def predplatna_verejne(user):
+    items, active = predplatna(user)
+    return [predplatne_verejne(it, active) for it in items], active
 
 
 # ── web účtu (FTP) ───────────────────────────────────────────────────────────
@@ -552,20 +712,24 @@ def claude_state(user):
     """Na čem Claude v prostoru jede — pro appku i nastavení v prostoru.
 
     `mode`: predplatne (vlastní předplatné přes bránu), api (klíč API),
-    ucet (přihlásil se v prostoru sám), zadne (musí se přihlásit)."""
-    sub = predplatne(user)
-    if sub:
-        created = int(sub.get("created") or 0)
-        expires = created + TOKEN_DAYS * 86400 if created else 0
-        return {"mode": "predplatne", "since": created, "expires": expires,
-                "label": sub.get("label") or "",
-                "expiring": bool(expires) and expires - time.time() < 30 * 86400}
+    ucet (přihlásil se v prostoru sám), zadne (musí se přihlásit).
+    `predplatna` = všechna připojená předplatná bez tokenů, `aktivni` = id
+    toho, na kterém se jede (since/expires/label/expiring patří jemu — tak to
+    čte i starší appka)."""
+    items, active = predplatna_verejne(user)
+    if items:
+        cur = next(it for it in items if it["active"])
+        return {"mode": "predplatne", "since": cur["since"], "expires": cur["expires"],
+                "label": cur["label"], "expiring": cur["expiring"],
+                "aktivni": active, "predplatna": items}
+    out = {"mode": "zadne", "aktivni": "", "predplatna": []}
     if claude_auth(user) == "central" and api_key(user):
-        return {"mode": "api"}
+        out["mode"] = "api"
+        return out
     home = home_for(user)
     if os.path.isdir(home) and safefs.is_file(home, ".claude/.credentials.json"):
-        return {"mode": "ucet"}
-    return {"mode": "zadne"}
+        out["mode"] = "ucet"
+    return out
 
 
 def google_client():

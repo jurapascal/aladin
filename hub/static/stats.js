@@ -136,6 +136,10 @@
         <div class="onb-body"></div>
         <div class="onb-foot">
           <button class="btn ghost st-refresh">Přepočítat</button>
+          <span class="st-export-obal">
+            <button class="btn ghost st-export" aria-haspopup="true">Exportovat</button>
+            <span class="st-export-menu" hidden></span>
+          </span>
           <span class="spacer"></span>
           <button class="btn primary st-close">Zavřít</button>
         </div>
@@ -150,6 +154,7 @@
     root.querySelector('.onb-mark').appendChild(svg);
     root.querySelector('.st-close').onclick = close;
     root.querySelector('.st-refresh').onclick = () => load(true);
+    root.querySelector('.st-export').onclick = (ev) => { ev.stopPropagation(); exportMenu(); };
     // Zavřít jen klikem, který na pozadí i začal: výběr textu tažením ven
     // z okna končí puštěním tlačítka na pozadí a prohlížeč to hlásí jako klik.
     let downOutside = false;
@@ -337,9 +342,10 @@
   }
 
   /* ── tým: spotřeba po lidech a týdenní limity ────────────────────────────
-     Jen na serveru (brána). Správce vidí všechny a každému nastaví strop
-     v USD za týden, ostatní jen sebe — a jen když mají strop. Strop nic
-     nevypíná, jen ukáže, kdo je u něj. */
+     Jen na serveru (brána). Správce vidí všechny (server i počítače na
+     stejném předplatném) a každému nastaví týdenní limit — v USD, procentech
+     předplatného, tokenech nebo kombinaci — a jestli má po překročení stopku.
+     Ostatní vidí jen sebe, a jen když nějaký limit mají. */
   async function gwSpotreba(payload) {
     const r = await fetch('/gw/spotreba', payload === undefined ? {credentials: 'same-origin'} : {
       method: 'POST', credentials: 'same-origin',
@@ -428,6 +434,49 @@
   }
 
   const STAV_TEXT = {nad: 'nad limitem', blizko: 'blízko limitu'};
+  const tokeny = (n) => {
+    n = Number(n) || 0;
+    if (n >= 1e6) return (Math.round(n / 1e5) / 10).toLocaleString('cs-CZ') + ' mil.';
+    return Math.round(n).toLocaleString('cs-CZ');
+  };
+  const kdyText = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    return DNY[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '. ' + (d.getMonth() + 1) + '. ' +
+      d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0');
+  };
+  // Odkud jsou procenta u člověka (gateway/spotreba.py, `procenta.zdroj`).
+  function pctZdroj(p) {
+    if (!p) return '';
+    if (p.zdroj === 'tym') return 'Klíč API procenta předplatného nemá — počítá se podíl na spotřebě celého týmu.';
+    if (p.zdroj === 'sdileny') {
+      return 'Přihlášení sdílí ' + p.lidi + ' lidé (účet je na ' + Math.round(p.ucet_pct) +
+        ' % týdne) — každému připadá díl podle jeho podílu na ceně.';
+    }
+    if (p.pct == null) return 'Anthropic teď procenta neřekl — limit v procentech se do té doby nehlídá.';
+    return 'Skutečná procenta týdenního limitu předplatného od Anthropic (včetně počítače na stejném předplatném).';
+  }
+  // Limit člověka jako text (řádek Týmu, export): „150 $ · 50 % · 2 mil. tokenů · stopka“.
+  function limitText(r) {
+    const l = r.limity || {usd: r.limit || 0};
+    const casti = [];
+    if (l.usd) casti.push(Number.isInteger(Number(l.usd)) ? Number(l.usd).toLocaleString('cs-CZ') + ' $' : dolary(l.usd));
+    if (l.pct) casti.push(l.pct + ' %');
+    if (l.tokeny) casti.push(tokeny(l.tokeny) + ' tok.');
+    if (casti.length && l.stopka) casti.push('stopka');
+    return casti.join(' · ');
+  }
+  // Z čeho je týdenní spotřeba: server, počítač na stejném předplatném, jinde.
+  function rozpad(r) {
+    const pc = r.pocitac || {};
+    const radky = ['Na serveru ' + dolary((r.server || {}).tyden != null ? r.server.tyden : r.tyden)];
+    const stroje = (pc.zarizeni || []).filter((z) => z.stejne).map((z) => z.nazev);
+    if (pc.tyden || stroje.length) radky.push('na počítači ' + dolary(pc.tyden) + (stroje.length ? ' (' + stroje.join(', ') + ')' : ''));
+    if (pc.jinde_tyden) {
+      radky.push('na počítači s jiným předplatným ' + dolary(pc.jinde_tyden) + ' — do limitu se nepočítá');
+    }
+    return radky.join(' · ');
+  }
 
   async function kresliTym(box) {
     let d;
@@ -440,18 +489,21 @@
       }
     } catch (_) { return; }               // mimo server /gw/spotreba není
     if (!root || !d || !d.lide) return;
+    tymData = d;
     box.textContent = '';
     const admin = !!d.admin;
-    const lide = d.admin ? d.lide : d.lide.filter((r) => r.limit);
+    const lide = d.admin ? d.lide : d.lide.filter((r) => limitText(r));
     if (!lide.length) return;
     const s = section(admin ? 'Tým — spotřeba za 7 dní' : 'Tvůj týdenní limit',
-      admin ? 'Odhad podle ceníku API; na předplatném se neplatí. Limit nic nevypíná, jen upozorní. ' +
+      admin ? 'Odhad podle ceníku API (server i počítače na stejném předplatném); na předplatném se neplatí. ' +
+              'Limit upozorní, se stopkou zastaví nové zprávy Claudovi. ' +
               (d.stari != null && d.stari > 90 ? 'Stav před ' + Math.round(d.stari / 60) + ' min.' : '')
-            : 'Správce ti nastavil týdenní strop, ať společný limit nevyčerpá jeden člověk.');
+            : 'Správce ti nastavil týdenní limit, ať společný limit nevyčerpá jeden člověk.');
     const max = Math.max(0.01, ...lide.map((r) => Math.max(r.tyden, r.limit || 0)));
     const list = el('div', 'st-tym-rows');
+    const prekresli = () => kresliTym(box);
     for (const r of lide) {
-      const row = el('div', 'st-tym-row' + (r.stav ? ' ' + r.stav : ''));
+      const row = el('div', 'st-tym-row' + (r.stav ? ' ' + r.stav : '') + (r.stopka ? ' stopka' : ''));
       const name = el('span', 'st-row-name', r.name || r.email);
       name.title = r.email;
       row.appendChild(name);
@@ -459,49 +511,81 @@
       const fill = el('span', 'st-fill');
       fill.style.width = Math.max(1, r.tyden / max * 100) + '%';
       track.appendChild(fill);
+      // Díl z počítače jako světlejší konec téhož pruhu.
+      const pcDil = (r.pocitac || {}).tyden || 0;
+      if (pcDil > 0 && r.tyden > 0) {
+        const pc = el('span', 'st-fill-pc');
+        pc.style.width = Math.max(0.5, pcDil / max * 100) + '%';
+        pc.style.left = Math.max(0, (r.tyden - pcDil) / max * 100) + '%';
+        track.appendChild(pc);
+      }
       if (r.limit) {
         const znacka = el('span', 'st-limit-znacka');
         znacka.style.left = Math.min(100, r.limit / max * 100) + '%';
         track.appendChild(znacka);
       }
       row.appendChild(track);
-      row.appendChild(el('span', 'st-row-val', dolary(r.tyden)));
-      row.title = 'Dnes ' + dolary(r.dnes) + ' · ' + cislo(r.tokenu) + ' tokenů výstupu · ' +
+      const val = el('span', 'st-row-val', dolary(r.tyden));
+      row.appendChild(val);
+      row.title = rozpad(r) + '\nDnes ' + dolary(r.dnes) + ' · ' + cislo(r.tokenu) + ' tokenů výstupu · ' +
         Math.round(r.podil * 100) + ' % týmu';
-      const stav = el('span', 'st-tym-stav', STAV_TEXT[r.stav] || '');
+      const p = r.procenta || {};
+      const pct = el('span', 'st-tym-pct', p.pct != null ? Math.round(p.pct) + ' %' + (p.zdroj === 'tym' ? '*' : '') : '');
+      pct.title = p.pct != null ? 'Týden: ' + pctZdroj(p) : '';
+      row.appendChild(pct);
+      let stavText = STAV_TEXT[r.stav] || '';
+      if (r.stopka) stavText = 'stopka';
+      else if (r.vyjimka) stavText = 'výjimka';
+      const stav = el('span', 'st-tym-stav', stavText);
+      if (r.stopka) stav.title = 'Nové zprávy Claudovi neodejdou' + (r.stopka.do ? ' — uvolní se ' + kdyText(r.stopka.do) : '') + '.';
+      else if (r.vyjimka) stav.title = 'Povoleno do konce týdne (' + kdyText(r.vyjimka.do) + ')';
       row.appendChild(stav);
       // Kolikrát už přes strop přešel (jen když nějaký má).
-      const kolikrat = el('span', 'st-tym-preslo', r.limit ? 'přes limit ' + (r.preslo || 0) + '×' : '');
+      const kolikrat = el('span', 'st-tym-preslo', limitText(r) ? 'přes limit ' + (r.preslo || 0) + '×' : '');
       if (r.preslo_kdy) kolikrat.title = 'Naposledy ' + r.preslo_kdy;
       row.appendChild(kolikrat);
-      if (admin) {
-        const inp = el('input', 'st-tym-limit');
-        inp.type = 'number'; inp.min = '0'; inp.step = '10';
-        inp.placeholder = 'limit $';
-        inp.value = r.limit || '';
-        inp.title = 'Týdenní limit v USD (odhad podle ceníku API). Prázdné = bez limitu.';
-        const ulozit = async () => {
-          try {
-            await gwSpotreba({id: r.id, limit: inp.value});
-            const nove = await gwSpotreba();
-            kresliTym(box);
-            return nove;
-          } catch (err) { inp.title = err.message; inp.classList.add('chyba'); }
-        };
-        inp.onchange = ulozit;
-        row.appendChild(inp);
-      } else {
-        row.appendChild(el('span', 'st-tym-limit-txt', 'limit ' + dolary(r.limit)));
-      }
       list.appendChild(row);
+      if (admin) {
+        const btn = el('button', 'st-tym-limit' + (limitText(r) ? '' : ' prazdny'), limitText(r) || 'nastavit limit');
+        btn.type = 'button';
+        btn.title = 'Týdenní limit: USD, procenta předplatného, tokeny a stopka';
+        row.appendChild(btn);
+        // Stopka: řádek pod člověkem — do kdy platí a jedním klikem pustit dál.
+        if (r.stopka) {
+          const sub = el('div', 'st-tym-sub', 'Stopka — nové zprávy Claudovi neodejdou' +
+            (r.stopka.do ? ', sama se uvolní ' + kdyText(r.stopka.do) : '') + '.');
+          const pust = el('button', 'st-tym-povolit', 'Povolit do konce týdne');
+          pust.type = 'button';
+          pust.title = 'Stopka se do neděle nezapne; limit dál ukazuje, kolik čerpá.';
+          pust.onclick = async () => {
+            pust.disabled = true;
+            try { await gwSpotreba({id: r.id, akce: 'povolit'}); prekresli(); } catch (err) { pust.disabled = false; pust.title = err.message; }
+          };
+          sub.appendChild(pust);
+          list.appendChild(sub);
+        }
+        const pop = limitPanel(r, prekresli);
+        pop.hidden = true;
+        list.appendChild(pop);
+        btn.onclick = () => {
+          const otevreny = !pop.hidden;
+          for (const o of list.querySelectorAll('.st-tym-pop')) o.hidden = true;
+          pop.hidden = otevreny;
+          if (!pop.hidden) { const f = pop.querySelector('input'); if (f) f.focus(); }
+        };
+      } else {
+        row.appendChild(el('span', 'st-tym-limit-txt', 'limit ' + limitText(r)));
+        if (r.stopka) list.appendChild(el('div', 'set-note st-tym-stopka-txt', r.stopka.text));
+      }
     }
     s.appendChild(list);
     box.appendChild(s);
 
-    // Správce: kdo je jak blízko skutečnému limitu předplatného (jen kdo ho připojil).
+    // Správce: kdo je jak blízko skutečnému limitu předplatného.
     const sPlan = lide.filter((r) => r.plan && r.plan.ok);
     if (admin && sPlan.length) {
-      const p = section('Tým — limit předplatného', 'Skutečná procenta limitu od Anthropic u těch, kdo mají připojené vlastní předplatné.');
+      const p = section('Tým — limit předplatného', 'Skutečná procenta limitu od Anthropic u těch, kdo mají v prostoru předplatné ' +
+        '(připojené z appky, nebo přihlášené přímo v prostoru). Zahrnují i počítač na stejném předplatném.');
       const rows = el('div', 'st-tym-rows');
       for (const r of sPlan) {
         const row = el('div', 'st-tym-row');
@@ -516,7 +600,7 @@
           track.appendChild(fill);
           row.appendChild(track);
           const v = el('span', 'st-row-val', nazev + ' ' + Math.round(okno.pct) + ' %');
-          v.title = zbyva(okno.resets);
+          v.title = zbyva(okno.resets) + (r.plan.stare ? ' (poslední známý stav)' : '');
           row.appendChild(v);
         }
         rows.appendChild(row);
@@ -524,6 +608,152 @@
       p.appendChild(rows);
       box.appendChild(p);
     }
+  }
+
+  /* Rozbalovací panel s limity jednoho člověka (jen správce): tři pole,
+     stopka a výjimka. Prázdné pole = ten druh limitu nemá. */
+  function limitPanel(r, hotovo) {
+    const l = r.limity || {usd: r.limit || 0, pct: 0, tokeny: 0, stopka: false};
+    const pop = el('div', 'st-tym-pop');
+    const pole = (popis, klic, krok, napoveda) => {
+      const lab = el('label', 'st-tym-pole');
+      lab.appendChild(el('span', '', popis));
+      const inp = el('input', 'set-input');
+      inp.type = 'number'; inp.min = '0'; inp.step = krok; inp.inputMode = 'decimal';
+      inp.value = l[klic] || '';
+      inp.placeholder = 'bez limitu';
+      inp.name = klic;
+      lab.title = napoveda;
+      lab.appendChild(inp);
+      pop.appendChild(lab);
+      return inp;
+    };
+    const usd = pole('USD za týden', 'usd', '10', 'Odhad podle ceníku API ze serveru i z počítače na stejném předplatném.');
+    const pct = pole('% předplatného', 'pct', '5', pctZdroj(r.procenta) || 'Kolik procent týdenního limitu předplatného smí vyčerpat.');
+    const tok = pole('tokenů za týden', 'tokeny', '100000', 'Napsané tokeny (výstup Clauda) za posledních 7 dní.');
+    const stop = el('label', 'st-tym-stopka');
+    const chk = el('input');
+    chk.type = 'checkbox';
+    chk.checked = !!l.stopka;
+    stop.append(chk, el('span', '', 'Stopka — po překročení nepustit nové zprávy Claudovi (rozdělaná práce doběhne)'));
+    pop.appendChild(stop);
+    if (r.procenta && r.procenta.zdroj === 'tym') {
+      pop.appendChild(el('div', 'set-note', 'Jede na klíči API, takže procenta předplatného nemá — limit v procentech ' +
+        'se u něj počítá z podílu na spotřebě celého týmu (teď ' + Math.round(r.procenta.pct || 0) + ' %).'));
+    }
+    const chyba = el('div', 'set-status warn');
+    chyba.hidden = true;
+    const tlac = el('div', 'st-tym-tlacitka');
+    const ulozit = el('button', 'btn primary', 'Uložit');
+    ulozit.type = 'button';
+    ulozit.onclick = async () => {
+      ulozit.disabled = true;
+      try {
+        await gwSpotreba({id: r.id, usd: usd.value, pct: pct.value, tokeny: tok.value, stopka: chk.checked});
+        hotovo();
+      } catch (err) {
+        chyba.textContent = err.message;
+        chyba.hidden = false;
+        ulozit.disabled = false;
+      }
+    };
+    tlac.appendChild(ulozit);
+    if (r.vyjimka) {
+      const zrus = el('button', 'btn ghost', 'Zrušit výjimku');
+      zrus.type = 'button';
+      zrus.title = 'Povoleno do ' + kdyText(r.vyjimka.do) + (r.vyjimka.kdo ? ' (' + r.vyjimka.kdo + ')' : '');
+      zrus.onclick = async () => {
+        try { await gwSpotreba({id: r.id, akce: 'zrusit-vyjimku'}); hotovo(); } catch (err) { chyba.textContent = err.message; chyba.hidden = false; }
+      };
+      tlac.appendChild(zrus);
+    } else if (r.stav === 'nad' || r.stopka) {
+      const pust = el('button', 'btn ghost', 'Povolit do konce týdne');
+      pust.type = 'button';
+      pust.onclick = async () => {
+        try { await gwSpotreba({id: r.id, akce: 'povolit'}); hotovo(); } catch (err) { chyba.textContent = err.message; chyba.hidden = false; }
+      };
+      tlac.appendChild(pust);
+    }
+    pop.append(tlac, chyba);
+    pop.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && ev.target.tagName === 'INPUT') ulozit.click(); });
+    const info = el('div', 'set-note st-tym-rozpad', rozpad(r) + (r.stopka && r.stopka.do ? ' · stopka se sama uvolní ' + kdyText(r.stopka.do) : ''));
+    pop.appendChild(info);
+    return pop;
+  }
+
+  /* ── export ────────────────────────────────────────────────────────────
+     CSV pro Excel (středník, čárka v desetinných číslech, BOM, ať Excel
+     pozná UTF-8 a diakritiku) a celé statistiky jako JSON. Tým jen správce
+     na serveru — z téhož, co ukazuje sekce Tým. */
+  let tymData = null;
+  function csv(radky) {
+    const bunka = (v) => {
+      if (typeof v === 'number') return String(Math.round(v * 10000) / 10000).replace('.', ',');
+      const t = String(v == null ? '' : v);
+      return /[;"\n\r]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+    };
+    return '\ufeff' + radky.map((r) => r.map(bunka).join(';')).join('\r\n') + '\r\n';
+  }
+  function stahniSoubor(jmeno, obsah, typ) {
+    const url = URL.createObjectURL(new Blob([obsah], {type: typ}));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = jmeno;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+  function exportMenu() {
+    const menu = root.querySelector('.st-export-menu');
+    if (!menu.hidden) { menu.hidden = true; return; }
+    if (!data) { io.toast('Statistiky se ještě počítají.'); return; }
+    const den = new Date().toISOString().slice(0, 10);
+    const volby = [
+      ['Po dnech (CSV)', () => stahniSoubor(`aladin-statistiky-dny-${den}.csv`, csv([
+        ['Datum', 'Zprávy', 'Napsané tokeny'],
+        ...(data.days || []).map((d) => [d.day, d.prompts, d.out]),
+      ]), 'text/csv;charset=utf-8')],
+      ['Po projektech (CSV)', () => stahniSoubor(`aladin-statistiky-projekty-${den}.csv`, csv([
+        ['Projekt', 'Cesta', 'Zprávy', 'Odpovědi', 'Tokeny vstup', 'Tokeny výstup',
+         'Cache zápis', 'Cache čtení', 'Odhad ceny USD'],
+        ...(data.projects || []).map((p) => [p.name, p.path, p.prompts, p.answers, p.in, p.out,
+                                            p.cache_w, p.cache_r, p.cost]),
+      ]), 'text/csv;charset=utf-8')],
+      ['Modely (CSV)', () => stahniSoubor(`aladin-statistiky-modely-${den}.csv`, csv([
+        ['Model', 'Odhad ceny USD'],
+        ...Object.entries(data.cost_by_model || {}).map(([m, c]) => [m, c]),
+      ]), 'text/csv;charset=utf-8')],
+    ];
+    if (tymData && tymData.admin && (tymData.lide || []).length) {
+      volby.push(['Tým za 7 dní (CSV)', () => stahniSoubor(`aladin-tym-${den}.csv`, csv([
+        ['Jméno', 'E-mail', 'Týden USD', 'Z toho na počítači USD', 'Dnes USD', 'Tokeny výstupu', 'Podíl týmu %',
+         'Týden % předplatného', 'Limit', 'Stav', 'Přes limit (krát)'],
+        ...tymData.lide.map((r) => [r.name || '', r.email, r.tyden, (r.pocitac || {}).tyden || 0, r.dnes, r.tokenu,
+                                    Math.round((r.podil || 0) * 1000) / 10,
+                                    r.procenta && r.procenta.pct != null ? r.procenta.pct : '', limitText(r),
+                                    r.stopka ? 'stopka' : r.vyjimka ? 'výjimka do konce týdne' : STAV_TEXT[r.stav] || '',
+                                    r.preslo || 0]),
+      ]), 'text/csv;charset=utf-8')]);
+    }
+    volby.push(['Všechno (JSON)', () => stahniSoubor(`aladin-statistiky-${den}.json`,
+      JSON.stringify({vygenerovano: new Date().toISOString(), statistiky: data,
+                      tym: tymData && tymData.admin ? tymData.lide : undefined}, null, 2),
+      'application/json')]);
+    menu.textContent = '';
+    for (const [nazev, run] of volby) {
+      const b = el('button', 'st-export-volba', nazev);
+      b.type = 'button';
+      b.onclick = () => { menu.hidden = true; run(); };
+      menu.appendChild(b);
+    }
+    menu.hidden = false;
+    const zavri = (ev) => {
+      if (menu.contains(ev.target)) return;
+      menu.hidden = true;
+      document.removeEventListener('click', zavri, true);
+    };
+    document.addEventListener('click', zavri, true);
   }
 
   function close() {

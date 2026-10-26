@@ -463,6 +463,30 @@ terminál se přepočítá.
 se normálně vypne, jakmile se zavře poslední okno. Bez něj by se z telefonu
 nebylo kam připojit, dokud si někdo u počítače hub nespustí.
 
+### Sdílení do Aladina z jiných appek
+
+Nainstalovaný Aladin (PWA na ploše) se na Androidu objeví v nabídce **Sdílet**
+— u fotky v galerii, PDF v e-mailu, dokumentu ve Správci souborů, odkazu
+v prohlížeči. Appka se otevře s otázkou **Kam to poslat?**: *Nový chat*,
+otevřené chaty a nedávné chaty s hledáním. Po výběru se soubory nahrají na
+hub a čekají spolu s textem nebo odkazem v bublině vybraného chatu — nic se
+neodešle samo, dopíšeš, co s tím má Claude udělat.
+
+- Obrázky (a PDF, text) jdou do `~/.claude/hub-images` jako vložený
+  screenshot, ostatní dokumenty (Word, Excel, zvuk, video…) do
+  `~/.claude/hub-prilohy` s původním názvem a příponou. Claude dostane cestu.
+  Strop je 25 MB na soubor.
+- Funguje v Chrome na Androidu s Aladinem nainstalovaným na plochu přes
+  HTTPS (`tailscale serve`, prostor na serveru); přes holé `http://100.x…`
+  se appka nainstalovat nedá, tím pádem ani sdílet. U appky nainstalované
+  dřív se nabídka ukáže, až si Chrome při některém dalším spuštění stáhne
+  nový manifest (bývá to do dne či dvou) — rychleji ji odebrat a přidat na
+  plochu znovu.
+- **iPhone to neumí:** Safari webovým appkám sdílení z jiných appek
+  nedovolí (Web Share Target nepodporuje). Soubor se tam přiloží tlačítkem
+  *Příloha* v bublině.
+- Do obalu pro Android (.apk) sdílení zatím nevede — sdílej do PWA.
+
 ### Aplikace pro Android (.apk)
 
 PWA na plochu stačí, ale kdo chce skutečnou instalačku, najde v
@@ -534,6 +558,96 @@ počítači nemá, přihlásí se v tabu Claude Code v prostoru sám.
 - **Jedno předplatné = jeden člověk.** Sdílet ho mezi víc lidí je proti
   podmínkám Anthropicu; brána ho proto váže na účet, který ho připojil. Firma
   s Claude Team dá každému jeho místo.
+
+#### Víc předplatných a rychlé přepnutí
+
+Kdo má účtů Claude víc (třeba Max v práci a Pro doma), může jich mít
+v prostoru připojených víc a přepínat mezi nimi. Když jednomu ve čtvrtek dojde
+týdenní limit, přepne se jedním klikem na druhé — a po obnovení limitu zpátky.
+
+- **Přidání:** ⚙ → Účet → *Claude* → **+ Přidat další předplatné**. V prostoru
+  se otevře přihlášení Claude: přihlásíš se účtem, jehož předplatné přidáváš,
+  klikneš na *Authorize* a vložíš kód ze stránky. Z appky na počítači totéž
+  bez kódu (⚙ → Účet → *Claude v prostoru na serveru*). Stránka Claude použije
+  účet, kterým jsi v prohlížeči přihlášený na claude.ai — druhý účet přidáš
+  přes odkaz otevřený v anonymním okně. Nové předplatné se hned zapne a appka
+  se zeptá na název (*Max — práce*); z tokenu se e-mail ani tarif zjistit nedá.
+- **Limity u každého:** v seznamu je u každého předplatného skutečný limit
+  od Anthropicu — kolik je vyčerpáno z týdne a z 5 hodin a kdy se obnoví.
+  Ptá se brána (nejvýš jednou za 5 minut), token z ní neodejde; ven jdou jen
+  procenta.
+- **Přepnutí:** v seznamu *Použít*, v chatu u výběru modelu (*Předplatné:
+  Max — práce ▸*) a na telefonu v nabídce ⋯. Nové zprávy jdou hned z nového
+  předplatného; chaty, které zrovna pracují, doběhnou na původním a přepnou se,
+  až skončí (stejně jako po připojení předplatného). Chat, ve kterém ještě nic
+  nebylo, si staré přihlášení drží do zavření.
+- **Návrh:** když má aktivní předplatné vyčerpáno přes 90 % týdne a jiné má
+  volno, ukáže appka kartu *Přepnout na „Pro — doma“?*. *Teď ne* platí do
+  obnovení limitu.
+- **Přejmenovat, Odebrat, Připojit znovu** (když token brzy vyprší) jsou
+  u každého předplatného. Po odebrání aktivního se zapne další v pořadí.
+- U brány leží předplatná účtu v jednom souboru (`claude-predplatne/<id>.json`,
+  `0600`); starý soubor s jedním tokenem se převede sám a aktivní token zůstává
+  i ve starém tvaru, takže návrat na starší verzi brány nic nerozbije. Starší
+  appka, která pošle nový token, pořád obnoví to aktivní (nepřidá druhé).
+  `claude-hub-admin predplatne status` ukáže, kolik jich kdo má a na kterém jede.
+
+**Na počítači** jde totéž pro Claude Code v tabech (⚙ → Účet → *Víc
+předplatných*). Výchozí zůstává běžné přihlášení Claude Code (`/login`) —
+kvůli němu se nic neukládá. Další předplatné (token z `claude setup-token`) se
+uloží jen na tomhle počítači do `~/.claude/hub-predplatna.json` (`0600`) a nové
+taby s Claude Code ho dostanou jako `CLAUDE_CODE_OAUTH_TOKEN`; *Statistiky*
+pak ukazují limit vybraného. Soubor místo klíčenky: Python ji bez cizího balíčku
+neumí a Claude Code sám drží své přihlášení na Linuxu i Windows stejně
+(`~/.claude/.credentials.json`, `0600`). Claude ze serveru (`mcp__pocitac__*`)
+ani stahování souborů na ten soubor nesáhne. Hooky a skripty, které si Claude
+v tabu pustí (`claude -p`), jedou dál na běžném přihlášení.
+
+### Spotřeba a týdenní limity (Statistiky → Tým)
+
+Správce vidí, kdo kolik z Clauda čerpá za posledních 7 dní (odhad podle ceníku
+API), a každému může nastavit **týdenní limit** — v USD, v **procentech**
+předplatného, v **tokenech**, nebo v kombinaci:
+
+- **Procenta** jsou skutečná procenta týdenního limitu předplatného od
+  Anthropicu (předplatné připojené z appky i přihlášení přímo v prostoru).
+  Sdílí-li jedno přihlášení víc lidí, dělí se podle podílu na ceně. Na klíči
+  API procenta nejsou — počítá se podíl na spotřebě celého týmu.
+- **Spotřeba z počítače se počítá taky.** Appka přihlášená k serveru posílá
+  bráně každých 10 minut souhrn za týden (jen id sezení, dny a čísla, žádný
+  obsah). Do limitu jde, když počítač jede na stejném předplatném jako
+  prostor; chat přenesený na server se nepočítá dvakrát.
+- **Stopka.** Limit se stopkou po překročení zastaví nové zprávy Claudovi
+  v prostoru — z bubliny i z terminálu (hook `UserPromptSubmit`) — a na
+  počítači na stejném předplatném zprávy z bubliny. Rozdělaná práce doběhne.
+  Uvolní se sama (týden se posune / Anthropic obnoví týdenní limit), nebo když
+  správce limit zvedne či klikne **Povolit do konce týdne**. Bez stopky limit
+  jen upozorňuje pruhem nahoře.
+
+Z příkazové řádky: `claude-hub-admin spotreba <e-mail> --limit 150 --procenta 50
+--tokeny 2000000 --stopka`, `--povolit` (výjimka do konce týdne), `--bez-stopky`.
+
+### Počítač počítá, chaty jsou i na serveru
+
+Appka na počítači přihlášená k serveru nechává Clauda běžet **na počítači** —
+výkon počítače, server odpočívá — a každý chat se po odpovědi sám zkopíruje do
+tvého prostoru na serveru. Na telefonu ho tak hned vidíš a můžeš v něm
+pokračovat; doma na počítači zase dokončíš, co jsi začal na telefonu.
+
+- **Chat běží vždycky jen na jednom místě.** Otevřeš na telefonu chat, který
+  běží na počítači → počítač nechá Clauda dopsat rozdělanou odpověď, tab zavře,
+  pošle poslední řádky a chat převezme server (telefon mezitím ukazuje „Chat běží
+  na počítači…“). Vypnutý počítač se nečeká. Opačně: na počítači jsou v seznamu
+  i chaty ze serveru (zeměkoule u ikonky) — klepnutím si je počítač vezme, server
+  je po dopsání odpovědi pustí a přepis se stáhne.
+- **Kopírují se jen chaty**, ne soubory projektů. Claude na serveru na soubory
+  počítače sáhne přes most (níž), když je počítač zapnutý.
+- **Jak:** počítač každých 10 s pošle bráně jen nové celé řádky změněných
+  přepisů (`hub/zrcadlo.py`, `/gw/zrcadlo/*`, token zařízení). Brána je zapíše
+  rovnou do domova (`~/.claude/projects/<domov>/`) a `cwd` přepíše na složku
+  serveru — prostor se kvůli tomu nebudí. Kde který chat běží, drží brána mimo
+  domovy (`zrcadla/<id>.json`). Poprvé se kopírují chaty z posledních tří dnů.
+- **Vypnout** jde v appce na počítači: ⚙ → Účet → *Chaty na serveru*.
 
 ### Claude ze serveru na tvém počítači
 
@@ -660,6 +774,37 @@ serveru vydrží den, dialog na počítači napořád).
 - Po restartu hubu nebo pokračování v konverzaci zůstává tab tabem s úkolem
   (úkol si pamatuje id konverzace). Ručně otevřené taby se nemění.
 
+### Místo na serveru a oznámení
+
+Disk serveru je jeden pro všechny, takže každý prostor má **limit** (výchozí
+3 GB) a v ⚙ → **Úložiště** je vidět, kolik zabírá a čím: koláč po
+kategoriích (Chaty Clauda, Mezipaměti, Projekty a složky, Obsidian, Stažené,
+Programy a nastavení, Ostatní), ukazatel limitu, největší složky a **co jde
+uvolnit** — staré mezipaměti, node_modules a .venv v projektech, na které se
+dlouho nesáhlo, stejné kopie souborů, staré archivy a snímky obrazovky.
+**Uklidit s Claudem** otevře nový chat, kterému to přijde jako zadání; Claude
+velikosti ověří, navrhne seznam a **před mazáním se zeptá**. Sám se nic nemaže.
+
+- **Každou noc** (od 3:00) brána sloučí stejné soubory v mezipamětech napříč
+  lidmi, přepočítá místo a komu dochází (od 80 % limitu) nebo kdo má přes 1 GB
+  k uvolnění, tomu pošle **oznámení**. Text i zadání pro Clauda napíše Claudík
+  (`claude -p` na bráně), bez něj šablona. Nejvýš jedno oznámení o místě za
+  4 dny, dřív jen když se stav zhorší.
+- **Zvonek** v liště (na serveru, i v telefonu) ukazuje oznámení s počtem
+  nepřečtených. **Vyřešit s Claudem** otevře nový chat a pošle mu zadání,
+  **Zavřít** oznámení schová. Zavřená jsou ještě měsíc pod „Starší“.
+- **Admini** vidí v ⚙ → Úložiště celý disk (systém, zálohy, lidé, volno), lidi
+  s limity (klik = jejich koláč) a tlačítka Přepočítat / Sloučit mezipaměti /
+  Poslat oznámení teď. V ⚙ → **Oznámení** pošlou oznámení vybraným lidem
+  (i s tlačítkem pro Clauda) a vidí, kdo co dostal, kdy si to přečetl, klikl
+  na Clauda nebo zavřel — a kolik zabíral tehdy a teď.
+- **Slučování** (hardlinky) se týká jen mezipamětí a nainstalovaných nástrojů,
+  do kterých nikdo nepíše (`~/.local/share/uv`, Playwright, Puppeteer, modely
+  Hugging Face, archivy npm), soubor musí být bajt po bajtu stejný a mít stejného
+  vlastníka a práva. Sloučený je jen ke čtení; dokumenty, projekty, chaty
+  a Obsidiany se nikdy nesloučí. Každé sloučení je v záznamu a jde vrátit.
+  Podrobně v [gateway/README.md](gateway/README.md#místo-na-disku-úklid-a-oznámení).
+
 ## Playwright MCP (volitelné)
 
 Prohlížeč pro Claude Code — otevře stránku, klikne, přečte konzoli, udělá screenshot.
@@ -719,6 +864,100 @@ Stav registrace ukáže `python3 ~/.claude/claude-hub.py --doctor` na řádku
 
 Odebrání: `claude mcp remove playwright -s user`.
 [Dokumentace](https://playwright.dev/docs/getting-started-mcp)
+
+## Gemini (Google AI Pro) přes Antigravity
+
+Kdo má k Claudeovi i **Google AI Pro**, má dva oddělené týdenní limity. Srovnání
+na 17 skutečných úlohách z tiskárny (Tomáš, 25. 10. 2026) vyšlo takhle:
+
+- kancelářská práce (e-maily, tabulky, dokumenty) — **nastejno**,
+- **obrázky** — Gemini udělá fotorealistický mockup trička za 50 s, Claude ho
+  umí jen nakreslit kódem (canvas) za 5,6 min a vypadá podle toho,
+- **hlasovky a videa** — Gemini je přepíše a popíše sám, Claude zvuk ani video nevnímá,
+- Claude je **rychlejší** (10 s proti 16–24 s) a **lepší v překladu**,
+- a hlavně: Claude měl týdenní limit ze 82 % pryč, Gemini skoro celý volný.
+
+Aladin proto umí Gemini dvakrát:
+
+1. **Jako agent v tabu** — „Gemini" v nabídce *Otevřít v…* a v **Nastavení →
+   AI agenti** (vývojářský režim). Běží v něm Antigravity CLI (`agy`) nad
+   projektem, model jde vybrat v bublině (nabídka z `agy models`, otevře nový tab).
+2. **Jako pomocník Clauda** — MCP server `gemini` (`tools/gemini_mcp.py`), který
+   hub napojí sám, jakmile je `agy` nainstalovaný a aspoň jednou spuštěný.
+   Claude pak má nástroje:
+
+| Nástroj | Co dělá |
+|---|---|
+| `mcp__gemini__obrazek` | fotorealistický obrázek podle popisu (a předloh — logo, produkt), uloží PNG/JPG do projektu |
+| `mcp__gemini__prepis` | nahrávka nebo hlasová zpráva (mp3, m4a, ogg/opus, wav…) → text, volitelně s časy |
+| `mcp__gemini__video` | popis videa: co je vidět, texty na obrazovce a přepis řeči s časy |
+| `mcp__gemini__zeptat` | obecné zadání s přílohami (PDF, fotky, tabulky), model `flash`/`argon`, web ano/ne |
+
+V pokynech serveru má Claude napsané, kdy Gemini použít: obrázky, zvuk, video
+a hromadná rutina (hlavně když je jeho týdenní limit vysoko) ano; překlady,
+texty a rychlé krátké odpovědi si nechá. Vypnout to jde v kartě **Gemini ·
+Google AI Pro** (Nastavení → AI agenti, je tam i bez vývojářského režimu):
+*Claude si smí volat Gemini*. Napojení je pak vidět i v **Napojení → Součást appky**.
+
+Totéž jde z terminálu (a ze skillů) příkazem `gemini-pomoc` — hub na něj dá
+odkaz do `~/.local/bin` (Linux a macOS):
+
+```bash
+gemini-pomoc "Přepiš tuhle hlasovku" zprava.ogg
+gemini-pomoc --ukol obrazek "Bílé tričko s logem na ramínku, studiové světlo" logo.png
+gemini-pomoc --argon "Vypiš z faktury položky a ceny jako tabulku" faktura.pdf
+gemini-pomoc --web "Jaké formáty plakátů nabízí konkurence?"
+gemini-pomoc --stav          # je nainstalovaný a přihlášený?
+```
+
+### Instalace a přihlášení
+
+V kartě **Gemini · Google AI Pro** je *Nainstalovat* a pak *Přihlásit* — obojí
+běží v tabu, ať je vidět, co se děje. Ručně:
+
+```bash
+curl -fsSL https://antigravity.google/cli/install.sh | bash      # Linux, macOS → ~/.local/bin/agy
+irm https://antigravity.google/cli/install.ps1 | iex             # Windows (PowerShell) → %LOCALAPPDATA%\agy\bin
+agy                                                              # přihlášení Google účtem (ten s AI Pro)
+```
+
+Přihlášení otevře prohlížeč; na stroji bez něj (prostor na serveru) `agy` vypíše
+odkaz — otevřeš ho na svém zařízení, přihlásíš se a kód vložíš zpátky do tabu.
+Na počítači si `agy` přihlášení drží v klíčence systému, na serveru v
+`~/.gemini/antigravity-cli/`. Aktualizuje se sám (ručně `agy update`).
+
+**Na serveru** se `agy` instaluje každému do jeho prostoru (`~/.local/bin`
+v domově prostoru, ten je zapisovatelný a hub ho přidává do PATH tabů) —
+každý se přihlašuje vlastním Google účtem a jede na vlastním limitu, takže
+brána ho systémově neinstaluje.
+
+Starší **Gemini CLI** (`npm @google/gemini-cli`) zůstává v katalogu jako
+„Gemini CLI (klíč z AI Studia)" — osobní Google účty od 18. 6. 2026 neobsluhuje,
+jede jen s klíčem `GEMINI_API_KEY`.
+
+### Jak pomocník volá Gemini
+
+`agy -p "…" --output-format json --sandbox --print-timeout …` v pevné pracovní
+složce `~/.cache/aladin-gemini` (agy si každou novou složku zapisuje mezi
+důvěryhodné — s dočasnou by ten seznam rostl). Přílohy jdou do podsložky pro
+jedno volání (pevný odkaz, jinak kopie), takže Gemini nevidí nic jiného z disku,
+a po volání se smažou. Vytvořené obrázky se seberou z té podsložky
+i z `~/.gemini/antigravity-cli/brain/<konverzace>/` a zkopírují do projektu.
+
+- **Modely:** `flash` je výchozí (rychlý, velký limit), `argon` silnější — na
+  faktury, inventury a rozměry (Flash jednou spletl velikosti). Id se berou
+  z `agy models` a drží den v `~/.claude/hub-gemini.json`.
+- **Limity Google AI Pro (týdně):** Flash ~5 000 krátkých dotazů, ~2 000 s PDF
+  nebo fotkou; Argon ~300. Kolik zbývá, ukáže `/usage` v tabu s Gemini; karta
+  v Nastavení ukazuje, kolikrát šlo volání přes Aladina tento týden.
+- **Strop na vstup:** 20 souborů, 300 MB na soubor, 600 MB dohromady. Čas:
+  5 min dotaz, 10 min obrázek a přepis, 15 min video.
+- **Web** jen na výslovné svolení (`web: true` / `--web`) — jinak Gemini odpoví „NEVÍM".
+- Do `~/.gemini/antigravity-cli/settings.json` (píše do něj i agy sám) se jen
+  doplní `toolPermission: proceed-in-sandbox`, když tam ten klíč ještě není.
+  Bez něj se v neinteraktivním běhu nesmí ani grep a delší soubor se zasekne.
+- Chyby jsou česky a s cestou, co dělat: nepřihlášený → Nastavení → AI agenti →
+  Gemini → Přihlásit; vyčerpaný limit → zkus Flash nebo to udělej sám.
 
 ## Napojení na cizí služby (MCP)
 
@@ -958,6 +1197,9 @@ hub/static/predplatne.js  karta s propojením předplatného, stav v Nastavení 
 gateway/safefs.py         zápis brány do domovů bez následování odkazů (O_NOFOLLOW, dir_fd)
 hub/static/pocitac.js     volba přístupu, dotaz před prvním vstupem do prostoru, štítek počítače v prostoru
 tools/pocitac_mcp.py      MCP server v prostoru — nástroje mcp__pocitac__* pro Claude Code (i úkoly na později)
+hub/gemini.py             Gemini (Google AI Pro) jako pomocník Clauda: stav, napojení MCP, příkaz gemini-pomoc
+tools/gemini_mcp.py       MCP server — nástroje mcp__gemini__* (obrázek, přepis, video, zeptat)
+tools/gemini_pomoc.py     jak se volá agy (Antigravity CLI) + příkaz gemini-pomoc v terminálu
 hub/restart.py            restart po aktualizaci: uloží otevřené taby (i id konverzací) a vrátí je
 hub/clockify.py           stopky u projektu: Start/Stop rovnou do Clockify, mimo agenta
 hub/static/clockify.js    panel stopek v rychlých akcích — výběr projektu, běžící čas
@@ -965,7 +1207,8 @@ hub/remote.py             přístup z telefonu: stav Tailscalu, `tailscale serve
 hub/qr.py                 QR kód jako SVG, jen ze standardní knihovny (bez závislostí)
 hub/static/mobile.js      chování na telefonu: šuplík, dlouhý stisk, klávesnice, service worker
 hub/static/manifest.webmanifest  aby se hub dal nainstalovat na plochu jako aplikace
-hub/static/sw.js          service worker — nekešuje, jen slušná hláška, když server nejede
+hub/static/sw.js          service worker — nekešuje; slušná hláška, když server nejede, a příjem sdílení
+hub/static/sdileni.js     sdílení z jiných appek v telefonu: „Kam to poslat?" a vložení do bubliny chatu
 mobile/android/           obal pro Android (.apk): WebView + čtečka QR
 .github/workflows/android.yml  sestavení APK v GitHub Actions
 hub/stats.py              počítání statistik z ~/.claude (přírůstkově, s mezipamětí)

@@ -535,11 +535,13 @@ def _path(raw):
 
 # Soubory s přihlášením appky k serveru a Claude Code. S tokenem zařízení by si
 # Claude v prostoru mohl sám potvrdit, co má potvrzovat člověk (nahrání do
-# firemního Obsidianu), a s přihlášením Claude Code jet na cizí účet.
+# firemního Obsidianu), a s přihlášením Claude Code jet na cizí účet. Totéž
+# další předplatná pro Claude Code na počítači (hub/predplatne.py).
 def _guarded():
     dirs = {core.CLAUDE_DIR, os.path.join(core.HOME, ".claude")}
     return [os.path.join(d, name) for d in dirs
-            for name in ("hub-config.json", "hub-config.json.tmp", ".credentials.json")]
+            for name in ("hub-config.json", "hub-config.json.tmp", ".credentials.json",
+                         "hub-predplatna.json")]
 
 
 def _guard(path):

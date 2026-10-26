@@ -596,6 +596,17 @@ window.HubSoubor = {
     const r = await fetch(souborUrl(path, true), {credentials: 'same-origin'});
     return r.json().catch(() => ({ok: false}));
   },
+  /* Otevřít výchozí aplikací jde jen v appce na počítači — ne z telefonu
+     přes Tailscale (otevřelo by se to na počítači doma) a ne na serveru. */
+  lzeOtevrit: () => !onServer() && ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname),
+  async otevri(path, slozka) {
+    try {
+      const r = await api('soubor-otevrit', {path, slozka: !!slozka});
+      if (r.slozka && !slozka) toast('Soubor by se spustil — otevřel jsem jen složku, ve které je.');
+    } catch (err) {
+      toast(err.message);
+    }
+  },
   async stahni(path) {
     const info = await this.info(path).catch(() => null);
     if (!info || !info.ok) { toast((info && info.error) || 'Soubor teď nejde stáhnout.'); return; }
@@ -1527,7 +1538,7 @@ function sidebarView(view) {
 async function loadChats() {
   let res;
   try {
-    res = await api('chats');
+    [res] = await Promise.all([api('chats'), nactiZrcadla()]);
   } catch (err) {
     const box = $('chats');
     box.textContent = '';
@@ -1538,11 +1549,12 @@ async function loadChats() {
     chatsSig = '';
     return;
   }
-  CHATS = res.chats || [];
+  CHATS = slucZrcadlo(res.chats || []);
   /* Seznam se načítá každých 20 s. Překreslit ho celý pokaždé znamená, že
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
      „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
-  const sig = JSON.stringify(CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd]));
+  const sig = JSON.stringify(CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd, c.posledni || '',
+                                              c.server ? 1 : 0, zrcadloZnak(c)]));
   if (sig === chatsSig) return;
   chatsSig = sig;
   renderChatsSoon();
@@ -1607,6 +1619,153 @@ function prepniPripnuti(id) {
   renderChats();
 }
 
+/* ── Počítač počítá, kopie chatů je na serveru (hub/zrcadlo.py) ────────────
+   Na počítači přihlášeném k serveru běží Claude tady a chaty se kopírují do
+   prostoru. Seznam na počítači ukáže i chaty, které jsou jen na serveru (nebo
+   v nich server právě pokračuje) — klepnutí si je vezme sem. V prostoru jsou
+   u chatů z počítače značky a klepnutí si chat vezme na server: počítač
+   nechá Clauda dopsat odpověď a chat pustí. Chat běží vždycky jen na jednom místě. */
+let ZRCADLA = {};          // v prostoru: {id: {drzi, jmeno, online, uvolnit}}
+let ZRCADLO = null;        // na počítači: {zapnuto, server: [id], chaty: [...]}
+
+async function nactiZrcadla() {
+  try {
+    if (onServer()) ZRCADLA = (await api('zrcadla')).chaty || {};
+    else if (naPcSeServerem()) ZRCADLO = await api('zrcadlo');
+    else ZRCADLO = null;
+  } catch (_) { /* bez spojení se serverem jen místní chaty */ }
+}
+
+/* Místní chaty doplněné o chaty ze serveru (jen na počítači). */
+function slucZrcadlo(chats) {
+  if (onServer() || !ZRCADLO || !ZRCADLO.zapnuto) return chats;
+  const drziServer = new Set(ZRCADLO.server || []);
+  const out = chats.map((c) => (drziServer.has(c.id) ? {...c, server: true} : c));
+  const mistni = new Map(out.map((c) => [c.id, c]));
+  const skryt = new Set();
+  for (const s of ZRCADLO.chaty || []) {
+    const m = mistni.get(s.id);
+    if (m) {
+      // Kopie našeho chatu, nebo náš chat, ve kterém server pokračoval.
+      if (s.drzi === 'server' && (drziServer.has(s.id) || s.updated > m.updated + 5)) {
+        Object.assign(m, {server: true, title: s.title, posledni: s.posledni,
+                          posledni_kdo: s.posledni_kdo, updated: Math.max(m.updated, s.updated)});
+      }
+      continue;
+    }
+    if (s.drzi === 'pc') continue;          // kopie z jiného počítače
+    // Server v našem chatu pokračoval pod novým číslem: místní starší kopie pryč.
+    for (const p of s.parents || []) {
+      const st = mistni.get(p);
+      if (st && st.updated <= s.updated) skryt.add(p);
+    }
+    out.push({id: s.id, title: s.title, prompt: s.prompt, posledni: s.posledni,
+              posledni_kdo: s.posledni_kdo, updated: s.updated, cwd: '', project: '',
+              exists: true, server: true});
+  }
+  return out.filter((c) => !skryt.has(c.id));
+}
+
+/* Značka v seznamu: kde chat běží, když ne tady. */
+function zrcadloZnak(c) {
+  if (onServer()) {
+    const z = ZRCADLA[c.id];
+    return z && z.drzi === 'pc' ? 'pc' + (z.online ? '1' : '0') : '';
+  }
+  return c.server ? 'server' : '';
+}
+
+async function prevzitZeServeru(c) {
+  toast(`Beru si chat „${c.title}“ ze serveru…`);
+  try {
+    const r = await api('zrcadlo-prevzit', {chat: c.id});
+    await resumeChat({...c, id: r.chat, cwd: r.cwd, title: r.title || c.title, exists: true, server: false},
+                     '', true);
+    setTimeout(loadChats, 1500);
+  } catch (err) {
+    toast(err.message);
+  }
+}
+
+async function prevzitZPocitace(c) {
+  let r;
+  try { r = await api('zrcadlo-na-server', {chat: c.id}); } catch (err) { toast(err.message); return; }
+  if (r.stav !== 'server') {
+    toast(`Chat běží na počítači ${r.pocitac || ''}. Až tam Claude dopíše odpověď, chat se otevře tady.`);
+    const konec = Date.now() + 170000;
+    while (r.stav !== 'server' && Date.now() < konec) {
+      await new Promise((res) => setTimeout(res, 3000));
+      try { r = await api('zrcadlo-na-server', {chat: c.id}); } catch (_) { /* zkusit znovu */ }
+    }
+    if (r.stav !== 'server') { toast('Počítač chat zatím nepustil — zkus to za chvíli.'); return; }
+  }
+  await loadChats();
+  resumeChat(CHATS.find((x) => x.id === c.id) || c, '', true);
+}
+
+/* ── Řádek chatu jako ve WhatsAppu ────────────────────────────────────────
+   Kulatá ikonka v barvě druhu chatu (osobní modrá, firemní fialová, sdílený
+   zelená), název a čas poslední zprávy, pod tím začátek poslední odpovědi.
+   Stejný řádek mají i chaty, které mi někdo sdílí (renderRelace). */
+const DRUH_IKONA = {osobni: 'i-user', firma: 'i-firma', sdileny: 'i-users'};
+
+function druhChatu(c) {
+  if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
+  return prostorCesty(c.cwd) ? 'firma' : 'osobni';
+}
+
+/* Čas jako v seznamu chatů ve WhatsAppu: dnes hodiny, včera „Včera“, tento
+   týden den, starší datum. */
+function chatCas(t) {
+  if (!t) return '';
+  const now = new Date();
+  const dnes = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
+  const d = new Date(t * 1000);
+  if (t >= dnes) return d.toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'});
+  if (t >= dnes - 86400) return 'Včera';
+  if (t >= dnes - 6 * 86400) {
+    const den = d.toLocaleDateString('cs-CZ', {weekday: 'long'});
+    return den.charAt(0).toUpperCase() + den.slice(1);
+  }
+  const loni = d.getFullYear() !== now.getFullYear();
+  return d.toLocaleDateString('cs-CZ', loni ? {day: 'numeric', month: 'numeric', year: '2-digit'}
+                                            : {day: 'numeric', month: 'numeric'});
+}
+
+/* Co se v chatu děje teď: Claude pracuje / čeká na tebe — místo náhledu. */
+function chatStav(c) {
+  const t = TABS.find((x) => tabPatriChatu(x, c));
+  if (!t) return '';
+  if (t.ceka) return 'Čeká na tebe';
+  if (t.pracuje) return 'Claude píše…';
+  return '';
+}
+
+function chatNahled(c) {
+  const text = c.posledni || (c.prompt && c.prompt !== c.title ? c.prompt : '') || '';
+  return (c.posledni_kdo === 'ty' && text ? 'Ty: ' : '') + text;
+}
+
+function chatRadek({druh, titulek, cas, nahled, stav, bezHvezdy}) {
+  const item = document.createElement('button');
+  item.type = 'button';
+  item.className = 'chat-item chat-wa druh-' + druh;
+  item.innerHTML =
+    '<span class="chat-av"><svg class="ico"><use href="#' + (DRUH_IKONA[druh] || 'i-user') + '"/></svg></span>' +
+    '<span class="chat-body">' +
+      '<span class="chat-r1"><span class="chat-title"></span><span class="chat-cas"></span></span>' +
+      '<span class="chat-r2"><span class="chat-nahled"></span>' +
+        (bezHvezdy ? '' : '<span class="chat-pin" role="button"><svg class="ico"><use href="#i-star"/></svg></span>') +
+      '</span>' +
+    '</span>';
+  item.querySelector('.chat-title').textContent = titulek;
+  item.querySelector('.chat-cas').textContent = chatCas(cas);
+  const n = item.querySelector('.chat-nahled');
+  n.textContent = stav || nahled || '';
+  n.classList.toggle('stav', !!stav);
+  return item;
+}
+
 /* Okno se nikdy nesmí posunout do strany (fokus nebo scrollIntoView v širokém terminálu to umí): panel vlevo by zmizel. */
 window.addEventListener('scroll', () => {
   const e = document.scrollingElement;
@@ -1629,14 +1788,13 @@ function renderChats() {
   const scope = vse ? CHATS : here;
   const list0 = words.length
     ? scope.filter((c) => {
-      const hay = foldText([c.title, c.prompt, c.project].join(' '));
+      const hay = foldText([c.title, c.prompt, c.project, c.posledni].join(' '));
       return words.every((w) => hay.includes(w));
     })
     : scope;
-  // Otevřený chat patří mezi dnešní a nahoru: má zelenou tečku a nemusí se hledat v „Otevřených“.
-  const nyni = Date.now() / 1000;
-  const uc = (c) => (bezi(c) ? Math.max(c.updated, nyni) : c.updated);
-  const list = list0.slice().sort((a, b) => uc(b) - uc(a));
+  // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
+  // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
+  const list = list0.slice().sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
   // Otevřený chat je v seznamu chatů (zelená tečka) — v panelu Otevřené zůstanou jen taby bez řádku v seznamu.
   for (const t of TABS) {
@@ -1669,42 +1827,39 @@ function renderChats() {
     toggle();
     return;
   }
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() / 1000;
-  const groupOf = (t) => (t >= today ? 'Dnes'
-    : t >= today - 86400 ? 'Včera'
-      : t >= today - 6 * 86400 ? 'Posledních 7 dní'
-        : t >= today - 29 * 86400 ? 'Posledních 30 dní'
-          : new Date(t * 1000).toLocaleDateString('cs-CZ', {month: 'long', year: 'numeric'}));
   const buildItem = (c) => {
-    const item = document.createElement('button');
-    item.className = 'chat-item' + (c.tab || bezi(c) ? ' running' : '') + (c.exists ? '' : ' gone');
+    const item = chatRadek({
+      druh: druhChatu(c), titulek: c.title, cas: c.updated,
+      nahled: chatNahled(c), stav: chatStav(c),
+    });
+    item.classList.toggle('gone', !c.exists);
     item.dataset.id = c.id;
-    item.innerHTML = '<span class="chat-title"></span><span class="chat-meta"></span>';
+    const znak = zrcadloZnak(c);
+    if (znak) {
+      // Běží jinde: na serveru (počítač), na počítači (prostor).
+      const b = document.createElement('span');
+      b.className = 'chat-kde ' + znak.replace(/\d$/, '') + (znak.endsWith('1') ? ' online' : '');
+      b.innerHTML = icon(znak === 'server' ? 'i-globe' : 'i-laptop');
+      item.querySelector('.chat-av').appendChild(b);
+      const z = ZRCADLA[c.id];
+      item.querySelector('.chat-cas').title = znak === 'server'
+        ? 'Chat je teď na serveru — klepnutím si ho vezmeš sem.'
+        : `Chat běží na počítači ${(z && z.jmeno) || ''} — klepnutím ho převezmeš sem.`;
+    }
     const kde = vse ? prostorCesty(c.cwd) : ted;
     if (kde !== ted) {
       // Chat z jiného prostoru: štítek, ať je jasné, kam klepnutí přepne.
       const tag = document.createElement('span');
       tag.className = 'chat-prostor' + (kde ? ' firma' : '');
       tag.textContent = prostorNazev(kde);
-      item.querySelector('.chat-title').appendChild(tag);
+      item.querySelector('.chat-title').prepend(tag);
     }
-    item.querySelector('.chat-title').appendChild(document.createTextNode(c.title));
-    const at = new Date(c.updated * 1000);
-    const when = c.updated >= today
-      ? at.toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'})
-      : at.toLocaleDateString('cs-CZ', {day: 'numeric', month: 'numeric'});
-    item.querySelector('.chat-meta').textContent =
-      [c.project, when, c.tab ? 'otevřená' : ''].filter(Boolean).join('  ·  ');
-    item.title = [c.prompt && c.prompt !== c.title ? c.prompt : '', c.cwd].filter(Boolean).join('\n\n');
-    // Špendlík u řádku: připnout / odepnout (jen na tomhle zařízení).
-    const pin = document.createElement('span');
-    pin.className = 'chat-pin' + (jePripnuty(c.id) ? ' on' : '');
-    pin.setAttribute('role', 'button');
+    item.title = [c.title, c.prompt && c.prompt !== c.title ? c.prompt : '', c.cwd].filter(Boolean).join('\n\n');
+    // Hvězdička u řádku: připnout / odepnout (jen na tomhle zařízení).
+    const pin = item.querySelector('.chat-pin');
+    pin.classList.toggle('on', jePripnuty(c.id));
     pin.title = jePripnuty(c.id) ? 'Odepnout' : 'Připnout nahoru';
-    pin.innerHTML = '<svg class="ico"><use href="#i-star"/></svg>';
     pin.onclick = (ev) => { ev.stopPropagation(); prepniPripnuti(c.id); };
-    item.appendChild(pin);
     item.onclick = () => openChat(c);
     item.oncontextmenu = (ev) => {
       ev.preventDefault();
@@ -1723,26 +1878,9 @@ function renderChats() {
   };
   // Připnuté chaty nahoře (bez hledání; při hledání se prochází všechno).
   const pripnuty = words.length ? [] : list.filter((c) => jePripnuty(c.id));
-  if (pripnuty.length) {
-    const head = document.createElement('div');
-    head.className = 'group-head pripnute';
-    head.textContent = 'Připnuté';
-    box.appendChild(head);
-    for (const c of pripnuty) box.appendChild(buildItem(c));
-  }
+  for (const c of pripnuty) box.appendChild(buildItem(c));
   const ostatni = pripnuty.length ? list.filter((c) => !jePripnuty(c.id)) : list;
-  let lastGroup = null;
-  for (const c of ostatni.slice(0, chatsShown)) {
-    const group = groupOf(uc(c));
-    if (group !== lastGroup) {
-      lastGroup = group;
-      const head = document.createElement('div');
-      head.className = 'group-head';
-      head.textContent = group;
-      box.appendChild(head);
-    }
-    box.appendChild(buildItem(c));
-  }
+  for (const c of ostatni.slice(0, chatsShown)) box.appendChild(buildItem(c));
   if (ostatni.length > chatsShown) {
     const zbyva = ostatni.length - chatsShown;
     const more = document.createElement('button');
@@ -1771,6 +1909,10 @@ function openChat(c) {
   const running = TABS.find((t) => tabPatriChatu(t, c));
   closeDrawer();
   if (running) return activate(running);
+  // Chat běží na druhém místě (počítač ↔ server): napřed ho převzít.
+  if (c.server && !onServer()) return prevzitZeServeru(c);
+  const z = onServer() && ZRCADLA[c.id];
+  if (z && z.drzi === 'pc') return prevzitZPocitace(c);
   resumeChat(c);
 }
 
@@ -1880,6 +2022,8 @@ async function resumeChat(c, prompt, preneseny) {
 }
 
 function initChats() {
+  // Claude se v chatu rozběhl nebo dopsal: „píše…“ v seznamu hned, ne až za 20 s.
+  document.addEventListener('hub-prace', () => { if (!$('chats-view').hidden) renderChatsSoon(); });
   for (const b of document.querySelectorAll('.side-tab')) b.onclick = () => sidebarView(b.dataset.view);
   $('chats-search').addEventListener('input', () => { chatsShown = CHATS_PAGE; renderChats(); });
   if (window.HubHledani) HubHledani.mount({api, toast, openChat, token: TOKEN, chats: () => CHATS});
@@ -1893,7 +2037,7 @@ function initChats() {
 function renderMemory() {
   const mem = STATE.memory;
   $('memory-section').hidden = !mem.enabled;
-  $('btn-brain').hidden = !mem.enabled;
+  syncPanelNav();
   if (!mem.enabled) return;
   const c = mem.counts;
   $('memory-summary').innerHTML =
@@ -1934,6 +2078,23 @@ const ACTIONS = [
 
 function devMode() {
   return !!(STATE.config && STATE.config.dev_mode);
+}
+
+/* Co je v panelu vlevo pod Novým chatem (Nastavení → Přizpůsobit → Panel
+   vlevo). Obsidian a Projekty (ve firmě Klienti) si tam dá každý sám, jinak se
+   otevírají odtamtud; terminál je jen pro vývojářský režim. */
+const PANEL_VYCHOZI = {projekty: false, obsidian: false, terminal: true};
+function panelUkazuje(co) {
+  const p = (STATE && STATE.config && STATE.config.panel) || {};
+  return typeof p[co] === 'boolean' ? p[co] : PANEL_VYCHOZI[co];
+}
+function syncPanelNav() {
+  if (!STATE || !STATE.config) return;
+  const mem = STATE.memory || {};
+  $('btn-brain').hidden = !mem.enabled || !panelUkazuje('obsidian');
+  $('nav-projekty').hidden = !panelUkazuje('projekty');
+  const shell = (STATE.config.newtab || {}).shell !== false;
+  $('nav-terminal').hidden = !(shell && devMode() && panelUkazuje('terminal'));
 }
 
 /* Rychlé akce jsou slash příkazy — dávají smysl jen v tabu s agentem, který
@@ -2077,6 +2238,8 @@ async function prenosPoll() {
 let RELACE = {moje: [], semnou: [], lide: [], skupiny: [], ulozene: []};
 let relaceTimer = null;
 const relaceZnama = new Set();
+let relaceOznameneLokalne = new Set();
+try { relaceOznameneLokalne = new Set(JSON.parse(localStorage.getItem('hub-relace-oznamene') || '[]')); } catch (_) { /* nic */ }
 
 async function relacePost(body) {
   const r = await fetch('/gw/relace', {
@@ -2097,12 +2260,20 @@ async function loadRelace() {
     RELACE = await r.json();
   } catch (_) { return; }
   sharedPeople = RELACE.lide || sharedPeople;
-  // Někdo mi něco nasdílel — řekne se to jednou.
-  for (const s of RELACE.semnou) {
-    if (!relaceZnama.has(s.id)) {
-      if (relaceZnama.size || relaceHotovo) toast(`${s.majitel} s tebou sdílí chat „${s.titulek}“.`);
-      relaceZnama.add(s.id);
-    }
+  // Někdo mi něco nasdílel — řekne se to jednou, ne při každém otevření appky.
+  // Kdo oznámení viděl, si pamatuje brána (`oznameno`), takže platí i pro
+  // telefon a počítač dohromady; starší brána ho neposílá, pak drží paměť
+  // prohlížeče.
+  const nove = RELACE.semnou.filter((s) => !relaceZnama.has(s.id) &&
+    (s.oznameno === undefined ? !relaceOznameneLokalne.has(s.id) : !s.oznameno));
+  for (const s of RELACE.semnou) relaceZnama.add(s.id);
+  if (nove.length) {
+    toast(nove.length === 1 ? `${nove[0].majitel} s tebou sdílí chat „${nove[0].titulek}“.`
+      : `S tebou sdílí ${nove.length} ${nove.length < 5 ? 'nové chaty' : 'nových chatů'}: ` +
+        nove.map((s) => `${s.majitel} („${s.titulek}“)`).join(', ') + '.');
+    for (const s of nove) relaceOznameneLokalne.add(s.id);
+    try { localStorage.setItem('hub-relace-oznamene', JSON.stringify([...relaceOznameneLokalne].slice(-300))); } catch (_) { /* soukromé okno */ }
+    relacePost({akce: 'oznameno', ids: nove.map((s) => s.id)}).catch(() => {});
   }
   relaceHotovo = true;
   renderRelace();
@@ -2217,15 +2388,9 @@ function renderRelace() {
   const semnou = RELACE.semnou.filter(sdilenyVProstoru);
   box.hidden = !onServer() || (!semnou.length && !ulozene.length);
   for (const u of ulozene) {
-    const row = document.createElement('button');
-    row.className = 'chat-item relace-row firma';
-    const t = document.createElement('span');
-    t.className = 'chat-title';
-    t.textContent = u.titulek;
-    const m = document.createElement('span');
-    m.className = 'chat-meta';
-    m.textContent = 'Uloženo v ' + u.skupina + ' · ' + (u.moje ? 'ty' : u.autor) + ' · klepni a pokračuj u sebe';
-    row.append(t, m);
+    const row = chatRadek({druh: 'firma', titulek: u.titulek, cas: u.vytvoreno, bezHvezdy: true,
+      nahled: 'Uloženo v ' + u.skupina + ' · ' + (u.moje ? 'ty' : u.autor) + ' · klepni a pokračuj u sebe'});
+    row.classList.add('relace-row');
     row.title = 'Zkopíruje chat do tvého prostoru a otevře ho — Claude v něm naváže, kde skončil.';
     row.onclick = () => {
       pokracovatUlozeny(u);
@@ -2234,16 +2399,10 @@ function renderRelace() {
     list.appendChild(row);
   }
   for (const s of semnou) {
-    const row = document.createElement('button');
-    row.className = 'chat-item relace-row';
-    const t = document.createElement('span');
-    t.className = 'chat-title';
-    t.textContent = s.titulek;
-    const m = document.createElement('span');
-    m.className = 'chat-meta';
-    m.textContent = 'Sdílí ' + s.majitel + (s.role === 'pise' ? ' · smíš psát' : ' · jen čtení') +
-      (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '');
-    row.append(t, m);
+    const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: s.vytvoreno, bezHvezdy: true,
+      nahled: 'Sdílí ' + s.majitel + (s.role === 'pise' ? ' · smíš psát' : ' · jen čtení') +
+        (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '')});
+    row.classList.add('relace-row');
     row.onclick = () => {
       otevriSdilenyTab(s, true);
       if (window.HubMobile) HubMobile.closeDrawer();
@@ -2646,12 +2805,16 @@ function prehledHtml(tab, box) {
       r.innerHTML = icon('i-note');
       r.appendChild(mk('span', 'pr-text', f.split(/[\\/]/).pop()));
       r.title = f;
-      // Na serveru by „otevřít složku" nic neukázalo — tam jen stáhnout.
-      if (!onServer()) {
+      // Na serveru by „otevřít" nic neukázalo — tam jen stáhnout.
+      if (HubSoubor.lzeOtevrit()) {
         const o = mk('button', 'pr-soubor-akce', '↗');
-        o.title = 'Otevřít složku';
-        o.onclick = () => openExternal(f.replace(/[\\/][^\\/]*$/, ''));
+        o.title = 'Otevřít v aplikaci na tomhle počítači';
+        o.onclick = () => HubSoubor.otevri(f);
         r.appendChild(o);
+        const sl = mk('button', 'pr-soubor-akce', '▤');
+        sl.title = 'Otevřít složku';
+        sl.onclick = () => HubSoubor.otevri(f, true);
+        r.appendChild(sl);
       }
       const d = mk('button', 'pr-soubor-akce', '⤓');
       d.title = 'Stáhnout ' + f;
@@ -2807,8 +2970,9 @@ function renderBranding() {
   const name = app.shown || 'Aladin';
   // Titulek = název okna appky (Chrome v režimu appky, záložka prohlížeče).
   document.title = titulekOkna(app.name ? app.name : name + ' ' + placeName());
-  const home = $('btn-home');
-  if (home) {
+  // Logo v liště a v hlavičce šuplíku (telefon) — obojí vede domů.
+  for (const home of [$('btn-home'), $('btn-drawer-brand')]) {
+    if (!home) continue;
     home.querySelector('strong').textContent = name;
     let img = home.querySelector('.brand-img');
     const svg = home.querySelector('.brand-ico');
@@ -2826,8 +2990,6 @@ function renderBranding() {
       if (svg) svg.style.display = '';
     }
   }
-  const head = document.querySelector('.drawer-head strong');
-  if (head) head.textContent = name;
   const big = document.querySelector('.welcome-big');
   if (big && big.firstChild && big.firstChild.nodeType === 3) {
     big.firstChild.textContent = name + ' ';
@@ -2952,9 +3114,12 @@ function renderPlace() {
   // Počítač, na který Claude z prostoru dosáhne (hub/pocitac.py).
   if (u) HubPocitac.chip(hubIO());
   // Připojené předplatné, které běžící prostor ještě nemá — jednou za načtení.
-  if (u && !renderPlace.noticed) {
+  // Na počítači i v prostoru se pak hlídá, jestli aktivnímu předplatnému
+  // nedochází limit (a je-li jich víc, jde mezi nimi rychle přepnout v ⋯).
+  if (!renderPlace.noticed) {
     renderPlace.noticed = true;
-    HubPredplatne.notice(hubIO());
+    if (u) HubPredplatne.notice(hubIO());
+    HubPredplatne.hlidej(hubIO());
   }
 }
 
@@ -3098,7 +3263,7 @@ function renderWelcome() {
         f ? 'primary firma' : 'primary', () => newChatHere()]);
     }
   }
-  $('nav-terminal').hidden = !(cfg.shell !== false && STATE.config.dev_mode);
+  syncPanelNav();
   if (cfg.shell !== false && STATE.config.dev_mode) {
     actions.push(['i-terminal', 'Otevřít terminál', 'ghost',
       () => openTab({kind: 'shell', path: '', title: 'Terminál'})]);
@@ -3503,6 +3668,7 @@ async function reload() {
   for (const t of TABS) paintAgent(t);
   applyMotiv(STATE.motiv);           // motiv (barvy + CSS) a s ním applyTheme
   HubVerxee.apply(STATE);            // Nahlásit chybu / Podat návrh, jen s klíčem
+  if (window.HubOznameni) HubOznameni.apply(hubIO());   // zvonek s oznámeními, jen na serveru
 }
 
 /* ── agenti ───────────────────────────────────────────────────────────────── */
@@ -3692,8 +3858,15 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
       pozastaveno: () => !!tab.pozastaveno,
       // Zpráva se uloží na server a doručí Claudovi, až je připravený (hub/fronta.py).
       naServer: async (text, id) => {
-        try { const r = await api('fronta', {tab: tab.id, id, text}); return !!(r && r.ok); } catch (_) { return false; }
+        try {
+          const r = await api('fronta', {tab: tab.id, id, text});
+          // Stopka od správce (hub/stopka.py): zpráva neodejde ani jinou cestou.
+          if (r && r.stopka) { ukazStopku(r.stopka); return 'stopka'; }
+          return !!(r && r.ok);
+        } catch (_) { return false; }
       },
+      // Týdenní limit se stopkou (hlidejLimit) — bublina zprávu Claudovi nepošle.
+      stopka: () => STOPKA,
       // Úhoz v bublině: sdílející vidí, že tu píšu.
       pise: () => { tab.pisuOd = Date.now(); },
       online,
@@ -4636,8 +4809,10 @@ function newTabMenu(btn) {
   showMenu(box.left, box.bottom, items);
 }
 
-function topbarMenu(btn) {
+function topbarMenu(btn, opts) {
   const drawer = window.HubMobile;
+  // Z ⋯ v hlavičce šuplíku: Chaty i Nastavení jsou tam vidět, ostatní šuplík zavře.
+  const zeSupliku = !!(opts && opts.suplik);
   const open = (view) => {
     sidebarView(view);
     if (drawer) drawer.openDrawer();
@@ -4656,19 +4831,26 @@ function topbarMenu(btn) {
     items.push({icon: 'i-user', label: rel ? 'Sdílení chatu (' + (rel.clenove.length + (rel.skupiny || []).length) + ')…' : 'Sdílet chat…',
                 color: 'var(--accent)', run: () => sdiletChat(ACTIVE)});
   }
-  items.push(
-    {icon: 'i-note', label: 'Chaty', run: () => open('chats')},
-    {icon: 'i-folder', label: 'Projekty', run: () => showProjekty(true)},
-  );
+  if (!zeSupliku) items.push({icon: 'i-note', label: 'Chaty', run: () => open('chats')});
+  items.push({icon: 'i-folder', label: ($('nav-projekty').textContent || '').trim() || 'Projekty',
+              run: () => showProjekty(true)});
   // Poznámky jen v Obsidianu (přepínač osobní / firemní je uvnitř).
   const mem = STATE.memory || {};
   if (mem.enabled || hasFirma()) {
     items.push({icon: 'i-book', label: 'Obsidian',
                 run: () => (window.HubVault ? openVault() : openExternal('', 'brain'))});
   }
+  if (!zeSupliku) {
+    items.push({icon: 'i-gear', label: 'Nastavení',
+                run: () => HubSettings.open({...hubIO(), state: STATE})});
+  }
+  // Rychlé přepnutí předplatného, když jich je víc (predplatne.js).
+  const pd = window.HubPredplatne && HubPredplatne.menuItem((sub) => setTimeout(() => {
+    const b = btn.getBoundingClientRect();
+    showMenu(Math.max(8, b.right - 230), b.bottom - 3, sub);
+  }, 0));
+  if (pd) items.push(pd);
   items.push(
-    {icon: 'i-gear', label: 'Nastavení',
-     run: () => HubSettings.open({...hubIO(), state: STATE})},
     {icon: DARK ? 'i-sun' : 'i-moon', label: DARK ? 'Světlý vzhled' : 'Tmavý vzhled',
      run: () => setTheme(!DARK, true)},
     {icon: 'i-chart', label: 'Statistiky', run: () => HubStats.open(hubIO())},
@@ -4680,10 +4862,17 @@ function topbarMenu(btn) {
     items.push({icon: 'i-phone', label: 'Nainstalovat na plochu', color: 'var(--accent)',
                 run: () => HubInstall.run(toast)});
   }
+  if (zeSupliku && drawer) {
+    for (const it of items) {
+      const run = it.run;
+      it.run = () => { drawer.closeDrawer(); run(); };
+    }
+  }
   const box = btn.getBoundingClientRect();
   // Zprava: nabídka se otevírá pod ikonou a nesmí přetéct za okraj.
   showMenu(box.right - 230, box.bottom - 3, items);
 }
+window.hubTopbarMenu = topbarMenu;
 
 /* ── folder picker ────────────────────────────────────────────────────────── */
 let pickerPath = '';
@@ -4835,6 +5024,13 @@ function handle(msg) {
       }
       refit(tab);
     }
+  } else if (msg.t === 'zrcadlo-odchod') {
+    // Chat si vzalo druhé místo (telefon ↔ počítač): tab se tady zavřel.
+    toast(msg.kam === 'pc' ? `Chat „${msg.title}“ si vzal počítač — pokračuj v něm tam.`
+                           : `Chat „${msg.title}“ si vzal telefon — pokračuj v něm tam.`);
+    const pryc = TABS.find((t) => t.id === msg.tab);
+    if (pryc) closeTab(pryc, {remote: true});
+    setTimeout(loadChats, 1500);
   } else if (msg.t === 'exit') {
     const tab = TABS.find(t => t.id === msg.id);
     if (tab) {
@@ -5066,45 +5262,108 @@ async function memorySaved({files, projects}) {
   } catch (_) { /* hláška stačí, seznam se obnoví příště */ }
 }
 
-/* Týdenní limit spotřeby (gateway/spotreba.py): když je člověk u svého stropu
-   nebo nad ním, hub mu to řekne pruhem nahoře. Pruh jde zavřít a stejný stav
-   se ten den neukáže znovu. Jen na serveru a jen pro toho, komu správce limit
-   nastavil. */
+/* Týdenní limit od správce (gateway/spotreba.py, hub/stopka.py): když je člověk
+   u svého limitu nebo nad ním, hub mu to řekne pruhem nahoře. Pruh jde zavřít
+   a stejný stav se ten den neukáže znovu. Se stopkou je pruh červený, ukáže
+   se pokaždé znovu a bublina zprávy Claudovi neposílá (STOPKA). Na serveru
+   i na počítači přihlášeném k serveru — tam stopka platí, jen když počítač
+   jede na stejném předplatném jako prostor. */
 let spotrebaTimer = null;
+let STOPKA = null;
+let stopkaSkryta = null;      // stopka, jejíž pruh člověk zavřel (do dalšího načtení stránky)
+
+const tokenyText = (n) => {
+  n = Number(n) || 0;
+  if (n >= 1e6) return (Math.round(n / 1e5) / 10).toLocaleString('cs-CZ') + ' mil.';
+  return Math.round(n).toLocaleString('cs-CZ');
+};
+
+/* Co z limitu je u konce: „45 $ z 50 $, 42 % z 50 % předplatného“. */
+function limitDetail(ja, jenNad) {
+  const lim = ja.limity || {usd: ja.limit || 0};
+  const pomery = ja.pomery || {};
+  const casti = [];
+  const chci = (k) => lim[k] && (jenNad ? (ja.nad || []).includes(k) : (pomery[k] || 0) >= 0.8);
+  if (chci('usd') || (!ja.pomery && lim.usd)) casti.push(Math.round(ja.tyden || 0) + ' $ z ' + lim.usd + ' $');
+  if (chci('pct') && ja.procenta && ja.procenta.pct != null) {
+    casti.push(Math.round(ja.procenta.pct) + ' % z ' + lim.pct + ' % ' +
+      (ja.procenta.zdroj === 'tym' ? 'spotřeby týmu' : 'předplatného'));
+  }
+  if (chci('tokeny')) casti.push(tokenyText(ja.tokenu) + ' z ' + tokenyText(lim.tokeny) + ' tokenů');
+  return casti.join(', ');
+}
+
+/* Stopka z odpovědi serveru (fronta zprávu nevzala) — hned, ne až za pár minut. */
+function ukazStopku(st) {
+  STOPKA = st && st.text ? st : null;
+  hlidejLimit();
+}
+
+let limitKolo = 0;            // jen poslední dotaz plánuje další (žádné dvojí smyčky)
 
 async function hlidejLimit() {
-  if (!onServer()) return;
-  if (!spotrebaTimer) spotrebaTimer = setInterval(() => { if (!document.hidden) hlidejLimit(); }, 600000);
-  const gw = (STATE.config && STATE.config.gateway_user) || {};
-  let data;
-  try {
-    const r = await fetch('/gw/spotreba', {credentials: 'same-origin'});
-    if (!r.ok) return;
-    data = await r.json();
-  } catch (_) { return; }
-  const ja = (data.lide || []).find((x) => String(x.email).toLowerCase() === String(gw.email || '').toLowerCase());
+  clearTimeout(spotrebaTimer);
+  const kolo = ++limitKolo;
+  spotrebaTimer = setTimeout(hlidejLimit, 600000);
+  if (document.hidden) { clearTimeout(spotrebaTimer); spotrebaTimer = setTimeout(hlidejLimit, 60000); return; }
+  let data = null;
+  try { data = await api('stopka'); } catch (_) { data = null; }
+  let ja = data && data.radek;
+  // Brána bez /gw/spotreba/stopka (starší) — limit aspoň postaru, bez stopky.
+  if (!(data && 'radek' in data) && onServer()) {
+    try {
+      const r = await fetch('/gw/spotreba', {credentials: 'same-origin'});
+      const d = r.ok ? await r.json() : {};
+      const gw = (STATE.config && STATE.config.gateway_user) || {};
+      ja = (d.lide || []).find((x) => String(x.email).toLowerCase() === String(gw.email || '').toLowerCase());
+    } catch (_) { ja = null; }
+  }
+  if (kolo !== limitKolo) return;
+  STOPKA = data && data.stopka && data.stopka.text ? data.stopka : null;
+  // Se stopkou častěji — ať je hned vidět, že ji správce zrušil.
+  clearTimeout(spotrebaTimer);
+  spotrebaTimer = setTimeout(hlidejLimit, STOPKA ? 120000 : 600000);
   let bar = document.getElementById('spotreba-pruh');
-  if (!ja || !ja.limit || !ja.stav || ja.stav === 'ok') { if (bar) bar.remove(); return; }
-  const klic = 'hub-spotreba-' + ja.stav + '-' + new Date().toISOString().slice(0, 10);
-  try { if (localStorage.getItem(klic)) return; } catch (_) {}
-  const dolary = (c) => (Number(c) || 0).toFixed(0) + ' $';
-  const text = ja.stav === 'nad'
-    ? 'Tenhle týden jsi přes svůj limit spotřeby Claude (' + dolary(ja.tyden) + ' z ' + dolary(ja.limit) +
-      '). Je to už ' + (ja.preslo || 1) + '. překročení — ať společný limit nevyčerpáme všichni, zkus ubrat.'
-    : 'Blížíš se ke svému týdennímu limitu spotřeby Claude (' + dolary(ja.tyden) + ' z ' + dolary(ja.limit) + ').';
+  const limit = ja && (ja.limit || (ja.limity && (ja.limity.pct || ja.limity.tokeny)));
+  let stav = STOPKA ? 'stopka' : (limit && ja.stav && ja.stav !== 'ok' ? ja.stav : '');
+  if (!stav && data && data.stopka_na_serveru) stav = 'jinde';
+  if (!stav || (stav === 'stopka' && stopkaSkryta === STOPKA.text)) { if (bar) bar.remove(); return; }
+  const klic = 'hub-spotreba-' + stav + '-' + new Date().toISOString().slice(0, 10);
+  if (stav !== 'stopka') {
+    try { if (localStorage.getItem(klic)) { if (bar) bar.remove(); return; } } catch (_) {}
+  }
+  let text;
+  if (stav === 'stopka') {
+    text = STOPKA.text;
+  } else if (stav === 'jinde') {
+    text = 'Na serveru máš vyčerpaný týdenní limit na Clauda. Tady na počítači jedeš na jiném předplatném, ' +
+      'takže tady můžeš psát dál.';
+  } else if (stav === 'nad') {
+    const det = limitDetail(ja, true);
+    text = 'Tenhle týden jsi přes svůj limit na Clauda' + (det ? ' (' + det + ')' : '') + '. Je to už ' +
+      (ja.preslo || 1) + '. překročení — ať společný limit nevyčerpáme všichni, zkus ubrat.';
+  } else {
+    const det = limitDetail(ja, false);
+    text = 'Blížíš se ke svému týdennímu limitu na Clauda' + (det ? ' (' + det + ')' : '') + '.' +
+      (ja.limity && ja.limity.stopka ? ' Po překročení se nové zprávy Claudovi zastaví, dokud se limit neuvolní.' : '');
+  }
   if (!bar) {
     bar = document.createElement('div');
     bar.id = 'spotreba-pruh';
     document.body.appendChild(bar);
   }
-  bar.className = 'spotreba-pruh ' + ja.stav;
+  bar.className = 'spotreba-pruh ' + (stav === 'stopka' ? 'nad stopka' : stav === 'jinde' ? 'blizko' : stav);
   bar.textContent = '';
   const t = document.createElement('span');
   t.textContent = text;
   const x = document.createElement('button');
   x.textContent = '×';
-  x.title = 'Zavřít (dnes se to nebude opakovat)';
-  x.onclick = () => { try { localStorage.setItem(klic, '1'); } catch (_) {} bar.remove(); };
+  x.title = stav === 'stopka' ? 'Skrýt (zprávy Claudovi se stejně nepošlou, dokud stopka platí)'
+    : 'Zavřít (dnes se to nebude opakovat)';
+  x.onclick = () => {
+    if (stav !== 'stopka') { try { localStorage.setItem(klic, '1'); } catch (_) {} } else stopkaSkryta = STOPKA.text;
+    bar.remove();
+  };
   bar.append(t, x);
 }
 
@@ -5151,7 +5410,7 @@ function hubIO() {
     open: openLink,
     pickFolder,
     reload,
-    refreshState: async () => { STATE = await api('state'); markAdvanced(); renderBranding(); applyMotiv(STATE.motiv); HubVerxee.apply(STATE); },
+    refreshState: async () => { STATE = await api('state'); markAdvanced(); renderBranding(); applyMotiv(STATE.motiv); HubVerxee.apply(STATE); syncPanelNav(); },
     // Motiv přepnutý v Nastavení → Aladin Market → Motivy, bez obnovení okna.
     setMotiv: applyMotiv,
     openWizard: () => HubOnboarding.open({...hubIO(), state: STATE}),
@@ -5393,7 +5652,7 @@ async function main() {
   $('nav-projekty').onclick = () => showProjekty(true);
   // Položky panelu jako v appce Claude (viditelné v motivu Claude — hub.css).
   $('nav-hledat').onclick = () => { const q = $('chats-search'); if (q) { q.scrollIntoView({block: 'nearest'}); q.focus(); } };
-  $('nav-customize').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'rozsireni'});
+  $('nav-customize').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'panel'});
   $('nav-terminal').onclick = () => openTab({kind: 'shell', path: '', title: 'Terminál'});
   $('welcome-prompt-input').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !(window.HubIME && !window.HubIME.enterOdesle(ev))) {
@@ -5482,6 +5741,27 @@ async function main() {
   connect();
   checkForUpdate();
   checkServerUpdate();
+
+  /* Soubory a text nasdílené z jiné appky v telefonu (sw.js → ?sdileno=):
+     výběr chatu a vložení do jeho bubliny (sdileni.js). */
+  if (window.HubSdileni) {
+    HubSdileni.start({
+      api, toast, upload: uploadFiles, chatRadek, druhChatu, chatNahled, fold: foldText,
+      chats: () => CHATS, patri: tabPatriChatu,
+      tabs: () => TABS.filter((t) => t.kind === 'project' && t.composer && !t.exited),
+      // Až po výpisu tabů ze serveru — jinak by se běžící chat otevřel podruhé.
+      pripraveno: () => online() && placeReady,
+      novy: () => { closeDrawer(); return newChatHere(); },
+      tab: (t) => { closeDrawer(); activate(t); return t; },
+      chat: async (c) => {
+        await resumeChat(c);
+        const t = TABS.find((x) => tabPatriChatu(x, c)) || null;
+        // Rozepsaný koncept chatu nejdřív zpátky, sdílené se přidá k němu.
+        if (t) obnovKoncept(t);
+        return t;
+      },
+    });
+  }
 
   await startScreen(returned);
 }

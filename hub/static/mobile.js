@@ -45,11 +45,62 @@
   function openDrawer() {
     document.body.classList.add('drawer-open');
     if (scrim) scrim.hidden = false;
+    drawerMisto();
   }
 
   function closeDrawer() {
     document.body.classList.remove('drawer-open');
     if (scrim) scrim.hidden = true;
+    hledatZavri();
+  }
+
+  /* Tlačítko Chyba/Návrh z lišty (Verxee Debug) zůstává na telefonu na svém
+     místě i nad otevřeným šuplíkem — ikony v hlavičce šuplíku mu uhnou o tolik,
+     kolik z hlavičky zakrývá. Bez tlačítka žádné místo navíc. */
+  function drawerMisto() {
+    const head = document.querySelector('.drawer-head');
+    const vx = $('btn-verxee');
+    if (!head) return;
+    let misto = 0;
+    if (vx && !vx.hidden && window.matchMedia(NARROW).matches) {
+      const r = vx.getBoundingClientRect();
+      const h = head.getBoundingClientRect();
+      // Šuplík se teprve vysouvá (transform) — počítá se s jeho konečnou
+      // polohou u levého okraje, ne s tou, kde je zrovna teď.
+      const vpravo = head.offsetLeft + head.offsetWidth;
+      if (r.width && r.left < vpravo && r.top < h.bottom && r.bottom > h.top) misto = Math.ceil(vpravo - r.left + 4);
+    }
+    head.style.setProperty('--drawer-vx', misto + 'px');
+  }
+  window.addEventListener('resize', () => { if (document.body.classList.contains('drawer-open')) drawerMisto(); });
+
+  /* Hledání v hlavičce šuplíku: lupa z hlavičky udělá pole a pod ním jsou
+     rovnou výsledky. Hledá se stejně jako na počítači — pole jen předává
+     text do #chats-search (hub.js, renderChats). */
+  const hledatPole = $('drawer-hledat');
+  function hledatPrenes() {
+    const q = $('chats-search');
+    if (!q || !hledatPole || q.value === hledatPole.value) return;
+    q.value = hledatPole.value;
+    q.dispatchEvent(new Event('input', {bubbles: true}));
+  }
+  function hledatOtevri() {
+    if (!hledatPole) return;
+    document.body.classList.add('drawer-hledani');
+    const sidebar = document.querySelector('.sidebar');
+    if (sidebar) sidebar.scrollTop = 0;
+    hledatPole.focus();
+  }
+  function hledatZavri() {
+    if (!document.body.classList.contains('drawer-hledani')) return;
+    document.body.classList.remove('drawer-hledani');
+    if (hledatPole && hledatPole.value) { hledatPole.value = ''; hledatPrenes(); }
+  }
+  if (hledatPole) {
+    hledatPole.addEventListener('input', hledatPrenes);
+    hledatPole.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') { ev.stopPropagation(); hledatZavri(); }
+    });
   }
 
   if (toggle) {
@@ -243,10 +294,17 @@
   };
   const drawerFirma = $('btn-drawer-firma');
   if (drawerFirma) drawerFirma.onclick = () => { closeDrawer(); if (window.hubFirmaChat) window.hubFirmaChat(); };
-  const drawerHome = $('btn-drawer-home');
-  if (drawerHome) drawerHome.onclick = () => { if (window.hubHome) window.hubHome(); else closeDrawer(); };
-  const drawerX = $('btn-drawer-x');
-  if (drawerX) drawerX.onclick = closeDrawer;
+  // Hlavička šuplíku: logo s názvem = domů, lupa, nastavení, ⋯ (jako ⋯ v liště).
+  const drawerBrand = $('btn-drawer-brand');
+  if (drawerBrand) drawerBrand.onclick = () => { if (window.hubHome) window.hubHome(); else closeDrawer(); };
+  const drawerHledat = $('btn-drawer-hledat');
+  if (drawerHledat) drawerHledat.onclick = hledatOtevri;
+  const drawerZpet = $('btn-drawer-hledat-zpet');
+  if (drawerZpet) drawerZpet.onclick = hledatZavri;
+  const drawerNast = $('btn-drawer-nastaveni');
+  if (drawerNast) drawerNast.onclick = () => { closeDrawer(); const b = $('btn-settings'); if (b) b.click(); };
+  const drawerMenu = $('btn-drawer-menu');
+  if (drawerMenu) drawerMenu.onclick = () => { if (window.hubTopbarMenu) window.hubTopbarMenu(drawerMenu, {suplik: true}); };
 
   matchMedia(NARROW).addEventListener('change', applyClasses);
   applyClasses();

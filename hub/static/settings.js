@@ -35,8 +35,13 @@
     // Firmy, lidé a přístupy ke klientům (gateway/firmy.py) — jen na bráně.
     ['firmy',      'Firmy',     'i-folder',   () => firmy(), 'server'],
     ['hlas',       'Hlas',      'i-mic',      () => hlas()],
+    // Co je v panelu vlevo: Obsidian, Projekty (Klienti), terminál.
+    ['panel',      'Panel vlevo', 'i-menu',   () => panelVlevo()],
     // Všechno, čím se Claude rozšiřuje — služby, pluginy, skilly, MCP, pluginy appky.
     ['rozsireni',  'Napojení a pluginy', 'i-hub', () => rozsireni()],
+    // Místo na disku serveru a oznámení lidem (gateway/uloziste.py, oznameni.py; uloziste.js).
+    ['uloziste',   'Úložiště',  'i-disk',     () => HubUloziste.uloziste({...io, zavrit: close}), 'server'],
+    ['oznameni',   'Oznámení',  'i-bell',     () => HubUloziste.oznameni(io), 'admin'],
     ['aktualizace','Aktualizace', 'i-up',     () => aktualizace()],
     ['logy',       'Logy',      'i-status',   () => logy(), 'dev'],
     ['ostatni',    'Ostatní',   'i-gear',     () => ostatni()],
@@ -46,13 +51,28 @@
   // Skupiny v panelu vlevo (pořadí sekcí zůstává, mění se jen nadpisy).
   const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', taby: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
                    ucet: 'Předvolby', firmy: 'Předvolby', hlas: 'Předvolby',
-                   rozsireni: 'Přizpůsobit', aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
+                   panel: 'Přizpůsobit', rozsireni: 'Přizpůsobit', uloziste: 'Platforma', oznameni: 'Platforma',
+                   aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
 
   function el(tag, cls, text) {
     const node = document.createElement(tag);
     if (cls) node.className = cls;
     if (text != null) node.textContent = text;
     return node;
+  }
+
+  /* Hledací pole, do kterého prohlížeč nesmí nic doplňovat. Samotné
+     autocomplete="off" Chrome u polí, která považuje za přihlášení, přeskočí;
+     jméno, pod kterým nic uložené není, mu nenechá co nabídnout. */
+  function bezDoplnovani(input) {
+    input.autocomplete = 'off';
+    input.name = 'hub-hledat-' + Math.random().toString(36).slice(2, 8);
+    input.spellcheck = false;
+    input.setAttribute('autocapitalize', 'off');
+    input.setAttribute('autocorrect', 'off');
+    input.setAttribute('data-1p-ignore', '');
+    input.setAttribute('data-lpignore', 'true');
+    input.setAttribute('data-form-type', 'other');
   }
 
   function section(title, note) {
@@ -141,8 +161,16 @@
     hledej.type = 'search';
     hledej.placeholder = 'Hledat';
     hledej.value = navHledat;
-    hledej.autocomplete = 'off';
-    nav.appendChild(hledej);
+    bezDoplnovani(hledej);
+    // Chrome bere pole mimo <form> jako jeden formulář s heslem ze sekce Účet,
+    // hledání pak považuje za přihlašovací jméno a cpe do něj e-mail.
+    // Vlastní formulář ho od přihlášení oddělí.
+    const hledejForm = el('form', 'set-search-form');
+    hledejForm.setAttribute('autocomplete', 'off');
+    hledejForm.setAttribute('role', 'search');
+    hledejForm.onsubmit = (ev) => ev.preventDefault();
+    hledejForm.appendChild(hledej);
+    nav.appendChild(hledejForm);
     const needle = navHledat.trim().toLowerCase();
     let skupina = '';
     for (const [id, label, ico] of shown) {
@@ -494,6 +522,48 @@
     }
 
     kresli();
+    return box;
+  }
+
+  /* Panel vlevo: co je pod Novým chatem. Obsidian a Projekty (ve firmě
+     Klienti) si tam dá každý sám a odsud se otevřou i bez toho; terminál je
+     jen ve vývojářském režimu. Výchozí hodnoty drží hub.js (PANEL_VYCHOZI). */
+  function panelVlevo() {
+    const box = section('Panel vlevo',
+      'Co vidíš v panelu pod Novým chatem. Co tam není, otevřeš tady.');
+    const rows = el('div', 'set-rows');
+    const cfg = (state && state.config) || {};
+    const ulozeno = cfg.panel || {};
+    const vychozi = {projekty: false, obsidian: false, terminal: true};
+    const nav = (id) => document.getElementById(id);
+    const polozka = (klic, nazev, popis, otevrit) => {
+      const ovl = el('div', 'set-panel-ovl');
+      const b = el('button', 'btn ghost', 'Otevřít');
+      b.type = 'button';
+      b.onclick = () => { close(); otevrit(); };
+      const lbl = el('label', 'set-panel-v');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = typeof ulozeno[klic] === 'boolean' ? ulozeno[klic] : vychozi[klic];
+      cb.onchange = () => save({panel: {[klic]: cb.checked}});
+      lbl.append(cb, el('span', null, 'V panelu'));
+      ovl.append(b, lbl);
+      rows.appendChild(radek(nazev, popis, ovl));
+    };
+    // Ve firmě se Projekty jmenují Klienti (hub.js, applyProstor).
+    const projekty = ((nav('nav-projekty') || {}).textContent || '').trim() || 'Projekty';
+    polozka('projekty', projekty, projekty === 'Klienti'
+      ? 'Klienti firmy a jejich podkategorie, do kterých vidíš.'
+      : 'Složky s projekty a chaty v nich.', () => nav('nav-projekty').click());
+    if (state.memory && state.memory.enabled) {
+      polozka('obsidian', 'Obsidian', 'Poznámky — osobní, firemní a sdílené.',
+        () => nav('btn-brain').click());
+    }
+    if (advanced() && (cfg.newtab || {}).shell !== false) {
+      polozka('terminal', 'Terminál', 'Holý terminál bez Clauda. Jen ve vývojářském režimu.',
+        () => nav('nav-terminal').click());
+    }
+    box.appendChild(rows);
     return box;
   }
 
@@ -948,6 +1018,7 @@
     if (!advanced()) {
       const only = section('AI agenti',
         'Modely, které si Claude umí zavolat na pomoc. Vyplníš údaje a je napojeno.');
+      only.appendChild(gemini());
       only.appendChild(jev());
       return only;
     }
@@ -984,6 +1055,9 @@
       col.appendChild(el('small', null, a.path
         ? (a.note || a.path)
         : 'není nainstalovaný'));
+      if (a.path && a.logged === false) {
+        col.appendChild(el('small', 'set-warn', 'nepřihlášený — klikni na Přihlásit'));
+      }
       r.append(dot, col, el('span', 'spacer'));
 
       if (!a.path && a.install) {
@@ -1057,6 +1131,7 @@
 
     check.onclick = () => load(true);
     if (agentsLast) draw(agentsLast); else load(false);
+    box.appendChild(gemini());
     box.appendChild(jev());
     return box;
   }
@@ -1163,6 +1238,97 @@
     return wrap;
   }
 
+  /* Gemini (Google AI Pro) přes Antigravity CLI — pomocník, kterého si Claude
+     volá na obrázky, nahrávky, videa a hromadnou práci (mcp__gemini__*,
+     hub/gemini.py). Má vlastní týdenní limit, takže šetří ten Claudeův.
+     Instalace a přihlášení jedou v tabu stejně jako u agentů; napojení pro
+     Clauda pak hub udělá sám, při dalším otevření karty. */
+  function gemini() {
+    const wrap = el('div', 'svc-card');
+    const head = el('div', 'onb-row');
+    const dot = el('span', 'set-dim', '○');
+    const col = el('span', 'onb-col');
+    col.appendChild(el('span', null, 'Gemini · Google AI Pro'));
+    const sub = el('small', null, 'zjišťuji…');
+    col.appendChild(sub);
+    head.append(dot, col, el('span', 'spacer'));
+    const inst = el('button', 'btn ghost', 'Nainstalovat');
+    const login = el('button', 'btn ghost', 'Přihlásit');
+    const again = el('button', 'btn ghost', 'Zkontrolovat');
+    head.append(inst, login, again);
+    const body = el('div', 'svc-form');
+    wrap.append(head, body);
+
+    const openIn = (kind, title) => { close(); io.openTab({kind, path: state.home, title}); };
+    inst.onclick = () => openIn('install:antigravity', 'instalace: Gemini');
+    login.onclick = () => openIn('auth:antigravity', 'přihlášení: Gemini');
+    inst.title = 'Pustí se v tabu, ať je vidět, co se děje.';
+    login.title = 'Spustí Gemini (agy) — napoprvé se přihlásíš Google účtem. Pak tab zavři.';
+
+    function draw(s) {
+      body.textContent = '';
+      body.hidden = !s.installed;
+      inst.hidden = s.installed;
+      login.hidden = !s.installed || s.logged === true;
+      login.className = 'btn ' + (s.installed && s.logged === false ? 'primary' : 'ghost');
+      const ok = s.installed && s.logged !== false;
+      dot.className = !s.installed ? 'set-dim' : (ok ? 'set-ok' : 'set-warn');
+      dot.textContent = s.installed ? '●' : '○';
+      if (!s.installed) {
+        sub.textContent = 'Gemini od Googlu na předplatném Google AI Pro. Claude si ho zavolá ' +
+          'na fotorealistické obrázky, přepis nahrávek a videa — a ušetří svůj týdenní limit.';
+      } else if (s.logged === false) {
+        sub.textContent = 'Nainstalovaný, ale nepřihlášený — přihlas se svým Google účtem ' +
+          '(ten, na kterém máš Google AI Pro).';
+      } else {
+        sub.textContent = (s.logged ? 'Přihlášený. ' : 'Nainstalovaný; přihlášení je v klíčence ' +
+          'systému a ověří ho první volání. ') +
+          'Claude ho volá na obrázky, přepisy nahrávek a videí a na hromadnou práci.';
+      }
+      if (!s.installed) return;
+      const r = el('label', 'onb-row');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = s.enabled !== false;
+      cb.onchange = async () => {
+        cb.disabled = true;
+        try { draw(await io.api('gemini', {zapnout: cb.checked})); }
+        catch (err) { io.toast(err.message); cb.disabled = false; }
+      };
+      const c = el('div', 'onb-col');
+      c.appendChild(el('span', null, 'Claude si smí volat Gemini'));
+      c.appendChild(el('small', null, 'Obrázky, přepis nahrávek, popis videí a hromadná práce ' +
+        'jdou na limit Googlu, ne Claudeův. Claude to pozná sám, stačí mu říct, co chceš.'));
+      r.append(cb, c);
+      body.appendChild(r);
+      const notes = [];
+      if (s.chyba) notes.push(['set-warn', 'Poslední volání: ' + s.chyba]);
+      if (s.cizi) {
+        notes.push(['set-warn', 'Napojení jménem „gemini" už máš vlastní — Aladin ho nepřepisuje.']);
+      } else if (s.enabled !== false && !s.registered) {
+        notes.push(['set-dim', s.test ? 'Zkušební hub napojení pro Clauda nemění.'
+          : 'Napojení pro Clauda se zapne, až se Gemini poprvé spustí (Přihlásit).']);
+      }
+      const t = s.tyden || {};
+      const pocty = Object.keys(t).sort().map((k) => k + ' ' + t[k] + '×');
+      notes.push(['set-dim', (pocty.length ? 'Tento týden přes Aladina: ' + pocty.join(', ') + '. ' : '') +
+        'Limit Google AI Pro: Flash ~2 000–5 000 dotazů týdně, silnější Argon ~300. ' +
+        'Kolik zbývá, ukáže /usage v tabu s Gemini.']);
+      if (advanced() && s.prikaz) notes.push(['set-dim', 'V terminálu: gemini-pomoc "zadání" [soubor…]']);
+      for (const [cls, text] of notes) body.appendChild(el('div', 'set-note ' + cls, text));
+    }
+
+    async function load() {
+      again.disabled = true;
+      try { draw(await io.api('gemini')); }
+      catch (err) { sub.textContent = 'nepodařilo se zjistit: ' + err.message; }
+      again.disabled = false;
+    }
+    again.onclick = load;
+    load();
+    return wrap;
+  }
+
   /* Účet na serveru.
    *
    * Hub běží na dvou místech: na počítači u projektů, na serveru v prostoru,
@@ -1203,6 +1369,8 @@
       swap.onclick = () => { close(); io.login(); };
       radek.appendChild(swap);
     }, () => { radek.textContent = ''; radek.appendChild(el('span', 'set-warn', 'Účet se nepodařilo zjistit.')); });
+    // Další předplatná pro Claude Code na tomhle počítači (predplatne.js).
+    if (window.HubPredplatne && HubPredplatne.lokalBlock) wrap.appendChild(HubPredplatne.lokalBlock(io));
     return wrap;
   }
 
@@ -1831,8 +1999,43 @@
         'Appka si pamatuje, kde jsi pracoval naposledy. Ze serveru se sem ' +
         'vrátíš v jeho nastavení: Účet → Pracovat na tomto počítači. Heslo ' +
         'a záložní kódy změníš tamtéž, v Nastavení → Účet v prostoru na serveru.'));
+      body.appendChild(zrcadloBlok());
       body.appendChild(HubPredplatne.panel(io));
       body.appendChild(HubPocitac.panel(io));
+    }
+
+    /* Počítač počítá, kopie chatů je na serveru (hub/zrcadlo.py): vypínač
+       a stav. Claude běží tady, na telefonu chat vidíš a převezmeš ho. */
+    function zrcadloBlok() {
+      const box = el('div', 'acc-sec');
+      box.appendChild(el('div', 'set-title', 'Chaty na serveru'));
+      box.appendChild(el('div', 'set-note',
+        'Claude počítá na tomhle počítači a každý chat se po odpovědi sám zkopíruje do tvého ' +
+        'prostoru na serveru. Na telefonu ho hned vidíš a když ho tam otevřeš, převezme ho ' +
+        'telefon — tady Claude dopíše odpověď a pustí ho. Chat ze serveru si sem stejně vezmeš ' +
+        'klepnutím v seznamu. Kopírují se jen chaty, ne soubory.'));
+      const row = el('label', 'onb-row');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = (state.config || {}).zrcadlo !== false;
+      row.append(cb, el('span', null, 'Kopírovat chaty na server'));
+      box.appendChild(row);
+      const stav = el('div', 'set-note', 'zjišťuji…');
+      box.appendChild(stav);
+      const kresli = (z) => {
+        if (!z.nastaveno) { stav.textContent = 'Vypnuto — chaty zůstávají jen na tomhle počítači.'; return; }
+        if (z.chyba) { stav.textContent = 'Kopírování teď vázne: ' + z.chyba; return; }
+        const pred = z.posledni ? Math.max(0, Math.round(Date.now() / 1000 - z.posledni)) : null;
+        stav.textContent = (pred == null ? 'Připravuji první kopii…'
+          : 'Naposledy před ' + (pred < 90 ? pred + ' s' : Math.round(pred / 60) + ' min')) +
+          ' · na serveru ' + (z.pocet || 0) + ' chatů z tohoto počítače' +
+          ((z.server || []).length ? ' · ' + z.server.length + ' teď běží na serveru' : '');
+      };
+      io.api('zrcadlo').then(kresli, (err) => { stav.textContent = err.message; });
+      cb.onchange = async () => {
+        try { kresli(await io.api('zrcadlo-nastav', {zapnout: cb.checked})); } catch (err) { io.toast(err.message); }
+      };
+      return box;
     }
 
     function draw(data) {
@@ -2779,6 +2982,9 @@
     }
     if (s.name === 'pocitac' || /pocitac_mcp/.test(t)) {
       return {nazev: 'Spojení s počítačem', ico: 'i-laptop', popis: 'Claude ze serveru sahá na tvůj počítač'};
+    }
+    if (s.name === 'gemini' && /gemini_mcp/.test(t)) {
+      return {nazev: 'Gemini pro Clauda', ico: 'i-star', popis: 'obrázky, nahrávky a videa přes Google AI Pro (AI agenti → Gemini)'};
     }
     if (/^sdilene-/.test(s.name) || /sdilene_mcp/.test(t)) {
       return {nazev: 'Sdílené: ' + s.name.replace(/^sdilene-/, ''), ico: 'i-user', popis: 'napojení, které s tebou sdílí kolega'};

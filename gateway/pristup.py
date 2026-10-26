@@ -88,7 +88,7 @@ POMOCNIK_DENY = {
     "claude-ucet", "chat-delete",
 }
 # … a tohle jen ke čtení (POST mění nastavení).
-POMOCNIK_READ_ONLY = {"app-vzhled", "pluginy", "pocitac", "agents", "auto-model-keep"}
+POMOCNIK_READ_ONLY = {"app-vzhled", "pluginy", "pocitac", "agents", "auto-model-keep", "gemini"}
 # Akce v těle POSTu, které mažou.
 POMOCNIK_DENY_ACTIONS = {"project": {"remove"}, "firma": {"discard"}}
 

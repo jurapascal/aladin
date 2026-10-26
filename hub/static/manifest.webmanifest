@@ -15,5 +15,28 @@
     {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
     {"src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png",
      "purpose": "maskable"}
-  ]
+  ],
+  "share_target": {
+    "action": "/sdilet",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "nazev",
+      "text": "text",
+      "url": "odkaz",
+      "files": [
+        {"name": "soubory",
+         "accept": ["*/*", "image/*", "video/*", "audio/*", "text/*", "application/pdf",
+                    "application/msword", "application/vnd.ms-excel", "application/vnd.ms-powerpoint",
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "application/vnd.oasis.opendocument.text",
+                    "application/vnd.oasis.opendocument.spreadsheet",
+                    "application/json", "application/zip", "application/octet-stream",
+                    ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".odt", ".ods",
+                    ".txt", ".md", ".csv", ".json", ".zip"]}
+      ]
+    }
+  }
 }

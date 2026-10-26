@@ -25,7 +25,7 @@ _CACHE = {}                      # cesta -> (velikost, mtime, info)
 _LOCK = threading.Lock()
 # Mezipaměť přežije restart hubu: bez ní první načtení seznamu po startu četlo
 # začátek a konec každého přepisu (stovky souborů, přes vteřinu čekání).
-_DISK_VERSION = 2
+_DISK_VERSION = 3                # 3: náhled poslední zprávy (`posledni`)
 _disk_loaded = False
 _disk_saved = [0.0]              # kdy naposled — rozepsaný chat se mění pořád
 # Značky, které Claude Code vkládá do uživatelských zpráv a člověk je nepsal.
@@ -81,6 +81,40 @@ def prompt_text(entry):
     return text[:200]
 
 
+_KOD = re.compile(r"```.*?(```|$)", re.S)
+_TAGY = re.compile(r"</?[a-z][a-z0-9_-]*(\s[^>]*)?>")
+_ZNACKY = re.compile(r"(\*\*|__|`|^#+\s*|^>\s*|^[-*]\s+|\[([^\]]*)\]\([^)]*\))", re.M)
+
+
+def _nahled(text):
+    """Text zprávy jako řádek náhledu v seznamu: bez kódu a značek Markdownu."""
+    text = _KOD.sub(" [kód] ", text or "")
+    text = _TAGY.sub(" ", text)
+    text = _ZNACKY.sub(lambda m: m.group(2) or "", text)
+    return " ".join(text.split())[:160]
+
+
+def _posledni(entries):
+    """Poslední zpráva konverzace pro náhled pod názvem (jako ve WhatsAppu):
+    (text, kdo) — kdo je "claude", nebo "ty", když Claude ještě neodpověděl."""
+    for entry in reversed(entries):
+        if entry.get("isSidechain"):
+            continue
+        kind = entry.get("type")
+        if kind == "assistant":
+            content = (entry.get("message") or {}).get("content")
+            if isinstance(content, list):
+                text = _nahled(" ".join(part.get("text", "") for part in content
+                                        if isinstance(part, dict) and part.get("type") == "text"))
+                if text:
+                    return text, "claude"
+        elif kind == "user":
+            text = prompt_text(entry)
+            if text:
+                return _nahled(text), "ty"
+    return "", ""
+
+
 def _info(path, size):
     try:
         with open(path, "rb") as fh:
@@ -116,9 +150,10 @@ def _info(path, size):
     name = " ".join((custom or title or prompt).split())
     if not name:
         return None                  # prázdná konverzace (tab otevřený a hned zavřený)
+    posledni, kdo = _posledni(entries)
     return {"id": os.path.basename(path)[:-6], "title": name[:120], "prompt": prompt,
             "cwd": cwd, "project": os.path.basename(cwd.rstrip("/\\")) if cwd else "",
-            "parents": parents}
+            "parents": parents, "posledni": posledni, "posledni_kdo": kdo}
 
 
 def _disk_path():

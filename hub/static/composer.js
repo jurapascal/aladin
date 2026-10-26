@@ -1111,6 +1111,12 @@
           ? dokud(() => konec() || (!pumpuje && !fronta.length)).then(() => !konec() && io.naServer(body, fid))
           : io.naServer(body, fid);
         naServer.then((ok) => {
+          if (ok === 'stopka') {
+            // Server zprávu nevzal kvůli stopce (hub/stopka.py) — jinou cestou
+            // se neposílá; text se vrátí do pole, ať se neztratí.
+            if (!input.value.trim()) { input.value = opts.text !== undefined ? opts.text : body; autogrow(); }
+            return;
+          }
           if (ok) { ohlas(body, Object.assign({}, opts, {fid}), 'server'); return; }
           if (konec()) return;
           if (!cekaPrikaz) ohlas(body, opts, 'odesila');          // server zprávu nevzal — stará cesta
@@ -1144,6 +1150,14 @@
          by ji mezitím smazal). Bez textu ji uvede slovo, ať lomítkem nezačíná. */
       const body = files ? (text ? text + ' ' + files : 'Příloha: ' + files) : text;
       if (!body.trim()) return;
+      /* Stopka od správce (týdenní limit, hub/stopka.py): zpráva Claudovi
+         neodejde a zůstane v poli. Příkazy (/…, !…) a odpovědi na otázku
+         Clauda jdou dál — rozdělaná práce má doběhnout. */
+      const stop = io.stopka && io.stopka();
+      if (stop && !codePrompt && !tab.ceka && !askingNow && !/^\s*[\/!]/.test(body) && !dialogDole()) {
+        if (io.notice) io.notice(stop.text);
+        return;
+      }
       autoPredOdeslanim(input.value);
       document.dispatchEvent(new CustomEvent('hub-odeslano', {detail: {tab: tab.id, text: input.value.trim()}}));
       submit(body, {text: input.value.trim(), atts: atts.slice()});
@@ -1427,6 +1441,10 @@
                       },
                     })), {above: true}), 0)});
       }
+      // Na kterém předplatném Claude jede — když jich je víc (predplatne.js).
+      const pd = AG.full && window.HubPredplatne &&
+        HubPredplatne.menuItem((sub) => setTimeout(() => io.menu(x, y, sub, {above: true}), 0));
+      if (pd) items.push(pd);
       io.menu(x, y, items, {above: true});
     }
 
@@ -2331,6 +2349,9 @@
         shown = want;
         root.classList.toggle('on', shown);
         if (!shown) root.style.minHeight = '';
+        // Text vložený do schované bubliny (koncept, sdílení) neměl z čeho
+        // změřit výšku — pole by ukazovalo jen poslední řádek.
+        if (shown && input.value) autogrow();
         dirty = true;
         syncHeight();
         // Fokus musí jít za tím, do čeho se píše. Jinak by psaní s diakritikou
@@ -2742,6 +2763,20 @@
         for (const p of prilohy || []) if (!atts.includes(p)) atts.push(p);
         if (atts.length) renderAtts();
         autogrow();
+      },
+      /* Soubory a text nasdílené z jiné appky v telefonu (sdileni.js). Na
+         rozdíl od setDraft se přidají i k rozepsané zprávě a nic z ní
+         nepřepíšou. Neodesílá se: člověk k tomu většinou chce ještě dopsat,
+         co s tím má Claude udělat. */
+      pridej: (text, prilohy) => {
+        konceptAktivni = true;
+        const t = String(text || '').trim();
+        if (t) input.value = input.value.trim() ? input.value.replace(/\s+$/, '') + '\n\n' + t : t;
+        for (const p of prilohy || []) if (!atts.includes(p)) atts.push(p);
+        renderAtts();
+        autogrow();
+        if (shown) input.focus({preventScroll: true});
+        return true;
       },
       visible: () => shown,
       hide: () => { hiddenByUser = true; apply(true); },

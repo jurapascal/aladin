@@ -103,6 +103,9 @@ DEFAULTS = {
     # Vývojářský režim: nasazování a práce s GitHubem. Vypnuto znamená, že se
     # hub o nic z toho nepokouší — ani se nenabízí, ani nic neinstaluje.
     "dev_mode": False,
+    # Položky panelu vlevo, které si člověk zapnul nebo vypnul
+    # (projekty, obsidian, terminal → bool); chybějící = výchozí v hub.js.
+    "panel": {},
     # Účet na bráně (serverový hub). Heslo se neukládá — jen token zařízení,
     # který brána vydá při přihlášení a kdykoli zneplatní.
     "gw_server": "",
@@ -456,6 +459,19 @@ def child_env():
 # Systémový handler otevře leccos — `file://…​.desktop` se pod ním klidně spustí —
 # takže se pouští jen schémata, u kterých je jasné, co udělají.
 SAFE_SCHEMES = ("http://", "https://", "mailto:", "obsidian://")
+
+
+# Přípony, které by se „otevřením" spustily (hlavně na Windows). Otevře se
+# místo nich složka — spustit je je věc rozhodnutí, ne jednoho kliknutí.
+SPUSTITELNE = {".exe", ".msi", ".bat", ".cmd", ".com", ".scr", ".ps1", ".vbs", ".vbe", ".js", ".jse",
+               ".wsf", ".wsh", ".lnk", ".url", ".reg", ".hta", ".cpl", ".jar", ".sh", ".desktop",
+               ".appimage", ".run", ".command", ".app", ".pkg", ".py", ".pyw"}
+
+
+def je_spustitelny(path):
+    if os.path.splitext(path)[1].lower() in SPUSTITELNE:
+        return True
+    return not IS_WINDOWS and os.path.isfile(path) and os.access(path, os.X_OK)
 
 
 def open_path(path):
@@ -1648,15 +1664,56 @@ def save_upload(name, raw):
     return path
 
 
-def _prune_images():
+def _prune_images(folder=None, keep=KEEP_IMAGES):
     """Keep the folder from growing forever — screenshots add up fast."""
+    folder = folder or IMAGE_DIR
     try:
-        files = [os.path.join(IMAGE_DIR, n) for n in os.listdir(IMAGE_DIR)]
+        files = [os.path.join(folder, n) for n in os.listdir(folder)]
         files = [f for f in files if os.path.isfile(f)]
-        for old in sorted(files, key=os.path.getmtime, reverse=True)[KEEP_IMAGES:]:
+        for old in sorted(files, key=os.path.getmtime, reverse=True)[keep:]:
             os.remove(old)
     except Exception:
         pass
+
+
+# Dokumenty k chatu (Word, Excel, zvuk, video, archiv…) — příloha v bublině
+# nebo soubor nasdílený z jiné appky v telefonu (sdileni.js). save_upload by
+# z neznámé přípony udělal .png a Claude by pak dokument četl jako obrázek.
+# Do hub-images nepatří: /api/image odtamtud posílá soubory s typem podle
+# přípony, takže by se HTML nebo XML pod adresou hubu otevřelo jako stránka.
+# Sem se nic neposílá — Claude dostane jen cestu.
+PRILOHY_DIR = os.path.join(CLAUDE_DIR, "hub-prilohy")
+KEEP_PRILOHY = 100
+
+
+def je_dokument(name):
+    """Má soubor příponu, kterou save_upload nezná (a přepsal by ji na .png)?"""
+    ext = os.path.splitext(os.path.basename(str(name or "").replace("\\", "/")))[1]
+    return bool(ext) and ext.lower() not in _SAFE_EXT
+
+
+def save_priloha(name, raw):
+    """Dokument z bubliny nebo ze sdílení na disk, s původní příponou; vrací cestu.
+
+    Jméno zůstává čitelné i s diakritikou — podle něj Claude i člověk poznají,
+    co to je. Pryč jde jen cesta a znaky, které systémy v názvu nesnesou."""
+    import datetime
+    import re
+    os.makedirs(PRILOHY_DIR, exist_ok=True)
+    stem, ext = os.path.splitext(os.path.basename(str(name or "").replace("\\", "/")))
+    ext = re.sub(r"[^A-Za-z0-9]+", "", ext)[:12].lower()
+    ext = "." + ext if ext else ""
+    stem = re.sub(r"[^\w.-]+", "-", stem).strip("-.")[:60] or "soubor"
+    path = os.path.join(
+        PRILOHY_DIR, f"{datetime.datetime.now():%Y%m%d-%H%M%S}-{stem}{ext}")
+    n = 1
+    while os.path.exists(path):
+        path = os.path.join(PRILOHY_DIR, f"{datetime.datetime.now():%Y%m%d-%H%M%S}-{stem}-{n}{ext}")
+        n += 1
+    with open(path, "wb") as fh:
+        fh.write(raw)
+    _prune_images(PRILOHY_DIR, KEEP_PRILOHY)
+    return path
 
 
 # ── Soubory z prostoru ke stažení (čtení → „Stáhnout") ─────────────────────
@@ -1669,7 +1726,8 @@ STAZENE_DIR = os.path.join(HOME, "Stažené")
 # a token hubu. Porovnává se po složkách cesty i se jménem souboru.
 _TAJNE = {".ssh", ".gnupg", ".aws", ".azure", ".kube", ".docker", ".netrc", ".git-credentials",
           ".pgpass", ".npmrc", ".pypirc", ".credentials.json", ".claude.json", ".config/gh",
-          "hub-config.json", "hub-token", "browser-profile", "keyrings", ".password-store"}
+          "hub-config.json", "hub-token", "browser-profile", "keyrings", ".password-store",
+          "hub-predplatna.json"}
 
 
 def koreny_stahovani(extra=()):
@@ -3266,14 +3324,14 @@ def _last_model(transcript):
     return "", ""
 
 
-def tab_model(sid, cwd, started):
+def tab_model(session):
     """Model, kterým Claude v tabu doopravdy odpověděl naposledy.
 
     V settings.json je jen volba (a u výchozí nic) — co skutečně běží, ví až
     přepis konverzace. `at` je čas té odpovědi, podle něj bublina pozná, že
     po přepnutí modelu přišla nová.
     """
-    transcript = _tab_transcript(sid, cwd, started)
+    transcript = transcript_for(session)
     model, at = _last_model(transcript) if transcript else ("", "")
     return {"model": model, "label": model_label(model), "at": at}
 
@@ -3566,6 +3624,18 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
         env["HUB_SESSION_ID"] = session
     if launch:
         env.update(launch["env"])
+    # Další předplatné vybrané v Nastavení → Účet (hub/predplatne.py): tab
+    # s Claude Code jede na něm místo běžného přihlášení. /login ne — ten
+    # přihlašuje právě to běžné a s tokenem v prostředí by ho Claude Code obešel.
+    if (spec.get("id") or "") == "claude" and not on_gateway() and not str(slash).startswith("/login"):
+        try:
+            from . import predplatne
+            tok = predplatne.lokal_token()
+        except Exception as exc:
+            log_error("předplatné pro tab", exc)
+            tok = ""
+        if tok:
+            env["CLAUDE_CODE_OAUTH_TOKEN"] = tok
     return script, env
 
 
@@ -3589,7 +3659,17 @@ def cmd_auth(agent_id):
     """Přihlášení k agentovi — spustí jeho vlastní příkaz nebo rovnou jeho TUI."""
     spec = agent_spec(agent_id)
     auth = spec.get("auth") or {}
-    cmd = auth.get("cmd")
+    # `run` = co se doopravdy pustí, když se to liší od příkazu v nápovědě
+    # (Gemini se přihlašuje v pracovní složce pomocníka, viz agents.py).
+    cmd = auth.get("run") or auth.get("cmd")
+    if spec.get("login_probe") == "gemini":
+        # Jde se přihlásit — stará chyba přihlášení už nemá v Nastavení svítit
+        # („nepřihlášený"), dokud Gemini znovu nezavolá (s klíčenkou jinak nepoznáme).
+        try:
+            from . import gemini
+            gemini.gp().zrus_chybu_prihlaseni()
+        except Exception as exc:
+            log_error("gemini: přihlášení", exc)
     if not cmd:
         note = auth.get("note") or "Tenhle agent přihlášení nepotřebuje."
         return f'echo {sh_quote(note)}; exec bash'

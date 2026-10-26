@@ -698,6 +698,65 @@ Rozdílová neeviduje smazání — soubory smazané po plné záloze se obnovou
 ⚠️ Zálohy leží na stejném disku jako data — dokud si je někdo nestáhne pryč,
 neochrání to proti ztrátě disku. Stahování patří na stroj správce, ne sem.
 
+## Místo na disku, úklid a oznámení
+
+Kolik kdo zabírá a čím (`uloziste.py`), noční sloučení mezipamětí (`uklid.py`),
+text oznámení od Claudíka (`rozbor.py`) a oznámení lidem se zvonkem v hubu
+(`oznameni.py`). V hubu ⚙ → Úložiště (každý sebe, admin celý server a lidi)
+a ⚙ → Oznámení (admin: poslat a záznam).
+
+    claude-hub-admin uloziste [--sken]           # disk, lidé, limity, kolik jde uvolnit
+    claude-hub-admin uloziste jmeno@firma.cz     # kategorie, největší složky, nálezy
+    claude-hub-admin uloziste jmeno@firma.cz --limit 5   # GB; 0 = bez limitu, vychozi
+    claude-hub-admin uklid --suchy               # co by se sloučilo
+    claude-hub-admin uklid                       # sloučit + přepočítat
+    claude-hub-admin uklid --rozpojit            # vrátit sloučené soubory zpátky
+    claude-hub-admin oznameni                    # kdo co dostal a co s tím udělal
+    claude-hub-admin oznameni rozbor [--suchy]   # oznámení o místě teď
+    claude-hub-admin oznameni poslat a@firma.cz,b@firma.cz "Nadpis" "Text" [--prompt …]
+
+**Rozbor** prochází domovy po složkách bez následování odkazů a bez cizích
+oddílů, velikost podle bloků jako `du`. Nikdy ve vlákně brány: pouští se
+`python3 -m gateway.uloziste sken|noc|uklid|rozbor` jako samostatný proces
+s `nice 19` a `ionice -c3`, jeden naráz (zámek `uloziste/beh.lock` — noc,
+tlačítka v hubu i `claude-hub-admin`). Výsledek je v `uloziste/sken.json`.
+Soubor, který po sloučení sdílí víc domovů, se každému počítá poměrem — součet
+přes lidi sedí na skutečné místo. Zálohy (jen root) sečte hodinový hlídač
+zdraví do `/var/lib/claude-hub/velikosti.json`.
+
+**Noc** (hlídač v bráně, od `HUB_GW_UKLID_HODINA`=3 do 6, jednou za den):
+sloučení → rozbor → oznámení. Po startu brány bez rozboru se spustí aspoň rozbor.
+
+**Slučování** nahradí bajt po bajtu stejné soubory v `~/.local/share/uv/{python,tools}`,
+`~/.cache/ms-playwright`, `~/.cache/puppeteer`, `~/.cache/huggingface/hub`
+a `~/.npm/_cacache` hardlinkem na jeden soubor. Jen když všechna jména souboru
+leží v těchhle složkách (uv a pnpm dělají hardlinky do projektů — proto tu není
+`~/.cache/uv` ani úložiště pnpm), se stejným vlastníkem, skupinou a právy; těsně
+před sloučením se obsah porovná ještě jednou. Cesty se otevírají po složkách
+s `O_NOFOLLOW`, nové jméno vznikne jako dočasný hardlink a atomický `rename`.
+Sloučený soubor ztratí právo zápisu, ať ho nikdo neupraví všem naráz. Záznam:
+`uloziste/slouceni.jsonl` (`--rozpojit` vrátí kopie s původními právy).
+S oddělenými účty prostorů (`HUB_GW_UCTY=1`) se mezi lidmi neslučuje.
+
+**Oznámení o místě** dostane, kdo je od 80 % limitu, nebo má přes
+`HUB_GW_UKLID_UPOZORNIT_MB` (1024) k uvolnění. Nejvýš jedno za
+`HUB_GW_OZNAMENI_DNI` (4) dny, dřív jen při zhoršení (ok → blízko → nad);
+nepřečtené se nepřipomíná. Text a zadání pro Clauda napíše `claude -p
+--model $HUB_GW_ROZBOR_MODEL` (sonnet) bez nástrojů, MCP a nastavení, na
+společném klíči API, jinak na předplatném toho člověka, jinak na přihlášení
+účtu `hub`; bez Clauda (nebo `HUB_GW_ROZBOR_CLAUDE=0`) šablona. Na konec
+zadání se vždy přidá pevný odstavec: ověřit velikosti, ukázat seznam a nic
+nemazat bez souhlasu, na Obsidian, chaty a projekty nesahat.
+
+**Oznámení** leží v `oznameni.db` (SQLite): komu, od koho, nadpis, text,
+tlačítko se zadáním pro Clauda a kdy si ho přečetl / klikl na Clauda / zavřel.
+Hub je bere přes `/gw/oznameni` (cookie, změny jen se `X-Hub-Account`),
+admin `/gw/oznameni/admin`. Další části brány pošlou oznámení přes
+`oznameni.pridat(uid, email, title, text, kind=…, action={"label", "prompt"})`.
+
+Limit (`HUB_GW_KVOTA_GB`, 3) nic nevypíná — jeden uživatel systému pro všechny
+prostory tvrdou kvótu na disk neumí.
+
 ## Izolace není volitelná
 
 Claude Code na bráně čte soubory a spouští příkazy. U jednoho člověka na

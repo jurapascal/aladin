@@ -154,6 +154,8 @@
     return {
       url: (p) => (global.HubSoubor ? global.HubSoubor.url(p) : ''),
       info: (p) => (global.HubSoubor ? global.HubSoubor.info(p) : Promise.resolve(null)),
+      // Na počítači jde soubor i rovnou otevřít (hub.js, HubSoubor.otevri).
+      otevri: global.HubSoubor && global.HubSoubor.lzeOtevrit() ? (p) => global.HubSoubor.otevri(p) : null,
     };
   }
   /* Nejdřív se zeptá, jestli soubor je (jinak by se stáhla chybová hláška
@@ -178,7 +180,16 @@
     b.type = 'button';
     b.title = 'Stáhnout ' + cesta;
     b.onclick = (ev) => { ev.stopPropagation(); stahni(cesta, st, notice); };
-    return b;
+    if (!st.otevri) return b;
+    // Na počítači: soubor tu leží, takže vedle stažení i „Otevřít".
+    const obal = el('span', 'cteni-soubor-akce');
+    const o = el('button', 'cteni-stahnout cteni-otevrit' + (cls ? ' ' + cls : ''),
+      cls === 'hlavni' ? 'Otevřít' : '↗ Otevřít');
+    o.type = 'button';
+    o.title = 'Otevřít ' + cesta + ' v aplikaci na tomhle počítači';
+    o.onclick = (ev) => { ev.stopPropagation(); st.otevri(cesta); };
+    obal.append(o, b);
+    return obal;
   }
 
   /* Barvy poznámek a malá paleta na výběr (i na odebrání). Otevírá se pravým

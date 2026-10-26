@@ -17,6 +17,8 @@ přes `--password` (hodí se do skriptu, ale zůstane v historii shellu).
     python3 -m gateway.admin remove jmeno@firma.cz
     python3 -m gateway.admin spotreba            # kdo kolik čerpá za týden
     python3 -m gateway.admin spotreba jmeno@firma.cz --limit 150   # týdenní strop v USD
+    python3 -m gateway.admin spotreba jmeno@firma.cz --procenta 50 --tokeny 2000000 --stopka
+    python3 -m gateway.admin spotreba jmeno@firma.cz --povolit       # výjimka do konce týdne
     python3 -m gateway.admin sessions            # které prostory běží
     python3 -m gateway.admin stop jmeno@firma.cz # zastavit prostor
     python3 -m gateway.admin stop --orphans      # zastavit osiřelé
@@ -42,6 +44,15 @@ přes `--password` (hodí se do skriptu, ale zůstane v historii shellu).
     python3 -m gateway.admin firma jmeno@firma.cz read     # none / read / write
     python3 -m gateway.admin mcp                  # napojení z appky Claude
     python3 -m gateway.admin mcp zrusit jmeno@firma.cz     # zrušit jeho napojení
+    python3 -m gateway.admin uloziste [--sken]    # kdo kolik zabírá na disku a čím
+    python3 -m gateway.admin uloziste jmeno@firma.cz           # rozbor jednoho (nálezy)
+    python3 -m gateway.admin uloziste jmeno@firma.cz --limit 5 # limit v GB (0 = bez, vychozi)
+    python3 -m gateway.admin uklid --suchy        # co by se sloučilo v mezipamětech
+    python3 -m gateway.admin uklid                # sloučit stejné soubory v mezipamětech
+    python3 -m gateway.admin uklid --rozpojit     # vrátit sloučené soubory zpátky
+    python3 -m gateway.admin oznameni             # kdo dostal jaké oznámení a co s ním udělal
+    python3 -m gateway.admin oznameni rozbor [--suchy]     # poslat oznámení o místě teď
+    python3 -m gateway.admin oznameni poslat jmeno@firma.cz,dalsi@firma.cz "Nadpis" "Text"
 """
 import argparse
 import getpass
@@ -103,26 +114,63 @@ def cmd_list(a, args):
 
 def cmd_spotreba(a, args):
     from . import spotreba
-    if args.limit is not None:
+    zmeny = {k: v for k, v in (("usd", args.limit), ("pct", args.procenta),
+                               ("tokeny", args.tokeny), ("stopka", args.stopka)) if v is not None}
+    if zmeny or args.povolit or args.zrusit_vyjimku:
         if not args.email:
-            raise ValueError("Ke stropu patří e-mail: spotreba <e-mail> --limit 150")
-        usd = spotreba.set_limit(args.email, args.limit)
-        print(f"{args.email}: týdenní strop " + (f"{usd:g} USD" if usd else "zrušen"))
+            raise ValueError("K limitu patří e-mail: spotreba <e-mail> --limit 150")
+        if zmeny:
+            lim = spotreba.set_limity(args.email, **zmeny)
+            print(f"{args.email}: " + (_limit_slovy(lim) or "bez limitu"))
+        if args.povolit:
+            do = spotreba.povolit(args.email, "claude-hub-admin")
+            print(f"{args.email}: stopka se do konce týdne nezapne (znovu platí {spotreba.kdy_text(do)})")
+        if args.zrusit_vyjimku:
+            print(f"{args.email}: " + ("výjimka zrušena" if spotreba.zrusit_vyjimku(args.email)
+                                       else "žádnou výjimku neměl(a)"))
         return
+    users = a.list()
+    lim = spotreba.limity()
+    s_procenty = [u for u in users if (lim.get(u["email"].lower()) or {}).get("pct")
+                  and (not args.email or u["email"].lower() == args.email.lower())]
+    if s_procenty:
+        print("Zjišťuju procenta předplatného u Anthropicu…", flush=True)
+        spotreba._plan_obnov(s_procenty)
     print("Počítám spotřebu za posledních 7 dní…", flush=True)
-    data = spotreba.prehled(a.list(), args.email or None, wait=600)
+    data = spotreba.prehled(users, args.email or None, wait=600)
     lide = data["lide"]
     if not lide:
         print("Žádní lidé.")
         return
     w = max(len(r["email"]) for r in lide)
-    print(f'{"e-mail":<{w}}  7 dní $   dnes $   podíl  strop $   přes limit  stav')
-    znacka = {"nad": "NAD STROPEM", "blizko": "u stropu", "ok": "", "": ""}
+    print(f'{"e-mail":<{w}}  7 dní $  z PC $   dnes $  podíl  týden %  {"limit":<20}  přes  stav')
+    znacka = {"nad": "NAD LIMITEM", "blizko": "u limitu", "ok": "", "": ""}
     for r in lide:
-        strop = f'{r["limit"]:g}' if r["limit"] else "-"
-        print(f'{r["email"]:<{w}}  {r["tyden"]:>7.2f}  {r["dnes"]:>7.2f}  '
-              f'{r["podil"] * 100:>4.0f} %  {strop:>7}   {str(r["preslo"]) + "×":>8}   {znacka[r["stav"]]}')
-    print(f'{"celkem":<{w}}  {data["soucet"]:>7.2f}   (odhad podle ceníku API, na předplatném se neplatí)')
+        pct = r["procenta"]["pct"]
+        pct = "-" if pct is None else f'{pct:.0f}' + ("*" if r["procenta"]["zdroj"] == "tym" else "")
+        stav = znacka[r["stav"]]
+        if r["stopka"]:
+            stav += ' · STOPKA' + (f' (uvolní se {r["stopka"]["kdy"]})' if r['stopka']['kdy'] else '')
+        elif r["vyjimka"]:
+            stav += ' · výjimka do konce týdne'
+        print(f'{r["email"]:<{w}}  {r["tyden"]:>7.2f}  {r["pocitac"]["tyden"]:>6.2f}  {r["dnes"]:>7.2f}  '
+              f'{r["podil"] * 100:>4.0f} %  {pct:>7}  {(_limit_slovy(r["limity"]) or "-"):<20}  '
+              f'{str(r["preslo"]) + "×":>4}  {stav}')
+    print(f'{"celkem":<{w}}  {data["soucet"]:>7.2f}   (odhad podle ceníku API, na předplatném se neplatí;'
+          ' * = podíl na týmu, klíč API procenta nemá)')
+
+
+def _limit_slovy(lim):
+    casti = []
+    if lim.get("usd"):
+        casti.append(f'{lim["usd"]:g} $')
+    if lim.get("pct"):
+        casti.append(f'{lim["pct"]:g} %')
+    if lim.get("tokeny"):
+        casti.append(f'{lim["tokeny"]:,} tok.'.replace(",", " "))
+    if casti and lim.get("stopka"):
+        casti.append("stopka")
+    return " · ".join(casti)
 
 
 def cmd_sdilene(a, args):
@@ -486,6 +534,8 @@ def cmd_predplatne(a, args):
             if st["mode"] == "predplatne" and st.get("expires"):
                 extra = " (platí do " + time.strftime("%d. %m. %Y", time.localtime(st["expires"])) + \
                     (", brzy vyprší — připojit znovu" if st.get("expiring") else "") + ")"
+            if len(st.get("predplatna") or []) > 1:
+                extra += f" — {len(st['predplatna'])} předplatná, jede na „{st['label']}“"
             print(f"  {u['email']:<32} {names[st['mode']]}{extra}")
         return
     if not args.email:
@@ -493,11 +543,12 @@ def cmd_predplatne(a, args):
     user = _user_or_die(a, args.email)
     if args.action == "remove":
         gone = workspace.remove_predplatne(user)
-        print(f"{args.email}: " + ("předplatné odpojeno." if gone else "předplatné připojené neměl.")
-              + " Běžící prostor ho má do dalšího startu (stop <e-mail>).")
+        print(f"{args.email}: " + ("předplatná odpojena (všechna)." if gone else "předplatné připojené neměl.")
+              + " Běžící prostor je má do dalšího startu (stop <e-mail>).")
         return
     token = (getpass.getpass("Token z `claude setup-token` (sk-ant-oat01-…): ")
              if sys.stdin.isatty() else sys.stdin.readline()).strip()
+    # Přidá se k ostatním (víc předplatných jednoho člověka) a rovnou se zapne.
     workspace.save_predplatne(user, token, "claude-hub-admin")
     print(f"{args.email}: Claude v prostoru pojede na tomhle předplatném od dalšího startu"
           " prostoru (stop <e-mail> ho uspíší). Token platí rok. Jedno předplatné"
@@ -780,6 +831,146 @@ def cmd_mcp(a, args):
         print(f"{r['email']:<32} {r['client'] or '?':<20} od {made}, naposled {seen}")
 
 
+def _zamek_nebo_konec(akce):
+    from . import uloziste
+    z = uloziste.Zamek(akce).__enter__()
+    if not z.mam:
+        z.__exit__(None, None, None)
+        sys.exit("Rozbor nebo úklid místa už běží (brána nebo noční úklid) — zkus to za chvíli.")
+    return z
+
+
+def cmd_uloziste(a, args):
+    """Kdo kolik zabírá na disku, limity, nálezy jednoho člověka."""
+    from . import rozbor, uloziste
+    v = uloziste.velikost
+    if args.limit is not None:
+        if not args.email:
+            raise ValueError("K limitu patří e-mail: uloziste <e-mail> --limit 5")
+        if not a.get(args.email):
+            raise ValueError(f"Účet {args.email} neexistuje.")
+        b = uloziste.set_limit(args.email, args.limit)
+        print(f"{args.email}: limit " + (v(b) if b else "žádný"))
+        return
+    users = [dict(r) for r in a.list()]
+    if args.sken:
+        z = _zamek_nebo_konec("sken")
+        try:
+            print("Procházím domovy (může to trvat i minutu)…", flush=True)
+            uloziste.skenuj(users, log=lambda t: print(" ", t, flush=True))
+        finally:
+            z.__exit__(None, None, None)
+    data = uloziste.posledni_sken()
+    if not data:
+        print("Rozbor ještě neproběhl: claude-hub-admin uloziste --sken")
+        return
+    s = data.get("server") or {}
+    kdy = time.strftime("%d. %m. %H:%M", time.localtime(data.get("cas") or 0))
+    print(f"Disk: zabráno {v(s.get('pouzito'))} z {v(s.get('celkem'))}, volno {v(s.get('volno'))} "
+          f"(rozbor {kdy})")
+    print(f"  prostory lidí {v(s.get('lide'))}, společné Obsidiany {v(s.get('spolecne'))}, "
+          f"odložené domovy {v(s.get('odlozene'))}, zálohy "
+          f"{v(s['zalohy']) if s.get('zalohy') is not None else '?'}, systém a ostatní {v(s.get('system'))}")
+    lide = data.get("lide") or {}
+    if args.email:
+        u = a.get(args.email)
+        rec = lide.get(str(u["id"])) if u else None
+        if not rec:
+            raise ValueError(f"{args.email}: v rozboru není (účet nebo domov chybí).")
+        c = uloziste._clovek(u, rec)
+        print(f"\n{u['email']}: {v(c['pouzito'])} z {v(c['kvota']) if c['kvota'] else 'bez limitu'}"
+              + (f" ({c['procent']} %)" if c["procent"] is not None else "")
+              + (f", sloučením ušetřeno {v(c['usetreno'])}" if c["usetreno"] else ""))
+        for k in sorted(c["kategorie"], key=lambda k: -k["bajtu"]):
+            if k["bajtu"]:
+                print(f"  {k['nazev']:<22} {v(k['bajtu']):>9}")
+        print("Největší složky:")
+        for s2 in c["slozky"][:10]:
+            print(f"  {v(s2['bajtu']):>9}  ~/{s2['cesta']}")
+        print(f"Nálezy (jde uvolnit {v(c['lze_uvolnit'])}, ke zvážení {v(c['ke_zvazeni'])}):")
+        for n in c["nalezy"]:
+            print(f"  {'✓' if n['uvolnit'] else '·'} {rozbor.popis(n)}")
+        return
+    rows = []
+    for u in users:
+        rec = lide.get(str(u["id"]))
+        if rec and not u["disabled"]:
+            rows.append(uloziste._clovek(u, rec, plne=False))
+    rows.sort(key=lambda r: -r["pouzito"])
+    if not rows:
+        return
+    w = max(len(r["email"]) for r in rows)
+    print(f'\n{"e-mail":<{w}}  zabírá     limit      %   stav     jde uvolnit')
+    znacka = {"nad": "NAD", "blizko": "blízko", "ok": "", "": ""}
+    for r in rows:
+        print(f'{r["email"]:<{w}}  {v(r["pouzito"]):>8}  {v(r["kvota"]) if r["kvota"] else "-":>8}  '
+              f'{(str(r["procent"]) if r["procent"] is not None else "-"):>4}  {znacka[r["stav"]]:<7}  '
+              f'{v(r["lze_uvolnit"]):>9}')
+
+
+def cmd_uklid(a, args):
+    """Sloučí stejné soubory v mezipamětech napříč domovy (uklid.py)."""
+    from . import uklid, uloziste
+    users = [dict(r) for r in a.list()]
+    z = _zamek_nebo_konec("uklid")
+    try:
+        if args.rozpojit:
+            uklid.rozpojit()
+            return
+        out = uklid.sloucit(users, suchy=args.suchy)
+        if out.get("preskoceno"):
+            print("Přeskočeno: " + ", ".join(f"{k} {n}×" for k, n in out["preskoceno"].items()))
+        if args.suchy:
+            print("Nanečisto — nic se nezměnilo. Sloučit doopravdy: claude-hub-admin uklid")
+            return
+        uloziste.zapsat_stav(uklid=uklid.shrnuti(out))
+        print("Přepočítávám místo…", flush=True)
+        uloziste.skenuj(users, log=lambda t: None)
+    finally:
+        z.__exit__(None, None, None)
+    print("Hotovo. Co komu jde uvolnit: claude-hub-admin uloziste")
+
+
+def cmd_oznameni(a, args):
+    """Záznam oznámení, ruční oznámení, oznámení o místě teď."""
+    from . import oznameni, uloziste
+    if args.action == "poslat":
+        if not args.komu or not args.titulek:
+            raise ValueError('oznameni poslat <e-mail,e-mail|vsichni> "Nadpis" ["Text"] [--prompt …]')
+        if args.komu == "vsichni":
+            komu = "vsichni"
+        else:
+            komu = []
+            for email in args.komu.split(","):
+                u = a.get(email.strip())
+                if not u:
+                    raise ValueError(f"Účet {email.strip()} neexistuje.")
+                komu.append(u["id"])
+        r = oznameni.poslat(a, {"name": "Správce serveru", "email": ""}, komu, args.titulek,
+                            args.text or "", args.prompt or "", args.tlacitko or "")
+        print(f"Posláno {r['poslano']} lidem.")
+        return
+    if args.action == "rozbor":
+        z = _zamek_nebo_konec("rozbor")
+        try:
+            out = uloziste.upozornit([dict(r) for r in a.list()], suchy=args.suchy,
+                                     log=lambda t: print(" ", t, flush=True))
+        finally:
+            z.__exit__(None, None, None)
+        if not out:
+            print("Nikomu není potřeba nic posílat (nebo už oznámení má).")
+        return
+    stavy = {"neprecteno": "nepřečteno", "precteno": "přečteno", "vyreseno": "řeší s Claudem",
+             "zavreno": "zavřeno", "nahrazeno": "nahrazeno novějším"}
+    zaznam = oznameni.vse(args.pocet)
+    if not zaznam:
+        print("Zatím žádná oznámení.")
+        return
+    for o in zaznam:
+        kdy = time.strftime("%d. %m. %H:%M", time.localtime(o["created"]))
+        print(f"{kdy}  {o['email']:<30} od {o['sender']:<14} {stavy[oznameni.stav(o)]:<18} {o['title']}")
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="gateway.admin",
                                 description="Správa účtů brány.")
@@ -798,6 +989,15 @@ def build_parser():
     sp = sub.add_parser("spotreba", help="spotřeba Claude po lidech za týden, týdenní stropy")
     sp.add_argument("email", nargs="?", default="")
     sp.add_argument("--limit", default=None, help="týdenní strop v USD (0 = zrušit)")
+    sp.add_argument("--procenta", default=None,
+                    help="kolik %% týdenního limitu předplatného smí vyčerpat (0 = zrušit)")
+    sp.add_argument("--tokeny", default=None, help="napsaných tokenů za týden (0 = zrušit)")
+    sp.add_argument("--stopka", dest="stopka", action="store_const", const=True, default=None,
+                    help="po překročení nepustit do Clauda v prostoru další zprávy")
+    sp.add_argument("--bez-stopky", dest="stopka", action="store_const", const=False,
+                    help="limit jen upozorňuje")
+    sp.add_argument("--povolit", action="store_true", help="stopka se nezapne do konce týdne")
+    sp.add_argument("--zrusit-vyjimku", action="store_true", help="zruší výjimku z --povolit")
     sp.set_defaults(func=cmd_spotreba)
 
     pw = sub.add_parser("passwd", help="změnit heslo")
@@ -920,6 +1120,28 @@ def build_parser():
     mc.add_argument("action", nargs="?", default="status", choices=("status", "zrusit"))
     mc.add_argument("email", nargs="?", default="")
     mc.set_defaults(func=cmd_mcp)
+
+    ul = sub.add_parser("uloziste", help="místo na disku po lidech, limity, co jde uvolnit")
+    ul.add_argument("email", nargs="?", default="", help="e-mail účtu (rozbor jednoho)")
+    ul.add_argument("--limit", default=None, help="limit v GB (0 = bez limitu, vychozi = výchozí)")
+    ul.add_argument("--sken", action="store_true", help="nejdřív domovy znovu projít")
+    ul.set_defaults(func=cmd_uloziste)
+
+    uk = sub.add_parser("uklid", help="sloučit stejné soubory v mezipamětech napříč domovy")
+    uk.add_argument("--suchy", action="store_true", help="jen ukázat, co by se sloučilo")
+    uk.add_argument("--rozpojit", action="store_true", help="vrátit sloučené soubory zpátky")
+    uk.set_defaults(func=cmd_uklid)
+
+    oz = sub.add_parser("oznameni", help="oznámení lidem: záznam, ruční poslání, rozbor místa")
+    oz.add_argument("action", nargs="?", default="status", choices=("status", "poslat", "rozbor"))
+    oz.add_argument("komu", nargs="?", default="", help="u poslat: e-maily oddělené čárkou, nebo vsichni")
+    oz.add_argument("titulek", nargs="?", default="")
+    oz.add_argument("text", nargs="?", default="")
+    oz.add_argument("--prompt", default="", help="zadání pro Clauda za tlačítkem v oznámení")
+    oz.add_argument("--tlacitko", default="", help="popisek tlačítka (výchozí Vyřešit s Claudem)")
+    oz.add_argument("--suchy", action="store_true", help="u rozbor: jen vypsat, komu by šlo")
+    oz.add_argument("--pocet", type=int, default=40, help="kolik posledních vypsat")
+    oz.set_defaults(func=cmd_oznameni)
 
     sub.add_parser("sessions", help="které prostory běží a kolik berou paměti"
                    ).set_defaults(func=cmd_sessions)

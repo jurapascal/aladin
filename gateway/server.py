@@ -33,6 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from hub import __version__, qr
 
 from . import webauthn
+from . import zrcadlo
 from . import (config, firmy, isolation, mcp, mcp_sdilene, pocitac, poznamky, pristup, relace, safefs, shared,
                slozky, totp, workspace)
 from .accounts import Accounts
@@ -1114,6 +1115,16 @@ class Handler(BaseHTTPRequestHandler):
             # Chat z počítače na server (hub/prenos.py): token zařízení, balíček po kusech.
             if route == "/gw/prenos/nahrat":
                 return self._gw_prenos(method)
+            # Počítač počítá, kopie chatů je tady (gateway/zrcadlo.py): token zařízení.
+            if route in ("/gw/zrcadlo/sync", "/gw/zrcadlo/seznam", "/gw/zrcadlo/prevzit",
+                         "/gw/zrcadlo/stahnout"):
+                return self._gw_zrcadlo(route, method)
+            # Spotřeba z počítače (hub/spotreba_pc.py, token zařízení) a stopka
+            # pro hub a hook v prostoru (žeton prostoru, jen loopback).
+            if route == "/gw/spotreba/pocitac":
+                return self._spotreba_pocitac(method)
+            if route == "/gw/spotreba/stopka":
+                return self._spotreba_stopka()
 
             user = self._user()
 
@@ -1162,6 +1173,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._gw_pristup_predplatne(method, user)
             if route == "/gw/spotreba":
                 return self._gw_spotreba(method, user)
+            # Místo na disku po lidech a zvonek s oznámeními (uloziste.py, oznameni.py).
+            if route == "/gw/uloziste":
+                return self._gw_uloziste(method, user)
+            if route in ("/gw/oznameni", "/gw/oznameni/admin"):
+                return self._gw_oznameni(route, method, user)
             if route == "/gw/mcp-sdilene":
                 return self._mcp_shared(method, user)
             if route == "/gw/restart":
@@ -1972,6 +1988,9 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                     result = relace.zrusit(user, str(form.get("id") or ""))
                 elif akce == "odejit":
                     result = relace.odejit(user, str(form.get("id") or ""))
+                elif akce == "oznameno":
+                    ids = form.get("ids")
+                    result = relace.oznameno(user, [str(i) for i in ids][:200] if isinstance(ids, list) else [])
                 else:
                     return self._json({"error": "Neznámá akce."}, 400)
             except ValueError as exc:
@@ -2417,9 +2436,13 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         return self._json(self._predplatne_stav(owner, user, jmeno))
 
     def _predplatne_stav(self, owner, user, jmeno):
-        state = workspace.claude_state(owner)
-        state.pop("label", None)
-        out = {"vlastnik": owner.get("name") or owner["email"], "rezim": state,
+        def rezim():
+            # Host vidí jen režim, ne názvy a seznam předplatných vlastníka.
+            st = workspace.claude_state(owner)
+            for k in ("label", "predplatna", "aktivni"):
+                st.pop(k, None)
+            return st
+        out = {"vlastnik": owner.get("name") or owner["email"], "rezim": rezim(),
                "prihlaseni": {"state": "idle", "url": "", "error": ""}, "ucet": {}}
         proc = self.hubs.procs.get(owner["id"]) if self.hubs else None
         if proc and proc.alive():
@@ -2427,26 +2450,20 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             out["ucet"] = st.get("account") or {}
             out["prihlaseni"] = {k: st.get(k, "") for k in ("state", "url", "error")}
             if st.get("state") == "token":
-                token = self._hub_call(proc, "predplatne-host", {"action": "vyzvednout"}).get("token")
-                try:
-                    workspace.save_predplatne(owner, token, f"Správa předplatného: {jmeno}"[:80])
-                    out["prihlaseni"] = {"state": "done", "url": "", "error": ""}
+                out["prihlaseni"], sid = self._vyzvedni_predplatne(
+                    owner, proc, f"Správa předplatného: {jmeno}"[:80])
+                if sid:
                     pristup.log(owner["id"], user["id"], "predplatne-pripojeno")
-                    self._preved_prihlaseni(owner)
                     self._owner_notice(owner, f"{jmeno} připojil(a) tvé vlastní předplatné Claude — "
                                               "nové chaty už jedou na něm.")
-                except ValueError as exc:
-                    out["prihlaseni"] = {"state": "error", "url": "", "error": str(exc)}
-                del token
-                state = workspace.claude_state(owner)
-                state.pop("label", None)
-                out["rezim"] = state
+                out["rezim"] = rezim()
             out["needs_restart"] = proc.auth_mark != workspace.auth_mark(owner)
         return out
 
     def _gw_spotreba(self, method, user):
         """Statistiky → Tým: spotřeba po lidech. Admin vidí všechny a nastavuje
-        týdenní strop, ostatní jen sebe (a jestli jsou u svého stropu)."""
+        týdenní limity (USD / procenta / tokeny, stopka) a výjimku do konce
+        týdne, ostatní jen sebe (a jestli jsou u svého limitu)."""
         from . import spotreba
         admin = user.get("role") == "admin"
         if method == "GET":
@@ -2465,10 +2482,140 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             row = next((r for r in self.accounts.list() if r["id"] == int(form.get("id"))), None)
             if not row:
                 raise ValueError("Tenhle člověk tu účet nemá.")
-            usd = spotreba.set_limit(row["email"], form.get("limit"))
+            akce = str(form.get("akce") or "")
+            if akce == "povolit":
+                do = spotreba.povolit(row["email"], user["email"])
+                return self._json({"ok": True, "vyjimka": {"do": do}})
+            if akce == "zrusit-vyjimku":
+                spotreba.zrusit_vyjimku(row["email"])
+                return self._json({"ok": True, "vyjimka": None})
+            if "limit" in form and not any(k in form for k in ("usd", "pct", "tokeny", "stopka")):
+                # Starší stránka (jen pole „limit $“) — ostatní druhy zůstanou.
+                usd = spotreba.set_limit(row["email"], form.get("limit"))
+                return self._json({"ok": True, "limit": usd})
+            zmeny = {k: form[k] for k in ("usd", "pct", "tokeny", "stopka") if k in form}
+            lim = spotreba.set_limity(row["email"], **zmeny)
         except (TypeError, ValueError) as exc:
             return self._json({"error": str(exc)}, 400)
-        return self._json({"ok": True, "limit": usd})
+        return self._json({"ok": True, "limit": lim["usd"], "limity": lim})
+
+    def _spotreba_pocitac(self, method):
+        """Souhrn spotřeby z hubu na počítači (hub/spotreba_pc.py). Odpověď
+        řekne, jak na tom člověk je, a jestli stopka platí i na tomhle počítači
+        (jen když jede na stejném předplatném jako prostor)."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length > 2 * 1024 * 1024:
+            self.close_connection = True
+            return self._json({"error": "Souhrn je moc velký."}, 413)
+        if method != "POST":
+            return self._json({"error": "Jen POST."}, 405)
+        form = self._read_form()
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Neplatný token."}, 401)
+        from . import spotreba
+        try:
+            spotreba.uloz_pocitac(user, form if isinstance(form, dict) else {})
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        out = spotreba.stopka_pro(self.accounts.list(), user)
+        stejne = spotreba.pocitac_stejny(user, str(form["pocitac"]["id"]))
+        return self._json({"ok": True, **out, "plati_zde": bool(out.get("stopka") and stejne),
+                           "stejne_predplatne": stejne})
+
+    def _spotreba_stopka(self):
+        """Platí pro tenhle prostor stopka? Ptá se hub v prostoru (hub/stopka.py)
+        a hook před každou zprávou Claudovi (tools/stopka_hook.py). Jen na
+        loopbacku se žetonem prostoru — stejně jako most na počítač."""
+        if self.headers.get("X-Real-IP") or self.headers.get("X-Forwarded-For"):
+            return self._send(404, b"404")
+        user = self.hubs.user_for_pocitac(self.headers.get("X-Hub-Pocitac", "")) \
+            if self.hubs else None
+        if not user:
+            return self._json({"error": "Neplatný žeton prostoru."}, 401)
+        if self.command == "POST":
+            self._read_form()
+        from . import spotreba
+        return self._json(spotreba.stopka_pro(self.accounts.list(), user))
+
+    def _gw_uloziste(self, method, user):
+        """Nastavení → Úložiště: kolik kdo zabírá a čím, limity, úklid. Každý
+        vidí sebe a přepočítá si svůj domov; admin celý server, limity a úklid.
+        Těžká práce běží v samostatném procesu (uloziste.spustit)."""
+        from . import uloziste
+        admin = user.get("role") == "admin"
+        if method == "GET":
+            return self._json(uloziste.prehled(user, self.accounts.list(), admin))
+        if method != "POST":
+            return self._json({"error": "Jen GET nebo POST."}, 405)
+        form = self._read_form()
+        if not self._account_post_ok():
+            return self._json({"error": "Úložiště jde měnit jen v hubu."}, 403)
+        akce = str(form.get("akce") or "")
+        try:
+            if akce == "prepocitat":
+                vse = admin and bool(form.get("vse"))
+                if not uloziste.spustit("sken", None if vse else user["id"]):
+                    return self._json({"error": "Rozbor už běží — počkej, až doběhne."}, 409)
+                return self._json({"ok": True, "bezi": uloziste.bezi()})
+            if not admin:
+                return self._json({"error": "Tohle nastavují admini."}, 403)
+            if akce == "limit":
+                row = next((r for r in self.accounts.list() if r["id"] == int(form.get("id"))), None)
+                if not row:
+                    raise ValueError("Tenhle člověk tu účet nemá.")
+                return self._json({"ok": True, "kvota": uloziste.set_limit(row["email"], form.get("gb"))})
+            if akce in ("uklid", "rozbor"):
+                if not uloziste.spustit(akce):
+                    return self._json({"error": "Rozbor nebo úklid už běží — počkej, až doběhne."}, 409)
+                return self._json({"ok": True, "bezi": uloziste.bezi()})
+        except (TypeError, ValueError) as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json({"error": "Neznámá akce."}, 400)
+
+    def _gw_oznameni(self, route, method, user):
+        """Zvonek v liště (hub/static/oznameni.js): oznámení přihlášeného
+        člověka a jeho přečteno / vyřešeno / zavřeno. `/admin`: kdo co dostal
+        a co s tím udělal, a ruční oznámení vybraným lidem."""
+        from . import oznameni, uloziste
+        if route == "/gw/oznameni/admin":
+            if user.get("role") != "admin":
+                return self._json({"error": "Záznam oznámení vidí admini."}, 403)
+            if method == "GET":
+                ted = uloziste.pouzito_vsech()
+                zaznam = oznameni.vse(400)
+                for o in zaznam:
+                    o["stav"] = oznameni.stav(o)
+                    o["pouzito_ted"] = ted.get(o["uid"])
+                lide = [{"id": r["id"], "email": r["email"], "name": r["name"] or ""}
+                        for r in self.accounts.list() if not r["disabled"]]
+                return self._json({"oznameni": zaznam, "lide": lide})
+            if method != "POST":
+                return self._json({"error": "Jen GET nebo POST."}, 405)
+            form = self._read_form()
+            if not self._account_post_ok():
+                return self._json({"error": "Oznámení jde posílat jen z hubu."}, 403)
+            try:
+                return self._json(oznameni.poslat(
+                    self.accounts, user, form.get("komu"), form.get("titulek"), form.get("text"),
+                    form.get("prompt"), form.get("tlacitko"), str(form.get("zavaznost") or "info")))
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
+        if method == "GET":
+            return self._json(oznameni.pro(user["id"]))
+        if method != "POST":
+            return self._json({"error": "Jen GET nebo POST."}, 405)
+        form = self._read_form()
+        if not self._account_post_ok():
+            return self._json({"error": "Oznámení jde měnit jen v hubu."}, 403)
+        try:
+            n = oznameni.oznacit(user["id"], form.get("ids"), str(form.get("akce") or ""))
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json({"ok": True, "zmeneno": n})
 
     def _gw_restart(self, method, user):
         """Restart vlastního prostoru z hubu (nové sdílené Obsidiany, přepnutí
@@ -2514,7 +2661,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                            "version": __version__,
                            # Co brána umí navíc — appka podle toho pozná, jestli
                            # se má ptát třeba na most na počítač.
-                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni"],
+                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni", "zrcadlo", "spotreba"],
                            "host": self._public_host()})
 
     def _gw_me(self):
@@ -2568,6 +2715,50 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             return self._json({"ok": False, "error": str(exc)}, 400)
         return self._json({"ok": True, **(result if isinstance(result, dict) else {})})
 
+    def _gw_zrcadlo(self, route, method):
+        """Kopie chatů z počítače (hub/zrcadlo.py ↔ gateway/zrcadlo.py).
+
+        Jen token zařízení — appka na počítači. Řádky se zapisují rovnou do
+        domova člověka, prostor se kvůli tomu nespouští; jen když si počítač
+        bere chat, který na serveru zrovna běží, řekne se prostoru, ať ho po
+        dopsání odpovědi pustí."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length > 14 * 1024 * 1024:
+            self.close_connection = True
+            return self._json({"error": "Dávka je moc velká."}, 413)
+        form = self._read_form() if method == "POST" else {}
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Nepřihlášeno."}, 401)
+        try:
+            if route == "/gw/zrcadlo/seznam":
+                return self._json({"ok": True, "chaty": zrcadlo.seznam(user)})
+            if method != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            if route == "/gw/zrcadlo/sync":
+                chaty = form.get("chaty") if isinstance(form.get("chaty"), list) else []
+                uvolneno = form.get("uvolneno") if isinstance(form.get("uvolneno"), list) else []
+                return self._json(zrcadlo.sync(user, form.get("pocitac"), form.get("jmeno"),
+                                               chaty[:50], [str(c) for c in uvolneno][:50]))
+            if route == "/gw/zrcadlo/stahnout":
+                return self._json(zrcadlo.stahnout(user, form.get("chat"), form.get("od")))
+
+            def uvolni(chat):
+                proc = self.hubs.procs.get(user["id"]) if self.hubs else None
+                if not proc or not proc.alive():
+                    return True
+                out = hub_post(proc, "zrcadlo-uvolnit", {"chat": chat}, timeout=170)
+                return bool(out.get("ok"))
+            return self._json(zrcadlo.chci_na_pocitac(user, form.get("chat"), form.get("pocitac"), uvolni))
+        except ValueError as exc:
+            return self._json({"ok": False, "error": str(exc)}, 400)
+        except OSError as exc:
+            _errlog("zrcadlo", exc)
+            return self._json({"ok": False, "error": "Chat se na serveru nepodařilo zapsat."}, 500)
+
     def _gw_hlas(self, method):
         try:
             length = int(self.headers.get("Content-Length") or 0)
@@ -2607,33 +2798,117 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         vyrobí `claude setup-token` u člověka na počítači a pošle ho sem).
         Z prohlížeče jen s cookie, ze stránky brány a s hlavičkou — Claude
         v prostoru cookie nemá, takže si předplatné nepřepíše.
+
+        Předplatných může mít člověk víc (gateway/predplatna.py): POST umí
+        přidat, obnovit, přejmenovat, odebrat a přepnout; `?limity=1` přidá
+        skutečný limit každého z nich. Z prohlížeče v prostoru navíc
+        `pridat` — přihlášení přímo v prostoru, bez appky na počítači.
         """
+        from . import predplatna
         bearer = self._bearer_token()
         user = self._bearer() if bearer else self._user()
         if not user:
             return self._json({"error": "Nepřihlášeno."}, 401)
+        query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+        pridano = ""
+        pridani = None
         if method == "POST":
             if not bearer and not self._account_post_ok():
                 return self._json({"error": "Jde to jen z nastavení aplikace."}, 403)
             form = self._read_form()
-            try:
-                if form.get("remove") is True:
-                    workspace.remove_predplatne(user)
-                else:
-                    label = self.headers.get("User-Agent", "")[:60] if not bearer else \
-                        str(form.get("label") or "")
-                    workspace.save_predplatne(user, form.get("token"), label)
-            except ValueError as exc:
-                return self._json({"error": str(exc)}, 400)
-            # Běžící prostor dostane nové přihlášení hned — nové chaty na něm
-            # jedou bez restartu (hub/predplatne.py, _prihlaseni).
-            self._preved_prihlaseni(user)
+            if form.get("pridat") and not bearer:
+                err = self._predplatne_pridat(user, form)
+                if err:
+                    return err
+                pridani = True
+            else:
+                try:
+                    zmena, pridano = predplatna.uprav(user, form, bool(bearer),
+                                                      self.headers.get("User-Agent", ""))
+                except ValueError as exc:
+                    return self._json({"error": str(exc)}, 400)
+                # Běžící prostor dostane nové přihlášení hned — nové chaty na
+                # něm jedou bez restartu, rozdělaná práce doběhne na původním
+                # (hub/predplatne.py, _prihlaseni).
+                if zmena:
+                    self._preved_prihlaseni(user)
+        if pridani or (not bearer and query.get("pridani")):
+            pridani = self._predplatne_pridani(user)
         state = workspace.claude_state(user)
         proc = self.hubs.procs.get(user["id"]) if self.hubs else None
         state["running"] = bool(proc and proc.alive())
         state["needs_restart"] = bool(state["running"] and
                                       proc.auth_mark != workspace.auth_mark(user))
+        if pridano:
+            state["pridano"] = pridano
+        if pridani is not None:
+            state["pridani"] = pridani
+        if query.get("limity") and state["predplatna"]:
+            try:
+                cekat = min(8.0, max(0.0, float((query.get("cekat") or ["0"])[0])))
+            except ValueError:
+                cekat = 0.0
+            state.update(predplatna.limity(user, cekat=cekat,
+                                           obnovit=(query.get("obnovit") or [""])[0] == "1"))
         return self._json(state)
+
+    def _predplatne_pridat(self, user, form):
+        """Přidání předplatného přímo v prostoru: `claude setup-token` běží
+        v hubu prostoru (stejně jako u Správy předplatného hostem), člověk
+        otevře odkaz, klikne na Authorize a vloží kód. Token si brána
+        vyzvedne v _predplatne_pridani. Vrací chybovou odpověď, nebo None."""
+        from . import predplatna
+        akce = str(form.get("pridat") or "")
+        if akce not in ("start", "kod", "zrusit"):
+            return self._json({"error": "Neznámá akce."}, 400)
+        if akce == "start":
+            try:
+                hub = self.hubs.get(user)
+            except RuntimeError as exc:
+                return self._json({"error": str(exc)}, 503)
+            predplatna.cekej(user, form.get("replace"), form.get("label"))
+        else:
+            hub = self.hubs.procs.get(user["id"]) if self.hubs else None
+            if not hub or not hub.alive():
+                return self._json({"error": "Prostor neběží — začni přihlášení znovu."}, 409)
+        out = self._hub_call(hub, "predplatne-host",
+                             {"action": {"start": "start", "kod": "kod", "zrusit": "zrusit"}[akce],
+                              "code": str(form.get("kod") or "")[:500]})
+        if akce == "zrusit":
+            predplatna.zrus(user)
+        if out.get("error") and not out.get("state"):
+            return self._json({"error": out["error"]}, 502)
+        return None
+
+    def _predplatne_pridani(self, user):
+        """Jak je na tom přidání v prostoru ({state, url, error}); hotový token
+        si rovnou vyzvedne a uloží."""
+        proc = self.hubs.procs.get(user["id"]) if self.hubs else None
+        if not proc or not proc.alive():
+            return {"state": "idle", "url": "", "error": ""}
+        st = self._hub_call(proc, "predplatne-host", {"action": "stav"}, timeout=10)
+        out = {k: st.get(k, "") for k in ("state", "url", "error")}
+        if st.get("state") == "token":
+            out, sid = self._vyzvedni_predplatne(user, proc, "v prostoru")
+            if sid:
+                out["id"] = sid
+        return out
+
+    def _vyzvedni_predplatne(self, owner, proc, source):
+        """Token z `claude setup-token` v hubu prostoru → k předplatným účtu.
+        Vrací ({state, url, error}, id přidaného nebo "")."""
+        from . import predplatna
+        token = self._hub_call(proc, "predplatne-host", {"action": "vyzvednout"}).get("token")
+        meta = predplatna.vyzvedni_meta(owner)
+        try:
+            sid = workspace.save_predplatne(owner, token, source, label=meta["label"],
+                                            replace=meta["replace"])
+        except ValueError as exc:
+            return {"state": "error", "url": "", "error": str(exc)}, ""
+        finally:
+            del token
+        self._preved_prihlaseni(owner)
+        return {"state": "done", "url": "", "error": ""}, sid
 
     # ---- most na počítač uživatele (gateway/pocitac.py) ----
     def _pocitac_poll(self, method):
@@ -2782,6 +3057,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             return self._json(broker.ukol_kus(user["id"], args))
         if op == "ukol-zrusit":
             return self._json(broker.ukol_cancel(user["id"], args.get("id")))
+        # Chaty z počítače (gateway/zrcadlo.py): kde který běží, a převzetí na server.
+        if op == "zrcadla":
+            return self._json({"ok": True, "chaty": zrcadlo.stav(user)})
+        if op == "zrcadlo-na-server":
+            return self._json(zrcadlo.chci_na_server(user, args.get("chat")))
         return self._json(broker.call(user["id"], op, args, str(form.get("computer") or "")))
 
     def _mcp_shared(self, method, user):
@@ -3186,8 +3466,10 @@ def serve():
     # assume_https zapneme, když je za bránou nginx s TLS (řekne to env).
     assume_https = os.environ.get("HUB_GW_ASSUME_HTTPS", "") == "1"
     gw = Gateway((config.HOST, config.PORT), accounts, hubs, assume_https)
-    from . import spotreba
+    from . import spotreba, uloziste
     spotreba.sledovani(accounts.list)
+    # Noční úklid, rozbor místa a oznámení (běží v samostatném procesu).
+    uloziste.hlidac()
     where = f"{config.HOST}:{config.PORT}"
     print(f"brána poslouchá na {where}, izolace {config.ISOLATION}, "
           f"účtů {accounts.count()}", flush=True)

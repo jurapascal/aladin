@@ -506,6 +506,10 @@ install_agenti() {
     step "AI agenti pro prostory (Codex, Gemini, opencode, aider)"
     # Pod /usr / /usr/local, ať je prostory vidí (sandbox je čte jen ke čtení).
     # Ollama ne: modely by na sdíleném serveru snědly paměť všem.
+    # Gemini přes Antigravity (`agy`) taky ne: každý se přihlašuje vlastním
+    # Google účtem, a tak si ho instaluje do svého prostoru (Nastavení → AI
+    # agenti → Gemini → Nainstalovat, ~/.local/bin v domově prostoru). agy se
+    # navíc aktualizuje sám do místa, odkud běží — pod /usr by nemohl.
     # `quiet` v závorkách: jeho `die` jinak ukončí celý skript i uvnitř `if`
     # a nedoběhne služba, nginx ani zálohy — a update.sh pak bránu nerestartuje.
     local ok=""

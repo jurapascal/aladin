@@ -593,16 +593,21 @@ class Hub:
         """Id konverzace -> id tabu, ve kterém právě běží. Seznam konverzací
         podle toho na tab přepne, místo aby pustil druhého Clauda do téže."""
         running = {}
-        for s in list(self.sessions.values()):
-            if s.exited or not (s.kind == "project" or s.kind.startswith("slash:")):
+        tabs = [s for s in list(self.sessions.values())
+                if not s.exited and (s.kind == "project" or s.kind.startswith("slash:"))
+                and (s.agent or core.default_agent()) == "claude"]
+        # Napřed jistota: id, které tabu dal hub (--session-id), pokračování
+        # (--resume) a přestěhované kopie (core._pokracovani).
+        for s in tabs:
+            for chat in [s.resume, getattr(s, "chat_id", "")] + list(getattr(s, "rodina", None) or []):
+                if chat:
+                    running.setdefault(chat, s.id)
+        # Odhad podle nejnovějšího přepisu ve složce jen u tabů, které vlastní
+        # id nemají. Dřív se hádalo u všech a tab přebral cizí chat ze stejné
+        # složky (dva nové chaty v ~): klepnutí na chat pak otevřelo jiný.
+        for s in tabs:
+            if s.resume or getattr(s, "chat_id", ""):
                 continue
-            if (s.agent or core.default_agent()) != "claude":
-                continue
-            if s.resume:
-                running.setdefault(s.resume, s.id)
-            # Přestěhovaná konverzace (core._pokracovani) běží pod novým id.
-            if getattr(s, "chat_id", ""):
-                running.setdefault(s.chat_id, s.id)
             transcript = core._tab_transcript(s.id, s.path or core.HOME, s.started)
             if transcript:
                 running.setdefault(os.path.basename(transcript)[:-6], s.id)
@@ -934,6 +939,13 @@ class Handler(BaseHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
         if parsed.path == "/povoleni":
             return self._povoleni(query)
+        if parsed.path == "/sdilet":
+            # Sdílení z jiné appky v telefonu (share_target v manifestu) chytá
+            # už v telefonu service worker (sw.js). Sem dojde, jen když ho
+            # prohlížeč zrovna nemá (smazaná data webu) — tělo se nečte,
+            # stránka jen řekne, že to nedošlo, a worker se znovu zaregistruje.
+            self.close_connection = True
+            return self._send(303, b"", extra={"Location": "/?sdileno=chyba"})
         if not parsed.path.startswith("/api/") or not self._authorised(query):
             return self._send(403, b"Neplatny token.")
         # Změny jen ze stránky hubu. Stránka prostoru na serveru token hubu na
@@ -1107,6 +1119,37 @@ class Handler(BaseHTTPRequestHandler):
             "Content-Disposition": f"attachment; filename=\"{ascii_name}\"; "
                                    f"filename*=UTF-8''{urllib.parse.quote(fname)}",
             "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+    def _zrcadlo(self, name, query, payload, guest):
+        """Počítač počítá, kopie chatů je na serveru (hub/zrcadlo.py).
+
+        Na počítači: stav kopírování a chaty na serveru (`zrcadlo`), převzetí
+        chatu ze serveru (`zrcadlo-prevzit`), vypínač (`zrcadlo-nastav`).
+        V prostoru: kde chaty z počítače běží (`zrcadla`), převzetí na server
+        (`zrcadlo-na-server`) a `zrcadlo-uvolnit`, které volá jen brána."""
+        from . import zrcadlo
+        if guest:
+            return self._json({"error": "Tohle smí jen vlastník prostoru."}, 403)
+        try:
+            if name == "zrcadlo":
+                return self._json(zrcadlo.prehled(bool(query.get("obnovit"))))
+            if name == "zrcadla":
+                return self._json({"chaty": zrcadlo.stav_prostoru() if core.on_gateway() else {}})
+            if not payload:
+                return self._json({"error": "Jen POST."}, 405)
+            if name == "zrcadlo-nastav":
+                return self._json(zrcadlo.nastav(payload.get("zapnout")))
+            if name == "zrcadlo-prevzit":
+                return self._json(zrcadlo.prevzit(payload.get("chat")))
+            if name == "zrcadlo-na-server":
+                return self._json(zrcadlo.na_server(payload.get("chat")))
+            # zrcadlo-uvolnit: počítač si bere chat, který běží tady.
+            if not core.on_gateway():
+                return self._json({"error": "Jen v prostoru na serveru."}, 400)
+            ok = zrcadlo.uvolnit_v_prostoru(HUB, payload.get("chat"))
+            return self._json({"ok": ok} if ok else {"error": "Claude v chatu pořád pracuje."})
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
 
     def _soubor_ke_stazeni(self, query, guest):
         """Soubor z prostoru ke stažení (čtení → „Stáhnout").
@@ -1370,6 +1413,10 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 return self._json({"error": str(exc)}, 400)
             return self._json({"ok": True})
+        if name == "stopka":
+            # Týdenní limit od správce a stopka (hub/stopka.py) — pruh nahoře v okně.
+            from . import stopka
+            return self._json(stopka.stav(cerstve=query.get("fresh", [""])[0] == "1"))
         if name.startswith("fronta"):
             # Fronta zpráv na serveru (hub/fronta.py): uložit, doručit, smazat.
             try:
@@ -1381,6 +1428,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Tab nemá konverzaci, do které by zpráva šla."}, 409)
             if name == "fronta":
                 if self.command == "POST":
+                    # Stopka od správce (hub/stopka.py): zpráva Claudovi neodejde,
+                    # okno řekne proč a do kdy (a nepošle ji jinou cestou).
+                    from . import stopka
+                    st = stopka.zablokovano()
+                    if st:
+                        return self._json({"ok": False, "stopka": st, "error": st["text"]})
                     try:
                         return self._json({"ok": True, "zprava": fronta.pridej(chat, payload.get("text"), payload.get("id"))})
                     except ValueError as exc:
@@ -1467,8 +1520,7 @@ class Handler(BaseHTTPRequestHandler):
                 session = None
             if not session:
                 return self._json({"model": "", "label": "", "at": ""})
-            return self._json(core.tab_model(session.id, session.path or core.HOME,
-                                             session.started))
+            return self._json(core.tab_model(session))
         if name == "soubory-hledani":
             # Našeptávač `@soubor` v bublině (hub/soubory_hledani.py). Kořen se
             # bere z tabu na serveru, od klienta chodí jen dotaz.
@@ -1489,8 +1541,7 @@ class Handler(BaseHTTPRequestHandler):
             if not session:
                 return self._json(kontext.stav(""))
             try:
-                transcript = core._tab_transcript(session.id, session.path or core.HOME,
-                                                  session.started)
+                transcript = core.transcript_for(session)
                 nastaveni = "[1m]" in core.current_model().lower()
             except Exception:
                 return self._json(kontext.stav(""))
@@ -1540,6 +1591,10 @@ class Handler(BaseHTTPRequestHandler):
                            "newtab": core.CONFIG.get("newtab") or {},
                            "show_archived": bool(core.CONFIG.get("show_archived")),
                            "dev_mode": bool(core.CONFIG.get("dev_mode")),
+                           # Co je v panelu vlevo (hub.js, syncPanelNav).
+                           "panel": core.CONFIG.get("panel") or {},
+                           # Kopie chatů na server (hub/zrcadlo.py), výchozí zapnuto.
+                           "zrcadlo": core.CONFIG.get("zrcadlo", True) is not False,
                            # Téma drží hub, ne jen prohlížeč: port hubu se mění
                            # s každým spuštěním a s ním i paměť prohlížeče.
                            "theme": core.CONFIG.get("theme") or "",
@@ -1671,6 +1726,25 @@ class Handler(BaseHTTPRequestHandler):
         if name == "stazene":
             # Co naposledy stáhl vestavěný prohlížeč (hub/stazene.py).
             return self._json({"slozka": core.STAZENE_DIR, "soubory": stazene.posledni()})
+        if name in ("zrcadlo", "zrcadlo-prevzit", "zrcadlo-nastav", "zrcadla", "zrcadlo-na-server",
+                    "zrcadlo-uvolnit"):
+            return self._zrcadlo(name, query, payload, guest)
+        if name == "soubor-otevrit":
+            # Soubor z čtení (u „Stáhnout") rovnou otevřít výchozí aplikací —
+            # jen hub na počítači a jen ze stránky na témže počítači; telefon
+            # přes Tailscale ani prostor na serveru tím nic otevřít nesmí.
+            if core.on_gateway() or guest or self.server.remote:
+                return self._json({"error": "Otevřít jde jen v appce na počítači — stáhni si ho."}, 403)
+            extra = [s.path for s in HUB.sessions.values()
+                     if s.path and not getattr(s, "exited", False)]
+            full, _velikost, proc = core.soubor_ke_stazeni(str(payload.get("path") or ""), extra)
+            if not full:
+                return self._json({"error": proc or "Soubor tu není."}, 404)
+            slozka = bool(payload.get("slozka")) or core.je_spustitelny(full)
+            ok = core.open_path(os.path.dirname(full) if slozka else full)
+            if not ok:
+                return self._json({"error": "Soubor se nepodařilo otevřít."}, 500)
+            return self._json({"ok": True, "slozka": slozka})
         if name == "open-path":
             target = payload.get("path", "")
             if payload.get("kind") == "brain":
@@ -1741,9 +1815,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(
                     {"error": f"Soubor je větší než "
                               f"{core.MAX_UPLOAD // (1024 * 1024)} MB."}, 413)
+            jmeno = str(payload.get("name") or "")
             try:
-                return self._json({"path": core.save_upload(
-                    payload.get("name", ""), raw)})
+                # Obrázky (a PDF, text) do hub-images kvůli náhledu, ostatní
+                # dokumenty si drží svou příponu ve vlastní složce.
+                save = core.save_priloha if core.je_dokument(jmeno) else core.save_upload
+                return self._json({"path": save(jmeno, raw)})
             except Exception as exc:
                 return self._json({"error": f"Nepodařilo se uložit: {exc}"}, 500)
         if name == "account":
@@ -1827,14 +1904,27 @@ class Handler(BaseHTTPRequestHandler):
             if action == "remove":
                 return self._json(jev.remove())
             return self._json(jev.status())
+        if name == "gemini":
+            # Gemini (Google AI Pro) jako pomocník Clauda — stav, vypínač a
+            # srovnání napojení (hub/gemini.py). Čtení stavu rovnou srovná
+            # registraci: po instalaci a přihlášení v tabu stačí otevřít kartu.
+            from . import gemini
+            payload = payload or {}
+            if "zapnout" in payload:
+                return self._json(gemini.nastav(bool(payload.get("zapnout"))))
+            gemini.sync()
+            return self._json(gemini.stav())
         if name == "predplatne":
             # Claude v prostoru na vlastním předplatném: propojení přes
             # `claude setup-token` na tomhle počítači a stav u brány.
             if core.on_gateway():
                 return self._json({"error": "Předplatné se připojuje z appky na počítači."}, 400)
             action = payload.get("action") or ""
-            if action == "start":
-                return self._json(predplatne.start())
+            # Víc předplatných: přidání, přepnutí, přejmenování, odebrání,
+            # limity — v prostoru i pro Claude Code na tomhle počítači.
+            out = predplatne.akce(action, payload, query, HUB.prenacti_chaty)
+            if out is not None:
+                return self._json(out)
             if action == "code":
                 return self._json(predplatne.send_code(payload.get("code")))
             if action == "cancel":
@@ -1917,8 +2007,16 @@ class Handler(BaseHTTPRequestHandler):
                        "agents", "default_agent", "project_agents",
                        "remote_keep_running", "dev_mode", "memory_autosave",
                        "hlas_model", "theme", "prohlizec_okno", "na_pozadi", "bez_spanku", "tray",
-                       "auto_update", "verxee_debug_klic")
+                       "auto_update", "verxee_debug_klic", "panel")
             updates = {k: v for k, v in payload.items() if k in allowed}
+            if "panel" in updates:
+                # Položky panelu vlevo (Nastavení → Přizpůsobit → Panel vlevo).
+                if not isinstance(updates["panel"], dict):
+                    return self._json({"error": "Neznámé nastavení panelu."}, 400)
+                panel = dict(core.CONFIG.get("panel") or {})
+                panel.update({k: bool(v) for k, v in updates["panel"].items()
+                              if k in ("projekty", "obsidian", "terminal")})
+                updates["panel"] = panel
             if "verxee_debug_klic" in updates:
                 # Na bráně klíč do prostorů píše správce — prostor by si ho
                 # přepsal jen do příštího startu.
@@ -2019,7 +2117,10 @@ class Handler(BaseHTTPRequestHandler):
         if name == "plan-usage":
             # Zbývající limit předplatného (5 hodin, týden) — jako /usage v Claude Code.
             from . import usage
-            return self._json(usage.own(refresh=(query.get("refresh") or [""])[0] == "1"))
+            refresh = (query.get("refresh") or [""])[0] == "1"
+            # Na počítači s vybraným dalším předplatným limit toho, na čem jedou taby.
+            vybrane = predplatne.lokal_limit_aktivni(refresh)
+            return self._json(vybrane if vybrane is not None else usage.own(refresh=refresh))
         if name == "project-usage":
             # Tokeny a cena u každého projektu — z mezipaměti, bez čtení přepisů.
             usage = stats.project_usage()
@@ -2105,11 +2206,36 @@ class Handler(BaseHTTPRequestHandler):
                 restart._spawn()
             threading.Thread(target=otevri, daemon=True).start()
             return self._json({"ok": True})
+        if name == "konec-info":
+            # Ikonka v liště se před ukončením ptá: kolik chatů se zavře a jestli
+            # v některém Claude zrovna pracuje (hub/tray.py, _potvrd_konec).
+            from . import mcp_tools
+            taby = [s for s in list(HUB.sessions.values()) if not getattr(s, "exited", False)]
+            pracuje = 0
+            for s in taby:
+                if s.kind == "project" or s.kind.startswith("slash:"):
+                    try:
+                        cesta = core.transcript_for(s)
+                        pracuje += bool(cesta and mcp_tools._pracuje(cesta))
+                    except Exception:
+                        pass
+            return self._json({"taby": len(taby), "pracuje": pracuje})
         if name == "quit":
-            # Úplné ukončení appky, i když běží na pozadí (Nastavení → Ostatní).
+            # Úplné ukončení appky, i když běží na pozadí (Nastavení → Ostatní,
+            # ikonka v liště). Taby se napřed uloží jako při zavření okna —
+            # po dalším spuštění se vrátí a paměť se doplní (HUB.shutdown);
+            # dřív os._exit všechno utnul bez uložení.
             if core.on_gateway():
                 return self._json({"error": "Prostor na serveru ukončuje server."}, 400)
-            threading.Timer(0.3, pozadi.konec).start()
+
+            def konec():
+                try:
+                    HUB.broadcast({"t": "okno-zavri"})
+                    HUB.shutdown(keep=True)
+                except Exception as exc:
+                    core.log_error("uložení před ukončením", exc)
+                pozadi.konec()
+            threading.Timer(0.3, konec).start()
             return self._json({"ok": True})
         if name == "claude-ucet":
             # Pod jakým účtem claude.ai je Claude Code přihlášený (Nastavení → Účet).
@@ -2623,7 +2749,19 @@ def start():
     pocitac.NOTIFY = HUB.broadcast
     pocitac.HOOK_URL = f"http://127.0.0.1:{port}"
     pocitac.start()
+    # Počítač počítá, kopie chatů je na serveru (hub/zrcadlo.py).
+    from . import zrcadlo
+    zrcadlo.start(HUB)
+    # Spotřeba z počítače do prostoru na serveru (hub/spotreba_pc.py) a v prostoru
+    # hook, který hlídá stopku od správce i v terminálu (hub/stopka.py).
+    from . import spotreba_pc, stopka
+    spotreba_pc.start()
+    stopka.pri_startu()          # rychlé (jeden soubor) a dřív, než se otevře první tab
     connect.start_shared_sync()
+    # Gemini jako pomocník Clauda: napojit/odpojit MCP podle toho, jestli je
+    # agy nainstalovaný (hub/gemini.py). Zkušební hub nic nemění.
+    from . import gemini
+    gemini.spust_na_pozadi()
     if core.on_gateway():
         threading.Thread(target=core.hlidej_pamet, args=(HUB.broadcast,),
                          daemon=True).start()

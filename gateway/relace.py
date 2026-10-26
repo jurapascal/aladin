@@ -41,6 +41,10 @@ _DIVA = {}                    # id relace → {uid: čas posledního dotazu}
 DIVA_S = 15.0                # po jak dlouhém tichu už se člověk nedívá
 _PISE = {}                    # id relace → {uid: čas, kdy naposled psal}
 PISE_S = 6.0                 # tak dlouho po posledním úhozu ještě „píše"
+# Oznámení „X s tebou sdílí chat" se ukáže jednou na člověka (ne na zařízení).
+# Kdo ho viděl, je v záznamu relace (`oznameno`). Sdílení starší než tahle
+# evidence se berou jako oznámená — jinak by po aktualizaci vyskočila všechna znovu.
+OZNAMENI_OD = 1793055600     # 27. 10. 2026 0:00 SEČ
 
 
 @contextlib.contextmanager
@@ -130,6 +134,8 @@ def _public(rid, entry, user):
             "majitel": (owner.get("name") or owner["email"]) if owner else "",
             "role": role(user, entry) or ("spravce" if _je_spravce(user) else ""),
             "clenove": members, "diva": diva, "pisou": pisou, "vytvoreno": entry.get("vytvoreno", 0),
+            "oznameno": (uid in entry["oznameno"]) if isinstance(entry.get("oznameno"), list)
+                        else entry.get("vytvoreno", 0) < OZNAMENI_OD,
             "skupiny": [{"id": g, "nazev": firmy.skupina_nazev(g),
                          "pise": g in (entry.get("skupiny_psat") or [])}
                         for g in entry.get("skupiny") or []]}
@@ -189,7 +195,11 @@ def zalozit(user, chat, titulek, emails, psat_emails=(), skupiny=(), skupiny_psa
         novy = rid is None
         if novy:
             rid = secrets.token_urlsafe(9)
-            rel[rid] = {"owner": uid, "chat": chat, "vytvoreno": int(time.time())}
+            rel[rid] = {"owner": uid, "chat": chat, "vytvoreno": int(time.time()), "oznameno": []}
+        elif not isinstance(rel[rid].get("oznameno"), list):
+            # Sdílení z doby před evidencí oznámení: dosavadní členové ho znají,
+            # nově přidaní se dozvědí.
+            rel[rid]["oznameno"] = list(rel[rid].get("members", []))
         rel[rid].update(members=ids, psat=psat, titulek=str(titulek or "")[:120],
                         skupiny=groups, skupiny_psat=groups_psat)
         _save(rel)
@@ -231,6 +241,23 @@ def odejit(user, rid):
         _save(rel)
     _log(user, "odchod", rid)
     return {"ok": True, "message": "Odešel jsi ze sdílení."}
+
+
+def oznameno(user, rids):
+    """Člověk viděl oznámení o sdílených chatech — podruhé se mu neukáže,
+    ani na jiném zařízení."""
+    uid = int(user["id"])
+    with _locked():
+        rel = _load()
+        zmena = False
+        for rid in rids or []:
+            entry = rel.get(str(rid))
+            if entry and role(user, entry) and uid not in (entry.get("oznameno") or []):
+                entry["oznameno"] = (entry.get("oznameno") or []) + [uid]
+                zmena = True
+        if zmena:
+            _save(rel)
+    return {"ok": True}
 
 
 def ziskat(user, rid, psat=False):

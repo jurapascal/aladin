@@ -2014,7 +2014,6 @@ function vyberLista() {
   if (!bar) return;
   bar.hidden = !vyberRezim;
   document.body.classList.toggle('vybira-chaty', vyberRezim);
-  $('chats-vyber-pocet').textContent = VYBRANE.size ? `Vybráno ${VYBRANE.size}` : 'Nic nevybráno';
   for (const b of bar.querySelectorAll('[data-akce]')) if (b.dataset.akce !== 'vse' && b.dataset.akce !== 'konec') b.disabled = !VYBRANE.size;
   const v = $('btn-chats-vyber');
   if (v) v.classList.toggle('on', vyberRezim);

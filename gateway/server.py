@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from hub import __version__, qr
 
 from . import webauthn
-from . import zrcadlo
+from . import mcp_pc, zrcadlo
 from . import (config, firmy, isolation, mcp, mcp_sdilene, pocitac, poznamky, pristup, relace, safefs, shared,
                slozky, totp, workspace)
 from .accounts import Accounts
@@ -1115,6 +1115,9 @@ class Handler(BaseHTTPRequestHandler):
             # Chat z počítače na server (hub/prenos.py): token zařízení, balíček po kusech.
             if route == "/gw/prenos/nahrat":
                 return self._gw_prenos(method)
+            # Napojení ze serveru v Claudovi na počítači (gateway/mcp_pc.py): token zařízení.
+            if route in ("/gw/mcp-pc", "/gw/mcp-pc/volani"):
+                return self._gw_mcp_pc(route, method)
             # Počítač počítá, kopie chatů je tady (gateway/zrcadlo.py): token zařízení.
             if route in ("/gw/zrcadlo/sync", "/gw/zrcadlo/seznam", "/gw/zrcadlo/prevzit",
                          "/gw/zrcadlo/stahnout"):
@@ -2661,7 +2664,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                            "version": __version__,
                            # Co brána umí navíc — appka podle toho pozná, jestli
                            # se má ptát třeba na most na počítač.
-                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni", "zrcadlo", "spotreba"],
+                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni", "zrcadlo", "spotreba", "mcp-pc"],
                            "host": self._public_host()})
 
     def _gw_me(self):
@@ -2714,6 +2717,33 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         except mcp.ToolError as exc:
             return self._json({"ok": False, "error": str(exc)}, 400)
         return self._json({"ok": True, **(result if isinstance(result, dict) else {})})
+
+    def _gw_mcp_pc(self, route, method):
+        """Most z počítače na napojení v prostoru (tools/server_napojeni_mcp.py).
+        Jen token zařízení; brána u každé zprávy znovu ověří, že napojení
+        člověku patří (nebo ho s ním někdo sdílí). Klíče z brány neodejdou."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = 0
+        if length > 8 * 1024 * 1024:
+            self.close_connection = True
+            return self._json({"error": "Zpráva je moc velká."}, 413)
+        form = self._read_form() if method == "POST" else {}
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Nepřihlášeno."}, 401)
+        if route == "/gw/mcp-pc":
+            return self._json({"ok": True, "napojeni": mcp_pc.seznam(user)})
+        if method != "POST":
+            return self._json({"error": "Jen POST."}, 405)
+        try:
+            out = mcp_pc.volani(self, user, form.get("jmeno"), form.get("relace"), form.get("zprava"))
+        except PermissionError as exc:
+            return self._json({"ok": False, "error": str(exc), "gone": True})
+        except (ValueError, RuntimeError) as exc:
+            return self._json({"ok": False, "error": str(exc)})
+        return self._json({"ok": True, "zpravy": out})
 
     def _gw_zrcadlo(self, route, method):
         """Kopie chatů z počítače (hub/zrcadlo.py ↔ gateway/zrcadlo.py).

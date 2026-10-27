@@ -3323,8 +3323,6 @@ html:has(> body.is-app.is-touch), body.is-app.is-touch { height: var(--app-h, 10
 .shared-more:hover { background: var(--bg-card); color: var(--fg-bright); }
 .shared-new { margin: 6px 8px 0; font-size: 12.5px; }
 
-  display: flex; flex-direction: column; gap: 8px; }
-  border-radius: 8px; margin: 0; user-select: all; }
 .set-warn { color: var(--warn, #d29922); font-size: 12.5px; }
 
 /* Okna „kam uložit“ a „s kým sdílet“ (vault.js placeDialog, hub.js peopleDialog). */
@@ -4997,6 +4995,7 @@ button.st-tym-limit.prazdny { color: var(--dim); }
 @media (max-width: 560px) {
   .st-tym-pole { flex: 1 1 calc(50% - 14px); }
   .st-tym-pole .set-input { width: 100%; }
+}
 /* ── víc předplatných a rychlé přepnutí (predplatne.js) ──────────────────── */
 .pd-seznam { margin-top: 10px; }
 .pd-list { display: flex; flex-direction: column; gap: 8px; }
@@ -5070,6 +5069,7 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   .pd-navrh { top: auto; bottom: calc(var(--composer-h, 0px) + 70px); left: 16px; right: 16px; width: auto; }
   .pd-item { flex-wrap: wrap; }
   .pd-use { margin-left: 28px; }
+}
 
 /* ── Zvonek s oznámeními a Nastavení → Úložiště / Oznámení ───────────────────
    oznameni.js (zvonek v liště a panel) a uloziste.js (koláče, limity, lidé,
@@ -5241,4 +5241,41 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   .ozn-z-stav { grid-column: 2; grid-row: 1; }
   .ozn-z-komu { grid-column: 1 / -1; }
   .ozn-z-titulek { grid-column: 1 / -1; white-space: normal; }
+}
+
+/* ── Šířka panelů vlevo a vpravo (panely.js) — jen na počítači ──────────────
+   Tahlo za okrajem panelu mění šířku (dvojklik vrátí výchozí), tlačítko
+   v liště panel schová. Schovaný levý panel: lišta (v motivu Claude kreslená
+   podle --sidebar-w) se srovná na plochu, logo a název chatu jdou za sebou. */
+.panel-toggle, .tahlo { display: none; }
+@media (min-width: 821px) {
+  .panel-toggle:not([hidden]) { display: inline-flex; }
+  #btn-panel-levy { color: var(--dim); }
+  /* Motiv Claude: lišta nad panelem má jeho šířku — tlačítko k jejímu pravému okraji. */
+  html[data-motiv="claude"] #btn-panel-levy { margin-left: auto; }
+  #btn-panel-pravy { color: var(--dim); }
+  #btn-panel-pravy:not(.on) { color: var(--accent); }
+  .layout { position: relative; }
+  .tahlo {
+    display: block; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6;
+    cursor: col-resize; touch-action: none; background: transparent; transition: background .12s ease;
+  }
+  .tahlo::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent;
+  }
+  .tahlo:hover::after, .tahlo.aktivni::after { background: color-mix(in srgb, var(--accent) 65%, transparent); }
+  .tahlo-levy { left: calc(var(--sidebar-w) - 4px); }
+  .tahlo-pravy { right: calc(var(--bar-w) - 4px); }
+  .layout:has(> .actionbar[hidden]) .tahlo-pravy { display: none; }
+  body.tahne, body.tahne * { cursor: col-resize !important; user-select: none !important; }
+  body.tahne .xterm, body.tahne iframe { pointer-events: none; }
+
+  /* Schovaný panel v mřížce není — hlavní plocha je první sloupec. */
+  body.bez-leveho .layout { grid-template-columns: minmax(0, 1fr) auto; }
+  body.bez-leveho .layout > .sidebar, body.bez-leveho .tahlo-levy { display: none; }
+  body.bez-leveho .topbar { background: var(--bg); }
+  body.bez-leveho .topbar-title { width: auto; flex: 0 1 auto; }
+  body.bez-leveho #btn-panel-levy { margin-left: 2px; color: var(--accent); }
+  body.bez-leveho .topbar-tabwrap { position: static; transform: none; max-width: 50vw; margin-left: 10px; }
+  body.bez-praveho .actionbar, body.bez-praveho .tahlo-pravy { display: none !important; }
 }

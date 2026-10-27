@@ -26,6 +26,9 @@ dělá jednu aplikaci:
 - **Postranní panel** — seznam projektů z nastavených složek (typ, branch, počet
   nezacommitovaných souborů), hledání, tlačítko na libovolnou jinou složku.
   Pravý klik na projekt = Deploy, shell, otevřít složku.
+- **Šířka panelů** — panel s chaty vlevo i panel Průběh vpravo jde na počítači
+  roztáhnout tahem za okraj (dvojklik vrátí výchozí šířku) a tlačítkem v liště
+  schovat; každé zařízení si to pamatuje (`hub/static/panely.js`).
 - **Taby** — klik na projekt otevře **skutečný terminál** (pty + xterm.js), takže TUI
   Claude Code vypadá přesně jako v terminálu. Když session skončí, tab zůstane jako
   obyčejný shell. Taby jdou přejmenovat dvojklikem a přetáhnout myší.
@@ -648,6 +651,27 @@ pokračovat; doma na počítači zase dokončíš, co jsi začal na telefonu.
   serveru — prostor se kvůli tomu nebudí. Kde který chat běží, drží brána mimo
   domovy (`zrcadla/<id>.json`). Poprvé se kopírují chaty z posledních tří dnů.
 - **Vypnout** jde v appce na počítači: ⚙ → Účet → *Chaty na serveru*.
+
+#### Napojení ze serveru i na počítači
+
+Když Claude počítá na počítači, má po ruce i napojení, která máš v prostoru na
+serveru: Todoist, GitHub, Ecomail a další vlastní napojení, sdílená napojení,
+kterých jsi členem, a **Aladin** (MCP brány: tvůj prostor, konverzace na
+serveru, firemní a sdílený Obsidian, soubory a příkazy v prostoru).
+
+- **Klíče zůstávají na serveru.** Appka zaregistruje v Claude Code za každé
+  napojení jen most `server-<jméno>` (`tools/server_napojeni_mcp.py`), který
+  zprávy posílá bráně s tokenem zařízení (`/gw/mcp-pc/volani`). Brána je vyřídí
+  jako v prostoru: přidá uložené hlavičky nebo přihlášení OAuth (vypršelé
+  obnoví), Ecomail pustí v sandboxu s tvým klíčem (`gateway/mcp_pc.py`).
+- **Libovolný příkaz z nastavení se na bráně nespouští** — jen napojení na
+  https adrese a ověřené balíčky (Ecomail, Meta). Mosty, které dávají smysl jen
+  v prostoru (most na počítač, prohlížeč, Gemini), se nenabízejí.
+- **Co máš i na počítači pod stejným jménem, použije Claude místní.** Napojení,
+  které na serveru zmizí, appka zase odebere (jen ta, která sama přidala).
+  Seznam se obnovuje při startu a každých 30 minut; nové napojení uvidí Claude
+  v nově otevřených chatech.
+- Přehled, vypínač a *Načíst znovu*: ⚙ → Účet → *Napojení ze serveru*.
 
 ### Claude ze serveru na tvém počítači
 

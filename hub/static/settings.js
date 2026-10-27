@@ -2000,6 +2000,7 @@
         'vrátíš v jeho nastavení: Účet → Pracovat na tomto počítači. Heslo ' +
         'a záložní kódy změníš tamtéž, v Nastavení → Účet v prostoru na serveru.'));
       body.appendChild(zrcadloBlok());
+      body.appendChild(napojeniZeServeru());
       body.appendChild(HubPredplatne.panel(io));
       body.appendChild(HubPocitac.panel(io));
     }
@@ -2034,6 +2035,55 @@
       io.api('zrcadlo').then(kresli, (err) => { stav.textContent = err.message; });
       cb.onchange = async () => {
         try { kresli(await io.api('zrcadlo-nastav', {zapnout: cb.checked})); } catch (err) { io.toast(err.message); }
+      };
+      return box;
+    }
+
+    /* Napojení z prostoru na serveru i v Claudovi na počítači (hub/mcp_pc.py):
+       Todoist, GitHub, Ecomail…, sdílená napojení a Aladin (firemní Obsidian,
+       soubory v prostoru). Klíče drží server, počítač má jen most. */
+    function napojeniZeServeru() {
+      const box = el('div', 'acc-sec');
+      box.appendChild(el('div', 'set-title', 'Napojení ze serveru'));
+      box.appendChild(el('div', 'set-note',
+        'Napojení, která máš v prostoru na serveru (Todoist, GitHub, Ecomail, sdílená napojení, ' +
+        'firemní Obsidian…), používá Claude i tady na počítači. Přihlášení a klíče zůstávají na ' +
+        'serveru — sem se nic nekopíruje. Co máš i na počítači pod stejným jménem, použije Claude místní.'));
+      const row = el('label', 'onb-row');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = (state.config || {}).server_napojeni !== false;
+      row.append(cb, el('span', null, 'Používat napojení ze serveru i tady'));
+      box.appendChild(row);
+      const list = el('div', 'set-note', 'zjišťuji…');
+      box.appendChild(list);
+      const obnovit = el('button', 'btn ghost', 'Načíst znovu');
+      obnovit.type = 'button';
+      box.appendChild(obnovit);
+      const kresli = (d) => {
+        list.textContent = '';
+        if (!d.nastaveno) { list.textContent = 'Vypnuto.'; return; }
+        if (d.chyba) list.appendChild(el('div', null, 'Něco nejde: ' + d.chyba));
+        if (!(d.napojeni || []).length) {
+          if (!d.chyba) list.appendChild(el('div', null, d.kdy ? 'Na serveru žádná napojení nemáš.' : 'Načítám…'));
+          return;
+        }
+        for (const n of d.napojeni) {
+          list.appendChild(el('div', null, '• ' + (n.nazev || n.jmeno) +
+            (n.most ? ' (' + n.most + ')' : '') + ' — ' + n.stav));
+        }
+        list.appendChild(el('div', null, 'Nová napojení uvidí Claude v nově otevřených chatech.'));
+      };
+      io.api('mcp-pc').then(kresli, (err) => { list.textContent = err.message; });
+      cb.onchange = async () => {
+        list.textContent = 'chvilku…';
+        try { kresli(await io.api('mcp-pc-nastav', {zapnout: cb.checked})); } catch (err) { io.toast(err.message); }
+      };
+      obnovit.onclick = async () => {
+        obnovit.disabled = true;
+        list.textContent = 'načítám ze serveru…';
+        try { kresli(await io.api('mcp-pc-obnovit', {})); } catch (err) { io.toast(err.message); }
+        obnovit.disabled = false;
       };
       return box;
     }

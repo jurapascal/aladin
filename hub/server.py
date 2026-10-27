@@ -1595,6 +1595,7 @@ class Handler(BaseHTTPRequestHandler):
                            "panel": core.CONFIG.get("panel") or {},
                            # Kopie chatů na server (hub/zrcadlo.py), výchozí zapnuto.
                            "zrcadlo": core.CONFIG.get("zrcadlo", True) is not False,
+                           "server_napojeni": core.CONFIG.get("server_napojeni", True) is not False,
                            # Téma drží hub, ne jen prohlížeč: port hubu se mění
                            # s každým spuštěním a s ním i paměť prohlížeče.
                            "theme": core.CONFIG.get("theme") or "",
@@ -1726,6 +1727,16 @@ class Handler(BaseHTTPRequestHandler):
         if name == "stazene":
             # Co naposledy stáhl vestavěný prohlížeč (hub/stazene.py).
             return self._json({"slozka": core.STAZENE_DIR, "soubory": stazene.posledni()})
+        if name in ("mcp-pc", "mcp-pc-nastav", "mcp-pc-obnovit"):
+            # Napojení ze serveru v Claudovi na počítači (hub/mcp_pc.py).
+            from . import mcp_pc
+            if guest or core.on_gateway():
+                return self._json({"error": "Jen v appce na počítači."}, 400)
+            if name == "mcp-pc":
+                return self._json(mcp_pc.prehled())
+            if name == "mcp-pc-nastav":
+                return self._json(mcp_pc.nastav((payload or {}).get("zapnout")))
+            return self._json(mcp_pc.sync())
         if name in ("zrcadlo", "zrcadlo-prevzit", "zrcadlo-nastav", "zrcadla", "zrcadlo-na-server",
                     "zrcadlo-uvolnit"):
             return self._zrcadlo(name, query, payload, guest)
@@ -2752,6 +2763,9 @@ def start():
     # Počítač počítá, kopie chatů je na serveru (hub/zrcadlo.py).
     from . import zrcadlo
     zrcadlo.start(HUB)
+    # Napojení ze serveru i v Claudovi na počítači (hub/mcp_pc.py).
+    from . import mcp_pc
+    mcp_pc.start()
     # Spotřeba z počítače do prostoru na serveru (hub/spotreba_pc.py) a v prostoru
     # hook, který hlídá stopku od správce i v terminálu (hub/stopka.py).
     from . import spotreba_pc, stopka

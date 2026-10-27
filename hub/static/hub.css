@@ -5348,7 +5348,7 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 .chats-vyber button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 .chats-vyber button:disabled { opacity: .4; cursor: default; }
 .chats-vyber button.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
-.chat-chk { flex: none; width: 18px; height: 18px; border: 1.5px solid var(--dim); border-radius: 5px; display: inline-flex;
+.chat-chk { flex: none; width: 18px; height: 18px; margin-left: 4px; border: 1.5px solid var(--dim); border-radius: 5px; display: inline-flex;
   align-items: center; justify-content: center; margin-right: 8px; color: transparent; align-self: center; }
 .chat-chk .ico { width: 14px; height: 14px; }
 .chat-item.vybran .chat-chk { background: var(--accent); border-color: var(--accent); color: #fff; }

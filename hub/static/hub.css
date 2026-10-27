@@ -4832,7 +4832,8 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
   flex-direction: row; align-items: center; gap: 11px;
   margin: 0 6px; padding: 7px 8px; min-height: 58px; border: none; border-radius: 10px;
 }
-.chat-wa.druh-osobni { --druh: var(--cloud); }
+/* Osobní chat v barvě prostředí: na počítači jantarová (jako džin v liště), na serveru modrá. */
+.chat-wa.druh-osobni { --druh: var(--accent); }
 .chat-wa.druh-firma { --druh: var(--firma); }
 .chat-wa.druh-sdileny { --druh: var(--green); }
 .chat-av {
@@ -5295,3 +5296,18 @@ button.st-tym-limit.prazdny { color: var(--dim); }
 /* Otevřený chat v seznamu vlevo: stejné podsvícení jako pod myší (hub.js, renderChats). */
 .chat-item.aktivni { background: var(--card-hover); }
 html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); }
+
+/* Rychlost: řádky konverzace mimo obrazovku se nepočítají a nekreslí
+   (content-visibility). U dlouhých chatů a desítek tabů to bylo 15–20 tisíc
+   prvků, které prohlížeč rozvrhoval při každé změně. Poslední řádek
+   (práce, fronta) zůstává vždy vykreslený. */
+.cteni-flow > :not(:last-child):not(.cteni-prace):not(.cteni-pozadi):not(.cteni-ulohy):not(.cteni-fronta) {
+  content-visibility: auto; contain-intrinsic-size: auto 60px;
+}
+
+/* Štítek „od Tomáš Peška" / „s Anna, Petr" před náhledem sdíleného chatu. */
+.chat-stitek {
+  flex: none; max-width: 55%; padding: 0 6px; border-radius: 6px; font-size: 11px; line-height: 17px;
+  color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}

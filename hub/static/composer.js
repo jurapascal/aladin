@@ -1080,8 +1080,15 @@
       const body = text.replace(/\r/g, '');
       if (!body.trim()) return;
       if (io.pozastaveno && io.pozastaveno()) {
-        if (io.notice) io.notice('Odesílání zpráv je pozastavené — povol ho pod zprávou, která nedošla.');
-        return;
+        // Kdo píše a odesílá, chce odeslat: pozastavení se z pole zruší samo
+        // (dřív zůstalo viset, i když žádná nedoručená zpráva nebyla, a
+        // povolit ho šlo jen pod zprávou, která tam už nebyla).
+        if (!io.pozastavit) {
+          if (io.notice) io.notice('Odesílání zpráv je pozastavené.');
+          return;
+        }
+        io.pozastavit(false);
+        if (io.notice) io.notice('Odesílání zpráv je zase povolené.');
       }
       const ef = /^\/effort\s+(low|medium|high|xhigh|max)\b/i.exec(body.trim());
       if (ef) { effort = ef[1].toLowerCase(); syncModel(); }

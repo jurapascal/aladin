@@ -24,7 +24,7 @@
   // Kolik řádků konverzace stránka drží. Tab otevřený celý den přidává
   // stovky nástrojů za hodinu a při desítkách tabů pak stránka tuhne;
   // první načtení je stejně jen konec přepisu (hub/cteni.py, MAX_BLOCKS).
-  const MAX_RADKU = 1200;
+  const MAX_RADKU = 500;
 
   const ZNAK = {
     Read: '◉', Edit: '✎', Write: '✎', NotebookEdit: '✎',

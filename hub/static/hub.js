@@ -1554,7 +1554,7 @@ async function loadChats() {
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
      „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
   const sig = JSON.stringify([ACTIVE ? ACTIVE.id : 0, CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd, c.posledni || '',
-                                              c.server ? 1 : 0, zrcadloZnak(c)])]);
+                                              c.server ? 1 : 0, zrcadloZnak(c), komuSdilim(c)])]);
   if (sig === chatsSig) return;
   chatsSig = sig;
   renderChatsSoon();
@@ -1741,12 +1741,21 @@ function chatStav(c) {
   return '';
 }
 
+/* Chat, který sdílím já: komu (štítek „s Tomáš Peška, …"). */
+function komuSdilim(c) {
+  if (!onServer()) return '';
+  const r = (RELACE.moje || []).find((x) => x.chat === c.id);
+  if (!r) return '';
+  const lide = [...(r.clenove || []).map((m) => m.name || m.email), ...(r.skupiny || []).map((g) => g.nazev)];
+  return lide.length ? 's ' + lide.join(', ') : '';
+}
+
 function chatNahled(c) {
   const text = c.posledni || (c.prompt && c.prompt !== c.title ? c.prompt : '') || '';
   return (c.posledni_kdo === 'ty' && text ? 'Ty: ' : '') + text;
 }
 
-function chatRadek({druh, titulek, cas, nahled, stav, bezHvezdy}) {
+function chatRadek({druh, titulek, cas, nahled, stav, bezHvezdy, stitek}) {
   const item = document.createElement('button');
   item.type = 'button';
   item.className = 'chat-item chat-wa druh-' + druh;
@@ -1754,12 +1763,14 @@ function chatRadek({druh, titulek, cas, nahled, stav, bezHvezdy}) {
     '<span class="chat-av"><svg class="ico"><use href="#' + (DRUH_IKONA[druh] || 'i-user') + '"/></svg></span>' +
     '<span class="chat-body">' +
       '<span class="chat-r1"><span class="chat-title"></span><span class="chat-cas"></span></span>' +
-      '<span class="chat-r2"><span class="chat-nahled"></span>' +
+      '<span class="chat-r2">' + (stitek ? '<span class="chat-stitek"></span>' : '') + '<span class="chat-nahled"></span>' +
         (bezHvezdy ? '' : '<span class="chat-pin" role="button"><svg class="ico"><use href="#i-star"/></svg></span>') +
       '</span>' +
     '</span>';
   item.querySelector('.chat-title').textContent = titulek;
   item.querySelector('.chat-cas').textContent = chatCas(cas);
+  const stEl = item.querySelector('.chat-stitek');
+  if (stEl) { stEl.textContent = stitek; stEl.title = stitek; }
   const n = item.querySelector('.chat-nahled');
   n.textContent = stav || nahled || '';
   n.classList.toggle('stav', !!stav);
@@ -1830,7 +1841,7 @@ function renderChats() {
   const buildItem = (c) => {
     const item = chatRadek({
       druh: druhChatu(c), titulek: c.title, cas: c.updated,
-      nahled: chatNahled(c), stav: chatStav(c),
+      nahled: chatNahled(c), stav: chatStav(c), stitek: komuSdilim(c),
     });
     item.classList.toggle('gone', !c.exists);
     item.dataset.id = c.id;
@@ -2402,7 +2413,8 @@ function renderRelace() {
   }
   for (const s of semnou) {
     const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: s.vytvoreno, bezHvezdy: true,
-      nahled: 'Sdílí ' + s.majitel + (s.role === 'pise' ? ' · smíš psát' : ' · jen čtení') +
+      stitek: 'od ' + s.majitel,
+      nahled: (s.role === 'pise' ? 'smíš psát' : 'jen čtení') +
         (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '')});
     row.classList.add('relace-row');
     row.onclick = () => {
@@ -3858,6 +3870,10 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
       // Průběžné uložení rozepsané zprávy (koncept) — přežije restart i reload.
       koncept: (text, atts) => ulozKoncept(tab, text, atts),
       pozastaveno: () => !!tab.pozastaveno,
+      pozastavit: (on) => {
+        tab.pozastaveno = !!on;
+        if (tab.id) api('fronta-pauza', {tab: tab.id, on: !!on}).catch(() => {});
+      },
       // Zpráva se uloží na server a doručí Claudovi, až je připravený (hub/fronta.py).
       naServer: async (text, id) => {
         try {
@@ -6032,7 +6048,9 @@ function nactiFrontu(tab) {
   tab.frontaNactena = true;
   api('fronta?tab=' + tab.id).then((r) => {
     if (!r) return;
-    if (r.pauza) tab.pozastaveno = true;
+    // Pozastavení platí, jen dokud je co zdržovat: bez nedoručené zprávy se samo zruší.
+    if (r.pauza && r.zpravy && r.zpravy.length) tab.pozastaveno = true;
+    else if (r.pauza) api('fronta-pauza', {tab: tab.id, on: false}).catch(() => {});
     if (tab.cteni && r.zpravy && r.zpravy.length) tab.cteni.obnovFrontu(r.zpravy);
   }).catch(() => { tab.frontaNactena = false; });
 }

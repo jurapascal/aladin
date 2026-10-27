@@ -80,20 +80,12 @@
 
   async function nacti(prvni) {
     try { data = await gw(); } catch (err) {
-      // Starší brána oznámení nezná (404): zvonek se schová a po čase se
-      // zkusí znovu — až se brána aktualizuje, objeví se sám.
-      if (err.status === 404) {
-        const btn = document.getElementById('btn-zvonek');
-        if (btn) btn.hidden = true;
-        zavritPanel();
-        zapnuto = false;
-        clearInterval(casovac);
-        setTimeout(() => { if (io) apply(io); }, 10 * 60 * 1000);
-      }
+      // Zvonek je vidět vždycky. Starší brána oznámení nezná (404) nebo chyba
+      // spojení: zůstane prázdný, bez oznámení — nikdy nezmizí.
+      if (!data || !Array.isArray(data.oznameni)) data = {oznameni: [], neprectene: 0};
+      odznak();
       return;
     }
-    const btn0 = document.getElementById('btn-zvonek');
-    if (btn0 && btn0.hidden && io && io.state && io.state.config && io.state.config.gateway_user) btn0.hidden = false;
     const nove = data.oznameni.filter((o) => !o.read_at && o.id > videno);
     // Nové nepřečtené řekne i hláška dole — zvonek v rohu snadno přehlédneš.
     // Při načtení stránky jen jednou souhrnně, ať se neopakuje po každém F5.

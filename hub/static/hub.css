@@ -5286,3 +5286,7 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   body.bez-leveho .topbar-tabwrap { position: static; transform: none; max-width: 50vw; margin-left: 10px; }
   body.bez-praveho .actionbar, body.bez-praveho .tahlo-pravy { display: none !important; }
 }
+
+/* Otevřený chat v seznamu vlevo: stejné podsvícení jako pod myší (hub.js, renderChats). */
+.chat-item.aktivni { background: var(--card-hover); }
+html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); }

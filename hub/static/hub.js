@@ -1553,8 +1553,8 @@ async function loadChats() {
   /* Seznam se načítá každých 20 s. Překreslit ho celý pokaždé znamená, že
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
      „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
-  const sig = JSON.stringify(CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd, c.posledni || '',
-                                              c.server ? 1 : 0, zrcadloZnak(c)]));
+  const sig = JSON.stringify([ACTIVE ? ACTIVE.id : 0, CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd, c.posledni || '',
+                                              c.server ? 1 : 0, zrcadloZnak(c)])]);
   if (sig === chatsSig) return;
   chatsSig = sig;
   renderChatsSoon();
@@ -1834,6 +1834,8 @@ function renderChats() {
     });
     item.classList.toggle('gone', !c.exists);
     item.dataset.id = c.id;
+    // Chat, ve kterém zrovna jsem: stejné podsvícení jako pod myší (jako na claude.ai).
+    item.classList.toggle('aktivni', !!ACTIVE && tabPatriChatu(ACTIVE, c));
     const znak = zrcadloZnak(c);
     if (znak) {
       // Běží jinde: na serveru (počítač), na počítači (prostor).
@@ -4087,6 +4089,7 @@ function activate(tab) {
   // domů se dá kdykoli (logo v liště, Domů v šuplíku) a taby běží dál.
   $('welcome').hidden = !!tab;
   if (!tab) renderWelcomeOpen();
+  if (typeof chatsSig !== 'undefined' && !$('chats-view').hidden) renderChatsSoon();   // podsvícení otevřeného chatu
   syncActionbar(tab);
   if (tab) {
     refit(tab);

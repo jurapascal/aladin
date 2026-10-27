@@ -663,7 +663,39 @@ def hex_rgb(color):
 BLOCKED_DIRS = []
 
 
+_TTL_CACHE = {}
+_TTL_LOCK = threading.Lock()
+
+
+def ttl_cache(seconds):
+    """Výsledek funkce bez argumentů se drží pár vteřin. `/api/state` ho čte
+    při každém načtení a po každé změně nastavení; git stav všech projektů
+    (půl vteřiny) a kontrola prostředí se přitom mezi dvěma voláními nemění.
+    `zahod_cache()` ho zahodí (Načíst znovu, změna nastavení)."""
+    def dekorator(fn):
+        def obal():
+            ted = time.monotonic()
+            with _TTL_LOCK:
+                zaznam = _TTL_CACHE.get(fn.__name__)
+            if zaznam and ted - zaznam[0] < seconds:
+                return zaznam[1]
+            hodnota = fn()
+            with _TTL_LOCK:
+                _TTL_CACHE[fn.__name__] = (ted, hodnota)
+            return hodnota
+        obal.__name__ = fn.__name__
+        obal.__wrapped__ = fn
+        return obal
+    return dekorator
+
+
+def zahod_cache():
+    with _TTL_LOCK:
+        _TTL_CACHE.clear()
+
+
 @_slouc
+@ttl_cache(8)
 def get_projects():
     projects, blocked = [], []
     for base in PROJECT_DIRS:
@@ -1804,6 +1836,7 @@ def save_config(updates):
     """Zapíše změny do hub-config.json (jen předané klíče) a zavolá refresh()."""
     cfg = dict(load_config())
     cfg.update(updates)
+    zahod_cache()
     if SETUP_MODE:
         # Instalace v okně (hub/setup.py): konfig založí až instalačka — kdyby
         # existoval dřív, nechala by ho být a nezjistila složky projektů.
@@ -4290,6 +4323,7 @@ def mcp_remove(name, scope="user", path=""):
     return {"ok": True, "detail": out or f"{name} odebrán."}
 
 
+@ttl_cache(8)
 def doctor():
     """What the hub found on this machine — shown in the UI when something is off."""
     how, detail = link_selftest()

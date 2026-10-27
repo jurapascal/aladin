@@ -1511,6 +1511,7 @@ function showFirmaCard(p, total) {
    ve kterém už běží. Data: /api/chats (hub/chats.py). */
 let CHATS = [];
 let chatsTimer = null;
+let chatsOtisk = '';       // otisk seznamu, který okno už má (server pak pošle jen „beze změny")
 const CHATS_PAGE = 60;
 let chatsShown = CHATS_PAGE;
 
@@ -1538,7 +1539,7 @@ function sidebarView(view) {
 async function loadChats() {
   let res;
   try {
-    [res] = await Promise.all([api('chats'), nactiZrcadla()]);
+    [res] = await Promise.all([api('chats' + (chatsOtisk ? '?h=' + chatsOtisk : '')), nactiZrcadla()]);
   } catch (err) {
     const box = $('chats');
     box.textContent = '';
@@ -1549,6 +1550,8 @@ async function loadChats() {
     chatsSig = '';
     return;
   }
+  chatsOtisk = res.h || '';
+  if (res.same) return;                              // seznam se nezměnil — nic se nepřekresluje
   CHATS = slucZrcadlo(res.chats || []);
   /* Seznam se načítá každých 20 s. Překreslit ho celý pokaždé znamená, že
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
@@ -5643,7 +5646,7 @@ async function main() {
   if (!STATE.config.gateway_user) HubPocitac.watchPending(hubIO());
 
   $('search').oninput = (ev) => renderProjects(ev.target.value);
-  $('btn-refresh').onclick = () => reload();
+  $('btn-refresh').onclick = async () => { try { await api('state?fresh=1'); } catch (_) { /* reload to řekne */ } reload(); };
   $('btn-theme').onclick = () => setTheme(!DARK, true);
   $('btn-settings').onclick = () => HubSettings.open({...hubIO(), state: STATE});
   $('btn-stats').onclick = () => HubStats.open(hubIO());

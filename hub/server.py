@@ -1351,8 +1351,14 @@ class Handler(BaseHTTPRequestHandler):
             # Seznam konverzací jako v oficiální appce (hub/chats.py) a které
             # z nich právě běží v tabu — ty se neotevírají podruhé.
             running = HUB.chat_tabs()
-            return self._json({"chats": [dict(c, tab=running.get(c["id"]))
-                                         for c in chats.list_chats()]})
+            seznam = [dict(c, tab=running.get(c["id"])) for c in chats.list_chats()]
+            # Seznam má stovky kB a mění se zřídka: okno pošle otisk toho, co
+            # už má, a když sedí, dostane jen „beze změny".
+            import hashlib
+            otisk = hashlib.sha1(json.dumps(seznam, sort_keys=True).encode("utf-8")).hexdigest()[:16]
+            if query.get("h", [""])[0] == otisk:
+                return self._json({"same": True, "h": otisk})
+            return self._json({"chats": seznam, "h": otisk})
         if name in ("chat-hledej", "chat-hledej-stav", "chat-hledej-zrus", "chat-export"):
             # Hledání napříč konverzacemi a export do Markdownu (hub/hledani.py).
             # Cizí historii host nečte.
@@ -1559,6 +1565,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(setup.start())
             return self._json(setup.state())
         if name == "state":
+            if query.get("fresh"):
+                core.zahod_cache()           # tlačítko Načíst znovu
             part = self._part
             counts, recent = core.get_memory()
             projects = part("projekty", core.get_projects, [])

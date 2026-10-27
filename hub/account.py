@@ -374,6 +374,9 @@ def _call(path, token="", payload=None, method=None, base=None, timeout=TIMEOUT)
         if exc.code in (502, 503, 504):
             # nginx běží, brána za ním ne — pro člověka je to totéž co výpadek.
             return None, f"Server {_host(base)} teď neodpovídá ({exc.code}).", OFFLINE
+        if exc.code == 404 and path.startswith("/gw/") and not note:
+            # Stará brána novou adresu nezná (aktualizuje se později než appka).
+            return None, "Tohle bude fungovat, až se server aktualizuje.", HTTP
         return None, note or f"Server odpověděl {exc.code}.", HTTP
     except (urllib.error.URLError, OSError) as exc:
         return None, _offline_reason(exc, base), OFFLINE

@@ -396,6 +396,10 @@ def _brana(op, args):
     try:
         with _OPENER.open(req, timeout=20) as res:
             return json.loads(res.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:               # stará brána tuhle adresu nezná
+            return {"ok": False, "error": "Tohle bude fungovat, až se server aktualizuje."}
+        return None
     except (urllib.error.URLError, OSError, ValueError):
         return None
 

@@ -1943,7 +1943,7 @@ async function deleteChat(c) {
   const bezi = !!(c.tab || otevreny);
   const ok = await askConfirm({
     title: 'Smazat konverzaci?',
-    html: `<b>${escapeHtml(c.title)}</b> zmizí ze seznamu chatů. Přepis se přesune do koše prostoru.` +
+    html: `<b>${escapeHtml(c.title)}</b> zmizí ze seznamu chatů. Přepis se přesune do složky <code>~/.claude/hub-kos/chaty</code> — vrátit ho jde přesunem souboru zpět do <code>~/.claude/projects</code>.` +
           (bezi ? '<br>Běží v tabu — ten se nejdřív zavře.' : ''),
     yes: 'Smazat', no: 'Zrušit'});
   if (!ok) return;

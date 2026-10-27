@@ -166,12 +166,6 @@
         <button id="btn-drawer-menu" class="iconbtn" title="Další" aria-label="Další">
           <svg class="ico"><use href="#i-more"/></svg></button>
       </span>
-      <form class="drawer-search" role="search" autocomplete="off" onsubmit="return false">
-        <button id="btn-drawer-hledat-zpet" class="iconbtn" type="button" title="Zavřít hledání" aria-label="Zavřít hledání">
-          <svg class="ico"><use href="#i-back"/></svg></button>
-        <input id="drawer-hledat" type="search" placeholder="Hledat chat…" autocomplete="off"
-               name="hub-hledat-suplik" spellcheck="false" enterkeyhint="search" data-1p-ignore data-lpignore="true">
-      </form>
     </div>
     <!-- Hlavní nabídka jako v appce Claude: nový chat, přepnutí seznamu mezi
          chaty a projekty, poznámky. Domů jen na telefonu (na počítači vede
@@ -218,7 +212,7 @@
       <div id="projects" class="cards"></div>
     </div>
     <div id="chats-view">
-      <div class="searchwrap">
+      <div class="searchwrap" hidden>
         <svg class="ico search-ico"><use href="#i-search"/></svg>
         <input id="chats-search" type="search" placeholder="Hledat chat…" autocomplete="off" name="hub-hledat-chat" spellcheck="false" data-1p-ignore data-lpignore="true">
       </div>

@@ -2059,7 +2059,9 @@ function initChats() {
   document.addEventListener('hub-prace', () => { if (!$('chats-view').hidden) renderChatsSoon(); });
   for (const b of document.querySelectorAll('.side-tab')) b.onclick = () => sidebarView(b.dataset.view);
   $('chats-search').addEventListener('input', () => { chatsShown = CHATS_PAGE; renderChats(); });
-  if (window.HubHledani) HubHledani.mount({api, toast, openChat, token: TOKEN, chats: () => CHATS});
+  if (window.HubHledani) HubHledani.mount({api, toast, openChat, token: TOKEN, chats: () => CHATS,
+    projects: () => (STATE && STATE.projects) || [],
+    openProject: (p) => openTab({kind: 'project', path: p.path, title: p.label || p.name, agent: agentFor(p.path)})});
   const box = $('chats');
   box.addEventListener('pointerdown', () => { chatsTouch = Date.now(); });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) box.addEventListener(ev, chatsTouchEnd);
@@ -5703,7 +5705,7 @@ async function main() {
   $('btn-prostor').onclick = prostorMenu;
   $('nav-projekty').onclick = () => showProjekty(true);
   // Položky panelu jako v appce Claude (viditelné v motivu Claude — hub.css).
-  $('nav-hledat').onclick = () => { const q = $('chats-search'); if (q) { q.scrollIntoView({block: 'nearest'}); q.focus(); } };
+  $('nav-hledat').onclick = () => { closeDrawer(); if (window.HubHledani) HubHledani.otevri(); };
   $('nav-customize').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'panel'});
   $('nav-terminal').onclick = () => openTab({kind: 'shell', path: '', title: 'Terminál'});
   $('welcome-prompt-input').addEventListener('keydown', (ev) => {

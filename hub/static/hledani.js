@@ -1,5 +1,5 @@
 /* Hledání v textech konverzací + export do Markdownu (server: hub/hledani.py).
-   Samostatný blok pod políčkem „Hledat chat…": hledá se na serveru na pozadí,
+   Okno hledání (otevri): hledá se na serveru na pozadí,
    stránka se jen průběžně ptá na stav. Nový dotaz starý na serveru zruší.
    Úryvky i zvýraznění se kreslí přes textNode / <mark>, nikdy jako HTML. */
 (function (global) {
@@ -80,7 +80,7 @@
     hlava.type = 'button';
     hlava.append(el('span', 'hl-titulek', r.title),
       el('span', 'hl-meta', [r.project, kdy(r.updated), r.pocet + '×', r.tab ? 'otevřená' : ''].filter(Boolean).join('  ·  ')));
-    hlava.onclick = () => io.openChat(chat);
+    hlava.onclick = () => { if (zavriPopup) zavriPopup(); io.openChat(chat); };
     box.appendChild(hlava);
     for (const n of r.nalezy || []) {
       const u = uryvek(n);
@@ -95,53 +95,91 @@
     return box;
   }
 
-  function mount(opts) {
-    io = opts;
-    const wrap = document.querySelector('#chats-view .searchwrap');
-    const seznam = document.getElementById('chats');
-    if (!wrap || !seznam || document.getElementById('hledani-blok')) return;
-    const blok = el('div', 'hl-blok');
-    blok.id = 'hledani-blok';
-    const toggle = el('button', 'hl-toggle', 'Hledat v textu konverzací');
-    toggle.type = 'button';
-    const panel = el('div', 'hl-panel');
-    panel.hidden = true;
+  const fold = (t) => String(t || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+  let zavriPopup = null;
+
+  function sekce(nadpis) {
+    const h = el('div', 'hl-sekce', nadpis);
+    h.hidden = true;
+    return h;
+  }
+  function polozka(titulek, meta, onclick) {
+    const b = el('button', 'hl-polozka');
+    b.type = 'button';
+    b.append(el('span', 'hl-titulek', titulek), el('span', 'hl-meta', meta));
+    b.onclick = onclick;
+    return b;
+  }
+
+  /* Okno hledání: chaty a projekty podle názvu hned, texty konverzací na
+     serveru na pozadí. Otevírá ho „Hledat" v panelu i lupa na telefonu. */
+  function otevri() {
+    if (!io || zavriPopup) return;
+    const modal = el('div', 'modal hl-modal');
+    const box = el('div', 'modal-box hl-popup');
     const pole = el('input', 'hl-input');
     pole.type = 'search';
-    pole.placeholder = 'Hledat ve zprávách (min. 2 znaky)…';
+    pole.placeholder = 'Hledat chaty, projekty a konverzace…';
     pole.autocomplete = 'off';
     pole.maxLength = 200;
+    pole.setAttribute('enterkeyhint', 'search');
     const lab = el('label', 'hl-nastroje');
     const cb = el('input');
     cb.type = 'checkbox';
     lab.append(cb, document.createTextNode(' i ve výpisech nástrojů (pomalejší)'));
-    const stav = el('div', 'hl-stav');
-    const vysl = el('div', 'hl-vysledky');
-    panel.append(pole, lab, stav, vysl);
-    blok.append(toggle, panel);
-    wrap.after(blok);
+    const telo = el('div', 'hl-telo');
+    const sChaty = sekce('Chaty'), lChaty = el('div', 'hl-seznam');
+    const sProj = sekce('Projekty'), lProj = el('div', 'hl-seznam');
+    const sText = sekce('V textu konverzací'), stav = el('div', 'hl-stav'), vysl = el('div', 'hl-vysledky');
+    telo.append(sChaty, lChaty, sProj, lProj, sText, stav, vysl);
+    box.append(pole, lab, telo);
+    modal.appendChild(box);
+    document.body.appendChild(modal);
 
-    function zrus() {
-      seq++;
-      clearTimeout(casovac);
-      clearTimeout(dotaz);
-    }
+    function zrus() { seq++; clearTimeout(casovac); clearTimeout(dotaz); }
     function zavri() {
       zrus();
-      panel.hidden = true;
-      seznam.hidden = false;
-      toggle.textContent = 'Hledat v textu konverzací';
       io.api('chat-hledej-zrus', {}).catch(() => {});
+      document.removeEventListener('keydown', naKlavesu, true);
+      modal.remove();
+      zavriPopup = null;
     }
+    zavriPopup = zavri;
+    function naKlavesu(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zavri(); } }
+    document.addEventListener('keydown', naKlavesu, true);
+    modal.addEventListener('mousedown', (ev) => { if (ev.target === modal) zavri(); });
+
+    function podleNazvu() {
+      const slova = fold(pole.value.trim()).split(/\s+/).filter(Boolean);
+      lChaty.textContent = '';
+      lProj.textContent = '';
+      let chaty = [], projekty = [];
+      if (slova.length) {
+        const shoda = (txt) => slova.every((w) => fold(txt).includes(w));
+        chaty = (io.chats() || []).filter((c) => shoda([c.title, c.prompt, c.project, c.posledni].join(' ')))
+          .sort((a, b) => b.updated - a.updated).slice(0, 8);
+        projekty = (io.projects() || []).filter((p) => !p.archived && shoda([p.label, p.name, p.group].join(' '))).slice(0, 6);
+      }
+      for (const c of chaty) {
+        lChaty.appendChild(polozka(c.title || '(bez názvu)', [c.project, c.updated ? kdy(c.updated) : ''].filter(Boolean).join('  ·  '),
+          () => { zavri(); io.openChat(c); }));
+      }
+      for (const p of projekty) {
+        lProj.appendChild(polozka(p.label || p.name, [p.type, p.branch].filter(Boolean).join('  ·  '),
+          () => { zavri(); io.openProject(p); }));
+      }
+      sChaty.hidden = !chaty.length;
+      sProj.hidden = !projekty.length;
+    }
+
     async function hledej() {
       zrus();
       const moje = seq;
       const q = pole.value.trim();
       vysl.textContent = '';
-      if (q.length < 2) {
-        stav.textContent = q ? 'Napiš aspoň 2 znaky.' : '';
-        return;
-      }
+      stav.textContent = '';
+      sText.hidden = q.length < 2;
+      if (q.length < 2) return;
       stav.textContent = 'Hledám…';
       let job;
       try {
@@ -175,22 +213,19 @@
       };
       ptej();
     }
-    toggle.onclick = () => {
-      if (!panel.hidden) return zavri();
-      panel.hidden = false;
-      seznam.hidden = true;
-      toggle.textContent = 'Zpět na seznam chatů';
-      pole.value = document.getElementById('chats-search').value.trim();
-      pole.focus();
-      if (pole.value.length >= 2) hledej();
-    };
-    pole.addEventListener('input', () => { zrus(); dotaz = setTimeout(hledej, 450); });
-    pole.addEventListener('keydown', (ev) => {
-      if (ev.key === 'Enter') { zrus(); hledej(); }
-      if (ev.key === 'Escape') zavri();
+    pole.addEventListener('input', () => {
+      zrus();
+      podleNazvu();
+      sText.hidden = pole.value.trim().length < 2;
+      if (pole.value.trim().length < 2) { vysl.textContent = ''; stav.textContent = ''; return; }
+      dotaz = setTimeout(hledej, 450);
     });
+    pole.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { zrus(); hledej(); } });
     cb.addEventListener('change', hledej);
+    pole.focus();
   }
 
-  global.HubHledani = {mount, exportovat: (c) => io && exportovat(c)};
+  function mount(opts) { io = opts; }
+
+  global.HubHledani = {mount, otevri, exportovat: (c) => io && exportovat(c)};
 })(window);

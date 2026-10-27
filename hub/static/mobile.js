@@ -298,7 +298,7 @@
   const drawerBrand = $('btn-drawer-brand');
   if (drawerBrand) drawerBrand.onclick = () => { if (window.hubHome) window.hubHome(); else closeDrawer(); };
   const drawerHledat = $('btn-drawer-hledat');
-  if (drawerHledat) drawerHledat.onclick = hledatOtevri;
+  if (drawerHledat) drawerHledat.onclick = () => { closeDrawer(); if (window.HubHledani) HubHledani.otevri(); };
   const drawerZpet = $('btn-drawer-hledat-zpet');
   if (drawerZpet) drawerZpet.onclick = hledatZavri;
   const drawerNast = $('btn-drawer-nastaveni');

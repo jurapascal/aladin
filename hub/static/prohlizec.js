@@ -477,7 +477,14 @@
       if (ev.isComposing || ev.key === 'Process' || ev.key === 'Dead' || dotykova(ev)) return;
       if (altgr(ev)) { ev.preventDefault(); send({t: 'br', a: 'key', type: 'down', key: ev.key, altgr: true, mod: 0}); return; }
       const zk = ev.ctrlKey || ev.metaKey || ev.altKey;
-      if (ev.key.length === 1 && !ascii(ev) && !zk) return;            // diakritika → textarea → input
+      /* Tisknutelný znak (bez Ctrl/Alt/Meta) bere textarea: prohlížeč ho
+         poskládá sám podle klávesnice (AltGr, mrtvé klávesy, IME, mobil, Firefox)
+         a přijde jako `input` → vložený text. Stránka k tomu dostane stisk
+         klávesy bez textu, ať se znak nenapíše dvakrát. */
+      if (ev.key.length === 1 && !zk) {
+        send({t: 'br', a: 'key', type: 'down', key: ev.key, code: ev.code, vk: ev.keyCode, mod: mod(ev) & 8, notext: true});
+        return;
+      }
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'v') return;   // vložení → paste
       ev.preventDefault();
       send({t: 'br', a: 'key', type: 'down', key: ev.key, code: ev.code, vk: ev.keyCode, mod: mod(ev)});
@@ -485,7 +492,10 @@
     kb.addEventListener('keyup', (ev) => {
       ev.stopPropagation();
       if (ev.isComposing || ev.key === 'Process' || ev.key === 'Dead' || dotykova(ev) || altgr(ev)) return;
-      if (ev.key.length === 1 && !ascii(ev) && !(ev.ctrlKey || ev.metaKey || ev.altKey)) return;
+      if (ev.key.length === 1 && !(ev.ctrlKey || ev.metaKey || ev.altKey)) {
+        send({t: 'br', a: 'key', type: 'up', key: ev.key, code: ev.code, vk: ev.keyCode, mod: mod(ev) & 8, notext: true});
+        return;
+      }
       if ((ev.ctrlKey || ev.metaKey) && ['v', 'c', 'l', 't', 'w', 'r'].includes(ev.key.toLowerCase())) return;
       if (ev.key === 'F5' || (ev.altKey && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight'))) return;
       ev.preventDefault();
@@ -985,6 +995,8 @@
   global.HubProhlizec = {
     install, naZpravu, naSnimek, potreba,
     otevri: () => nastav('okno'),
+    /* Okno hned a bez ohledu na chat (zkoušky, ruční otevření): jako když se otevře samo kvůli přihlášení. */
+    otevriVzdy: () => { samo = true; nastav('okno'); usadViditelnost(); },
     /* Ikonka u tabu: prohlížeč s kartami toho chatu. */
     ukaz: (sid) => { aktivniTab = sidOf(sid); samo = false; nastav('okno'); vyberChat(sid); usadViditelnost(); },
     get stav() { return stav; },

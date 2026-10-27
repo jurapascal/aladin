@@ -5281,7 +5281,11 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   .tahlo-levy { left: calc(var(--sidebar-w) - 4px); }
   .tahlo-pravy { right: calc(var(--bar-w) - 4px); }
   .layout:has(> .actionbar[hidden]) .tahlo-pravy { display: none; }
-  body.tahne, body.tahne * { cursor: col-resize !important; user-select: none !important; }
+  /* Políčka se nikdy nezakazují: ve Firefoxu user-select:none vypne psaní
+     a zapomenutá třída by pak zablokovala všechna pole v appce. */
+  body.tahne, body.tahne * { cursor: col-resize !important; }
+  body.tahne :not(input):not(textarea):not([contenteditable]) { user-select: none; }
+  body.tahne input, body.tahne textarea, body.tahne [contenteditable] { user-select: text !important; -webkit-user-select: text !important; }
   body.tahne .xterm, body.tahne iframe { pointer-events: none; }
 
   /* Schovaný panel v mřížce není — hlavní plocha je první sloupec. */

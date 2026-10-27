@@ -74,6 +74,7 @@
         w = sirka(strana, strana === 'levy' ? e.clientX - layout.left : layout.right - e.clientX);
       };
       const konec = () => {
+        el.removeEventListener('lostpointercapture', konec);
         el.removeEventListener('pointermove', pohyb);
         el.removeEventListener('pointerup', konec);
         el.removeEventListener('pointercancel', konec);
@@ -83,6 +84,7 @@
         poZmene();
       };
       el.addEventListener('pointermove', pohyb);
+      el.addEventListener('lostpointercapture', konec);
       el.addEventListener('pointerup', konec);
       el.addEventListener('pointercancel', konec);
     });
@@ -107,6 +109,16 @@
       leve.title = skryty ? 'Ukázat panel s chaty' : 'Schovat panel s chaty';
     }
   }
+
+  /* Pojistka: tah, který se neukončil (puštění mimo okno, ztráta fokusu),
+     nesmí nechat v appce viset režim tažení — drží kurzor a výběr textu. */
+  function uklidTah() {
+    document.body.classList.remove('tahne');
+    for (const t of document.querySelectorAll('.tahlo.aktivni')) t.classList.remove('aktivni');
+  }
+  window.addEventListener('blur', uklidTah);
+  document.addEventListener('pointerup', uklidTah, true);
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') uklidTah(); }, true);
 
   function start() {
     if (!document.querySelector('.layout')) return;

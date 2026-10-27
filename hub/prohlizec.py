@@ -855,6 +855,13 @@ def udalosti_klavesy(msg):
     """
     key = str(msg.get("key", ""))
     mod = int(msg.get("mod", 0))
+    if msg.get("notext") and len(key) == 1:
+        # Znak přijde zvlášť jako vložený text (ze skryté textarey okna): sem
+        # jen stisk bez textu, ať se znak nenapíše dvakrát.
+        vk = int(msg.get("vk") or 0)
+        par = {"key": key, "code": str(msg.get("code", "")), "windowsVirtualKeyCode": vk,
+               "nativeVirtualKeyCode": vk, "modifiers": int(msg.get("mod", 0))}
+        return [("Input.dispatchKeyEvent", {"type": "rawKeyDown" if msg.get("type") == "down" else "keyUp", **par})]
     if msg.get("altgr") and len(key) == 1:
         return [("Input.insertText", {"text": key})] if msg.get("type") == "down" else []
     vk = KLAVESY.get(key) or int(msg.get("vk") or 0)

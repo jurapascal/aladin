@@ -5351,3 +5351,6 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 .chat-item.vybran .chat-chk { background: var(--accent); border-color: var(--accent); color: #fff; }
 .chat-item.vybran { background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .chat-item.vybiraci .chat-pin { display: none !important; }
+
+/* Při výběru chatů jsou vidět jen chaty. */
+body.vybira-chaty #open-section { display: none; }

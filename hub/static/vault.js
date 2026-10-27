@@ -84,7 +84,7 @@
       const path = file ? ctx.resolve(file) : ctx.current;
       return link(path, label || file, hash.join('#'));
     });
-    s = s.replace(/\bhttps?:\/\/[^\s<>()\u0000]*[^\s<>().,;:!?'"\u0000]/g, (url) => ext(url));
+    s = s.replace(/\bhttps?:\/\/[^\s<>()*\u0000]*[^\s<>().,;:!?*'"\u0000]/g, (url) => ext(url));
 
     s = esc(s)
       .replace(/\*\*(?=\S)([^\n]*?\S)\*\*/g, '<strong>$1</strong>')

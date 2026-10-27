@@ -123,16 +123,12 @@
     pole.autocomplete = 'off';
     pole.maxLength = 200;
     pole.setAttribute('enterkeyhint', 'search');
-    const lab = el('label', 'hl-nastroje');
-    const cb = el('input');
-    cb.type = 'checkbox';
-    lab.append(cb, document.createTextNode(' i ve výpisech nástrojů (pomalejší)'));
     const telo = el('div', 'hl-telo');
     const sChaty = sekce('Chaty'), lChaty = el('div', 'hl-seznam');
     const sProj = sekce('Projekty'), lProj = el('div', 'hl-seznam');
     const sText = sekce('V textu konverzací'), stav = el('div', 'hl-stav'), vysl = el('div', 'hl-vysledky');
     telo.append(sChaty, lChaty, sProj, lProj, sText, stav, vysl);
-    box.append(pole, lab, telo);
+    box.append(pole, telo);
     modal.appendChild(box);
     document.body.appendChild(modal);
 
@@ -181,37 +177,51 @@
       sText.hidden = q.length < 2;
       if (q.length < 2) return;
       stav.textContent = 'Hledám…';
-      let job;
-      try {
-        job = (await io.api('chat-hledej', {q, nastroje: cb.checked})).job;
-      } catch (err) {
-        if (moje === seq) stav.textContent = 'Hledání nejde: ' + err.message;
-        return;
-      }
-      const ptej = async () => {
-        if (moje !== seq) return;
-        let s;
+      // Nejdřív texty konverzací (rychle), potom samo i výpisy nástrojů (pomalejší).
+      const faze = async (nastroje) => {
+        let job;
         try {
-          s = await io.api('chat-hledej-stav', {job});
+          job = (await io.api('chat-hledej', {q, nastroje})).job;
         } catch (err) {
           if (moje === seq) stav.textContent = 'Hledání nejde: ' + err.message;
           return;
         }
-        if (moje !== seq || s.nahrazeno) return;
-        vysl.textContent = '';
-        for (const r of s.vysledky || []) vysl.appendChild(radek(r));
-        const kolik = (s.vysledky || []).length;
-        if (s.chyba) { stav.textContent = s.chyba; return; }
-        if (!s.hotovo) {
-          stav.textContent = `Hledám… (${s.prohledano}/${s.celkem || '?'} konverzací, nalezeno ${s.nalezeno})`;
-          casovac = setTimeout(ptej, 350);
-          return;
-        }
-        stav.textContent = kolik
-          ? `Nalezeno ${s.nalezeno}× v ${kolik} konverzacích.` + (s.castecne ? ' Výsledků je moc nebo hledání trvalo dlouho — zpřesni dotaz.' : '')
-          : (s.castecne ? 'Nic jsem nenašel, ale hledání nestihlo projít vše.' : 'Nic takového jsem nenašel.');
+        const popis = nastroje ? ' ve výpisech nástrojů' : '';
+        const ptej = async () => {
+          if (moje !== seq) return;
+          let s;
+          try {
+            s = await io.api('chat-hledej-stav', {job});
+          } catch (err) {
+            if (moje === seq) stav.textContent = 'Hledání nejde: ' + err.message;
+            return;
+          }
+          if (moje !== seq || s.nahrazeno) return;
+          // Druhá fáze nahradí první, až má co ukázat (je to nadmnožina).
+          if (!nastroje || s.hotovo || (s.vysledky || []).length) {
+            vysl.textContent = '';
+            for (const r of s.vysledky || []) vysl.appendChild(radek(r));
+          }
+          const kolik = (s.vysledky || []).length;
+          if (s.chyba) { stav.textContent = s.chyba; return; }
+          if (!s.hotovo) {
+            stav.textContent = `Hledám${popis}… (${s.prohledano}/${s.celkem || '?'} konverzací, nalezeno ${s.nalezeno})`;
+            casovac = setTimeout(ptej, 350);
+            return;
+          }
+          if (!nastroje) {
+            if (kolik) stav.textContent = `Nalezeno ${s.nalezeno}× v ${kolik} konverzacích. Hledám i ve výpisech nástrojů…`;
+            else stav.textContent = 'Hledám i ve výpisech nástrojů…';
+            faze(true);
+            return;
+          }
+          stav.textContent = kolik
+            ? `Nalezeno ${s.nalezeno}× v ${kolik} konverzacích.` + (s.castecne ? ' Výsledků je moc nebo hledání trvalo dlouho — zpřesni dotaz.' : '')
+            : (s.castecne ? 'Nic jsem nenašel, ale hledání nestihlo projít vše.' : 'Nic takového jsem nenašel.');
+        };
+        ptej();
       };
-      ptej();
+      faze(false);
     }
     pole.addEventListener('input', () => {
       zrus();
@@ -221,7 +231,6 @@
       dotaz = setTimeout(hledej, 450);
     });
     pole.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { zrus(); hledej(); } });
-    cb.addEventListener('change', hledej);
     pole.focus();
   }
 

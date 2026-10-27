@@ -1935,14 +1935,31 @@ function openChat(c) {
 /* Smazat konverzaci z panelu Chaty. Server ji přesune do koše prostoru
    (~/.claude/hub-kos/chaty), takže omyl jde vrátit. Otevřenou v tabu nesmaže. */
 async function deleteChat(c) {
-  if (c.tab) return toast('Konverzace je otevřená v tabu — nejdřív ho zavři.');
+  /* Chat, který běží v tabu (i uspaném, i takovém, který okno už nevidí —
+     server drží session, dokud ji někdo nezavře), se po potvrzení zavře sám.
+     Dřív stačilo, že server o tabu věděl, a smazání skončilo hláškou „nejdřív
+     ho zavři", i když v něm člověk nebyl a žádný tab neviděl. */
+  const otevreny = TABS.find((t) => tabPatriChatu(t, c));
+  const bezi = !!(c.tab || otevreny);
   const ok = await askConfirm({
     title: 'Smazat konverzaci?',
-    html: `<b>${escapeHtml(c.title)}</b> zmizí ze seznamu chatů. Přepis se přesune do koše prostoru.`,
+    html: `<b>${escapeHtml(c.title)}</b> zmizí ze seznamu chatů. Přepis se přesune do koše prostoru.` +
+          (bezi ? '<br>Běží v tabu — ten se nejdřív zavře.' : ''),
     yes: 'Smazat', no: 'Zrušit'});
   if (!ok) return;
+  if (otevreny) closeTab(otevreny);
+  else if (c.tab) send({t: 'close', id: c.tab});
   try {
-    await api('chat-delete', {id: c.id});
+    for (let pokus = 0; ; pokus++) {
+      try {
+        await api('chat-delete', {id: c.id});
+        break;
+      } catch (err) {
+        // Server tab zavírá chvilku — pár krátkých pokusů, pak teprve chyba.
+        if (!bezi || pokus >= 4 || !/otevřená v tabu/.test(err.message)) throw err;
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    }
   } catch (err) {
     return toast('Nesmazáno: ' + err.message);
   }

@@ -44,7 +44,7 @@ const c = await cil();
 if (!c) { console.log('CHYBA: stránka se ve vzdáleném Chromu nenačetla'); process.exit(1); }
 const pwc = await pw.chromium.connectOverCDP(`http://127.0.0.1:${process.env.HUB_BROWSER_PORT}`);
 const strana = pwc.contexts().flatMap((x) => x.pages()).find((x) => x.url().includes('t.html'));
-const hodnoty = () => strana.evaluate(() => JSON.stringify([i.value, t.value, c.textContent, f.value]));
+const hodnoty = () => strana.evaluate(() => JSON.stringify([i.value, t.value, c.textContent, f.value, pw.value, far.value, far2.value]));
 const klik = async (sel) => { const r = await strana.evaluate((s) => { const e = document.querySelector(s).getBoundingClientRect(); return [e.x + 10, e.y + 10]; }, sel);
   const pl = await p.evaluate(() => { const c = document.querySelector('.br-okno canvas'); const r = c.getBoundingClientRect(); return [r.x, r.y, r.width, r.height, c.width, c.height]; });
   await p.mouse.click(pl[0] + r[0] * pl[2] / pl[4], pl[1] + r[1] * pl[3] / pl[5]); await p.waitForTimeout(250); };
@@ -56,6 +56,13 @@ for (const [sel, nazev, idx] of [['#i', 'input', 0], ['#t', 'textarea', 1], ['#c
   await p.waitForTimeout(500);
   const v = JSON.parse(await hodnoty())[idx];
   over(v === 'Ahoj 123 ?: ěščřžýáíé', `${nazev}: napsáno „${v}“`);
+}
+// Klik daleko od rohu: souřadnice plátna se musí převádět přesně (jinak nejde překlikat na jiné pole).
+for (const [sel, idx, nazev] of [['#far', 5, 'pole vpravo dole'], ['#far2', 6, 'pole vpravo nahoře']]) {
+  await klik(sel); await p.keyboard.type('xyz');
+  await p.waitForTimeout(400);
+  const v = JSON.parse(await hodnoty())[idx];
+  over(v === 'xyz', `${nazev}: napsáno „${v}“`);
 }
 await klik('#f'); await p.keyboard.type('ok'); await p.keyboard.press('Enter'); await p.waitForTimeout(400);
 over((await strana.evaluate(() => window.sub || 0)) === 1, 'Enter odešle formulář');

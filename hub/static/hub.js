@@ -4090,6 +4090,8 @@ function activate(tab) {
   if (tab && TABS.includes(tab) && STATE && STATE.config && tabProstor(tab) !== prostor()) {
     setProstor(tabProstor(tab), true);
   }
+  // Odložený tab (rychlý start, restore): připojí se, až na něj člověk klepne.
+  if (tab && tab.odlozeno) { tab.odlozeno = false; if (tab.id) attachTab(tab); }
   ACTIVE = tab;
   document.dispatchEvent(new CustomEvent('hub-tab', {detail: tab ? {id: tab.id, title: tab.title, path: tab.path || ''} : null}));
   showProjekty(false);
@@ -5211,6 +5213,7 @@ function restore(list) {
      práce to „skočilo" jinam. Na poslední se přepne jen při prvním načtení. */
   const before = ACTIVE;
   const live = new Set(list.map(s => s.id));
+  const pripojitTab = [];
   for (const tab of [...TABS]) {
     if (tab.id && !live.has(tab.id)) closeTab(tab);
   }
@@ -5236,7 +5239,17 @@ function restore(list) {
       paintAgent(tab);
       tab.term.options.theme = termTheme(tab);   // i kurzor a výběr v terminálu
     }
-    attachTab(tab);
+    pripojitTab.push(tab);
+  }
+  /* Rychlý start: napřed se připojí jen tab, na kterém člověk skončil (nebo
+     zůstává), ostatní až při prvním klepnutí na ně. Dřív se po startu a po
+     každém znovupřipojení dohrával celý výpis všech tabů najednou (desítky
+     terminálů, stránka tuhla). Čtení běží z přepisu, takže nepřipojený tab
+     o nic nepřichází. */
+  const cilTab = START_HOME ? ((before && TABS.includes(before)) ? before : findPlaceTab(LAST_PLACE.tab))
+                            : ((before && TABS.includes(before)) ? before : TABS[TABS.length - 1]);
+  for (const tab of pripojitTab) {
+    if (tab === cilTab) { tab.odlozeno = false; attachTab(tab); } else tab.odlozeno = true;
   }
   // První načtení stránky: zůstat na Domů s přehledem otevřených chatů.
   // Po znovupřipojení (výpadek sítě) zůstává tab, na kterém člověk byl.

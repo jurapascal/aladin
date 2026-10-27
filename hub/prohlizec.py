@@ -838,6 +838,43 @@ KLAVESY = {"Enter": 13, "Backspace": 8, "Tab": 9, "Escape": 27, "Delete": 46,
            "Home": 36, "End": 35, "PageUp": 33, "PageDown": 34, "Insert": 45}
 
 
+# Editační zkratky: Chrome přes CDP je z holého Ctrl+A nezpracuje (nemá
+# nabídku ani systém), chce je jako pojmenovaný příkaz v `commands`.
+PRIKAZY = {"a": "selectAll", "x": "cut", "c": "copy", "v": "paste", "z": "undo", "y": "redo"}
+
+
+def udalosti_klavesy(msg):
+    """Z klávesy z okna složí volání CDP: [(metoda, parametry)].
+
+    * znak bez Ctrl/Alt/Meta jde jako text i se Shiftem (velká písmena,
+      `?`, `:` — dřív se Shiftem text zahodil a psaly se jen malá písmena);
+    * AltGr (české `@ { } [ ] \\ |`; na Windows přichází jako Ctrl+Alt) a
+      znak z klávesnice, která žádný stisk nemá, jde jako vložený text;
+    * Ctrl/Cmd+A, X, C, V, Z, Y a Shift+Ctrl+Z dostanou příkaz `commands`;
+    * Enter dává „\r“, ostatní řídicí klávesy jen stisk.
+    """
+    key = str(msg.get("key", ""))
+    mod = int(msg.get("mod", 0))
+    if msg.get("altgr") and len(key) == 1:
+        return [("Input.insertText", {"text": key})] if msg.get("type") == "down" else []
+    vk = KLAVESY.get(key) or int(msg.get("vk") or 0)
+    hold = mod & 0b0111                      # Alt, Ctrl, Meta (Shift sám text nemění)
+    text = key if len(key) == 1 and not hold else ("\r" if key == "Enter" else "")
+    base = {"key": key, "code": str(msg.get("code", "")), "windowsVirtualKeyCode": vk,
+            "nativeVirtualKeyCode": vk, "modifiers": mod}
+    if msg.get("type") != "down":
+        return [("Input.dispatchKeyEvent", {"type": "keyUp", **base})]
+    par = {"type": "keyDown" if text else "rawKeyDown", **base}
+    if text:
+        par["text"] = text
+    elif mod & 0b0110 and len(key) == 1:     # Ctrl nebo Meta + písmeno
+        k = key.lower()
+        cmd = "redo" if (k == "z" and mod & 8) else PRIKAZY.get(k)
+        if cmd:
+            par["commands"] = [cmd]
+    return [("Input.dispatchKeyEvent", par)]
+
+
 # ── Plynulý obraz: snímky bez fronty ─────────────────────────────────────────
 # Snímek jde do okna binárně (JPEG bez base64 a JSONu) a Chromu se potvrdí až
 # ve chvíli, kdy ho okno vykreslilo (`ack`). Na cestě je tak nejvýš HLOUBKA
@@ -1525,17 +1562,19 @@ class Okno:
         elif a == "ack":
             self._potvrzeno()
         elif a == "key":
-            key = str(msg.get("key", ""))
-            vk = KLAVESY.get(key) or int(msg.get("vk") or 0)
-            mod = int(msg.get("mod", 0))
-            text = key if len(key) == 1 and not (mod & 0b1011) else ("\r" if key == "Enter" else "")
-            if msg.get("type") == "down":
-                self._posli("Input.dispatchKeyEvent", type="keyDown" if text else "rawKeyDown", key=key,
-                            code=str(msg.get("code", "")), windowsVirtualKeyCode=vk, nativeVirtualKeyCode=vk,
-                            modifiers=mod, **({"text": text} if text else {}))
-            else:
-                self._posli("Input.dispatchKeyEvent", type="keyUp", key=key, code=str(msg.get("code", "")),
-                            windowsVirtualKeyCode=vk, nativeVirtualKeyCode=vk, modifiers=mod)
+            # Vyjmout = napřed zkopírovat výběr i do schránky okna (jako Ctrl+C),
+            # teprve pak ho stránka smaže.
+            if msg.get("type") == "down" and str(msg.get("key", "")).lower() == "x" \
+                    and int(msg.get("mod", 0)) & 0b0110:
+                self.vstup({"a": "copy"})
+            for metoda, par in udalosti_klavesy(msg):
+                self._posli(metoda, **par)
+        elif a == "najit":
+            # Hledání na stránce (Ctrl+F): označí další výskyt a posune ho do vidu.
+            hledany = json.dumps(str(msg.get("text", ""))[:200])
+            self._posli("Runtime.evaluate", expression=(
+                "(()=>{const t=%s;if(!window.find(t,false,false,true)){getSelection().removeAllRanges();"
+                "window.find(t,false,false,true);}})()" % hledany))
         elif a == "text":
             text = str(msg.get("text", ""))[:20000]
             if text:

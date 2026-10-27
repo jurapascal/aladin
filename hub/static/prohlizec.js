@@ -372,6 +372,15 @@
     send({t: 'br', a: 'tab', id: ids[(i + posun + ids.length) % ids.length]});
   }
 
+  /* Ctrl+F: hledání na stránce (CDP žádné vlastní nemá) — dotaz a `window.find`. */
+  async function hledejNaStrance() {
+    const dotaz = await window.HubDialog.prompt('Hledat na stránce:', hledano || '', {title: 'Hledat'});
+    if (dotaz == null || !dotaz) return;
+    hledano = dotaz;
+    send({t: 'br', a: 'najit', text: dotaz});
+  }
+  let hledano = '';
+
   /* Vrací true, když zkratku vzalo okno (a nemá jít do stránky). */
   function zkratka(ev) {
     const ctrl = ev.ctrlKey || ev.metaKey;
@@ -387,6 +396,7 @@
     else if (ctrl && ev.key === 'PageDown') { dalsiKarta(1); }
     else if (ctrl && ev.key === 'PageUp') { dalsiKarta(-1); }
     else if (ctrl && k === 'c' && document.activeElement !== urlInput) { send({t: 'br', a: 'copy'}); }
+    else if (ctrl && k === 'f' && document.activeElement !== urlInput) { hledejNaStrance(); }
     else if (ev.key === 'Escape' && info.loading && document.activeElement !== urlInput) { send({t: 'br', a: 'stop'}); }
     else hotovo = false;
     if (hotovo) { ev.preventDefault(); ev.stopPropagation(); }
@@ -453,10 +463,19 @@
     canvas.addEventListener('pointerdown', foc);
     scena.addEventListener('pointerup', () => { if (document.activeElement !== urlInput) foc(); });
     const ascii = (ev) => ev.key.length === 1 && ev.key.charCodeAt(0) < 128;
+    /* AltGr (české @ { } [ ] \\ |): na Windows ho prohlížeč hlásí jako Ctrl+Alt,
+       jinde jako stav „AltGraph". Znak z něj jde jako vložený text — jako stisk
+       s Ctrl+Alt by ho stránka zahodila. */
+    const altgr = (ev) => ev.key.length === 1 &&
+      (ev.getModifierState('AltGraph') || (ev.ctrlKey && ev.altKey));
+    /* Dotyková klávesnice (Android) posílá `Unidentified` a keyCode 229: stisky
+       tam nejsou, text přijde přes `input` / složení. */
+    const dotykova = (ev) => ev.key === 'Unidentified' || ev.keyCode === 229;
     kb.addEventListener('keydown', (ev) => {
       ev.stopPropagation();
       if (zkratka(ev)) return;
-      if (ev.isComposing || ev.key === 'Process' || ev.key === 'Dead') return;
+      if (ev.isComposing || ev.key === 'Process' || ev.key === 'Dead' || dotykova(ev)) return;
+      if (altgr(ev)) { ev.preventDefault(); send({t: 'br', a: 'key', type: 'down', key: ev.key, altgr: true, mod: 0}); return; }
       const zk = ev.ctrlKey || ev.metaKey || ev.altKey;
       if (ev.key.length === 1 && !ascii(ev) && !zk) return;            // diakritika → textarea → input
       if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'v') return;   // vložení → paste
@@ -465,7 +484,7 @@
     });
     kb.addEventListener('keyup', (ev) => {
       ev.stopPropagation();
-      if (ev.isComposing || ev.key === 'Process' || ev.key === 'Dead') return;
+      if (ev.isComposing || ev.key === 'Process' || ev.key === 'Dead' || dotykova(ev) || altgr(ev)) return;
       if (ev.key.length === 1 && !ascii(ev) && !(ev.ctrlKey || ev.metaKey || ev.altKey)) return;
       if ((ev.ctrlKey || ev.metaKey) && ['v', 'c', 'l', 't', 'w', 'r'].includes(ev.key.toLowerCase())) return;
       if (ev.key === 'F5' || (ev.altKey && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight'))) return;

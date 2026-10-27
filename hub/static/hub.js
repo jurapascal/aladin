@@ -1791,6 +1791,7 @@ for (const el of [document.documentElement, document.body]) {
 
 function renderChats() {
   const box = $('chats');
+  vyberLista();
   const words = foldText($('chats-search').value.trim()).split(/\s+/).filter(Boolean);
   // Jen chaty prostoru okna: ve firmě její, v osobním prostoru osobní —
   // pokud si člověk nerozbalil celou historii.
@@ -1876,6 +1877,20 @@ function renderChats() {
     pin.classList.toggle('on', jePripnuty(c.id));
     pin.title = jePripnuty(c.id) ? 'Odepnout' : 'Připnout nahoru';
     pin.onclick = (ev) => { ev.stopPropagation(); prepniPripnuti(c.id); };
+    if (vyberRezim) {
+      const chk = document.createElement('span');
+      chk.className = 'chat-chk';
+      chk.innerHTML = '<svg class="ico"><use href="#i-check"/></svg>';
+      item.prepend(chk);
+      item.classList.add('vybiraci', 'keep-drawer');
+      item.classList.toggle('vybran', VYBRANE.has(c.id));
+      item.onclick = () => {
+        if (VYBRANE.has(c.id)) VYBRANE.delete(c.id); else VYBRANE.add(c.id);
+        item.classList.toggle('vybran', VYBRANE.has(c.id));
+        vyberLista();
+      };
+      return item;
+    }
     item.onclick = () => openChat(c);
     item.oncontextmenu = (ev) => {
       ev.preventDefault();
@@ -1887,6 +1902,7 @@ function renderChats() {
       if (p) items.push({icon: 'i-up', label: p.label, run: () => prenosPoslat(c.id, c.title, true)});
       if (window.HubHledani) items.push({icon: 'i-save', label: 'Exportovat do Markdownu', run: () => HubHledani.exportovat(c)});
       items.unshift({icon: 'i-star', label: jePripnuty(c.id) ? 'Odepnout' : 'Připnout', run: () => prepniPripnuti(c.id)});
+      items.push({icon: 'i-check', label: 'Vybrat více chatů', run: () => vyberZapni(c.id)});
       items.push({icon: 'i-trash', label: 'Smazat', color: 'var(--red)', run: () => deleteChat(c)});
       showMenu(ev.clientX, ev.clientY, items);
     };
@@ -1934,19 +1950,19 @@ function openChat(c) {
 
 /* Smazat konverzaci z panelu Chaty. Server ji přesune do koše prostoru
    (~/.claude/hub-kos/chaty), takže omyl jde vrátit. Otevřenou v tabu nesmaže. */
-async function deleteChat(c) {
+async function deleteChat(c, hromadne) {
   /* Chat, který běží v tabu (i uspaném, i takovém, který okno už nevidí —
      server drží session, dokud ji někdo nezavře), se po potvrzení zavře sám.
      Dřív stačilo, že server o tabu věděl, a smazání skončilo hláškou „nejdřív
      ho zavři", i když v něm člověk nebyl a žádný tab neviděl. */
   const otevreny = TABS.find((t) => tabPatriChatu(t, c));
   const bezi = !!(c.tab || otevreny);
-  const ok = await askConfirm({
+  const ok = hromadne || await askConfirm({
     title: 'Smazat konverzaci?',
     html: `<b>${escapeHtml(c.title)}</b> zmizí ze seznamu chatů. Přepis se přesune do složky <code>~/.claude/hub-kos/chaty</code> — vrátit ho jde přesunem souboru zpět do <code>~/.claude/projects</code>.` +
           (bezi ? '<br>Běží v tabu — ten se nejdřív zavře.' : ''),
     yes: 'Smazat', no: 'Zrušit'});
-  if (!ok) return;
+  if (!ok) return false;
   if (otevreny) closeTab(otevreny);
   else if (c.tab) send({t: 'close', id: c.tab});
   try {
@@ -1961,12 +1977,86 @@ async function deleteChat(c) {
       }
     }
   } catch (err) {
-    return toast('Nesmazáno: ' + err.message);
+    if (hromadne) throw err;
+    toast('Nesmazáno: ' + err.message);
+    return false;
   }
   CHATS = CHATS.filter((x) => x.id !== c.id);
+  VYBRANE.delete(c.id);
   chatsSig = '';
   renderChatsSoon();
-  toast('Konverzace smazána.');
+  if (!hromadne) toast('Konverzace smazána.');
+  return true;
+}
+
+/* ── Hromadné akce: u chatů se označí zaškrtávátka a dole se vybere, co s nimi ── */
+const VYBRANE = new Set();
+let vyberRezim = false;
+function vyberObnov() {
+  chatsSig = '';
+  renderChats();
+}
+function vyberZapni(id) {
+  vyberRezim = true;
+  if (id) VYBRANE.add(id);
+  vyberObnov();
+}
+function vyberKonec() {
+  vyberRezim = false;
+  VYBRANE.clear();
+  vyberObnov();
+}
+function vyberChaty() {
+  return CHATS.filter((c) => VYBRANE.has(c.id));
+}
+function vyberLista() {
+  const bar = $('chats-vyber');
+  if (!bar) return;
+  bar.hidden = !vyberRezim;
+  $('chats-vyber-pocet').textContent = VYBRANE.size ? `Vybráno ${VYBRANE.size}` : 'Nic nevybráno';
+  for (const b of bar.querySelectorAll('[data-akce]')) if (b.dataset.akce !== 'vse' && b.dataset.akce !== 'konec') b.disabled = !VYBRANE.size;
+  const v = $('btn-chats-vyber');
+  if (v) v.classList.toggle('on', vyberRezim);
+}
+async function vyberAkce(akce) {
+  const co = vyberChaty();
+  if (akce === 'konec') return vyberKonec();
+  if (akce === 'vse') {
+    const viditelne = [...$('chats').querySelectorAll('.chat-item[data-id]')].map((e) => e.dataset.id);
+    const vsechny = viditelne.length && viditelne.every((id) => VYBRANE.has(id));
+    for (const id of viditelne) { if (vsechny) VYBRANE.delete(id); else VYBRANE.add(id); }
+    return vyberObnov();
+  }
+  if (!co.length) return;
+  if (akce === 'pripnout') {
+    const v = pripnute();
+    const vsechnyPripnute = co.every((c) => v.includes(c.id));
+    const bez = v.filter((id) => !VYBRANE.has(id));
+    const nove = vsechnyPripnute ? bez : [...co.map((c) => c.id), ...bez];
+    try { localStorage.setItem(PRIPNUTE_KEY, JSON.stringify(nove.slice(0, 50))); } catch (_) { /* nic */ }
+    toast(vsechnyPripnute ? 'Odepnuto.' : 'Připnuto.');
+    return vyberKonec();
+  }
+  if (akce === 'export') {
+    if (!window.HubHledani) return;
+    for (const c of co) { await HubHledani.exportovat(c); await new Promise((r) => setTimeout(r, 400)); }
+    return;
+  }
+  if (akce === 'smazat') {
+    const bezi = co.filter((c) => c.tab || TABS.some((t) => tabPatriChatu(t, c))).length;
+    const ok = await askConfirm({
+      title: `Smazat ${co.length} ${co.length === 1 ? 'konverzaci' : co.length < 5 ? 'konverzace' : 'konverzací'}?`,
+      html: 'Zmizí ze seznamu chatů. Přepisy se přesunou do složky <code>~/.claude/hub-kos/chaty</code> — vrátit je jde přesunem souborů zpět do <code>~/.claude/projects</code>.' +
+            (bezi ? `<br>${bezi} z nich běží v tabu — ty se nejdřív zavřou.` : ''),
+      yes: 'Smazat', no: 'Zrušit'});
+    if (!ok) return;
+    let hotovo = 0, chyb = 0;
+    for (const c of co) {
+      try { if (await deleteChat(c, true)) hotovo++; } catch (_) { chyb++; }
+    }
+    toast(`Smazáno ${hotovo}` + (chyb ? `, ${chyb} se nepovedlo.` : '.'));
+    vyberKonec();
+  }
 }
 
 /* Konverzace jen ke čtení, bez spouštění Claude Code. */
@@ -5705,6 +5795,8 @@ async function main() {
   $('btn-prostor').onclick = prostorMenu;
   $('nav-projekty').onclick = () => showProjekty(true);
   // Položky panelu jako v appce Claude (viditelné v motivu Claude — hub.css).
+  $('btn-chats-vyber').onclick = () => { if (vyberRezim) vyberKonec(); else vyberZapni(); };
+  for (const b of document.querySelectorAll('#chats-vyber [data-akce]')) b.onclick = () => vyberAkce(b.dataset.akce);
   $('nav-hledat').onclick = () => { closeDrawer(); if (window.HubHledani) HubHledani.otevri(); };
   $('nav-customize').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'panel'});
   $('nav-terminal').onclick = () => openTab({kind: 'shell', path: '', title: 'Terminál'});

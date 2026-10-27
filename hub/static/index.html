@@ -197,6 +197,8 @@
       <span id="list-head">Chaty</span>
       <span class="section-count" id="projects-count"></span>
       <span class="section-count" id="chats-count" hidden></span>
+      <button id="btn-chats-vyber" class="iconbtn chats-vyber-btn" title="Vybrat více chatů" aria-label="Vybrat více chatů">
+        <svg class="ico"><use href="#i-check"/></svg></button>
       <!-- Jen na telefonu: šuplík překrývá horní lištu i kliku, kterou se
            otevřel, tak se zavírá odsud. -->
       <button id="btn-drawer-close" class="iconbtn drawer-close" title="Zavřít panel">
@@ -212,6 +214,14 @@
       <div id="projects" class="cards"></div>
     </div>
     <div id="chats-view">
+      <div id="chats-vyber" class="chats-vyber" hidden>
+        <span id="chats-vyber-pocet" class="chats-vyber-pocet"></span>
+        <button type="button" class="keep-drawer" data-akce="vse">Vše</button>
+        <button type="button" class="keep-drawer" data-akce="pripnout">Připnout</button>
+        <button type="button" class="keep-drawer" data-akce="export">Export</button>
+        <button type="button" class="keep-drawer danger" data-akce="smazat">Smazat</button>
+        <button type="button" class="keep-drawer" data-akce="konec">Hotovo</button>
+      </div>
       <div class="searchwrap" hidden>
         <svg class="ico search-ico"><use href="#i-search"/></svg>
         <input id="chats-search" type="search" placeholder="Hledat chat…" autocomplete="off" name="hub-hledat-chat" spellcheck="false" data-1p-ignore data-lpignore="true">

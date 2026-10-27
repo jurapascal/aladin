@@ -5328,3 +5328,26 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 .hl-polozka:hover, .hl-polozka:focus-visible { background: var(--card-hover); outline: none; }
 .searchwrap[hidden] { display: none !important; }
 @media (max-width: 820px) { .hl-popup .hl-input { font-size: 16px; } .hl-modal { padding-top: 6vh; } }
+
+/* ── hromadný výběr chatů ────────────────────────────────────────────────── */
+.section-head { gap: 6px; }
+.section-head #projects-count, .section-head #chats-count { margin-left: auto; }
+.chats-vyber-btn { margin-left: 0; width: 24px; height: 24px; }
+.chats-vyber-btn .ico { width: 14px; height: 14px; }
+.chats-vyber-btn.on { color: var(--accent); }
+.section-head #btn-drawer-close { margin-left: 4px; }
+.chats-vyber { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  padding: 6px 8px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border); }
+.chats-vyber[hidden] { display: none; }
+.chats-vyber-pocet { flex: 1 0 100%; color: var(--dim); font-size: 11px; }
+.chats-vyber button { background: var(--bg-card); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
+  font: inherit; font-size: 12px; padding: 4px 9px; cursor: pointer; }
+.chats-vyber button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.chats-vyber button:disabled { opacity: .4; cursor: default; }
+.chats-vyber button.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+.chat-chk { flex: none; width: 18px; height: 18px; border: 1.5px solid var(--dim); border-radius: 5px; display: inline-flex;
+  align-items: center; justify-content: center; margin-right: 8px; color: transparent; align-self: center; }
+.chat-chk .ico { width: 14px; height: 14px; }
+.chat-item.vybran .chat-chk { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chat-item.vybran { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.chat-item.vybiraci .chat-pin { display: none !important; }

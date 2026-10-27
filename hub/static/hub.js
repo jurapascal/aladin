@@ -1971,6 +1971,8 @@ async function deleteChat(c, hromadne) {
         await api('chat-delete', {id: c.id});
         break;
       } catch (err) {
+        // Přepis už na disku není (zbyl jen v seznamu) — cíl je splněn.
+        if (/už neexistuje/.test(err.message)) break;
         // Server tab zavírá chvilku — pár krátkých pokusů, pak teprve chyba.
         if (!bezi || pokus >= 4 || !/otevřená v tabu/.test(err.message)) throw err;
         await new Promise((r) => setTimeout(r, 500));
@@ -2051,10 +2053,11 @@ async function vyberAkce(akce) {
       yes: 'Smazat', no: 'Zrušit'});
     if (!ok) return;
     let hotovo = 0, chyb = 0;
+    const duvody = new Set();
     for (const c of co) {
-      try { if (await deleteChat(c, true)) hotovo++; } catch (_) { chyb++; }
+      try { if (await deleteChat(c, true)) hotovo++; } catch (err) { chyb++; duvody.add(err.message); }
     }
-    toast(`Smazáno ${hotovo}` + (chyb ? `, ${chyb} se nepovedlo.` : '.'));
+    toast(`Smazáno ${hotovo}` + (chyb ? `, ${chyb} se nepovedlo: ${[...duvody].slice(0, 2).join(' / ')}` : '.'));
     vyberKonec();
   }
 }

@@ -817,6 +817,22 @@
     let zadaniZ = null;               // zadání, které čeká na svůj řádek
     const mistni = [];                // odeslané odsud, v přepisu ještě nejsou
 
+    let davka = [];
+    let davkaBezi = false;
+    function davkaKrok() {
+      const sc = mount.parentElement;
+      // Kdo je dole (nebo ještě nic nečetl), zůstává dole, jak přibývá řádků.
+      const dole = !sc || sc.scrollTop === 0 || sc.scrollHeight - sc.scrollTop - sc.clientHeight < U_DNA + 400;
+      const t0 = performance.now();
+      let i = 0;
+      while (i < davka.length && (davka.length - i <= 6 || performance.now() - t0 < 12)) pridej(davka[i++]);
+      davka = davka.slice(i);
+      naKonec();                          // nové bloky nad řádek práce a frontu
+      if (dole && sc) sc.scrollTop = sc.scrollHeight;
+      if (davka.length) { requestAnimationFrame(davkaKrok); return; }
+      davkaBezi = false;
+    }
+
     function naKonec() {
       if (prace) mount.appendChild(prace);
       mount.appendChild(pozadi);
@@ -2080,8 +2096,11 @@
       upozorni,
       odServeru, obnovFrontu,
       add(bloky) {
-        for (const b of bloky) pridej(b);
-        naKonec();                          // nové bloky nad řádek práce a frontu
+        /* Dlouhý přepis (první otevření chatu: stovky bloků) se nevykresluje
+           naráz — stránka by stála. Bloky jdou po dávkách po ~12 ms, mezi nimi
+           dýchá; co přijde mezitím, čeká ve frontě, ať se pořadí nepoplete. */
+        davka.push(...bloky);
+        if (!davkaBezi) { davkaBezi = true; davkaKrok(); }
       },
       // Nejstarší řádky pryč, ať stránka s časem nebobtná. Jen u dna —
       // kdo čte výš, tomu text pod rukama neodjede.

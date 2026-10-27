@@ -5336,10 +5336,13 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 .chats-vyber-btn .ico { width: 14px; height: 14px; }
 .chats-vyber-btn.on { color: var(--accent); }
 .section-head #btn-drawer-close { margin-left: 4px; }
-.chats-vyber { display: flex; margin: 0 0 4px; flex-wrap: wrap; align-items: center; gap: 4px;
-  padding: 6px 8px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border); }
+/* Zarovnané s textem v panelu (nadpis Chaty, položky nabídky začínají 18 px od kraje). */
+.chats-vyber { display: flex; flex-direction: column; gap: 6px; margin: 2px 18px 8px; }
 .chats-vyber[hidden] { display: none; }
-.chats-vyber-pocet { flex: 1 0 100%; color: var(--dim); font-size: 11px; }
+.chats-vyber-hlava { display: flex; align-items: center; gap: 8px; min-height: 22px; }
+.chats-vyber-pocet { flex: 1; color: var(--dim); font-size: 12px; }
+.chats-vyber-akce { display: flex; flex-wrap: wrap; gap: 4px; }
+.chats-vyber button.chats-vyber-hotovo { background: none; border-color: transparent; color: var(--accent); padding: 2px 6px; margin-right: -6px; }
 .chats-vyber button { background: var(--bg-card); color: var(--fg); border: 1px solid var(--border); border-radius: 6px;
   font: inherit; font-size: 12px; padding: 4px 9px; cursor: pointer; }
 .chats-vyber button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }

@@ -174,7 +174,7 @@ body { display: flex; flex-direction: column; }
 .iconbtn:hover { background: var(--bg-card); }
 /* Nahlásit chybu / Podat návrh (verxee.js) — stejné barvy a tvar jako
    plovoucí tlačítko Verxee Debug na webech, ať se pozná na první pohled. */
-.verxee-split { display: inline-flex; align-self: center; margin-right: 6px;
+.verxee-split { display: inline-flex; align-self: center; margin: 0 6px 0 8px;
                 border-radius: 999px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
 .verxee-split[hidden] { display: none; }
 .verxee-split button {
@@ -5251,17 +5251,23 @@ button.st-tym-limit.prazdny { color: var(--dim); }
    podle --sidebar-w) se srovná na plochu, logo a název chatu jdou za sebou. */
 .panel-toggle, .tahlo { display: none; }
 @media (min-width: 821px) {
-  .panel-toggle:not([hidden]) { display: inline-flex; }
-  /* Jako v appce Claude: tichá obrysová ikona, bez zvýraznění; schovaný panel
-     se pozná podle plné barvy. Stejně velká jako ostatní ikony v liště. */
-  .panel-toggle { width: 30px; height: 28px; color: var(--dim); }
-  .panel-toggle .ico { width: 18px; height: 18px; }
-  .panel-toggle:hover { color: var(--fg-bright); background: var(--claude-hover, var(--bg-card)); }
-  #btn-panel-levy { color: var(--dim); }
-  /* Motiv Claude: lišta nad panelem má jeho šířku — tlačítko k jejímu pravému okraji. */
-  html[data-motiv="claude"] #btn-panel-levy { margin-left: auto; }
-  #btn-panel-pravy { color: var(--dim); }
-  #btn-panel-pravy:not(.on), body.bez-leveho #btn-panel-levy { color: var(--fg-bright); }
+  /* Jako v appce Claude: malé tlačítko na hraně panelu, kde se tahem mění
+     šířka. Schovaný panel nechá tlačítko u kraje okna. */
+  .panel-toggle:not([hidden]) {
+    display: inline-flex; align-items: center; justify-content: center;
+    position: absolute; top: 8px; z-index: 8; width: 28px; height: 28px; padding: 0;
+    border-radius: 8px; border: 1px solid var(--border); background: var(--bg-sidebar);
+    color: var(--dim); cursor: pointer; transition: color .12s ease, background .12s ease;
+  }
+  .panel-toggle .ico { width: 16px; height: 16px; }
+  .panel-toggle:hover { color: var(--fg-bright); background: var(--card-hover); }
+  #btn-panel-levy { left: calc(var(--sidebar-w) - 14px); }
+  #btn-panel-pravy { right: calc(var(--bar-w) - 14px); }
+  body.bez-leveho #btn-panel-levy { left: 8px; color: var(--fg-bright); }
+  body.bez-praveho #btn-panel-pravy { right: 8px; color: var(--fg-bright); }
+  /* Tlačítko u kraje nesmí překrýt začátek lišty s taby. */
+  body.bez-leveho .tabbar { padding-left: 44px; }
+  body.bez-praveho .tabbar { padding-right: 44px; }
   .layout { position: relative; }
   .tahlo {
     display: block; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6;
@@ -5282,7 +5288,6 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   body.bez-leveho .layout > .sidebar, body.bez-leveho .tahlo-levy { display: none; }
   body.bez-leveho .topbar { background: var(--bg); }
   body.bez-leveho .topbar-title { width: auto; flex: 0 1 auto; }
-  body.bez-leveho #btn-panel-levy { margin-left: 2px; }
   body.bez-leveho .topbar-tabwrap { position: static; transform: none; max-width: 50vw; margin-left: 10px; }
   body.bez-praveho .actionbar, body.bez-praveho .tahlo-pravy { display: none !important; }
 }

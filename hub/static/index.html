@@ -107,9 +107,6 @@
     <button id="btn-prostor" class="topbar-prostor" hidden>
       <span class="prostor-dot"></span><span class="prostor-name">Osobní</span>
       <svg class="ico prostor-caret"><use href="#i-chevron"/></svg></button>
-    <!-- Jen na počítači: schovat / ukázat panel s chaty (panely.js). -->
-    <button id="btn-panel-levy" class="iconbtn panel-toggle" title="Schovat panel s chaty" aria-label="Panel s chaty">
-      <svg class="ico"><use href="#i-panel-levy"/></svg></button>
     <!-- Jen na telefonu: jméno otevřeného tabu uprostřed lišty (mobile.js),
          lišta s taby se tam nevejde. -->
     <span class="topbar-tabwrap"><span id="topbar-tab" class="topbar-tab"></span><span id="topbar-stav" class="topbar-stav"></span></span>
@@ -117,19 +114,11 @@
   <div class="topbar-actions">
     <button id="btn-update" class="topbar-update" hidden>
       <svg class="ico"><use href="#i-up"/></svg><span id="btn-update-text"></span></button>
-    <!-- Jen na serveru: oznámení pro člověka (oznameni.js). I na telefonu —
-         je mimo šuplík, v liště. Schválně před Chybou/Návrhem: tlačítko
-         Chyba/Návrh tak na telefonu zůstává na svém místě (hlavička šuplíku
-         mu uhýbá, mobile.js drawerMisto). -->
+    <!-- Jen na serveru: oznámení pro člověka (oznameni.js). Ve stejné skupině
+         ikon jako obnovit, motiv, statistiky a nastavení; na telefonu je to
+         jediná z nich, co zůstává vedle Chyby/Návrhu a nabídky ⋯. -->
     <button id="btn-zvonek" class="iconbtn topbar-zvonek" title="Oznámení" aria-label="Oznámení" hidden>
       <svg class="ico"><use href="#i-bell"/></svg></button>
-    <span id="btn-verxee" class="verxee-split" hidden>
-      <button type="button" class="vx-chyba" data-klavesa="B" title="Nahlásit chybu (Alt+Shift+B)" aria-label="Nahlásit chybu">
-        <svg class="ico"><use href="#i-ladybug"/></svg><span>Chyba</span></button><button type="button" class="vx-navrh" data-klavesa="N" title="Podat návrh (Alt+Shift+N)" aria-label="Podat návrh">
-        <svg class="ico"><use href="#i-bulb-on"/></svg><span>Návrh</span></button></span>
-    <!-- Jen na počítači: schovat / ukázat panel vpravo (Průběh, rychlé akce). -->
-    <button id="btn-panel-pravy" class="iconbtn panel-toggle" title="Schovat panel vpravo" aria-label="Panel vpravo" hidden>
-      <svg class="ico"><use href="#i-panel-pravy"/></svg></button>
     <button id="btn-refresh" class="iconbtn" title="Načíst projekty a paměť znovu (neaktualizuje aplikaci)">
       <svg class="ico"><use href="#i-refresh"/></svg></button>
     <button id="btn-theme" class="iconbtn" title="Přepnout světlý/tmavý režim">
@@ -138,6 +127,11 @@
       <svg class="ico"><use href="#i-chart"/></svg></button>
     <button id="btn-settings" class="iconbtn" title="Nastavení a aktualizace">
       <svg class="ico"><use href="#i-gear"/></svg></button>
+    <!-- Chyba / Návrh (Verxee Debug) až za ikonami. -->
+    <span id="btn-verxee" class="verxee-split" hidden>
+      <button type="button" class="vx-chyba" data-klavesa="B" title="Nahlásit chybu (Alt+Shift+B)" aria-label="Nahlásit chybu">
+        <svg class="ico"><use href="#i-ladybug"/></svg><span>Chyba</span></button><button type="button" class="vx-navrh" data-klavesa="N" title="Podat návrh (Alt+Shift+N)" aria-label="Podat návrh">
+        <svg class="ico"><use href="#i-bulb-on"/></svg><span>Návrh</span></button></span>
     <!-- Jen na telefonu: všechno z lišty pod jednou ikonou. Čtyři ikony vedle
          sebe se na 320 px nevejdou a na to, co která dělá, se nedá sáhnout. -->
     <button id="btn-new-top" class="iconbtn topbar-new" title="Nový chat">
@@ -148,6 +142,13 @@
 </header>
 
 <div class="layout">
+  <!-- Jen na počítači: schovat / ukázat panely, na hraně panelu, kde se tahem
+       mění jeho šířka (panely.js), jako v appce Claude. -->
+  <button id="btn-panel-levy" class="panel-toggle" title="Schovat panel s chaty" aria-label="Panel s chaty">
+    <svg class="ico"><use href="#i-panel-levy"/></svg></button>
+  <button id="btn-panel-pravy" class="panel-toggle" title="Schovat panel vpravo" aria-label="Panel vpravo" hidden>
+    <svg class="ico"><use href="#i-panel-pravy"/></svg></button>
+
 
   <aside class="sidebar">
     <!-- Jen na telefonu: hlavička šuplíku — logo a název (= domů), hledání,

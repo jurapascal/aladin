@@ -453,7 +453,9 @@ def test_realne():
         return
     soubory = []
     for f in glob.glob(SKUTECNY + "/*/*.jsonl"):
-        if re_id(os.path.basename(f)[:-6]):
+        # Chat, do kterého se právě píše, by se mezi dvěma měřeními změnil
+        # a test by hlásil „originál se změnil" — berou se jen ty, které stojí.
+        if re_id(os.path.basename(f)[:-6]) and time.time() - os.path.getmtime(f) > 300:
             soubory.append((os.path.getsize(f), f))
     soubory.sort()
     vyber = [f for s, f in soubory if s > 20_000][:8:2] + [f for s, f in soubory[-3:]]

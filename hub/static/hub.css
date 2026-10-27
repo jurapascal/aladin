@@ -5336,7 +5336,7 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 .chats-vyber-btn .ico { width: 14px; height: 14px; }
 .chats-vyber-btn.on { color: var(--accent); }
 .section-head #btn-drawer-close { margin-left: 4px; }
-.chats-vyber { position: sticky; top: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+.chats-vyber { display: flex; margin: 0 0 4px; flex-wrap: wrap; align-items: center; gap: 4px;
   padding: 6px 8px; background: var(--bg-sidebar); border-bottom: 1px solid var(--border); }
 .chats-vyber[hidden] { display: none; }
 .chats-vyber-pocet { flex: 1 0 100%; color: var(--dim); font-size: 11px; }
@@ -5354,3 +5354,5 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 
 /* Při výběru chatů jsou vidět jen chaty. */
 body.vybira-chaty #open-section { display: none; }
+/* Motiv Claude řadí prvky panelu přes order: lišta výběru patří hned pod nadpis Chaty. */
+#chats-view > #chats-vyber { order: 3; }

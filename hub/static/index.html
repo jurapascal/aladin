@@ -189,14 +189,6 @@
       <button id="nav-terminal" class="nav-item nav-claude" hidden>
         <span class="nav-ico"><svg class="ico"><use href="#i-terminal"/></svg></span> Terminál</button>
     </nav>
-    <div id="chats-vyber" class="chats-vyber" hidden>
-      <span id="chats-vyber-pocet" class="chats-vyber-pocet"></span>
-      <button type="button" class="keep-drawer" data-akce="vse">Vše</button>
-      <button type="button" class="keep-drawer" data-akce="pripnout">Připnout</button>
-      <button type="button" class="keep-drawer" data-akce="export">Export</button>
-      <button type="button" class="keep-drawer danger" data-akce="smazat">Smazat</button>
-      <button type="button" class="keep-drawer" data-akce="konec">Hotovo</button>
-    </div>
     <div id="open-section" class="open-section" hidden>
       <div class="section">Otevřené</div>
       <div id="open-tabs" class="open-tabs"></div>
@@ -222,6 +214,14 @@
       <div id="projects" class="cards"></div>
     </div>
     <div id="chats-view">
+      <div id="chats-vyber" class="chats-vyber" hidden>
+        <span id="chats-vyber-pocet" class="chats-vyber-pocet"></span>
+        <button type="button" class="keep-drawer" data-akce="vse">Vše</button>
+        <button type="button" class="keep-drawer" data-akce="pripnout">Připnout</button>
+        <button type="button" class="keep-drawer" data-akce="export">Export</button>
+        <button type="button" class="keep-drawer danger" data-akce="smazat">Smazat</button>
+        <button type="button" class="keep-drawer" data-akce="konec">Hotovo</button>
+      </div>
       <div class="searchwrap" hidden>
         <svg class="ico search-ico"><use href="#i-search"/></svg>
         <input id="chats-search" type="search" placeholder="Hledat chat…" autocomplete="off" name="hub-hledat-chat" spellcheck="false" data-1p-ignore data-lpignore="true">

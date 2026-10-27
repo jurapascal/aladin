@@ -20,6 +20,7 @@
   let io = null;
   let data = {oznameni: [], starsi: [], neprectene: 0};
   let zapnuto = false;
+  let casovac = null;
   let panel = null;
   let videno = 0;                 // nejvyšší id, o kterém už hláška dole řekla
   let starsiOtevrene = false;
@@ -38,7 +39,11 @@
       body: JSON.stringify(payload),
     });
     const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || 'Server teď neodpovídá, zkus to za chvíli.');
+    if (!r.ok) {
+      const e = new Error(d.error || 'Server teď neodpovídá, zkus to za chvíli.');
+      e.status = r.status;
+      throw e;
+    }
     return d;
   }
 
@@ -67,14 +72,28 @@
     zapnuto = true;
     btn.onclick = (ev) => { ev.stopPropagation(); if (panel) zavritPanel(); else otevritPanel(); };
     nacti(true);
-    setInterval(() => { if (!document.hidden) nacti(); }, OBNOVA);
+    casovac = setInterval(() => { if (!document.hidden) nacti(); }, OBNOVA);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') nacti();
     });
   }
 
   async function nacti(prvni) {
-    try { data = await gw(); } catch (_) { return; }
+    try { data = await gw(); } catch (err) {
+      // Starší brána oznámení nezná (404): zvonek se schová a po čase se
+      // zkusí znovu — až se brána aktualizuje, objeví se sám.
+      if (err.status === 404) {
+        const btn = document.getElementById('btn-zvonek');
+        if (btn) btn.hidden = true;
+        zavritPanel();
+        zapnuto = false;
+        clearInterval(casovac);
+        setTimeout(() => { if (io) apply(io); }, 10 * 60 * 1000);
+      }
+      return;
+    }
+    const btn0 = document.getElementById('btn-zvonek');
+    if (btn0 && btn0.hidden && io && io.state && io.state.config && io.state.config.gateway_user) btn0.hidden = false;
     const nove = data.oznameni.filter((o) => !o.read_at && o.id > videno);
     // Nové nepřečtené řekne i hláška dole — zvonek v rohu snadno přehlédneš.
     // Při načtení stránky jen jednou souhrnně, ať se neopakuje po každém F5.

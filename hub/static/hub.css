@@ -5075,7 +5075,9 @@ button.st-tym-limit.prazdny { color: var(--dim); }
    oznameni.js (zvonek v liště a panel) a uloziste.js (koláče, limity, lidé,
    záznam oznámení). Jen na serveru. Barvy kategorií v koláči nastavuje JS
    (pevné pořadí, vlastní odstíny pro tmavý režim); tady jen tvar a texty. */
-.topbar-zvonek { position: relative; }
+.topbar-zvonek { position: relative; color: var(--dim); }
+.topbar-zvonek:hover { color: var(--fg-bright); }
+.topbar-zvonek .ico { width: 18px; height: 18px; }
 .topbar-zvonek[hidden] { display: none; }
 .zvonek-pocet {
   position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; padding: 0 4px;
@@ -5250,11 +5252,16 @@ button.st-tym-limit.prazdny { color: var(--dim); }
 .panel-toggle, .tahlo { display: none; }
 @media (min-width: 821px) {
   .panel-toggle:not([hidden]) { display: inline-flex; }
+  /* Jako v appce Claude: tichá obrysová ikona, bez zvýraznění; schovaný panel
+     se pozná podle plné barvy. Stejně velká jako ostatní ikony v liště. */
+  .panel-toggle { width: 30px; height: 28px; color: var(--dim); }
+  .panel-toggle .ico { width: 18px; height: 18px; }
+  .panel-toggle:hover { color: var(--fg-bright); background: var(--claude-hover, var(--bg-card)); }
   #btn-panel-levy { color: var(--dim); }
   /* Motiv Claude: lišta nad panelem má jeho šířku — tlačítko k jejímu pravému okraji. */
   html[data-motiv="claude"] #btn-panel-levy { margin-left: auto; }
   #btn-panel-pravy { color: var(--dim); }
-  #btn-panel-pravy:not(.on) { color: var(--accent); }
+  #btn-panel-pravy:not(.on), body.bez-leveho #btn-panel-levy { color: var(--fg-bright); }
   .layout { position: relative; }
   .tahlo {
     display: block; position: absolute; top: 0; bottom: 0; width: 8px; z-index: 6;
@@ -5275,7 +5282,7 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   body.bez-leveho .layout > .sidebar, body.bez-leveho .tahlo-levy { display: none; }
   body.bez-leveho .topbar { background: var(--bg); }
   body.bez-leveho .topbar-title { width: auto; flex: 0 1 auto; }
-  body.bez-leveho #btn-panel-levy { margin-left: 2px; color: var(--accent); }
+  body.bez-leveho #btn-panel-levy { margin-left: 2px; }
   body.bez-leveho .topbar-tabwrap { position: static; transform: none; max-width: 50vw; margin-left: 10px; }
   body.bez-praveho .actionbar, body.bez-praveho .tahlo-pravy { display: none !important; }
 }

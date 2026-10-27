@@ -1973,7 +1973,19 @@
 
     async function attach(files) {
       const paths = await io.upload(files);
-      if (paths.length) insertPaths(paths);
+      if (paths.length) prilozit(paths);
+    }
+
+    /* Příloha do bubliny — a když bublina není vidět (karta dotazu, složená
+       bublina), cesta se napíše do terminálu. Dřív se obrázek nahrál na disk
+       a pak se tiše zahodil: člověk viděl jen, že se „nic nepřipojilo". */
+    function prilozit(paths) {
+      if (insertPaths(paths)) return true;
+      const q = (p) => /^[A-Za-z0-9_\/.:@%+=,-]+$/.test(p) ? p : "'" + p.replace(/'/g, "'\\''") + "'";
+      const ok = !!tab.id && io.send({t: 'in', id: tab.id, d: paths.map(q).join(' ') + ' '}) !== false;
+      if (io.notice) io.notice(ok ? 'Bublina teď není vidět, cesta k příloze je napsaná v terminálu.'
+                                  : 'Přílohu se nepodařilo připojit: ' + paths.join(', '));
+      return ok;
     }
 
     /* Cesta k souboru je jediné, co si Claude Code z obrázku vezme — jenže
@@ -2079,13 +2091,14 @@
         try {
           res = await io.read('clipboard');
         } catch (err) {
+          if (io.notice) io.notice('Ze schránky se nepodařilo vložit obrázek: ' + err.message);
           return;
         }
         // Nahrávání souboru trvá dýl než tohle doptání, takže se ptáme znovu:
         // mezitím mohla cesta dorazit tou druhou cestou.
         if (lastInsert >= at || byBrowser >= at) return;
         // Bez hlášky s cestou: co se přiložilo, je vidět na náhledu v bublině.
-        if (res && res.image) insertPaths([res.image]);
+        if (res && res.image) prilozit([res.image]);
       })();
       return pasteRun.finally(() => { pasteRun = null; pasteAt = Date.now(); });
     }

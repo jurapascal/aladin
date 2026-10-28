@@ -143,6 +143,21 @@
     paintNodes();
 
     let view = {x: 0, y: 0, scale: 0.6};
+    let ruka = false;                  // člověk sám posouvá / přibližuje — samo se pak nic nepřizpůsobuje
+    /* Celý graf na jednu obrazovku (jako po otevření v Obsidianu): těžiště
+       doprostřed a měřítko podle rozptylu uzlů, osamělé body daleko na okraji se přeskočí (jdou najít posunem). */
+    function vejdi() {
+      if (!shown.length) return;
+      const rect = box.getBoundingClientRect();
+      if (!rect.width) return;
+      const xs = shown.map((n) => n.x).sort((a, b) => a - b);
+      const ys = shown.map((n) => n.y).sort((a, b) => a - b);
+      const lo = Math.floor(shown.length * 0.12), hi = Math.max(lo, Math.ceil(shown.length * 0.88) - 1);
+      const w = Math.max(xs[hi] - xs[lo], 80), h = Math.max(ys[hi] - ys[lo], 80);
+      view.scale = clamp(Math.min(rect.width / (w + 120), rect.height / (h + 120)), 0.06, 1.2);
+      view.x = -((xs[lo] + xs[hi]) / 2) * view.scale;
+      view.y = -((ys[lo] + ys[hi]) / 2) * view.scale;
+    }
     let alpha = 1, hover = null, dragged = null, focus = '';
     let filter = '', shown = nodes, shownLinks = links;
     let raf = 0, stopped = false;
@@ -185,12 +200,12 @@
     function tick() {
       const tree = shown.length > 1 ? quadtree(shown) : null;
       // Kladné = uzly se odstrkávají; se záporným by se všechny slily do bodu.
-      const repelK = cfg.repelStrength * 30;
+      const repelK = cfg.repelStrength * 14;
       for (const n of shown) {
         if (n === dragged) continue;
         if (tree) repel(n, tree, repelK);
-        n.vx -= n.x * 0.0009 * cfg.centerStrength;
-        n.vy -= n.y * 0.0009 * cfg.centerStrength;
+        n.vx -= n.x * 0.004 * cfg.centerStrength;
+        n.vy -= n.y * 0.004 * cfg.centerStrength;
       }
       for (const l of shownLinks) {
         const dx = l.b.x - l.a.x, dy = l.b.y - l.a.y;
@@ -223,11 +238,11 @@
       ctx.scale(view.scale, view.scale);
 
       const lit = hover ? new Set([hover, ...near.get(hover)]) : null;
-      ctx.lineWidth = Math.max(0.4, 0.9 * (cfg.lineSizeMultiplier || 1)) / view.scale;
+      ctx.lineWidth = Math.max(0.5, 0.8 * (cfg.lineSizeMultiplier || 1)) / view.scale;
       for (const l of shownLinks) {
         const on = lit && (lit.has(l.a) && lit.has(l.b));
         ctx.strokeStyle = on ? ACCENT : colors.line;
-        ctx.globalAlpha = lit ? (on ? 0.9 : 0.12) : 0.55;
+        ctx.globalAlpha = lit ? (on ? 0.9 : 0.08) : 0.32;
         ctx.beginPath();
         ctx.moveTo(l.a.x, l.a.y);
         ctx.lineTo(l.b.x, l.b.y);
@@ -256,15 +271,20 @@
           ctx.stroke();
         }
       }
-      // Jména: při oddálení jen u větších uzlů, ať to není kaše (jako v Obsidianu).
-      const limit = 3 + (1 - clamp(view.scale, 0.1, 2)) * 12 * (1 + (cfg.textFadeMultiplier || 0));
+      // Jména jako v Obsidianu: při oddálení žádná (jen u najetého a otevřeného),
+      // s přiblížením se plynule objeví, nejdřív u uzlů s nejvíc odkazy.
+      const fade = 1 + (cfg.textFadeMultiplier || 0);
+      const zoomPrah = clamp(0.9 - fade * 0.12, 0.25, 1.3);
       ctx.font = `${Math.max(9, 11 / view.scale * 0.9)}px system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       for (const n of shown) {
         const r = size(n);
-        if (!(n === hover || n.path === focus || r * view.scale > limit * 0.35)) continue;
-        ctx.globalAlpha = lit && !lit.has(n) ? 0.2 : 0.85;
+        const vzdy = n === hover || n.path === focus;
+        const duleziti = clamp(Math.sqrt(n.deg) / 4, 0, 0.6);          // hlavní uzly se ukážou dřív
+        const vidit = clamp((view.scale - (zoomPrah - duleziti * zoomPrah)) / 0.3, 0, 1);
+        if (!vzdy && vidit <= 0.02) continue;
+        ctx.globalAlpha = (vzdy ? 1 : vidit * 0.85) * (lit && !lit.has(n) ? 0.3 : 1);
         ctx.fillStyle = n === hover ? colors.bright : colors.text;
         ctx.fillText(baseName(n.path), n.x, n.y + r + 2 / view.scale);
       }
@@ -300,6 +320,7 @@
         }
       }
       tick();
+      if (!ruka && alpha > 0.05) vejdi();
       draw();
       raf = requestAnimationFrame(loop);
     }
@@ -323,6 +344,7 @@
     };
     let panFrom = null, moved = false, held = null, heldDone = false, downAt = null;
     canvas.addEventListener('pointerdown', (ev) => {
+      ruka = true;
       canvas.setPointerCapture(ev.pointerId);
       moved = false;
       heldDone = false;
@@ -376,6 +398,7 @@
     canvas.addEventListener('pointerleave', () => { hover = null; });
     canvas.addEventListener('wheel', (ev) => {
       ev.preventDefault();
+      ruka = true;
       const rect = box.getBoundingClientRect();
       const mx = ev.clientX - rect.left - rect.width / 2, my = ev.clientY - rect.top - rect.height / 2;
       const before = view.scale;
@@ -395,7 +418,7 @@
       setOption(key, value) { cfg[key] = value; applyFilter(); kick(); },
       options: () => Object.assign({}, cfg),
       counts: () => ({nodes: shown.length, links: shownLinks.length}),
-      center() { view = {x: 0, y: 0, scale: 0.6}; kick(); },
+      center() { ruka = false; kick(); vejdi(); },
     };
   }
 

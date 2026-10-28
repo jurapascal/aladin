@@ -24,7 +24,7 @@ from . import core, pricing
 CACHE_PATH = os.path.join(core.CLAUDE_DIR, "hub-stats.json")
 HISTORY_PATH = os.path.join(core.CLAUDE_DIR, "history.jsonl")
 PROJECTS_ROOT = os.path.join(core.CLAUDE_DIR, "projects")
-CACHE_VERSION = 3          # 2: tokeny podle modelu (cena), 3: cena podle dne
+CACHE_VERSION = 4          # 2: tokeny podle modelu (cena), 3: cena podle dne, 4: odpověď se počítá jednou
 DAYS_KEPT = 120
 
 
@@ -44,6 +44,13 @@ def _scan_file(path):
     days = Counter()
     dcost = Counter()
     first = last = 0
+    # Claude Code zapíše jednu odpověď víckrát — po jednom řádku na každý blok
+    # (myšlení, každé volání nástroje) — a všechny nesou tytéž `usage`. Počítat
+    # je každý zvlášť zdvojnásobovalo i ztrojnásobovalo tokeny, odpovědi i cenu,
+    # proto se odpověď bere jednou (podle id zprávy a požadavku; při rozdílu
+    # větší výstup).
+    unikatni = {}
+    poradi = []
     with open(path, encoding="utf-8", errors="replace") as fh:
         for line in fh:
             # Předfiltr řetězcem: naprostá většina řádků jsou přílohy a snímky
@@ -54,33 +61,42 @@ def _scan_file(path):
                 entry = json.loads(line)
             except Exception:
                 continue
-            usage = (entry.get("message") or {}).get("usage")
+            msg = entry.get("message") or {}
+            usage = msg.get("usage")
             if not isinstance(usage, dict):
                 continue
-            totals["answers"] += 1
-            totals["in"] += usage.get("input_tokens") or 0
-            totals["out"] += usage.get("output_tokens") or 0
-            totals["cache_w"] += usage.get("cache_creation_input_tokens") or 0
-            totals["cache_r"] += usage.get("cache_read_input_tokens") or 0
-            totals["think"] += ((usage.get("output_tokens_details") or {})
-                                .get("thinking_tokens") or 0)
-            # Podle modelu, ať se dá spočítat cena (ceny se u modelů liší).
-            m = models.setdefault(str((entry.get("message") or {}).get("model") or "?"), _empty())
-            m["answers"] += 1
-            m["in"] += usage.get("input_tokens") or 0
-            m["out"] += usage.get("output_tokens") or 0
-            m["cache_w"] += usage.get("cache_creation_input_tokens") or 0
-            m["cache_r"] += usage.get("cache_read_input_tokens") or 0
-            price = pricing.cost(entry.get("message", {}).get("model"), {
-                "in": usage.get("input_tokens") or 0, "out": usage.get("output_tokens") or 0,
-                "cache_w": usage.get("cache_creation_input_tokens") or 0,
-                "cache_r": usage.get("cache_read_input_tokens") or 0})
-            stamp = entry.get("timestamp") or ""
-            if isinstance(stamp, str) and len(stamp) >= 10:
-                days[stamp[:10]] += usage.get("output_tokens") or 0
-                dcost[stamp[:10]] += price
-                first = first or stamp
-                last = stamp
+            mid = msg.get("id")
+            key = (mid, entry.get("requestId")) if mid else None
+            if key is not None and key in unikatni:
+                old = unikatni[key]
+                if (usage.get("output_tokens") or 0) > (old["usage"].get("output_tokens") or 0):
+                    old["usage"] = usage
+                continue
+            rec = {"usage": usage, "model": msg.get("model"), "stamp": entry.get("timestamp") or ""}
+            if key is not None:
+                unikatni[key] = rec
+            poradi.append(rec)
+    for rec in poradi:
+        usage = rec["usage"]
+        tok = {"in": usage.get("input_tokens") or 0, "out": usage.get("output_tokens") or 0,
+               "cache_w": usage.get("cache_creation_input_tokens") or 0,
+               "cache_r": usage.get("cache_read_input_tokens") or 0}
+        totals["answers"] += 1
+        for k, v in tok.items():
+            totals[k] += v
+        totals["think"] += ((usage.get("output_tokens_details") or {}).get("thinking_tokens") or 0)
+        # Podle modelu, ať se dá spočítat cena (ceny se u modelů liší).
+        m = models.setdefault(str(rec["model"] or "?"), _empty())
+        m["answers"] += 1
+        for k, v in tok.items():
+            m[k] += v
+        price = pricing.cost(rec["model"], tok)
+        stamp = rec["stamp"]
+        if isinstance(stamp, str) and len(stamp) >= 10:
+            days[stamp[:10]] += tok["out"]
+            dcost[stamp[:10]] += price
+            first = first or stamp
+            last = stamp
     return {"totals": totals, "models": models, "days": dict(days),
             "dcost": {d: round(c, 4) for d, c in dcost.items()}, "first": first, "last": last}
 

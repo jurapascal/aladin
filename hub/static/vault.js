@@ -94,7 +94,16 @@
       .replace(/~~(?=\S)([^\n]*?\S)~~/g, '<del>$1</del>')
       .replace(/==(?=\S)([^\n]*?\S)==/g, '<mark>$1</mark>')
       .replace(/(^|\s)#([\p{L}\p{N}_/-]*\p{L}[\p{L}\p{N}_/-]*)/gu, '$1<span class="vault-tag">#$2</span>');
-    return s.replace(/\u0000(\d+)\u0000/g, (_m, i) => keep[+i]);
+    return emoji(s.replace(/\u0000(\d+)\u0000/g, (_m, i) => keep[+i]));
+  }
+
+  /* Emoji se kreslí barevně: znaky jako 🗺 jsou bez variačního znaku (U+FE0F)
+     v písmu textu jen černobílý obrysový symbol. Značky se přeskočí, ať se
+     nesáhne do atributů. */
+  const EMOJI_RE = /((?![\u00A9\u00AE\u2122\u203C\u2049\u2139])\p{Extended_Pictographic}\uFE0F?(?:\u200D\p{Extended_Pictographic}\uFE0F?)*)/gu;
+  function emoji(html) {
+    return html.split(/(<[^>]*>)/).map((part) => (part.startsWith('<') ? part
+      : part.replace(EMOJI_RE, (m) => '<span class="emo">' + (m.includes('\uFE0F') ? m : m + '\uFE0F') + '</span>'))).join('');
   }
 
   /* Řádky odstavce. Poznámky od Clauda jsou v souboru zalomené po osmdesáti

@@ -5374,3 +5374,6 @@ body.vybira-chaty #open-section { display: none; }
 
 /* Na telefonu panel „Otevřené" není: seznam by při každém otevření tabu poskakoval. */
 @media (max-width: 820px) { .open-section, .sidebar > .open-section { display: none !important; } }
+
+/* Barevné emoji v poznámkách a čtení (vault.js, emoji()). */
+.emo { font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif; font-style: normal; }

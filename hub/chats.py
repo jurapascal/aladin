@@ -25,7 +25,7 @@ _CACHE = {}                      # cesta -> (velikost, mtime, info)
 _LOCK = threading.Lock()
 # Mezipaměť přežije restart hubu: bez ní první načtení seznamu po startu četlo
 # začátek a konec každého přepisu (stovky souborů, přes vteřinu čekání).
-_DISK_VERSION = 3                # 3: náhled poslední zprávy (`posledni`)
+_DISK_VERSION = 4                # 3: náhled poslední zprávy (`posledni`); 4: bez shrnutí po zkrácení kontextu
 _disk_loaded = False
 _disk_saved = [0.0]              # kdy naposled — rozepsaný chat se mění pořád
 # Značky, které Claude Code vkládá do uživatelských zpráv a člověk je nepsal.
@@ -57,8 +57,9 @@ def _entries(raw, partial_start):
 
 def prompt_text(entry):
     """Co člověk do konverzace napsal, nebo '' (meta zprávy, výsledky nástrojů,
-    podkonverzace, upozornění Claude Code)."""
-    if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain"):
+    podkonverzace, upozornění Claude Code, shrnutí po zkrácení kontextu)."""
+    if entry.get("type") != "user" or entry.get("isMeta") or entry.get("isSidechain") \
+            or entry.get("isCompactSummary"):
         return ""
     content = (entry.get("message") or {}).get("content")
     if isinstance(content, list):

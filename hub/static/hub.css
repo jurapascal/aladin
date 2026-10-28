@@ -2614,6 +2614,7 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-diff-r.del { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--fg); }
 .cteni-diff-r.add { background: color-mix(in srgb, #3fb950 16%, transparent); color: var(--fg); }
 .cteni-diff-r.del .cteni-diff-z { color: var(--red); }
+.cteni-diff-r.vysledek { margin-top: 6px; color: var(--red); }
 .cteni-diff-r.add .cteni-diff-z { color: #3fb950; }
 /* Claude pracuje: kouzelná lampa se potřásá, jako by ji někdo třel, a z hubičky
    vylétají písmenka a hvězdičky (cteni.js jisker). */

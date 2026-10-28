@@ -175,6 +175,17 @@
     a.click();
     a.remove();
   }
+  /* Výsledek nástroje pod jeho rozbalený text. U barevného diffu se textContent
+     nesmí přepsat (smazal by řádky); hlášku o úspěšné úpravě tam není třeba. */
+  function pripisDetail(box, text, ok) {
+    const d = box._detail;
+    if (d.classList.contains('cteni-diff')) {
+      if (!ok) d.appendChild(el('div', 'cteni-diff-r vysledek', text));
+      return;
+    }
+    d.textContent = (d.textContent ? d.textContent + '\n\n' : '') + text;
+  }
+
   function tlacitkoStahnout(cesta, st, notice, cls, text) {
     const b = el('button', 'cteni-stahnout' + (cls ? ' ' + cls : ''), text || '⤓ Stáhnout');
     b.type = 'button';
@@ -1921,7 +1932,7 @@
           box._meta.textContent = [box._meta.textContent,
             b.status === 'completed' ? 'doběhlo' : b.status === 'failed' ? 'selhalo' : b.status]
             .filter(Boolean).join(' · ');
-          if (b.summary) box._detail.textContent += '\n\n' + b.summary;
+          if (b.summary) pripisDetail(box, b.summary, b.status !== 'failed');
         }
         return;
       }
@@ -1954,10 +1965,7 @@
         if (!b.ok) kus.push('chyba');
         else if (b.radku) kus.push(b.radku + ' ř.');
         box._meta.textContent = kus.join(' · ');
-        if (b.detail) {
-          box._detail.textContent = (box._detail.textContent
-            ? box._detail.textContent + '\n\n' : '') + b.detail;
-        }
+        if (b.detail) pripisDetail(box, b.detail, b.ok);
       }
     }
 

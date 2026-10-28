@@ -120,6 +120,7 @@
     root.querySelector('.onb-sub').textContent = 'Verze ' + state.version.version;
     root.querySelector('.set-close').onclick = close;
     root.querySelector('.set-x').onclick = close;
+    document.addEventListener('keydown', naEsc);
     root.querySelector('.set-wizard').onclick = () => {
       close();
       io.openWizard();
@@ -3788,7 +3789,16 @@
     }
   }
 
+  /* Esc zavře Nastavení — jen když nad nimi není jiný dialog (ten má fokus mimo okno). */
+  function naEsc(ev) {
+    if (ev.key !== 'Escape' || ev.defaultPrevented || !root) return;
+    const f = document.activeElement;
+    if (f && f !== document.body && !root.contains(f)) return;
+    close();
+  }
+
   function close() {
+    document.removeEventListener('keydown', naEsc);
     if (root) root.remove();
     root = null;
     io.reload();

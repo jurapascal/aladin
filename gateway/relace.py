@@ -141,6 +141,31 @@ def _public(rid, entry, user):
                         for g in entry.get("skupiny") or []]}
 
 
+_NAHLEDY = {}                 # cesta k přepisu → (mtime, velikost, posledni, kdo)
+
+
+def _nahled(entry):
+    """Kdy se v chatu naposled něco dělo a začátek poslední zprávy — pro řádek
+    v seznamu chatů u člena (jako u vlastních chatů). Čte se přímo přepis
+    v domově majitele (prepis_offline), znovu jen když se soubor změnil."""
+    from hub import chats as hub_chats
+    path = prepis_offline(_account(entry.get("owner")), entry.get("chat"))
+    if not path:
+        return {}
+    try:
+        st = os.stat(path)
+    except OSError:
+        return {}
+    hit = _NAHLEDY.get(path)
+    if not hit or hit[0] != st.st_mtime or hit[1] != st.st_size:
+        info = hub_chats._info(path, st.st_size) or {}
+        hit = (st.st_mtime, st.st_size, info.get("posledni", ""), info.get("posledni_kdo", ""))
+        if len(_NAHLEDY) > 500:
+            _NAHLEDY.clear()
+        _NAHLEDY[path] = hit
+    return {"aktivita": int(hit[0]), "posledni": hit[2], "posledni_kdo": hit[3]}
+
+
 def seznam(user):
     """{moje: relace, kterou jsem založil, semnou: relace, kde jsem člen}."""
     uid = int(user["id"])
@@ -150,7 +175,12 @@ def seznam(user):
         if entry.get("owner") == uid:
             moje.append(_public(rid, entry, user))
         elif role(user, entry):
-            semnou.append(_public(rid, entry, user))
+            pub = _public(rid, entry, user)
+            try:
+                pub.update(_nahled(entry))
+            except Exception:              # náhled je navíc, seznam bez něj taky jde
+                pass
+            semnou.append(pub)
     return {"moje": moje, "semnou": semnou, "ulozene": ulozene(user)}
 
 

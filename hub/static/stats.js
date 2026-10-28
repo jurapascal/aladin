@@ -153,6 +153,7 @@
     svg.appendChild(use);
     root.querySelector('.onb-mark').appendChild(svg);
     root.querySelector('.st-close').onclick = close;
+    document.addEventListener('keydown', naEsc);
     root.querySelector('.st-refresh').onclick = () => load(true);
     root.querySelector('.st-export').onclick = (ev) => { ev.stopPropagation(); exportMenu(); };
     // Zavřít jen klikem, který na pozadí i začal: výběr textu tažením ven
@@ -479,6 +480,9 @@
   }
 
   async function kresliTym(box) {
+    // Na počítači brána není — dotaz by jen skončil chybou 404 v konzoli.
+    const st = io && io.state;
+    if (!(st && st.config && st.config.gateway_user)) return;
     let d;
     try {
       d = await gwSpotreba();
@@ -756,7 +760,18 @@
     document.addEventListener('click', zavri, true);
   }
 
+  /* Esc zavře Statistiky — jen když nad nimi není jiný dialog (ten má fokus mimo okno). */
+  function naEsc(ev) {
+    if (ev.key !== 'Escape' || ev.defaultPrevented || !root) return;
+    const f = document.activeElement;
+    if (f && f !== document.body && !root.contains(f)) return;
+    const menu = root.querySelector('.st-export-menu');
+    if (menu && !menu.hidden) { menu.hidden = true; return; }
+    close();
+  }
+
   function close() {
+    document.removeEventListener('keydown', naEsc);
     if (root) root.remove();
     root = null;
   }

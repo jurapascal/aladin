@@ -2616,11 +2616,17 @@ function relaceRadky() {
     }});
   }
   for (const s of RELACE.semnou.filter(sdilenyVProstoru)) {
-    out.push({updated: s.vytvoreno, text: s.titulek + ' ' + s.majitel, build: () => {
-      const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: s.vytvoreno, bezHvezdy: true,
+    // Čas a náhled poslední zprávy dává brána z přepisu majitele (relace._nahled);
+    // starší brána je nemá — pak čas sdílení a co smím.
+    const kdy = s.aktivita || s.vytvoreno;
+    out.push({updated: kdy, text: s.titulek + ' ' + s.majitel + ' ' + (s.posledni || ''), build: () => {
+      const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: kdy, bezHvezdy: true,
         stitek: 'od ' + s.majitel,
-        nahled: (s.role === 'pise' ? 'smíš psát' : 'jen čtení') +
-          (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '')});
+        // Zpráva člena chodí jako „[Jméno] text" (sdilet_poslat) — jméno už nese.
+        nahled: s.posledni ? (s.posledni_kdo === 'ty' && !s.posledni.startsWith('[') ? s.majitel.split(' ')[0] + ': ' : '') + s.posledni
+          : (s.role === 'pise' ? 'smíš psát' : 'jen čtení') + (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '')});
+      row.title = `${s.titulek}\nSdílí ${s.majitel} — ` + (s.role === 'pise' ? 'smíš psát' : 'jen čtení') +
+        (s.diva.length ? '\nDívá se ' + s.diva.join(', ') : '');
       row.onclick = () => { otevriSdilenyTab(s, true); closeDrawer(); };
       return row;
     }});

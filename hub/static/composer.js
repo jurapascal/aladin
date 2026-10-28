@@ -2763,8 +2763,6 @@
       /* Model, se kterým se tab doopravdy spustil. Ollama si ho doplňuje sama
          (bez modelu není co pustit), a to se pozná až z odpovědi serveru —
          tou dobou už bublina dávno stojí. */
-      /* Dotaz na model po otevření nového chatu (hub.js, zeptejSeNaModel). */
-      zvolModel: (key) => { if (key === 'auto') prepniNaAuto(); else prepniModel(key); },
       setModel: (m) => {
         if (!m || m === model) return;
         model = m;

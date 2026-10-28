@@ -1014,13 +1014,15 @@
      jako MCP a mezitím je vidět, že se pracuje. */
   let agentsLast = null;
 
-  /* Model pro nový chat (hub.js, novyChatModel): zeptat se pokaždé, nebo vždy tenhle. */
-  function novyChatModel() {
+  /* Agent pro nový chat (hub.js, newChatHere): zeptat se pokaždé, nebo vždy tenhle. Model řídí automatika. */
+  function novyChatAgent() {
     const rows = el('div', 'set-rows');
     const cfg = (state && state.config) || {};
-    rows.appendChild(radek('Model pro nový chat', 'Po otevření nového chatu se zeptá, kterým modelem — nebo rovnou použije zvolený.',
-      vyber([['', 'Zeptat se pokaždé'], ['auto', 'Automaticky podle úkolu'], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']],
-        cfg.novy_chat_model || '', (v) => save({novy_chat_model: v}))));
+    const ready = ((state && state.agents) || []).filter((a) => a.path);
+    if (ready.length < 2) return rows;
+    rows.appendChild(radek('AI agent pro nový chat', 'Po otevření nového chatu se zeptá, s kterým agentem — nebo rovnou použije zvoleného. Model se vybírá sám podle úkolu.',
+      vyber([['', 'Zeptat se pokaždé'], ...ready.map((a) => [a.id, a.label])],
+        cfg.novy_chat_agent || '', (v) => save({novy_chat_agent: v}))));
     return rows;
   }
 
@@ -1028,7 +1030,7 @@
     if (!advanced()) {
       const only = section('AI agenti',
         'Modely, které si Claude umí zavolat na pomoc. Vyplníš údaje a je napojeno.');
-      only.appendChild(novyChatModel());
+      only.appendChild(novyChatAgent());
       only.appendChild(gemini());
       only.appendChild(jev());
       return only;
@@ -1042,7 +1044,7 @@
     const btns = el('div', 'onb-btns');
     const check = el('button', 'btn ghost', 'Zkontrolovat znovu');
     btns.appendChild(check);
-    box.append(novyChatModel(), summary, list, ollama, btns);
+    box.append(novyChatAgent(), summary, list, ollama, btns);
 
     function busy(text) {
       summary.textContent = '';

@@ -4289,7 +4289,7 @@ function activate(tab) {
     // Uspaný tab (hub/uspavani.py) se otevřením probudí — i bez fokusu okna.
     if (tab.id) send({t: 'wake', id: tab.id});
     if (tab.links) tab.links.update();      // skrytý tab odkazy nečetl
-    if (tab.cteni) tab.cteni.wake();        // a čtení je o dotaz pozadu
+    if (tab.cteni) tab.cteni.wake(true);    // a čtení je o dotaz pozadu; ať je vidět nejnovější zpráva
     // Na telefonu fokus nebrat: vyjela by klávesnice a zakryla půlku
     // obrazovky, i když člověk chtěl tab jen vidět. Do pole si klepne sám.
     if (!document.body.classList.contains('is-touch')) {

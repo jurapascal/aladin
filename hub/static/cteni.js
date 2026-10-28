@@ -2343,9 +2343,16 @@
         prazdno.hidden = true;
       },
       // Po přepnutí na tab se doptá hned, ať čtení není o vteřinu pozadu.
-      wake() {
+      wake(naSpod) {
         if (zivy) { clearTimeout(timer); timer = setTimeout(tik, 60); }
         if (zivy && stavr) stavr.wake();
+        // Přepnutí na chat: vždycky na nejnovější zprávu (skrytý panel si pozici nepamatuje).
+        if (zivy && naSpod) {
+          const dolu = () => { scroll.scrollTop = scroll.scrollHeight; uDna = true; };
+          dolu();
+          requestAnimationFrame(dolu);
+          setTimeout(dolu, 250);
+        }
       },
       /* Zpráva odešla z bubliny (composer.js). Ve čtení je vidět hned, ještě
          než ji Claude Code zapíše — a pod ní, jestli už ji Claude vidí.

@@ -977,6 +977,7 @@ function applyProstor(keepTab) {
   if (!STATE || !STATE.config) return;
   const f = prostorFirma();
   document.documentElement.dataset.prostor = f ? 'firma' : '';
+  renderGreeting();
   renderProstorBtn();
   renderNewTabButtons();
   const nav = $('nav-projekty');
@@ -1560,7 +1561,7 @@ function showFirmaCard(p, total) {
 let CHATS = [];
 let chatsTimer = null;
 let chatsOtisk = '';       // otisk seznamu, který okno už má (server pak pošle jen „beze změny")
-const CHATS_PAGE = 60;
+const CHATS_PAGE = 10;
 let chatsShown = CHATS_PAGE;
 
 const foldText = (s) => String(s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
@@ -1974,16 +1975,31 @@ function renderChats() {
   for (const c of pripnuty) box.appendChild(buildItem(c));
   const ostatni = pripnuty.length ? list.filter((c) => !(c.id && jePripnuty(c.id))) : list;
   for (const c of ostatni.slice(0, chatsShown)) box.appendChild(buildItem(c));
-  if (ostatni.length > chatsShown) {
-    const zbyva = ostatni.length - chatsShown;
-    const more = document.createElement('button');
-    more.type = 'button';
-    more.className = 'chats-more keep-drawer';
-    more.textContent = zbyva > CHATS_PAGE ? `Zobrazit starší (dalších ${CHATS_PAGE} z ${zbyva})` : `Zobrazit starší (${zbyva})`;
-    more.onclick = (ev) => { ev.stopPropagation(); chatsShown += CHATS_PAGE; renderChats(); };
-    box.appendChild(more);
-  }
   toggle();
+  chatsDoplnuj(ostatni, buildItem, box);
+}
+
+/* Seznam se skládá po deseti: napřed deset nejnovějších, zbytek se dokresluje
+   na pozadí po deseti, dokud nejsou vidět všechny. Dokresluje se jen na konec
+   (bez překreslení celého seznamu) a nikdy pod prstem, ve skrytém okně ani při
+   psaní — ať to nebere paměť ani procesor. */
+let chatsCasovac = 0;
+function chatsDoplnuj(ostatni, buildItem, box) {
+  clearTimeout(chatsCasovac);
+  if (ostatni.length <= chatsShown) return;
+  const krok = () => {
+    if (box !== $('chats') || !box.isConnected) return;
+    if (document.hidden || (chatsTouch && Date.now() - chatsTouch < 10000)) {
+      chatsCasovac = setTimeout(krok, 600);
+      return;
+    }
+    const konec = box.querySelector('.chats-toggle');       // nové řádky před „Zobrazit celou historii"
+    const dalsi = ostatni.slice(chatsShown, chatsShown + CHATS_PAGE);
+    for (const c of dalsi) box.insertBefore(buildItem(c), konec);
+    chatsShown += dalsi.length;
+    if (chatsShown < ostatni.length) chatsCasovac = setTimeout(krok, 150);
+  };
+  chatsCasovac = setTimeout(krok, 150);
 }
 
 /* Zavřít šuplík s panelem (telefon). Ne jen sundat třídu: mobile.js drží i
@@ -3412,7 +3428,15 @@ function renderGreeting() {
   const pozdrav = {rano: 'Dobré ráno', den: 'Dobrý den',
                    vecer: 'Dobrý večer', noc: 'Dobrou noc'}[part];
   const who = greetName();
-  $('welcome-greet').textContent = pozdrav + (who ? ', ' + who : '') + '.';
+  const g = $('welcome-greet');
+  g.textContent = '';
+  const ikona = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  ikona.setAttribute('class', 'ico greet-ico');
+  ikona.setAttribute('aria-hidden', 'true');
+  ikona.innerHTML = '<use href="#i-aladin"/>';
+  const text = document.createElement('span');
+  text.textContent = pozdrav + (who ? ', ' + who : '') + '.';
+  g.append(ikona, text);
   if (part === greetPart) return;
   greetPart = part;
   const scene = $('welcome-scene');

@@ -5377,3 +5377,10 @@ body.vybira-chaty #open-section { display: none; }
 
 /* Barevné emoji v poznámkách a čtení (vault.js, emoji()). */
 .emo { font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", "Twemoji Mozilla", sans-serif; font-style: normal; }
+
+/* Pozdrav na úvodu: ikona Aladina místo hvězdičky, v barvě prostředí — počítač jantarově,
+   server modře (--accent podle data-place), firemní prostor fialově. */
+html .welcome-greet::before { content: none !important; }
+.welcome-greet { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.welcome-greet .greet-ico { flex: none; width: 1.15em; height: 1.15em; color: var(--accent); fill: currentColor; }
+html[data-prostor="firma"] .welcome-greet .greet-ico { color: var(--firma); }

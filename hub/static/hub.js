@@ -1868,7 +1868,8 @@ function renderChats() {
     : scope;
   // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
   // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
-  const list = list0.slice().sort((a, b) => b.updated - a.updated);
+  const extra = relaceRadky().filter((r) => !words.length || words.every((w) => foldText(r.text).includes(w)));
+  const list = list0.concat(extra).sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
   // Otevřený chat je v seznamu chatů (zelená tečka) — v panelu Otevřené zůstanou jen taby bez řádku v seznamu.
   for (const t of TABS) {
@@ -1902,6 +1903,7 @@ function renderChats() {
     return;
   }
   const buildItem = (c) => {
+    if (c.build) return c.build();      // sdílený / uložený chat (relaceRadky)
     const item = chatRadek({
       druh: druhChatu(c), titulek: c.title, cas: c.updated,
       nahled: chatNahled(c), stav: chatStav(c), stitek: komuSdilim(c),
@@ -1968,9 +1970,9 @@ function renderChats() {
     return item;
   };
   // Připnuté chaty nahoře (bez hledání; při hledání se prochází všechno).
-  const pripnuty = words.length ? [] : list.filter((c) => jePripnuty(c.id));
+  const pripnuty = words.length ? [] : list.filter((c) => c.id && jePripnuty(c.id));
   for (const c of pripnuty) box.appendChild(buildItem(c));
-  const ostatni = pripnuty.length ? list.filter((c) => !jePripnuty(c.id)) : list;
+  const ostatni = pripnuty.length ? list.filter((c) => !(c.id && jePripnuty(c.id))) : list;
   for (const c of ostatni.slice(0, chatsShown)) box.appendChild(buildItem(c));
   if (ostatni.length > chatsShown) {
     const zbyva = ostatni.length - chatsShown;
@@ -2563,40 +2565,41 @@ async function zrusitSdileni(rel) {
 
 /* Sdílené chaty v panelu vlevo: totéž co taby nahoře, jen se z nich dá vrátit
    chat, který sis zavřel. Klepnutí otevře (nebo přepne na) tab. */
+/* Sdílené a uložené chaty jsou v seznamu Chaty mezi ostatními, podle času
+   (renderChats). Samostatná sekce v panelu už není. */
+function relaceRadky() {
+  if (!onServer()) return [];
+  const out = [];
+  // Uložené a podkategorii sdílené chaty jen v prostoru své firmy.
+  for (const u of (RELACE.ulozene || []).filter((u) => !u.firma || u.firma === prostor())) {
+    out.push({updated: u.vytvoreno, text: u.titulek, build: () => {
+      const row = chatRadek({druh: 'firma', titulek: u.titulek, cas: u.vytvoreno, bezHvezdy: true,
+        nahled: 'Uloženo v ' + u.skupina + ' · ' + (u.moje ? 'ty' : u.autor) + ' · klepni a pokračuj u sebe'});
+      row.title = 'Zkopíruje chat do tvého prostoru a otevře ho — Claude v něm naváže, kde skončil.';
+      row.onclick = () => { pokracovatUlozeny(u); closeDrawer(); };
+      return row;
+    }});
+  }
+  for (const s of RELACE.semnou.filter(sdilenyVProstoru)) {
+    out.push({updated: s.vytvoreno, text: s.titulek + ' ' + s.majitel, build: () => {
+      const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: s.vytvoreno, bezHvezdy: true,
+        stitek: 'od ' + s.majitel,
+        nahled: (s.role === 'pise' ? 'smíš psát' : 'jen čtení') +
+          (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '')});
+      row.onclick = () => { otevriSdilenyTab(s, true); closeDrawer(); };
+      return row;
+    }});
+  }
+  return out;
+}
+
 function renderRelace() {
-  const box = $('relace-section');
   syncSdileneTaby();
   paintSdileni();
-  if (!box) return;
-  const list = $('relace-list');
-  list.textContent = '';
-  // Uložené a podkategorii sdílené chaty jen v prostoru své firmy.
-  const ulozene = (RELACE.ulozene || []).filter((u) => !u.firma || u.firma === prostor());
-  const semnou = RELACE.semnou.filter(sdilenyVProstoru);
-  box.hidden = !onServer() || (!semnou.length && !ulozene.length);
-  for (const u of ulozene) {
-    const row = chatRadek({druh: 'firma', titulek: u.titulek, cas: u.vytvoreno, bezHvezdy: true,
-      nahled: 'Uloženo v ' + u.skupina + ' · ' + (u.moje ? 'ty' : u.autor) + ' · klepni a pokračuj u sebe'});
-    row.classList.add('relace-row');
-    row.title = 'Zkopíruje chat do tvého prostoru a otevře ho — Claude v něm naváže, kde skončil.';
-    row.onclick = () => {
-      pokracovatUlozeny(u);
-      if (window.HubMobile) HubMobile.closeDrawer();
-    };
-    list.appendChild(row);
-  }
-  for (const s of semnou) {
-    const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: s.vytvoreno, bezHvezdy: true,
-      stitek: 'od ' + s.majitel,
-      nahled: (s.role === 'pise' ? 'smíš psát' : 'jen čtení') +
-        (s.diva.length ? ' · dívá se ' + s.diva.join(', ') : '')});
-    row.classList.add('relace-row');
-    row.onclick = () => {
-      otevriSdilenyTab(s, true);
-      if (window.HubMobile) HubMobile.closeDrawer();
-    };
-    list.appendChild(row);
-  }
+  const box = $('relace-section');
+  if (box) box.hidden = true;
+  chatsSig = '';
+  renderChatsSoon();
 }
 
 /* ── Sdílené chaty jako taby ────────────────────────────────────────────────

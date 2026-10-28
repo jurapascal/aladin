@@ -1142,7 +1142,7 @@ class Handler(BaseHTTPRequestHandler):
             if name == "zrcadlo-prevzit":
                 return self._json(zrcadlo.prevzit(payload.get("chat")))
             if name == "zrcadlo-na-server":
-                return self._json(zrcadlo.na_server(payload.get("chat")))
+                return self._json(zrcadlo.na_server(payload.get("chat"), bool(payload.get("vynutit"))))
             # zrcadlo-uvolnit: počítač si bere chat, který běží tady.
             if not core.on_gateway():
                 return self._json({"error": "Jen v prostoru na serveru."}, 400)

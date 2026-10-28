@@ -3091,7 +3091,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         if op == "zrcadla":
             return self._json({"ok": True, "chaty": zrcadlo.stav(user)})
         if op == "zrcadlo-na-server":
-            return self._json(zrcadlo.chci_na_server(user, args.get("chat")))
+            return self._json(zrcadlo.chci_na_server(user, args.get("chat"), bool(args.get("vynutit"))))
         return self._json(broker.call(user["id"], op, args, str(form.get("computer") or "")))
 
     def _mcp_shared(self, method, user):

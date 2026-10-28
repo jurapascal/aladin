@@ -295,7 +295,7 @@ def stav(user):
 
 
 # ── převzetí ─────────────────────────────────────────────────────────────────
-def chci_na_server(user, chat):
+def chci_na_server(user, chat, vynutit=False):
     """Telefon (prostor) chce chat, který drží počítač. → {"stav": "server"}
     hned (počítač je vypnutý, nebo chat nikdo nedrží), nebo {"stav": "ceka"}
     — počítač ho pustí, až Claude dopíše odpověď."""
@@ -306,9 +306,10 @@ def chci_na_server(user, chat):
         if not e or e.get("drzi") != "pc":
             return {"ok": True, "stav": "server"}
         ted = time.time()
-        if not _online(data, e.get("pocitac")) or \
+        if vynutit or not _online(data, e.get("pocitac")) or \
                 (e.get("uvolnit") and ted - float(e["uvolnit"]) > UVOLNENI_MAX_S):
-            # Vypnutý počítač, nebo ho nepouští moc dlouho: bere si ho server.
+            # Vypnutý počítač, nebo ho nepouští moc dlouho (nebo to člověk chce
+            # hned): bere si ho server.
             # Co počítač mezitím připíše, brána odmítne (drží server).
             e.update(drzi="server", uvolnit=0, prevzato=ted)
             _uloz(user, data)

@@ -5371,3 +5371,6 @@ body.vybira-chaty #open-section { display: none; }
 .mdv-popis { color: var(--dim); font-size: 12px; }
 .model-dotaz-vzdy { display: flex; align-items: center; gap: 8px; margin: 10px 4px 0; font-size: 13px; color: var(--fg); cursor: pointer; }
 .model-dotaz-pozn { margin: 2px 4px 0 30px; font-size: 11px; color: var(--dim); }
+
+/* Na telefonu panel „Otevřené" není: seznam by při každém otevření tabu poskakoval. */
+@media (max-width: 820px) { .open-section, .sidebar > .open-section { display: none !important; } }

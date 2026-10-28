@@ -1742,13 +1742,24 @@ async function prevzitZPocitace(c) {
   let r;
   try { r = await api('zrcadlo-na-server', {chat: c.id}); } catch (err) { toast(err.message); return; }
   if (r.stav !== 'server') {
-    toast(`Chat běží na počítači ${r.pocitac || ''}. Až tam Claude dopíše odpověď, chat se otevře tady.`);
+    // Chat je otevřený v Claudovi na počítači. Jen čekat nemusí stačit (Claude
+    // tam třeba stojí na dotazu), proto na výběr: počkat, nebo vzít hned.
+    const hned = await askConfirm({
+      title: 'Chat je otevřený na počítači',
+      html: `Chat teď drží počítač <b>${escapeHtml(r.pocitac || '')}</b>. Můžu počkat, až tam Claude dopíše odpověď a chat pustí, ` +
+            'nebo ho vzít hned — co se pak na počítači v tomhle chatu ještě napíše, se sem nepřenese.',
+      yes: 'Vzít hned', no: 'Počkat'});
+    if (hned) {
+      try { r = await api('zrcadlo-na-server', {chat: c.id, vynutit: true}); } catch (err) { toast(err.message); return; }
+    } else {
+      toast('Čekám, až počítač chat pustí. Pak se otevře tady.');
+    }
     const konec = Date.now() + 170000;
     while (r.stav !== 'server' && Date.now() < konec) {
       await new Promise((res) => setTimeout(res, 3000));
       try { r = await api('zrcadlo-na-server', {chat: c.id}); } catch (_) { /* zkusit znovu */ }
     }
-    if (r.stav !== 'server') { toast('Počítač chat zatím nepustil — zkus to za chvíli.'); return; }
+    if (r.stav !== 'server') { toast('Počítač chat zatím nepustil — zkus to za chvíli, nebo ho vezmi hned.'); return; }
   }
   await loadChats();
   resumeChat(CHATS.find((x) => x.id === c.id) || c, '', true);

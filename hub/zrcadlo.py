@@ -414,9 +414,9 @@ def stav_prostoru():
     return _PROSTOR["chaty"]
 
 
-def na_server(chat):
+def na_server(chat, vynutit=False):
     """Telefon chce chat, který drží počítač → {stav: "server"|"ceka", pocitac}."""
-    out = _brana("zrcadlo-na-server", {"chat": str(chat or "")})
+    out = _brana("zrcadlo-na-server", {"chat": str(chat or ""), "vynutit": bool(vynutit)})
     if not out or not out.get("ok"):
         raise ValueError((out or {}).get("error") or "Brána teď neodpovídá, zkus to za chvíli.")
     _PROSTOR["cas"] = 0.0

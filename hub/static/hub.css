@@ -2607,6 +2607,14 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   max-height: 46vh; overflow: auto;
   -webkit-user-select: text; user-select: text;
 }
+/* Úprava souboru: barevný diff (cteni.js) */
+.cteni-diff { padding: 6px 0; white-space: normal; }
+.cteni-diff-r { display: flex; gap: 8px; padding: 0 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cteni-diff-z { flex: none; width: 10px; opacity: .8; }
+.cteni-diff-r.del { background: color-mix(in srgb, var(--red) 16%, transparent); color: var(--fg); }
+.cteni-diff-r.add { background: color-mix(in srgb, #3fb950 16%, transparent); color: var(--fg); }
+.cteni-diff-r.del .cteni-diff-z { color: var(--red); }
+.cteni-diff-r.add .cteni-diff-z { color: #3fb950; }
 /* Claude pracuje: kouzelná lampa se potřásá, jako by ji někdo třel, a z hubičky
    vylétají písmenka a hvězdičky (cteni.js jisker). */
 .cteni-prace {

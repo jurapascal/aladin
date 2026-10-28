@@ -851,7 +851,17 @@
       head.appendChild(meta);
       const detail = el('pre', 'cteni-detail');
       detail.hidden = true;
-      detail.textContent = b.detail || '';
+      if ((b.name === 'Edit' || b.name === 'NotebookEdit') && b.detail) {
+        // Úprava souboru: odebrané řádky červeně, přidané zeleně (diff jako v editoru).
+        detail.classList.add('cteni-diff');
+        for (const r of b.detail.split('\n')) {
+          const t = r.startsWith('− ') ? 'del' : r.startsWith('+ ') ? 'add' : '';
+          const ln = el('div', 'cteni-diff-r' + (t ? ' ' + t : ''));
+          ln.append(el('span', 'cteni-diff-z', t === 'del' ? '−' : t === 'add' ? '+' : ''),
+            document.createTextNode(t ? r.slice(2) : r));
+          detail.appendChild(ln);
+        }
+      } else detail.textContent = b.detail || '';
       head.onclick = () => {
         detail.hidden = !detail.hidden;
         box.classList.toggle('open', !detail.hidden);

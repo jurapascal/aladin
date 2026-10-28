@@ -837,10 +837,67 @@ function openFirmaTab(slug, klient, podkat) {
 
 /* Nový chat v prostoru okna: ve firmě chat firmy, jinak osobní. */
 function newChatHere(agentId) {
-  if (prostorFirma()) return openFirmaTab();
+  if (prostorFirma()) return novyChatModel(openFirmaTab, 'claude');
   const a = agentId ? agentById(agentId) : (agentById(STATE.default_agent) || agentList(true)[0]);
   if (!a) return HubSettings.open({...hubIO(), state: STATE, tab: 'agenti'});
-  return openTab({kind: 'project', path: STATE.home, title: newTabLabel(), agent: a.id});
+  return novyChatModel((model) => openTab({kind: 'project', path: STATE.home, title: newTabLabel(), agent: a.id, model}), a.id);
+}
+
+/* Model nového chatu. Je-li v nastavení „vždy tenhle", tab se rovnou spustí
+   s ním. Jinak se chat otevře a hned nad ním se zeptá, kterým modelem —
+   s volbou „Vždy používat tento model" (změna v Nastavení → AI agenti).
+   Ptá se jen u Claudea; ostatní agenti mají modely po svém. */
+const MODELY_NOVEHO = [['auto', 'Automaticky podle úkolu', 'Lehké věci Haiku nebo Sonnet, těžké Opus.'],
+                       ['opus', 'Opus', 'Nejschopnější, na složitou práci.'],
+                       ['sonnet', 'Sonnet', 'Rychlý a chytrý na většinu věcí.'],
+                       ['haiku', 'Haiku', 'Nejrychlejší, na drobnosti.']];
+function novyChatModel(otevri, agentId) {
+  const pevny = agentId === 'claude' ? (STATE.config.novy_chat_model || '') : 'x';
+  if (pevny && pevny !== 'x') {
+    // Automatika v poli (composer.js) by pevnou volbu hned přebila.
+    try { localStorage.setItem('hub.auto:claude', pevny === 'auto' ? '1' : '0'); } catch (_) { /* soukromé okno */ }
+  }
+  const tab = otevri(pevny && pevny !== 'x' && pevny !== 'auto' ? pevny : '');
+  if (!pevny && tab) zeptejSeNaModel(tab);
+  return tab;
+}
+function zeptejSeNaModel(tab) {
+  const stary = $('model-dotaz');
+  if (stary) stary.remove();
+  const modal = document.createElement('div');
+  modal.className = 'modal model-dotaz';
+  modal.id = 'model-dotaz';
+  modal.innerHTML = '<div class="modal-box model-dotaz-box" role="dialog" aria-label="Model pro nový chat">' +
+    '<div class="model-dotaz-titulek">Kterým modelem?</div><div class="model-dotaz-volby"></div>' +
+    '<label class="model-dotaz-vzdy"><input type="checkbox"> Vždy používat tento model</label>' +
+    '<div class="model-dotaz-pozn">Změníš v Nastavení → AI agenti.</div></div>';
+  const volby = modal.querySelector('.model-dotaz-volby');
+  const vzdy = modal.querySelector('input');
+  const zavri = () => { modal.remove(); document.removeEventListener('keydown', naKlavesu, true); };
+  function naKlavesu(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zavri(); } }
+  for (const [key, nazev, popis] of MODELY_NOVEHO) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'model-dotaz-volba';
+    b.innerHTML = '<span class="mdv-nazev"></span><span class="mdv-popis"></span>';
+    b.querySelector('.mdv-nazev').textContent = nazev;
+    b.querySelector('.mdv-popis').textContent = popis;
+    b.onclick = () => {
+      zavri();
+      if (tab.composer && tab.composer.zvolModel) tab.composer.zvolModel(key);
+      if (vzdy.checked) {
+        STATE.config.novy_chat_model = key;
+        api('config', {novy_chat_model: key}).then(() => toast('Nové chaty pojedou na: ' + nazev + '.'))
+          .catch((err) => toast('Volba se neuložila: ' + err.message));
+      }
+      if (tab.composer && tab.composer.focus) tab.composer.focus();
+    };
+    volby.appendChild(b);
+  }
+  modal.addEventListener('mousedown', (ev) => { if (ev.target === modal) zavri(); });
+  document.addEventListener('keydown', naKlavesu, true);
+  document.body.appendChild(modal);
+  volby.firstChild.focus();
 }
 
 /* Cizí prostory, kam mě vlastník pustil (gateway/pristup.py — jménem, nebo
@@ -5776,13 +5833,13 @@ async function main() {
     const ready = agentList(true);
     const def = agentById(STATE.default_agent);
     // Ve firmě je nový chat chatem firmy (prostor okna, přepínač v hlavičce).
-    if (prostorFirma()) return openFirmaTab();
+    if (prostorFirma()) return newChatHere();
     if (ready.length > 1 && (ev.altKey || !def || !def.path)) return newAgentMenu(ev);
     const a = (def && def.path) ? def : ready[0];
     if (!a) return HubSettings.open({...hubIO(), state: STATE, tab: 'agenti'});
     // Tab se jmenuje po prostředí, ne po agentovi — v liště pak jde poznat,
     // co běží na počítači a co v prostoru na serveru.
-    openTab({kind: 'project', path: STATE.home, title: newTabLabel(), agent: a.id});
+    newChatHere(a.id);
   };
   $('btn-new-agent').oncontextmenu = (ev) => { ev.preventDefault(); newAgentMenu(ev); };
   $('btn-sdilet').onclick = () => { if (ACTIVE) sdiletChat(ACTIVE); };

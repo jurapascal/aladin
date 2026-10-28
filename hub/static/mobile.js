@@ -278,19 +278,14 @@
     syncTabs();
   }
 
-  /* Nový tab: stejná nabídka jako „+" v liště tabů (hub.js), jen zakotvená
-     u tlačítka, na které se kleplo. */
-  function newTab(anchor) {
-    const plus = $('btn-new-menu');
-    if (plus && plus.onclick) plus.onclick({currentTarget: anchor});
-  }
+  /* Nový chat rovnou v prostoru, ve kterém okno je (osobní / firma) — bez
+     nabídky. Terminál má vlastní položku v panelu (Nastavení → Panel vlevo). */
   const newTop = $('btn-new-top');
-  if (newTop) newTop.onclick = () => newTab(newTop);
+  if (newTop) newTop.onclick = () => $('btn-new-agent').click();
   const drawerNew = $('btn-drawer-new');
-  // Na počítači je „Nový chat" v panelu totéž co „+ Nový chat" v liště tabů.
   if (drawerNew) drawerNew.onclick = () => {
     closeDrawer();
-    if (matchMedia(NARROW).matches) { if (newTop) newTab(newTop); } else $('btn-new-agent').click();
+    $('btn-new-agent').click();
   };
   const drawerFirma = $('btn-drawer-firma');
   if (drawerFirma) drawerFirma.onclick = () => { closeDrawer(); if (window.hubFirmaChat) window.hubFirmaChat(); };

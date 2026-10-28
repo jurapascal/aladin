@@ -5359,3 +5359,15 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 body.vybira-chaty #open-section { display: none; }
 /* Motiv Claude řadí prvky panelu přes order: lišta výběru patří hned pod nadpis Chaty. */
 #chats-view > #chats-vyber { order: 3; }
+
+/* ── dotaz na model po otevření nového chatu (hub.js, zeptejSeNaModel) ───── */
+.model-dotaz-box { width: min(380px, 92vw); padding: 16px; gap: 4px; }
+.model-dotaz-titulek { color: var(--fg-bright); font-size: 16px; font-weight: 600; margin: 0 4px 8px; }
+.model-dotaz-volby { display: flex; flex-direction: column; gap: 2px; }
+.model-dotaz-volba { display: flex; flex-direction: column; gap: 1px; text-align: left; background: none; border: 1px solid transparent;
+  border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--fg); font: inherit; }
+.model-dotaz-volba:hover, .model-dotaz-volba:focus-visible { background: var(--card-hover); border-color: var(--border); outline: none; }
+.mdv-nazev { color: var(--fg-bright); font-size: 14px; }
+.mdv-popis { color: var(--dim); font-size: 12px; }
+.model-dotaz-vzdy { display: flex; align-items: center; gap: 8px; margin: 10px 4px 0; font-size: 13px; color: var(--fg); cursor: pointer; }
+.model-dotaz-pozn { margin: 2px 4px 0 30px; font-size: 11px; color: var(--dim); }

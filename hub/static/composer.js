@@ -1391,6 +1391,29 @@
        - Kdo si nabídku drží sám (Codex, Gemini), dostane svůj vlastní příkaz;
          vypisovat tady jména jejich modelů by znamenalo nabízet i ta, která
          u poskytovatele mezitím zmizela. */
+    /* Ruční volba modelu (nabídka u pole i dotaz po otevření nového chatu). */
+    function prepniModel(key) {
+      auto = false;
+      try { localStorage.setItem(AUTO_KEY, '0'); } catch (err) { /* soukromé okno */ }
+      stupen = -1;
+      if (AG.full) {
+        submit('/model ' + key);
+        model = key;
+        picked = true;
+        actual = '';           // do další odpovědi platí volba
+        if (io.model) io.model(key);
+        syncModel();
+      } else if (io.openWith) {
+        io.openWith(AG.id, key);
+      }
+      try { localStorage.setItem(MODEL_KEY, key); } catch (err) { /* soukromé okno */ }
+    }
+    function prepniNaAuto() {
+      auto = true;
+      try { localStorage.setItem(AUTO_KEY, '1'); } catch (err) { /* soukromé okno */ }
+      syncModel();
+    }
+
     function modelMenu(ev) {
       const [x, y] = anchor(ev);
       if (!AG.models.length) {
@@ -1402,32 +1425,13 @@
         icon: 'i-star',
         label: AG.full ? (key.startsWith('claude-') ? label : labelFor(label, key)) : label + '  (nový tab)',
         on: !auto && (key.startsWith('claude-') ? now === label : sameFamily(now, key)),
-        run: () => {
-          auto = false;
-          try { localStorage.setItem(AUTO_KEY, '0'); } catch (err) { /* soukromé okno */ }
-          stupen = -1;
-          if (AG.full) {
-            submit('/model ' + key);
-            model = key;
-            picked = true;
-            actual = '';           // do další odpovědi platí volba
-            if (io.model) io.model(key);
-            syncModel();
-          } else if (io.openWith) {
-            io.openWith(AG.id, key);
-          }
-          try { localStorage.setItem(MODEL_KEY, key); } catch (err) { /* soukromé okno */ }
-        },
+        run: () => prepniModel(key),
       }));
       const hlavni = AG.models.filter((m) => !m[2]);
       const starsi = AG.models.filter((m) => m[2] === 'old');
       const items = [];
       if (AG.full) {
-        items.push({icon: 'i-bolt', label: 'Automaticky podle úkolu', on: auto, run: () => {
-          auto = true;
-          try { localStorage.setItem(AUTO_KEY, '1'); } catch (err) { /* soukromé okno */ }
-          syncModel();
-        }});
+        items.push({icon: 'i-bolt', label: 'Automaticky podle úkolu', on: auto, run: prepniNaAuto});
       }
       items.push(...vyber(hlavni));
       if (starsi.length) {
@@ -2759,6 +2763,8 @@
       /* Model, se kterým se tab doopravdy spustil. Ollama si ho doplňuje sama
          (bez modelu není co pustit), a to se pozná až z odpovědi serveru —
          tou dobou už bublina dávno stojí. */
+      /* Dotaz na model po otevření nového chatu (hub.js, zeptejSeNaModel). */
+      zvolModel: (key) => { if (key === 'auto') prepniNaAuto(); else prepniModel(key); },
       setModel: (m) => {
         if (!m || m === model) return;
         model = m;

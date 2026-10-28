@@ -1014,10 +1014,21 @@
      jako MCP a mezitím je vidět, že se pracuje. */
   let agentsLast = null;
 
+  /* Model pro nový chat (hub.js, novyChatModel): zeptat se pokaždé, nebo vždy tenhle. */
+  function novyChatModel() {
+    const rows = el('div', 'set-rows');
+    const cfg = (state && state.config) || {};
+    rows.appendChild(radek('Model pro nový chat', 'Po otevření nového chatu se zeptá, kterým modelem — nebo rovnou použije zvolený.',
+      vyber([['', 'Zeptat se pokaždé'], ['auto', 'Automaticky podle úkolu'], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']],
+        cfg.novy_chat_model || '', (v) => save({novy_chat_model: v}))));
+    return rows;
+  }
+
   function agenti() {
     if (!advanced()) {
       const only = section('AI agenti',
         'Modely, které si Claude umí zavolat na pomoc. Vyplníš údaje a je napojeno.');
+      only.appendChild(novyChatModel());
       only.appendChild(gemini());
       only.appendChild(jev());
       return only;
@@ -1031,7 +1042,7 @@
     const btns = el('div', 'onb-btns');
     const check = el('button', 'btn ghost', 'Zkontrolovat znovu');
     btns.appendChild(check);
-    box.append(summary, list, ollama, btns);
+    box.append(novyChatModel(), summary, list, ollama, btns);
 
     function busy(text) {
       summary.textContent = '';

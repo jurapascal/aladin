@@ -1601,6 +1601,8 @@ class Handler(BaseHTTPRequestHandler):
                            "dev_mode": bool(core.CONFIG.get("dev_mode")),
                            # Co je v panelu vlevo (hub.js, syncPanelNav).
                            "panel": core.CONFIG.get("panel") or {},
+                           # Model pro nový chat: "" = zeptat se, jinak vždy tenhle (hub.js, novyChatModel).
+                           "novy_chat_model": core.CONFIG.get("novy_chat_model") or "",
                            # Kopie chatů na server (hub/zrcadlo.py), výchozí zapnuto.
                            "zrcadlo": core.CONFIG.get("zrcadlo", True) is not False,
                            "server_napojeni": core.CONFIG.get("server_napojeni", True) is not False,
@@ -2026,7 +2028,7 @@ class Handler(BaseHTTPRequestHandler):
                        "agents", "default_agent", "project_agents",
                        "remote_keep_running", "dev_mode", "memory_autosave",
                        "hlas_model", "theme", "prohlizec_okno", "na_pozadi", "bez_spanku", "tray",
-                       "auto_update", "verxee_debug_klic", "panel")
+                       "auto_update", "verxee_debug_klic", "panel", "novy_chat_model")
             updates = {k: v for k, v in payload.items() if k in allowed}
             if "panel" in updates:
                 # Položky panelu vlevo (Nastavení → Přizpůsobit → Panel vlevo).
@@ -2045,6 +2047,8 @@ class Handler(BaseHTTPRequestHandler):
                 if klic and not core.VERXEE_KLIC.fullmatch(klic):
                     return self._json({"error": "Klíč vypadá jako vxd_ a 24 znaků 0–9 a a–f."}, 400)
                 updates["verxee_debug_klic"] = klic
+            if "novy_chat_model" in updates and updates["novy_chat_model"] not in ("", "auto", "opus", "sonnet", "haiku", "fable"):
+                return self._json({"error": "Neznámý model pro nový chat."}, 400)
             if "theme" in updates and updates["theme"] not in ("", "dark", "light"):
                 return self._json({"error": "Neznámé téma."}, 400)
             if "hlas_model" in updates and updates["hlas_model"] not in ("turbo", "small"):

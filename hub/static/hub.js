@@ -1770,7 +1770,7 @@ async function prevzitZPocitace(c) {
    Kulatá ikonka v barvě druhu chatu (osobní modrá, firemní fialová, sdílený
    zelená), název a čas poslední zprávy, pod tím začátek poslední odpovědi.
    Stejný řádek mají i chaty, které mi někdo sdílí (renderRelace). */
-const DRUH_IKONA = {osobni: 'i-user', firma: 'i-firma', sdileny: 'i-users'};
+const DRUH_IKONA = {osobni: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal'};
 
 function druhChatu(c) {
   if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
@@ -1894,7 +1894,11 @@ function renderChats() {
     b.onclick = (ev) => { ev.stopPropagation(); setChatsVse(!vse); };
     box.appendChild(b);
   };
-  if (!list.length) {
+  // Otevřené taby, které nejsou chat v seznamu (terminál, nový chat bez první zprávy):
+  // řádek nahoře, ať stačí seznam Chaty a samostatné „Otevřené“ není potřeba.
+  const tabRadky = TABS.filter((t) => t.el && !t.el.hidden && !t.exited && t.el.dataset.vseznamu === '0' &&
+    (!words.length || words.every((w) => foldText(t.title).includes(w))));
+  if (!list.length && !tabRadky.length) {
     const note = document.createElement('div');
     note.className = 'empty';
     note.textContent = words.length ? 'Nic takového jsem nenašel.'
@@ -1970,6 +1974,21 @@ function renderChats() {
     };
     return item;
   };
+  for (const t of tabRadky) {
+    const shell = t.kind === 'shell';
+    const row = chatRadek({druh: shell ? 'terminal' : (prostorFirma() ? 'firma' : 'osobni'), titulek: t.title || (shell ? 'Terminál' : 'Nový chat'),
+      cas: 0, nahled: shell ? 'Příkazový řádek' : 'Nový chat — ještě bez zprávy', bezHvezdy: true});
+    row.querySelector('.chat-cas').textContent = '';
+    row.classList.add('tab-radek');
+    row.classList.toggle('aktivni', t === ACTIVE);
+    row.dataset.tab = t.id || '';
+    row.onclick = () => { activate(t); closeDrawer(); };
+    row.oncontextmenu = (ev) => {
+      ev.preventDefault();
+      showMenu(ev.clientX, ev.clientY, [{icon: 'i-close', label: 'Zavřít', run: () => closeTab(t)}]);
+    };
+    box.appendChild(row);
+  }
   // Připnuté chaty nahoře (bez hledání; při hledání se prochází všechno).
   const pripnuty = words.length ? [] : list.filter((c) => c.id && jePripnuty(c.id));
   for (const c of pripnuty) box.appendChild(buildItem(c));

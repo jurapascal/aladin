@@ -5384,3 +5384,9 @@ html .welcome-greet::before { content: none !important; }
 .welcome-greet { display: flex; align-items: center; justify-content: center; gap: 12px; }
 .welcome-greet .greet-ico { flex: none; width: 1.15em; height: 1.15em; color: var(--accent); fill: currentColor; }
 html[data-prostor="firma"] .welcome-greet .greet-ico { color: var(--firma); }
+
+/* Otevřené taby bez chatu (terminál) jsou řádky v seznamu Chaty; samostatná sekce Otevřené není. */
+.chat-wa.druh-terminal { --druh: #8b919c; }
+.chat-wa.druh-terminal .chat-av { color: #fff; background: #2b2f36; }
+html[data-theme="light"] .chat-wa.druh-terminal .chat-av { background: #3a3f47; }
+.open-section, .sidebar > .open-section { display: none !important; }

@@ -279,7 +279,7 @@
   }
 
   /* Nový chat rovnou v prostoru, ve kterém okno je (osobní / firma) — bez
-     nabídky. Terminál má vlastní položku v panelu (Nastavení → Panel vlevo). */
+     nabídky. Terminál má vlastní položku v panelu (Nastavení → Panel a lišta). */
   const newTop = $('btn-new-top');
   if (newTop) newTop.onclick = () => $('btn-new-agent').click();
   const drawerNew = $('btn-drawer-new');

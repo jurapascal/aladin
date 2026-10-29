@@ -2298,8 +2298,9 @@ function devMode() {
 }
 
 /* Co je v panelu vlevo pod Novým chatem (Nastavení → Přizpůsobit → Panel
-   vlevo). Obsidian a Projekty (ve firmě Klienti) si tam dá každý sám, jinak se
-   otevírají odtamtud; terminál je jen pro vývojářský režim. */
+   a lišta). Obsidian a Projekty (ve firmě Klienti) si tam dá každý sám, jinak se
+   otevírají odtamtud; terminál je jen pro vývojářský režim. „V panelu" a „Vedle
+   tabů" (newtab) jsou dvě nezávislé volby. */
 const PANEL_VYCHOZI = {projekty: false, obsidian: false, terminal: true};
 function panelUkazuje(co) {
   const p = (STATE && STATE.config && STATE.config.panel) || {};
@@ -2310,8 +2311,7 @@ function syncPanelNav() {
   const mem = STATE.memory || {};
   $('btn-brain').hidden = !mem.enabled || !panelUkazuje('obsidian');
   $('nav-projekty').hidden = !panelUkazuje('projekty');
-  const shell = (STATE.config.newtab || {}).shell !== false;
-  $('nav-terminal').hidden = !(shell && devMode() && panelUkazuje('terminal'));
+  $('nav-terminal').hidden = !(devMode() && panelUkazuje('terminal'));
 }
 
 /* Rychlé akce jsou slash příkazy — dávají smysl jen v tabu s agentem, který

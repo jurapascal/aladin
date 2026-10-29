@@ -27,7 +27,6 @@
     // `dev` = jen ve vývojářském režimu. Kdo hub používá na psaní s agentem,
     // neřeší složky s projekty, zálohu paměti ani tlačítka nových tabů.
     ['projekty',   'Projekty',  'i-folder',   () => projekty(), 'dev'],
-    ['taby',       'Taby',      'i-terminal', () => taby(), 'dev'],
     // Bez vývojářského režimu jen modely přes API (Jev) — CLI agenti ne.
     ['agenti',     'AI agenti', 'i-hub',      () => agenti()],
     ['pamet',      'Paměť',     'i-book',     () => pamet(), 'dev'],
@@ -35,8 +34,9 @@
     // Firmy, lidé a přístupy ke klientům (gateway/firmy.py) — jen na bráně.
     ['firmy',      'Firmy',     'i-folder',   () => firmy(), 'server'],
     ['hlas',       'Hlas',      'i-mic',      () => hlas()],
-    // Co je v panelu vlevo: Obsidian, Projekty (Klienti), terminál.
-    ['panel',      'Panel vlevo', 'i-menu',   () => panelVlevo()],
+    // Co je v panelu vlevo a vedle tabů: Nový chat, Obsidian, Projekty (Klienti),
+    // terminál — jedna sekce, každá věc jen jednou (dřív zvlášť i záložka Taby).
+    ['panel',      'Panel a lišta', 'i-menu', () => panelVlevo()],
     // Všechno, čím se Claude rozšiřuje — služby, pluginy, skilly, MCP, pluginy appky.
     ['rozsireni',  'Napojení a pluginy', 'i-hub', () => rozsireni()],
     // Místo na disku serveru a oznámení lidem (gateway/uloziste.py, oznameni.py; uloziste.js).
@@ -49,7 +49,7 @@
 
   let navHledat = '';
   // Skupiny v panelu vlevo (pořadí sekcí zůstává, mění se jen nadpisy).
-  const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', taby: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
+  const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
                    ucet: 'Předvolby', firmy: 'Předvolby', hlas: 'Předvolby',
                    panel: 'Přizpůsobit', rozsireni: 'Přizpůsobit', uloziste: 'Platforma', oznameni: 'Platforma',
                    aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
@@ -86,6 +86,7 @@
     io = opts;
     state = opts.state;
     if (opts.tab === 'napojeni' || opts.tab === 'pluginy') opts.tab = 'rozsireni';
+    if (opts.tab === 'taby') opts.tab = 'panel';          // Tlačítka nových tabů jsou v Panelu a liště
     if (opts.tab && SECTIONS.some(([id]) => id === opts.tab)) active = opts.tab;
     root = el('div', 'onb set-modal');
     root.innerHTML = `
@@ -526,31 +527,55 @@
     return box;
   }
 
-  /* Panel vlevo: co je pod Novým chatem. Obsidian a Projekty (ve firmě
-     Klienti) si tam dá každý sám a odsud se otevřou i bez toho; terminál je
-     jen ve vývojářském režimu. Výchozí hodnoty drží hub.js (PANEL_VYCHOZI). */
+  /* Panel a lišta: co je v panelu vlevo pod Novým chatem a co vedle tabů —
+     jedna sekce, každá věc jeden řádek. Obsidian a Projekty (ve firmě Klienti)
+     si do panelu dá každý sám a odsud se otevřou i bez toho; terminál a
+     tlačítka vedle tabů jsou jen ve vývojářském režimu. Výchozí hodnoty panelu
+     drží hub.js (PANEL_VYCHOZI), tlačítek `newtab` (dřív záložka Taby). */
   function panelVlevo() {
-    const box = section('Panel vlevo',
-      'Co vidíš v panelu pod Novým chatem. Co tam není, otevřeš tady.');
+    const box = section('Panel a lišta',
+      'Co vidíš v panelu vlevo a vedle tabů. Co tam není, otevřeš tady.');
     const rows = el('div', 'set-rows');
     const cfg = (state && state.config) || {};
     const ulozeno = cfg.panel || {};
+    const newtab = cfg.newtab || {};
     const vychozi = {projekty: false, obsidian: false, terminal: true};
     const nav = (id) => document.getElementById(id);
-    const polozka = (klic, nazev, popis, otevrit) => {
-      const ovl = el('div', 'set-panel-ovl');
-      const b = el('button', 'btn ghost', 'Otevřít');
-      b.type = 'button';
-      b.onclick = () => { close(); otevrit(); };
+    const zaskrt = (text, zapnuto, zmena) => {
       const lbl = el('label', 'set-panel-v');
       const cb = el('input');
       cb.type = 'checkbox';
-      cb.checked = typeof ulozeno[klic] === 'boolean' ? ulozeno[klic] : vychozi[klic];
-      cb.onchange = () => save({panel: {[klic]: cb.checked}});
-      lbl.append(cb, el('span', null, 'V panelu'));
-      ovl.append(b, lbl);
+      cb.checked = zapnuto;
+      cb.onchange = () => zmena(cb.checked);
+      lbl.append(cb, el('span', null, text));
+      return lbl;
+    };
+    // Tlačítko vedle tabů (newtab). `claude` je jméno klíče z verzí do 1.6 —
+    // ukládá se do obou, ať se starý a nový konfig nerozejdou.
+    const vedleTabu = (klic) => zaskrt('Vedle tabů',
+      klic === 'agent' ? (newtab.agent !== false && newtab.claude !== false) : newtab[klic] !== false,
+      (on) => save({newtab: klic === 'agent' ? {...newtab, agent: on, claude: on} : {...newtab, [klic]: on}}));
+    const polozka = (klic, nazev, popis, otevrit, tab) => {
+      const ovl = el('div', 'set-panel-ovl');
+      if (otevrit) {
+        const b = el('button', 'btn ghost', 'Otevřít');
+        b.type = 'button';
+        b.onclick = () => { close(); otevrit(); };
+        ovl.appendChild(b);
+      }
+      if (klic) {
+        ovl.appendChild(zaskrt('V panelu',
+          typeof ulozeno[klic] === 'boolean' ? ulozeno[klic] : vychozi[klic],
+          (on) => save({panel: {[klic]: on}})));
+      }
+      if (tab) ovl.appendChild(vedleTabu(tab));
       rows.appendChild(radek(nazev, popis, ovl));
     };
+    if (advanced()) {
+      const def = (state.agents || []).find((a) => a.id === state.default_agent);
+      polozka('', 'Nový chat', 'Tlačítko „+ Nový chat“ vedle tabů' + (def ? ' (' + def.label + ')' : '') +
+        '. V panelu je vždycky.', null, 'agent');
+    }
     // Ve firmě se Projekty jmenují Klienti (hub.js, applyProstor).
     const projekty = ((nav('nav-projekty') || {}).textContent || '').trim() || 'Projekty';
     polozka('projekty', projekty, projekty === 'Klienti'
@@ -560,9 +585,9 @@
       polozka('obsidian', 'Obsidian', 'Poznámky — osobní, firemní a sdílené.',
         () => nav('btn-brain').click());
     }
-    if (advanced() && (cfg.newtab || {}).shell !== false) {
+    if (advanced()) {
       polozka('terminal', 'Terminál', 'Holý terminál bez Clauda. Jen ve vývojářském režimu.',
-        () => nav('nav-terminal').click());
+        () => nav('nav-terminal').click(), 'shell');
     }
     box.appendChild(rows);
     return box;
@@ -806,34 +831,6 @@
       if (picked) await save({project_dirs: [...new Set([...dirs, picked])]});
     };
     box.appendChild(add);
-    return box;
-  }
-
-  function taby() {
-    const box = section('Tlačítka nových tabů',
-      'Co má být vedle tabů. Terminál se ukazuje jen ve vývojářském režimu — ' +
-      'kdo jede jen v agentovi, nemá vedle tabů tlačítko, které nikdy ' +
-      'nezmáčkne.');
-    const cfg = state.config.newtab || {};
-    const def = (state.agents || []).find((a) => a.id === state.default_agent);
-    const list = el('div', 'onb-list');
-    for (const [key, label] of [['agent', 'Otevřít ' + (def ? def.label : 'agenta')],
-                                ['shell', 'Otevřít terminál']]) {
-      const row = el('label', 'onb-row');
-      const cb = el('input');
-      cb.type = 'checkbox';
-      // `claude` je jméno klíče z verzí do 1.6 — starý konfig se tím pádem
-      // nemusí přepisovat a zaškrtnutí se ukládá do obou, ať se nerozejdou.
-      cb.checked = key === 'agent'
-        ? (cfg.agent !== false && cfg.claude !== false) : cfg[key] !== false;
-      cb.onchange = () => save({newtab: key === 'agent'
-        ? {...cfg, agent: cb.checked, claude: cb.checked}
-        : {...cfg, [key]: cb.checked}});
-      row.appendChild(cb);
-      row.appendChild(el('span', null, label));
-      list.appendChild(row);
-    }
-    box.appendChild(list);
     return box;
   }
 

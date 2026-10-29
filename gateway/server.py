@@ -257,6 +257,10 @@ class HubProc:
         env.pop("GOOGLE_OAUTH_CLIENT_ID", None)
         env.pop("GOOGLE_OAUTH_CLIENT_SECRET", None)
         env.update(workspace.session_env(self.user))
+        # Google Disk / OneDrive do ~/Cloud dřív, než sandbox naběhne. Chyba
+        # cloudu start nezastaví (cloud.pred_startem ji jen zapíše do logu).
+        from . import cloud
+        cloud.pred_startem(self.user, home)
         self.auth_mark = workspace.auth_mark(self.user)
         # Docker prostředí brány do kontejneru nepouští (HUB_WEB tam nedojde) —
         # web pak doručí HubManager za běhu, jako po změně.
@@ -1179,6 +1183,9 @@ class Handler(BaseHTTPRequestHandler):
             # Místo na disku po lidech a zvonek s oznámeními (uloziste.py, oznameni.py).
             if route == "/gw/uloziste":
                 return self._gw_uloziste(method, user)
+            # Google Disk / OneDrive jako složka v prostoru (cloud.py).
+            if route == "/gw/cloud":
+                return self._gw_cloud(method, user)
             if route in ("/gw/oznameni", "/gw/oznameni/admin"):
                 return self._gw_oznameni(route, method, user)
             if route == "/gw/mcp-sdilene":
@@ -2577,6 +2584,42 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                 return self._json({"ok": True, "bezi": uloziste.bezi()})
         except (TypeError, ValueError) as exc:
             return self._json({"error": str(exc)}, 400)
+        return self._json({"error": "Neznámá akce."}, 400)
+
+    def _gw_cloud(self, method, user):
+        """Nastavení → Úložiště → Cloud: připojení Google Disku / OneDrivu,
+        přesun do cloudu a zpátky, automatika. Každý jen svůj prostor.
+        Přesun trvá i hodiny, proto běží v samostatném procesu (cloud.spustit)."""
+        from . import cloud
+        if method == "GET":
+            return self._json(cloud.prehled(user))
+        if method != "POST":
+            return self._json({"error": "Jen GET nebo POST."}, 405)
+        form = self._read_form()
+        if not self._account_post_ok():
+            return self._json({"error": "Cloud jde nastavit jen v hubu."}, 403)
+        akce = str(form.get("akce") or "")
+        try:
+            if akce == "google":
+                return self._json({"ok": True, "ucet": cloud.pripojit_google(user, str(form.get("ucet") or ""))})
+            if akce == "onedrive":
+                return self._json({"ok": True, **cloud.onedrive_start(user)})
+            if akce == "onedrive-hotovo":
+                return self._json({"ok": True, **cloud.onedrive_hotovo(user)})
+            if akce == "odpojit":
+                cloud.odpojit(user, str(form.get("sluzba") or ""))
+                return self._json({"ok": True})
+            if akce in ("presun", "vratit"):
+                if not cloud.spustit(user, akce, str(form.get("cesta") or ""), str(form.get("sluzba") or "")):
+                    return self._json({"error": "Už se něco přesouvá — počkej, až to doběhne."}, 409)
+                return self._json({"ok": True, "beh": cloud.beh(user)})
+            if akce == "auto":
+                cloud.nastavit_auto(user, bool(form.get("zapnout")))
+                return self._json({"ok": True})
+        except (TypeError, ValueError) as exc:
+            return self._json({"error": str(exc)}, 400)
+        except (RuntimeError, OSError) as exc:
+            return self._json({"error": str(exc)}, 502)
         return self._json({"error": "Neznámá akce."}, 400)
 
     def _gw_oznameni(self, route, method, user):

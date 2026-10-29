@@ -815,6 +815,13 @@ def noc(users, log=print):
         zapsat_stav(uklid=uklid.shrnuti(u))
     except Exception as exc:                      # úklid nesmí zastavit rozbor
         log(f"úklid: {exc}")
+    # Velké staré soubory do cloudu dřív, než se počítá — ať rozbor i oznámení
+    # vidí, co po přesunu zbylo (cloud.py, jen účty se zapnutou automatikou).
+    try:
+        from . import cloud
+        cloud.automaticky(users, log=log)
+    except Exception as exc:                      # cloud nesmí zastavit rozbor
+        log(f"cloud: {exc}")
     skenuj(users, log=log)
     poslano = upozornit(users, log=log)
     zapsat_stav(noc={"den": time.strftime("%Y-%m-%d"), "cas": int(time.time()),

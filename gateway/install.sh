@@ -121,8 +121,9 @@ install_packages() {
     quiet apt-get update -q
     quiet apt-get install -y -q python3 git curl ca-certificates gnupg sudo \
         bubblewrap dbus-user-session nginx certbot python3-certbot-nginx \
-        fail2ban ufw unattended-upgrades acl
-    ok "python3, git, bubblewrap, dbus-user-session, nginx, certbot, fail2ban, ufw, acl"
+        fail2ban ufw unattended-upgrades acl rclone fuse3
+    # rclone + fuse3: Google Disk / OneDrive jako složka ~/Cloud v prostoru (gateway/cloud.py).
+    ok "python3, git, bubblewrap, dbus-user-session, nginx, certbot, fail2ban, ufw, acl, rclone"
 }
 
 install_node_claude() {

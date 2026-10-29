@@ -757,6 +757,30 @@ admin `/gw/oznameni/admin`. Další části brány pošlou oznámení přes
 Limit (`HUB_GW_KVOTA_GB`, 3) nic nevypíná — jeden uživatel systému pro všechny
 prostory tvrdou kvótu na disk neumí.
 
+## Cloud prostoru (Google Disk, OneDrive)
+
+`gateway/cloud.py`. Každý si v Nastavení → Úložiště → Cloud připojí svůj
+Google Disk nebo OneDrive (nebo oba) a v prostoru se objeví jako složka
+`~/Cloud/Google Disk`, `~/Cloud/OneDrive`. Claude v ní čte a hledá (blok
+`hub:cloud` v `~/.claude/CLAUDE.md` mu řekne, kde je) a velké věci jdou z disku
+brány pryč: **Do cloudu** u složky ji pošle do `<cloud>/Aladin/<cesta>` a na
+místě nechá odkaz, **Vrátit** ji přinese zpátky. Po prvním ručním přesunu jde
+zapnout **automatika**: v noci (před rozborem v `uloziste.noc`) se přesunou
+soubory nad `HUB_GW_CLOUD_AUTO_MB` (50) MB, na které `HUB_GW_CLOUD_AUTO_DNI`
+(30) dní nikdo nesáhl, nejvýš `HUB_GW_CLOUD_AUTO_STROP_GB` (20) GB za noc.
+Skryté složky, Obsidian, gitové repozitáře a `node_modules`/`.venv` zůstávají.
+
+- Připojuje **rclone** (`apt install rclone fuse3`, dělá install.sh) jako
+  transientní služba uživatele brány `claude-hub-cloud-u<id>-<služba>`, zvenku
+  do domova — v sandboxu to nejde, a sandbox připojení vidí (i za běhu).
+- **Google** se vezme z napojení Google, které člověk už má (rozsah `drive`).
+- **OneDrive** přihlášením kódem zařízení přes aplikaci správce v Microsoft
+  Entra: `HUB_GW_ONEDRIVE_CLIENT_ID` v prostředí brány (veřejný klient, více
+  organizací + osobní účty, oprávnění `Files.ReadWrite.All`, `offline_access`,
+  `User.Read`). Bez něj je OneDrive v nabídce zašedlý.
+- Tokeny (rclone.conf), stav a mezipaměť (strop `HUB_GW_CLOUD_CACHE_MAX`, 512M)
+  leží mimo domov v `<brána>/cloud/u<id>/`. Testy: `python3 tools/test_cloud.py`.
+
 ## Izolace není volitelná
 
 Claude Code na bráně čte soubory a spouští příkazy. U jednoho člověka na

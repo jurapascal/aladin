@@ -167,8 +167,8 @@
     return box;
   }
 
-  function slozky(list, max) {
-    const box = el('div', 'ul-slozky');
+  function slozky(list, max, naCloud) {
+    const box = el('div', 'ul-slozky' + (naCloud ? ' s-cloudem' : ''));
     const top = (list || []).slice(0, max || 8);
     const nej = Math.max(1, ...top.map((s) => s.bajtu));
     const b = barvy();
@@ -184,6 +184,16 @@
       track.appendChild(fill);
       r.appendChild(track);
       r.appendChild(el('span', 'ul-slozka-v', velikost(s.bajtu)));
+      if (naCloud) {
+        // Skryté složky, paměť a cloud sám se nepřesouvají (gateway/cloud.py).
+        const smi = !/^\.|\/\.|^(Cloud|Obsidian)(\/|$)/.test(s.cesta);
+        const b = el('button', 'btn ghost ul-do-cloudu', 'Do cloudu');
+        b.disabled = !smi;
+        b.title = smi ? 'Přesunout ~/' + s.cesta + ' do cloudu, na místě zůstane odkaz'
+                      : 'Nastavení, paměť a cloud sám se nepřesouvají';
+        b.onclick = () => naCloud(s);
+        r.appendChild(b);
+      }
       box.appendChild(r);
     }
     return box;
@@ -207,9 +217,13 @@
     const body = el('div');
     box.appendChild(body);
     let cekam = null;
+    let cloud = null;                   // poslední /gw/cloud (sekce Cloud a tlačítka u složek)
+    let cloudCekam = null;
+    let odKod = null;                   // rozběhnuté přihlášení k OneDrivu {kod, url, konec}
 
     async function nacti() {
       let d;
+      try { cloud = await gw('/gw/cloud'); } catch (e) { cloud = {chyba: e.message}; }
       try { d = await gw('/gw/uloziste'); } catch (e) {
         body.textContent = '';
         body.appendChild(el('div', 'set-note', e.message));
@@ -242,6 +256,7 @@
       pre.onclick = () => spust({akce: 'prepocitat'});
       radek.appendChild(pre);
       body.appendChild(radek);
+      body.appendChild(kresliCloud());
 
       if (!ja.zmereno) {
         body.appendChild(el('div', 'set-note', bezi ? 'Tvůj prostor se právě počítá.' :
@@ -259,11 +274,156 @@
         if ((ja.slozky || []).length) {
           const s = el('div', 'ul-pod');
           s.appendChild(el('div', 'ul-nadpis', 'Největší složky'));
-          s.appendChild(slozky(ja.slozky, 8));
+          s.appendChild(slozky(ja.slozky, 8, cloudPripojen() ? doCloudu : null));
           body.appendChild(s);
         }
       }
       if (d.admin) kresliServer(body, d, spust);
+    }
+
+    /* ── Cloud: Google Disk / OneDrive jako složka v prostoru (gateway/cloud.py) ── */
+    const cloudPripojen = () => !!(cloud && (cloud.sluzby || []).some((x) => x.pripojeno));
+
+    async function cloudAkce(payload, hlaska) {
+      try {
+        const r = await gw('/gw/cloud', payload);
+        if (hlaska) io.toast(typeof hlaska === 'function' ? hlaska(r) : hlaska);
+        return r;
+      } catch (e) { io.toast(e.message); return null; }
+      finally { nacti(); }
+    }
+
+    async function doCloudu(s) {
+      const kam = (cloud.sluzby || []).filter((x) => x.pripojeno);
+      const nazev = kam.map((x) => x.nazev).join(' / ');
+      const dlg = global.HubDialog;
+      const text = 'Přesunout ~/' + s.cesta + ' (' + velikost(s.bajtu) + ') do cloudu (' + nazev + ')? ' +
+        'Na místě zůstane odkaz, takže cesty dál fungují — jen otevírání je pomalejší. Vrátit jde kdykoli.';
+      if (!(dlg ? await dlg.confirm(text, {title: 'Přesunout do cloudu', ok: 'Přesunout'}) : confirm(text))) return;
+      cloudAkce({akce: 'presun', cesta: s.cesta, sluzba: kam[0].id}, 'Přesouvám — velká složka může trvat i hodinu.');
+    }
+
+    function kresliCloud() {
+      const s = el('div', 'ul-pod ul-cloud');
+      s.appendChild(el('div', 'ul-nadpis', 'Cloud'));
+      if (!cloud || cloud.chyba) {
+        s.appendChild(el('div', 'set-note', cloud && cloud.chyba ? cloud.chyba : 'Načítám…'));
+        return s;
+      }
+      s.appendChild(el('div', 'set-note',
+        'Připoj si svůj Google Disk nebo OneDrive — v prostoru se objeví jako složka ~/Cloud, ' +
+        'Claude v něm čte a hledá a velké věci se tam dají přesunout z disku serveru.'));
+      if (!cloud.rclone) s.appendChild(el('div', 'set-note', 'Na serveru zatím chybí rclone — řekni správci.'));
+      for (const x of cloud.sluzby || []) {
+        const r = el('div', 'ul-cloud-radek');
+        r.appendChild(el('span', 'ul-cloud-nazev', x.nazev));
+        r.appendChild(el('span', 'set-dim ul-cloud-stav', x.pripojeno
+          ? (x.ucet ? x.ucet + ' · ' : '') + (x.bezi ? x.slozka : 'připojí se se startem prostoru')
+          : !x.lze ? 'zatím nenastavil správce' : 'nepřipojeno'));
+        if (x.pripojeno) {
+          const b = el('button', 'btn ghost', 'Odpojit');
+          b.onclick = async () => {
+            const text = 'Odpojit ' + x.nazev + '? Složka ' + x.slozka + ' zmizí. Co je přesunuté do cloudu, tam zůstane, ' +
+              'jen odkazy na to v prostoru přestanou fungovat, dokud ho zase nepřipojíš.';
+            const dlg = global.HubDialog;
+            if (!(dlg ? await dlg.confirm(text, {title: 'Odpojit cloud', ok: 'Odpojit'}) : confirm(text))) return;
+            cloudAkce({akce: 'odpojit', sluzba: x.id}, x.nazev + ' odpojen.');
+          };
+          r.appendChild(b);
+        } else if (x.id === 'google') {
+          const b = el('button', 'btn primary', 'Připojit');
+          b.disabled = !x.lze || !(cloud.google_ucty || []).length;
+          b.title = (cloud.google_ucty || []).length ? 'Vezme se Google z Napojení: ' + cloud.google_ucty[0]
+            : 'Nejdřív připoj Google v Nastavení → Napojení';
+          b.onclick = () => { b.disabled = true; b.textContent = 'Připojuju…';
+            cloudAkce({akce: 'google'}, (res) => 'Google Disk připojen (' + res.ucet + ').'); };
+          r.appendChild(b);
+          if (!(cloud.google_ucty || []).length) {
+            r.appendChild(el('span', 'set-dim ul-cloud-pozn', 'Nejdřív připoj Google v Napojení.'));
+          }
+        } else if (x.id === 'onedrive') {
+          const b = el('button', 'btn primary', 'Připojit');
+          b.disabled = !x.lze || !!odKod;
+          b.onclick = () => onedrive(b);
+          r.appendChild(b);
+        }
+        s.appendChild(r);
+        if (x.id === 'onedrive' && odKod && !x.pripojeno) {
+          const k = el('div', 'set-note ul-cloud-kod');
+          const a = el('a', '', odKod.url);
+          a.href = odKod.url; a.target = '_blank'; a.rel = 'noopener';
+          k.append('Otevři ', a, ', zadej kód ', el('b', 'ul-kod', odKod.kod),
+                   ' a přihlas se svým účtem Microsoft. Čekám na přihlášení…');
+          s.appendChild(k);
+        }
+      }
+      if (cloud.beh) {
+        const b = cloud.beh;
+        s.appendChild(el('div', 'set-note ul-cloud-beh' + (b.chyba ? ' chyba' : ''), b.bezi
+          ? (b.akce === 'vratit' ? 'Vracím ~/' : 'Přesouvám ~/') + b.cesta + ' … (od ' + kdy(b.od) + ')'
+          : b.chyba ? 'Poslední přesun ~/' + b.cesta + ' se nepovedl: ' + b.chyba
+          : (b.akce === 'vratit' ? 'Vráceno ~/' : 'Přesunuto ~/') + b.cesta + ' ' + kdy(b.konec || b.od)));
+        clearTimeout(cloudCekam);
+        if (b.bezi) cloudCekam = setTimeout(() => { if (box.isConnected) nacti(); }, 5000);
+      }
+      if (cloudPripojen()) {
+        const p = cloud.pravidla || {};
+        const a = el('label', 'set-row ul-cloud-auto');
+        const cb = el('input');
+        cb.type = 'checkbox';
+        cb.checked = !!cloud.auto;
+        cb.disabled = !cloud.prvni;
+        cb.onchange = () => cloudAkce({akce: 'auto', zapnout: cb.checked},
+          cb.checked ? 'Automatika zapnutá — poběží každou noc.' : 'Automatika vypnutá.');
+        a.appendChild(cb);
+        a.appendChild(el('span', '', 'Každou noc přesunout do cloudu soubory větší než ' + (p.mb || 50) +
+          ' MB, na které ' + (p.dni || 30) + ' dní nikdo nesáhl'));
+        s.appendChild(a);
+        s.appendChild(el('div', 'set-dim ul-cloud-pozn', !cloud.prvni
+          ? 'Nejdřív udělej první přesun ručně — tlačítkem „Do cloudu" u složky níž. Pak jde automatika zapnout.'
+          : cloud.posledni_auto ? 'Naposledy ' + kdy(cloud.posledni_auto.kdy) + ': přesunuto ' +
+            velikost(cloud.posledni_auto.bajtu || 0) + '.' : 'Projekty v gitu, skryté složky a paměť zůstávají vždy na serveru.'));
+      }
+      const pres = cloud.presunuto || [];
+      if (pres.length) {
+        s.appendChild(el('div', 'ul-nadpis ul-cloud-pres', 'V cloudu (' + pres.length + ')'));
+        const list = el('div', 'ul-slozky');
+        for (const z of pres.slice(0, 30)) {
+          const r = el('div', 'ul-slozka ul-cloud-zaznam');
+          const jm = el('span', 'ul-slozka-jm', '~/' + z.cesta);
+          jm.title = (z.auto ? 'Automaticky ' : 'Ručně ') + kdy(z.kdy);
+          r.appendChild(jm);
+          r.appendChild(el('span', 'set-dim', z.auto ? 'automaticky' : 'ručně'));
+          r.appendChild(el('span', 'ul-slozka-v', velikost(z.bajtu || 0)));
+          const b = el('button', 'btn ghost', 'Vrátit');
+          b.title = 'Vrátit z cloudu zpátky na server (zabere zase místo)';
+          b.onclick = () => cloudAkce({akce: 'vratit', cesta: z.cesta}, 'Vracím ~/' + z.cesta + ' …');
+          r.appendChild(b);
+          list.appendChild(r);
+        }
+        s.appendChild(list);
+      }
+      return s;
+    }
+
+    async function onedrive(btn) {
+      btn.disabled = true;
+      let r;
+      try { r = await gw('/gw/cloud', {akce: 'onedrive'}); } catch (e) { io.toast(e.message); btn.disabled = false; return; }
+      odKod = {kod: r.kod, url: r.url, konec: Date.now() + (r.platnost || 900) * 1000};
+      nacti();
+      const zkus = async () => {
+        if (!odKod) return;
+        if (!box.isConnected || Date.now() > odKod.konec) { odKod = null; return; }
+        try {
+          const h = await gw('/gw/cloud', {akce: 'onedrive-hotovo'});
+          if (h.ceka) { setTimeout(zkus, 5000); return; }
+          io.toast('OneDrive připojen' + (h.ucet ? ' (' + h.ucet + ')' : '') + '.');
+        } catch (e) { io.toast(e.message); }
+        odKod = null;
+        nacti();
+      };
+      setTimeout(zkus, 5000);
     }
 
     function kresliNalezy(cil, ja) {

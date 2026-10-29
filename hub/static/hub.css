@@ -5418,3 +5418,24 @@ html[data-theme="light"] .chat-wa.druh-terminal .chat-av { background: #3a3f47; 
 }
 .cteni-me .cteni-kdy { margin-top: 2px; padding: 0 4px; }
 .cteni-say .cteni-kdy { text-align: left; }
+
+/* Nastavení → Úložiště → Cloud (uloziste.js, kresliCloud). */
+.ul-cloud-radek { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 6px 0; }
+.ul-cloud-nazev { font-weight: 600; color: var(--fg-bright); min-width: 92px; }
+.ul-cloud-stav { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ul-cloud { margin-bottom: 16px; }
+.ul-cloud-pozn { font-size: 12px; }
+.ul-cloud-auto { display: flex; justify-content: flex-start; gap: 8px; align-items: flex-start; margin-top: 8px;
+  cursor: pointer; text-align: left; border: none; padding: 0; }
+.ul-cloud-auto > span { flex: 1; text-align: left; }
+.ul-cloud-auto input { margin-top: 3px; accent-color: var(--accent); }
+.ul-cloud-beh.chyba { color: var(--red); }
+.ul-cloud-kod .ul-kod { font: 600 15px/1 ui-monospace, monospace; letter-spacing: .08em; color: var(--fg-bright); }
+.ul-cloud-pres { margin-top: 12px; }
+.ul-slozky.s-cloudem .ul-slozka, .ul-cloud-zaznam { grid-template-columns: minmax(0, 1.3fr) minmax(60px, 1fr) 64px auto; }
+.ul-do-cloudu, .ul-cloud-zaznam .btn { padding: 3px 10px; font-size: 12px; }
+@media (max-width: 720px) {
+  .ul-slozky.s-cloudem .ul-slozka, .ul-cloud-zaznam { grid-template-columns: minmax(0, 1fr) 56px auto; }
+  .ul-slozky.s-cloudem .st-track, .ul-cloud-zaznam .set-dim { display: none; }
+  .ul-cloud-auto { flex-direction: row; align-items: flex-start; }
+}

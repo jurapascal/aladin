@@ -1335,10 +1335,26 @@
       for (const seznam of [cekajici, ztraceneRadky]) {
         const i = seznam.findIndex((c) => c.key === key);
         if (i < 0) continue;
-        seznam[i].row.remove();
+        const row = seznam[i].row;
         seznam.splice(i, 1);
+        // One bubble can stand for several identical queued messages.
+        if (cekajici.some((c) => c.row === row) || ztraceneRadky.some((c) => c.row === row)) kolikratVeFronte(row);
+        else row.remove();
         return;
       }
+    }
+    // "×3" on a queue bubble that stands for that many identical messages.
+    function kolikratVeFronte(row) {
+      const n = cekajici.filter((c) => c.row === row).length;
+      let k = row.querySelector('.cteni-kolikrat');
+      if (n < 2) { if (k) k.remove(); return; }
+      if (!k) {
+        k = el('span', 'cteni-kolikrat');
+        const st = row.querySelector('.cteni-stitek');
+        if (st) st.prepend(k); else row.appendChild(k);
+      }
+      k.textContent = '×' + n + ' · ';
+      k.title = 'Stejná zpráva čeká ve frontě ' + n + '×';
     }
 
     /* ── karty agentů ───────────────────────────────────────────────────── */
@@ -1664,8 +1680,13 @@
     // byl mylný, nebo ji po restartu doručil hub), bublina zmizí.
     const ztraceneRadky = [];
     function ztracene(krome) {
-      for (const c of cekajici.splice(0)) {
-        if (c.key === krome) { c.row.remove(); continue; }
+      const vsechny = cekajici.splice(0);
+      for (const c of vsechny) {
+        if (c.key === krome) {
+          if (!vsechny.some((x) => x !== c && x.row === c.row)) c.row.remove();
+          continue;
+        }
+        if (ztraceneRadky.some((x) => x.row === c.row)) { ztraceneRadky.push(c); continue; }
         c.row.classList.remove('fronta');
         c.row.classList.add('ztracena');
         const st = c.row.querySelector('.cteni-stitek');
@@ -1751,8 +1772,17 @@
       }
       if (b.kind === 'queued') {
         potvrd(b);
+        /* The same text again (a recurring task fires every few minutes while
+           Claude is still busy) — one bubble with "×N", not a wall of copies. */
+        const stejna = !(b.images || []).length && b.text &&
+          cekajici.find((c) => c.text === b.text && c.row.isConnected);
+        if (stejna) {
+          cekajici.push({key: b.key, row: stejna.row, text: b.text});
+          kolikratVeFronte(stejna.row);
+          return;
+        }
         const row = bublina(b, 'cteni-ceka fronta', 'Ve frontě — Claude to uvidí, až dokončí krok');
-        cekajici.push({key: b.key, row});
+        cekajici.push({key: b.key, row, text: b.text || ''});
         fronta.insertBefore(row, fronta.querySelector('.mistni'));
         return;
       }

@@ -237,6 +237,8 @@ html, body { font-family: var(--font-sans); }
 .onb-foot { border-top: 1px solid var(--border); padding: 10px 20px; }
 @media (max-width: 720px) {
   .set-modal .onb-box { border-radius: 0; height: 100%; }
+  /* Below the iPhone clock/battery, not under them (see hub.css). */
+  .set-modal .onb-head { padding-top: calc(16px + env(safe-area-inset-top)); }
   .set-nav { width: auto; padding: 8px; }
 }
 

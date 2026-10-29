@@ -1809,6 +1809,12 @@ button.vault-crumb:hover { background: var(--bg-card); color: var(--fg-bright); 
   display: block; font-size: 12px; font-weight: 600; color: var(--fg-bright);
   margin-bottom: 4px;
 }
+/* A choice row (wizard: backup, …) keeps title above description — the rule
+   above made the column a block, so "na GitHubu" and "Poznámky už…" ran together. */
+.onb-body label.onb-row > .onb-col {
+  display: flex; flex-direction: column; gap: 2px; margin: 0;
+  font-size: 13px; font-weight: 400; color: var(--fg);
+}
 .onb-body input[type="text"] {
   width: 100%; box-sizing: border-box;
   background: var(--bg-card); color: var(--fg-bright);
@@ -2118,7 +2124,9 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   .set-modal .onb-box {
     width: 100%; height: 100%; max-height: none; border-radius: 0; border: none;
   }
-  .set-modal .onb-head { padding: 14px 14px 12px; gap: 10px; }
+  /* Full-screen window on iPhone (app from home screen, viewport-fit=cover):
+     the header slid under the clock and battery — keep it below the notch. */
+  .set-modal .onb-head { padding: calc(14px + env(safe-area-inset-top)) 14px 12px; gap: 10px; }
   .set-modal .onb-foot { padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   /* Vodorovný posuvník pod záložkami ukrajoval z obsahu a vypadal jako čára. */
   .set-nav { scrollbar-width: none; }
@@ -5399,3 +5407,6 @@ html[data-prostor="firma"] .welcome-greet .greet-ico { color: var(--firma); }
 .chat-wa.druh-terminal .chat-av { color: #fff; background: #2b2f36; }
 html[data-theme="light"] .chat-wa.druh-terminal .chat-av { background: #3a3f47; }
 .open-section, .sidebar > .open-section { display: none !important; }
+
+/* Queue bubble standing for several identical messages (cteni.js, kolikratVeFronte). */
+.cteni-kolikrat { font-weight: 600; }

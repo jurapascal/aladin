@@ -937,8 +937,10 @@ async function prostorMenu(ev) {
   await loadProstory(10000);
   const now = prostor();
   const g = STATE.guest;
+  // Each space keeps its colour from the top bar: personal = accent (blue on
+  // the server), company = purple — at a glance it's clear where you'll land.
   const items = [{icon: 'i-user', label: g ? 'Osobní · ' + (g.owner_name || '?') : 'Osobní prostor',
-                  on: !now, run: () => setProstor('')}];
+                  on: !now, color: 'var(--accent)', run: () => setProstor('')}];
   for (const f of firmyList()) {
     items.push({icon: 'i-folder', label: f.nazev + ' · ' + ROLE_FIRMY[f.role], on: now === f.zkratka,
                 color: 'var(--firma)', run: () => setProstor(f.zkratka)});
@@ -954,17 +956,8 @@ async function prostorMenu(ev) {
                   run: () => { if (!tady) prostorJdi(k.id); }});
     }
   }
-  // Zakládat a spravovat firmy jde jen ve vlastním prostoru (host na to
-  // stejně nedosáhne — brána, gateway/firmy.py, jde za přihlášeným).
-  const tail = [];
-  if (!g && STATE.firma && STATE.firma.zakladat) {
-    tail.push({icon: 'i-plus', label: 'Založit firmu…', run: () => spravaFirem()});
-  }
-  if (!g && firmyList().some((f) => f.role === 'kapitan')) {
-    tail.push({icon: 'i-gear', label: 'Spravovat firmy…', run: () => spravaFirem()});
-  }
-  if (tail.length && (g || PROSTORY.kam.length)) items.push({heading: 'Firmy'});
-  items.push(...tail);
+  // Zakládání a správa firem bydlí v Nastavení → Firmy (spravaFirem), menu
+  // je jen přepínač prostorů.
   showMenu(r.left, r.bottom, items);
 }
 function spravaFirem() {

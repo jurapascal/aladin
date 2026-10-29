@@ -103,6 +103,24 @@ class ClaudeMd(Zaklad):
         self.assertEqual(text.strip(), "# Moje pravidla")
 
 
+class OneDrive(Zaklad):
+    def test_prihlaseni_pres_rclone(self):
+        cloud.MS_CLIENT = ""
+        r = cloud.onedrive_start(USER)
+        self.assertTrue(r["vlozit"])
+        self.assertIn(cloud.RCLONE_MS_CLIENT, r["url"])
+        self.assertIn("redirect_uri=http%3A%2F%2Flocalhost%3A53682%2F", r["url"])
+        with self.assertRaises(ValueError):                      # chybí kód
+            cloud.onedrive_hotovo(USER, "http://localhost:53682/")
+        with self.assertRaises(ValueError):                      # jiné přihlášení
+            cloud.onedrive_hotovo(USER, "http://localhost:53682/?code=abc&state=cizi")
+        with self.assertRaises(ValueError):                      # člověk odmítl
+            cloud.onedrive_hotovo(USER, "http://localhost:53682/?error=access_denied&error_description=Ne")
+        cloud._ceka_onedrive.clear()
+        with self.assertRaises(ValueError):                      # nic neběží
+            cloud.onedrive_hotovo(USER, "http://localhost:53682/?code=abc&state=x")
+
+
 @unittest.skipUnless(RCLONE, "rclone není nainstalovaný")
 class Presun(Zaklad):
     def setUp(self):

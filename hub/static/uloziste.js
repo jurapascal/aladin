@@ -348,14 +348,7 @@
           r.appendChild(b);
         }
         s.appendChild(r);
-        if (x.id === 'onedrive' && odKod && !x.pripojeno) {
-          const k = el('div', 'set-note ul-cloud-kod');
-          const a = el('a', '', odKod.url);
-          a.href = odKod.url; a.target = '_blank'; a.rel = 'noopener';
-          k.append('Otevři ', a, ', zadej kód ', el('b', 'ul-kod', odKod.kod),
-                   ' a přihlas se svým účtem Microsoft. Čekám na přihlášení…');
-          s.appendChild(k);
-        }
+        if (x.id === 'onedrive' && odKod && !x.pripojeno) s.appendChild(kresliOdKod());
       }
       if (cloud.beh) {
         const b = cloud.beh;
@@ -406,12 +399,51 @@
       return s;
     }
 
+    /* Rozběhnuté přihlášení k OneDrivu. Kód zařízení (aplikace správce): kód
+       a odkaz, čeká se samo. Přes rclone: odkaz na přihlášení a pole, kam se
+       vloží adresa, na kterou Microsoft přesměroval (localhost se nenačte). */
+    function kresliOdKod() {
+      const k = el('div', 'set-note ul-cloud-kod');
+      const a = el('a', '', odKod.vlozit ? 'Přihlásit se k Microsoftu' : odKod.url);
+      a.href = odKod.url; a.target = '_blank'; a.rel = 'noopener';
+      if (!odKod.vlozit) {
+        k.append('Otevři ', a, ', zadej kód ', el('b', 'ul-kod', odKod.kod),
+                 ' a přihlas se svým účtem Microsoft. Čekám na přihlášení…');
+        return k;
+      }
+      k.append('1. ', a, ' — účtem, jehož OneDrive chceš připojit (osobní i firemní).');
+      k.appendChild(el('div', '', '2. Po přihlášení tě to pošle na stránku, která se nenačte (začíná ' +
+        'http://localhost:53682). Zkopíruj celou její adresu z adresního řádku a vlož ji sem:'));
+      const row = el('div', 'set-row ul-cloud-vloz');
+      const inp = el('input', 'set-input');
+      inp.placeholder = 'http://localhost:53682/?code=…';
+      inp.spellcheck = false;
+      const ok = el('button', 'btn primary', 'Dokončit');
+      const zrus = el('button', 'btn ghost', 'Zrušit');
+      ok.onclick = async () => {
+        if (!inp.value.trim()) { inp.focus(); return; }
+        ok.disabled = true;
+        try {
+          const h = await gw('/gw/cloud', {akce: 'onedrive-hotovo', adresa: inp.value.trim()});
+          io.toast('OneDrive připojen' + (h.ucet ? ' (' + h.ucet + ')' : '') + '.');
+          odKod = null;
+        } catch (e) { io.toast(e.message); ok.disabled = false; return; }
+        nacti();
+      };
+      inp.onkeydown = (ev) => { if (ev.key === 'Enter') ok.click(); };
+      zrus.onclick = () => { odKod = null; nacti(); };
+      row.append(inp, ok, zrus);
+      k.appendChild(row);
+      return k;
+    }
+
     async function onedrive(btn) {
       btn.disabled = true;
       let r;
       try { r = await gw('/gw/cloud', {akce: 'onedrive'}); } catch (e) { io.toast(e.message); btn.disabled = false; return; }
-      odKod = {kod: r.kod, url: r.url, konec: Date.now() + (r.platnost || 900) * 1000};
+      odKod = {kod: r.kod, url: r.url, vlozit: !!r.vlozit, konec: Date.now() + (r.platnost || 900) * 1000};
       nacti();
+      if (odKod.vlozit) { window.open(r.url, '_blank', 'noopener'); return; }
       const zkus = async () => {
         if (!odKod) return;
         if (!box.isConnected || Date.now() > odKod.konec) { odKod = null; return; }

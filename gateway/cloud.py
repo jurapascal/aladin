@@ -22,8 +22,9 @@ Jak to drží pohromadě:
   připojený až za běhu prostoru).
 * **Přihlášení**: Google se vezme z napojení Google, které člověk už má
   (workspace-mcp, rozsah `drive`) — žádné druhé přihlašování. OneDrive přes
-  kód zařízení (microsoft.com/devicelogin) s aplikací správce
-  (`HUB_GW_ONEDRIVE_CLIENT_ID`).
+  aplikaci, kterou má u Microsoftu rclone (přihlášení v prohlížeči, adresa
+  přesměrování se vloží zpátky); s vlastní aplikací správce
+  (`HUB_GW_ONEDRIVE_CLIENT_ID`) kódem zařízení (microsoft.com/devicelogin).
 * Konfigurace rclone s tokeny i stav leží **mimo domov** (`<brána>/cloud/`):
   do domova session zapisuje, a kdyby si mohla přepsat, kam a co se přesouvá,
   přesouvala by brána cizí věci.
@@ -39,6 +40,7 @@ import fcntl
 import json
 import os
 import re
+import secrets
 import shutil
 import stat
 import subprocess
@@ -80,6 +82,14 @@ MS_CLIENT = os.environ.get("HUB_GW_ONEDRIVE_CLIENT_ID", "").strip()
 MS_LOGIN = "https://login.microsoftonline.com/common/oauth2/v2.0"
 MS_SCOPES = "Files.ReadWrite.All offline_access User.Read"
 MS_GRAPH = "https://graph.microsoft.com/v1.0"
+# Bez vlastní aplikace správce jede OneDrive přes aplikaci, kterou má u Microsoftu
+# rclone sám (stejné id a zamaskované heslo jsou v jeho zdrojích i v binárce).
+# Přesměruje na localhost, který na serveru není — adresu člověk vloží zpátky,
+# jako u Googlu. V rclone.conf pak id zůstane prázdné a rclone si vezme svoje.
+RCLONE_MS_CLIENT = "b15665d9-eda6-4092-8539-0eec376afd59"
+RCLONE_MS_SECRET = "_JUdzh3LnKNqSPcf4Wu5fgMFIQOI8glZu_akYgR8yf6egowNBg-R"     # rclone obscure
+RCLONE_MS_REDIRECT = "http://localhost:53682/"
+RCLONE_MS_SCOPES = "Files.Read Files.ReadWrite Files.Read.All Files.ReadWrite.All Sites.Read.All offline_access"
 
 CLOUD_MARK = ("<!-- hub:cloud -->", "<!-- /hub:cloud -->")
 
@@ -252,56 +262,94 @@ def _post_form(url, data, timeout=20):
 
 
 def onedrive_nastaven():
-    return bool(MS_CLIENT)
+    """OneDrive jde vždycky — s aplikací správce kódem zařízení, jinak přes rclone."""
+    return True
 
 
 def onedrive_start(user):
-    """Přihlášení k OneDrivu kódem zařízení. Vrací kód a adresu pro člověka."""
-    if not MS_CLIENT:
-        raise ValueError("OneDrive zatím správce nenastavil (chybí aplikace u Microsoftu).")
-    r = _post_form(MS_LOGIN + "/devicecode", {"client_id": MS_CLIENT, "scope": MS_SCOPES})
-    if not r.get("device_code"):
-        raise RuntimeError(r.get("error_description") or r.get("error") or "Microsoft přihlášení nezačal.")
-    _ceka_onedrive[klic(user)] = {"device_code": r["device_code"],
-                                  "do": time.time() + int(r.get("expires_in") or 900),
-                                  "interval": int(r.get("interval") or 5)}
-    return {"kod": r.get("user_code"), "url": r.get("verification_uri") or "https://microsoft.com/devicelogin",
-            "platnost": int(r.get("expires_in") or 900)}
+    """Začne přihlášení k OneDrivu. S aplikací správce kód zařízení
+    ({kod, url}), jinak adresa přihlášení, ze které se vloží přesměrování ({url, vlozit})."""
+    k = klic(user)
+    if MS_CLIENT:
+        r = _post_form(MS_LOGIN + "/devicecode", {"client_id": MS_CLIENT, "scope": MS_SCOPES})
+        if not r.get("device_code"):
+            raise RuntimeError(r.get("error_description") or r.get("error") or "Microsoft přihlášení nezačal.")
+        _ceka_onedrive[k] = {"device_code": r["device_code"],
+                             "do": time.time() + int(r.get("expires_in") or 900)}
+        return {"kod": r.get("user_code"), "url": r.get("verification_uri") or "https://microsoft.com/devicelogin",
+                "platnost": int(r.get("expires_in") or 900)}
+    state = secrets.token_urlsafe(24)
+    _ceka_onedrive[k] = {"state": state, "do": time.time() + 1800}
+    url = MS_LOGIN + "/authorize?" + urllib.parse.urlencode({
+        "client_id": RCLONE_MS_CLIENT, "response_type": "code", "redirect_uri": RCLONE_MS_REDIRECT,
+        "scope": RCLONE_MS_SCOPES, "state": state, "prompt": "select_account"})
+    return {"url": url, "vlozit": True, "platnost": 1800}
 
 
-def onedrive_hotovo(user):
-    """Dokončilo se přihlášení kódem? {'ceka': True} / {'ucet': …}."""
+def _rclone_reveal(text):
+    res = subprocess.run([RCLONE, "reveal", text], capture_output=True, text=True, timeout=15)
+    if res.returncode != 0 or not res.stdout.strip():
+        raise RuntimeError("rclone neumí odkrýt své přihlašovací údaje — je nainstalovaný?")
+    return res.stdout.strip()
+
+
+def onedrive_hotovo(user, adresa=""):
+    """Dokončilo se přihlášení? Kód zařízení: {'ceka': True} / {'ucet': …}.
+    Přes rclone: `adresa` = kam Microsoft po přihlášení přesměroval."""
     k = klic(user)
     ceka = _ceka_onedrive.get(k)
     if not ceka:
         raise ValueError("Přihlášení k OneDrivu neběží — začni znovu.")
     if time.time() > ceka["do"]:
         _ceka_onedrive.pop(k, None)
-        raise ValueError("Kód vypršel — začni znovu.")
-    r = _post_form(MS_LOGIN + "/token", {
-        "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
-        "client_id": MS_CLIENT, "device_code": ceka["device_code"]})
-    if r.get("error") in ("authorization_pending", "slow_down"):
-        return {"ceka": True}
-    if not r.get("access_token"):
-        _ceka_onedrive.pop(k, None)
-        raise RuntimeError(r.get("error_description") or r.get("error") or "Přihlášení se nepovedlo.")
+        raise ValueError("Přihlášení vypršelo — začni znovu.")
+    if "state" in ceka:
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(str(adresa or "").strip()).query)
+        if q.get("error"):
+            raise ValueError((q.get("error_description") or q["error"])[0])
+        code, state = (q.get("code") or [""])[0], (q.get("state") or [""])[0]
+        if not code:
+            raise ValueError("V adrese chybí kód — zkopíruj celou adresu z řádku prohlížeče (začíná http://localhost:53682).")
+        if state != ceka["state"]:
+            raise ValueError("Tahle adresa patří k jinému přihlášení — začni znovu.")
+        r = _post_form(MS_LOGIN + "/token", {
+            "grant_type": "authorization_code", "client_id": RCLONE_MS_CLIENT,
+            "client_secret": _rclone_reveal(RCLONE_MS_SECRET), "code": code,
+            "redirect_uri": RCLONE_MS_REDIRECT, "scope": RCLONE_MS_SCOPES})
+        client = ""
+    else:
+        r = _post_form(MS_LOGIN + "/token", {
+            "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
+            "client_id": MS_CLIENT, "device_code": ceka["device_code"]})
+        if r.get("error") in ("authorization_pending", "slow_down"):
+            return {"ceka": True}
+        client = MS_CLIENT
     _ceka_onedrive.pop(k, None)
+    if not r.get("access_token"):
+        raise RuntimeError(r.get("error_description") or r.get("error") or "Přihlášení se nepovedlo.")
     req = urllib.request.Request(MS_GRAPH + "/me/drive",
                                  headers={"Authorization": "Bearer " + r["access_token"]})
-    with urllib.request.urlopen(req, timeout=20) as resp:
-        drive = json.loads(resp.read().decode("utf-8"))
-    ucet = ((drive.get("owner") or {}).get("user") or {}).get("email") or \
-        ((drive.get("owner") or {}).get("user") or {}).get("displayName") or "OneDrive"
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            drive = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"OneDrive k účtu nejde otevřít (HTTP {exc.code}) — má ten účet OneDrive?") from None
+    vlastnik = (drive.get("owner") or {}).get("user") or {}
+    ucet = vlastnik.get("email") or vlastnik.get("displayName") or "OneDrive"
     expiry = (datetime.datetime.now(datetime.timezone.utc)
               + datetime.timedelta(seconds=int(r.get("expires_in") or 3600)))
     token = {"access_token": r["access_token"], "token_type": "Bearer",
              "refresh_token": r.get("refresh_token") or "",
              "expiry": expiry.strftime("%Y-%m-%dT%H:%M:%SZ")}
     _rclone_conf_zapis(user, "onedrive", {
-        "type": "onedrive", "client_id": MS_CLIENT, "client_secret": "",
+        "type": "onedrive", "client_id": client, "client_secret": "",
         "token": json.dumps(token), "drive_id": drive.get("id") or "",
         "drive_type": drive.get("driveType") or "personal"})
+    try:
+        _rclone(user, "lsf", "onedrive:", "--max-depth", "1", "--dirs-only", timeout=45)
+    except RuntimeError:
+        _rclone_conf_zapis(user, "onedrive", None)
+        raise
     _uprav_stav(user, lambda d: d["sluzby"].__setitem__(
         "onedrive", {"ucet": ucet, "od": int(time.time())}))
     pripojit_disk(user, "onedrive")

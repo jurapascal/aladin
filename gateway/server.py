@@ -2605,7 +2605,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             if akce == "onedrive":
                 return self._json({"ok": True, **cloud.onedrive_start(user)})
             if akce == "onedrive-hotovo":
-                return self._json({"ok": True, **cloud.onedrive_hotovo(user)})
+                return self._json({"ok": True, **cloud.onedrive_hotovo(user, str(form.get("adresa") or ""))})
             if akce == "odpojit":
                 cloud.odpojit(user, str(form.get("sluzba") or ""))
                 return self._json({"ok": True})

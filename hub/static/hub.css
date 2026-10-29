@@ -5432,6 +5432,9 @@ html[data-theme="light"] .chat-wa.druh-terminal .chat-av { background: #3a3f47; 
 .ul-cloud-beh.chyba { color: var(--red); }
 .ul-cloud-kod .ul-kod { font: 600 15px/1 ui-monospace, monospace; letter-spacing: .08em; color: var(--fg-bright); }
 .ul-cloud-pres { margin-top: 12px; }
+.ul-cloud-kod > div { margin-top: 6px; }
+.ul-cloud-vloz { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.ul-cloud-vloz .set-input { flex: 1 1 260px; min-width: 0; font-family: ui-monospace, monospace; font-size: 12px; }
 .ul-slozky.s-cloudem .ul-slozka, .ul-cloud-zaznam { grid-template-columns: minmax(0, 1.3fr) minmax(60px, 1fr) 64px auto; }
 .ul-do-cloudu, .ul-cloud-zaznam .btn { padding: 3px 10px; font-size: 12px; }
 @media (max-width: 720px) {

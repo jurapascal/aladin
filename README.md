@@ -829,6 +829,25 @@ velikosti ověří, navrhne seznam a **před mazáním se zeptá**. Sám se nic 
   a Obsidiany se nikdy nesloučí. Každé sloučení je v záznamu a jde vrátit.
   Podrobně v [gateway/README.md](gateway/README.md#místo-na-disku-úklid-a-oznámení).
 
+### Cloud: Google Disk a OneDrive v prostoru
+
+V ⚙ → **Úložiště → Cloud** si každý připojí svůj **Google Disk** (jedním
+klikem z napojení Google, které už má) nebo **OneDrive** (přihlášení u
+Microsoftu, osobní i firemní účet), klidně oba. V prostoru se objeví jako
+složka `~/Cloud/Google Disk` / `~/Cloud/OneDrive`:
+
+- **Zdroj podkladů** — Claude v ní čte a hledá jako v každé jiné složce
+  (ví o ní z bloku v `~/.claude/CLAUDE.md`), velké výstupy ukládá rovnou tam.
+- **Do cloudu** u velké složky ji přesune z disku serveru do `<cloud>/Aladin/…`
+  a na jejím místě nechá odkaz, takže cesty dál fungují. **Vrátit** ji přinese
+  zpátky.
+- **Automaticky** — po prvním ručním přesunu jde zapnout noční přesun
+  souborů nad 50 MB, na které 30 dní nikdo nesáhl (nejvýš 20 GB za noc).
+  Skryté složky, Obsidian a projekty v gitu zůstávají vždy na serveru.
+
+Připojuje rclone z brány, tokeny leží mimo domov prostoru. Podrobně
+v [gateway/README.md](gateway/README.md#cloud-prostoru-google-disk-onedrive).
+
 ## Playwright MCP (volitelné)
 
 Prohlížeč pro Claude Code — otevře stránku, klikne, přečte konzoli, udělá screenshot.
@@ -1248,9 +1267,10 @@ skills/<jméno>/SKILL.md   šablony slash příkazů ({{MEMORY_DIR}} apod. dopln
 legacy/claude-hub-gtk.py  původní GTK 3 + VTE verze (Linux only, už se neinstaluje)
 hub-config.example.json   vzor konfigurace
 settings.example.json     vzor zapojení hooků (bez jakýchkoli klíčů)
-assets/hub-mark.svg       značka — zdroj všech ikon (tools/make-icons.py)
+assets/claude-code.png    ikona Aladina (černý džin na bílém) — zdroj všech ikon (tools/make-icons.py)
+assets/aladin-dzin.svg    džin jako vektor (lišta, načítání, okna — v barvě prostředí)
+assets/hub-mark.svg       značka pro README a dokumentaci (džin na bílé dlaždici)
 assets/hub-wordmark.svg   logo se jménem (řídí se motivem čtenáře)
-assets/claude-code.png    ikona okna a nabídky aplikací na Linuxu
 assets/claude-code.ico    ikona zástupců na Windows (16–64 px jako BMP, 128/256 jako PNG)
 hub/static/favicon.ico    ikona okna na Windows — bere se z favicony, ne ze zástupce
 assets/vault/MEMORY.md    rozcestník paměti pro nově založený vault

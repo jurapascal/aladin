@@ -774,10 +774,13 @@ Skryté složky, Obsidian, gitové repozitáře a `node_modules`/`.venv` zůstá
   transientní služba uživatele brány `claude-hub-cloud-u<id>-<služba>`, zvenku
   do domova — v sandboxu to nejde, a sandbox připojení vidí (i za běhu).
 - **Google** se vezme z napojení Google, které člověk už má (rozsah `drive`).
-- **OneDrive** přihlášením kódem zařízení přes aplikaci správce v Microsoft
-  Entra: `HUB_GW_ONEDRIVE_CLIENT_ID` v prostředí brány (veřejný klient, více
-  organizací + osobní účty, oprávnění `Files.ReadWrite.All`, `offline_access`,
-  `User.Read`). Bez něj je OneDrive v nabídce zašedlý.
+- **OneDrive** jde hned, bez registrace: přes aplikaci, kterou má u Microsoftu
+  rclone. Člověk se přihlásí v prohlížeči a adresu, na kterou ho to přesměruje
+  (`http://localhost:53682/?code=…`), vloží zpátky do Aladina. Kdyby ji nějaká
+  firma blokovala, správce zaregistruje vlastní aplikaci v Microsoft Entra
+  (veřejný klient, více organizací + osobní účty, `Files.ReadWrite.All`,
+  `offline_access`, `User.Read`) a dá její id do `HUB_GW_ONEDRIVE_CLIENT_ID` —
+  pak se přihlašuje kódem zařízení.
 - Tokeny (rclone.conf), stav a mezipaměť (strop `HUB_GW_CLOUD_CACHE_MAX`, 512M)
   leží mimo domov v `<brána>/cloud/u<id>/`. Testy: `python3 tools/test_cloud.py`.
 

@@ -531,6 +531,7 @@ def _bloky_zpravy(entry):
                 return out + [od]
             blok = _zprava_cloveka(obsah)
             if blok:
+                blok["ts"] = str(entry.get("timestamp") or "")
                 out.append(blok)
             return out
         if isinstance(obsah, list):
@@ -543,6 +544,7 @@ def _bloky_zpravy(entry):
                         out.extend(_oznameni(cast.get("text")))
                 blok = _zprava_cloveka(obsah)
                 if blok:
+                    blok["ts"] = str(entry.get("timestamp") or "")
                     out.append(blok)
                 return out
             for cast in obsah:
@@ -567,20 +569,23 @@ def _bloky_zpravy(entry):
                 elif cast.get("type") == "text":
                     blok = _zprava_cloveka(cast.get("text"))
                     if blok:
+                        blok["ts"] = str(entry.get("timestamp") or "")
                         out.append(blok)
         return out
 
     if druh == "assistant":
         if isinstance(obsah, str):
             if obsah.strip():
-                out.append({"kind": "say", "text": _zkrat(obsah, MAX_TEXT)})
+                out.append({"kind": "say", "text": _zkrat(obsah, MAX_TEXT),
+                            "ts": str(entry.get("timestamp") or "")})
             return out
         if isinstance(obsah, list):
             for cast in obsah:
                 if not isinstance(cast, dict):
                     continue
                 if cast.get("type") == "text" and str(cast.get("text") or "").strip():
-                    out.append({"kind": "say", "text": _zkrat(cast["text"], MAX_TEXT)})
+                    out.append({"kind": "say", "text": _zkrat(cast["text"], MAX_TEXT),
+                                "ts": str(entry.get("timestamp") or "")})
                 elif cast.get("type") == "tool_use" and cast.get("name") in AGENT_TOOLS:
                     v = cast.get("input") if isinstance(cast.get("input"), dict) else {}
                     out.append({"kind": "agent", "id": str(cast.get("id") or ""),

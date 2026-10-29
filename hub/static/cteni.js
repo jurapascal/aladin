@@ -919,6 +919,21 @@
       if (!lide.has(k)) lide.set(k, lide.size < KDO_PALETA.length ? KDO_PALETA[lide.size] : kdoBarva(kdo));
       return lide.get(k);
     }
+    /* When a message was written / an answer finished — small time under it,
+       like in WhatsApp (#78). Today just "14:32", older ones with the date. */
+    function casZpravy(ts) {
+      const t = Date.parse(ts || '');
+      if (!t) return null;
+      const d = new Date(t);
+      const hm = d.toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'});
+      const dnes = d.toDateString() === new Date().toDateString();
+      const kdy = el('time', 'cteni-kdy',
+        dnes ? hm : d.toLocaleDateString('cs-CZ', {day: 'numeric', month: 'numeric'}) + ' ' + hm);
+      kdy.dateTime = d.toISOString();
+      kdy.title = d.toLocaleString('cs-CZ');
+      return kdy;
+    }
+
     function bublina(b, cls, stitek) {
       const row = el('div', 'cteni-me' + (cls ? ' ' + cls : ''));
       let kdo = '';
@@ -953,6 +968,8 @@
       if (b.text) bubble.appendChild(textSOdkazy(b.text));
       row.appendChild(bubble);
       if (stitek) row.appendChild(el('div', 'cteni-stitek', stitek));
+      const kdy = !/fronta|ceka/.test(cls || '') && casZpravy(b.ts);
+      if (kdy) row.appendChild(kdy);
       // Rozvětvit odsud: nový chat jen do tohohle místa (hub/vetev.py). Jen u zpráv,
       // které už jsou v přepisu (mají uuid), ne u těch, co teprve čekají na odeslání.
       if (rozvetvit && b.uuid && !sd && !/fronta|ceka/.test(cls || '')) {
@@ -1837,6 +1854,8 @@
           box.appendChild(volby);
         }
         pripojPoznamku(box, b.text);
+        const kdy = casZpravy(b.ts);
+        if (kdy) box.appendChild(kdy);
         // Lišta pod odpovědí jako na claude.ai: kopírovat (zobrazuje ji motiv Claude).
         if (copy && b.text) {
           const ak = el('div', 'cteni-odp-akce');

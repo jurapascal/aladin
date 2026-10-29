@@ -5410,3 +5410,11 @@ html[data-theme="light"] .chat-wa.druh-terminal .chat-av { background: #3a3f47; 
 
 /* Queue bubble standing for several identical messages (cteni.js, kolikratVeFronte). */
 .cteni-kolikrat { font-weight: 600; }
+
+/* Time under a message / answer (cteni.js, casZpravy). */
+.cteni-kdy {
+  display: block; margin-top: 4px; font: 11px/1.4 system-ui, sans-serif; color: var(--dim);
+  text-align: right; font-variant-numeric: tabular-nums; user-select: none;
+}
+.cteni-me .cteni-kdy { margin-top: 2px; padding: 0 4px; }
+.cteni-say .cteni-kdy { text-align: left; }

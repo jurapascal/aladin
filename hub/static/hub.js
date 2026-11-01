@@ -1766,8 +1766,10 @@ async function prevzitZPocitace(c) {
 const DRUH_IKONA = {osobni: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal'};
 
 function druhChatu(c) {
+  // Firemní chat zůstane fialový, i když ho sdílím — jména lidí jsou pod názvem.
+  if (prostorCesty(c.cwd)) return 'firma';
   if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
-  return prostorCesty(c.cwd) ? 'firma' : 'osobni';
+  return 'osobni';
 }
 
 /* Čas jako v seznamu chatů ve WhatsAppu: dnes hodiny, včera „Včera“, tento
@@ -1803,7 +1805,7 @@ function komuSdilim(c) {
   const r = (RELACE.moje || []).find((x) => x.chat === c.id);
   if (!r) return '';
   const lide = [...(r.clenove || []).map((m) => m.name || m.email), ...(r.skupiny || []).map((g) => g.nazev)];
-  return lide.length ? 's ' + lide.join(', ') : '';
+  return lide.join(', ');
 }
 
 function chatNahled(c) {

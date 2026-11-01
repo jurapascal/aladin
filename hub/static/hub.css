@@ -4862,7 +4862,9 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 .chat-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .chat-r1, .chat-r2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .chats .chat-wa .chat-title {
-  flex: 1; min-width: 0; padding: 0; font-size: 14px; font-weight: 600; color: var(--fg-bright);
+  flex: 1; min-width: 0; padding: 0; font-size: 14px; font-weight: 600;
+  /* Název v barvě druhu chatu (osobní / firemní / sdílený), jak chtěl Adam z videa. */
+  color: color-mix(in srgb, var(--druh, var(--fg-bright)) 72%, var(--fg-bright));
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .chats .chat-wa .chat-title::before { content: none; }
@@ -5329,7 +5331,7 @@ html[data-motiv="claude"] .chat-item.aktivni { background: var(--claude-hover); 
 /* Štítek „od Tomáš Peška" / „s Anna, Petr" před náhledem sdíleného chatu. */
 .chat-stitek {
   flex: none; max-width: 55%; padding: 0 6px; border-radius: 6px; font-size: 11px; line-height: 17px;
-  color: var(--green); background: color-mix(in srgb, var(--green) 16%, transparent);
+  color: var(--druh, var(--green)); background: color-mix(in srgb, var(--druh, var(--green)) 16%, transparent);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 

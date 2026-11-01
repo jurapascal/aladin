@@ -373,7 +373,10 @@
        Klávesnice = výřez o kus nižší než nejvyšší, jaký byl v téhle šířce. */
     const isApp = document.body.classList.contains('is-app');
     const tallest = {};
-    let pending = 0, last = 0;
+    let pending = 0, last = 0, lastTop = 0;
+    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    document.body.classList.toggle('is-ios', ios);
     const sync = () => {
       const h = Math.round(vv.height);
       const w = window.innerWidth;
@@ -384,6 +387,21 @@
       } else if (h !== last) {
         root.style.setProperty('--app-h', h + 'px');
         last = h;
+      }
+      /* iPhone: Safari při vyjetí klávesnice posune vizuální výřez nahoru
+         (vv.offsetTop), aby bylo vidět pole. Vracení posunu přes scrollTo se
+         s ním přetahovalo — hlavička ujela pod stavový řádek a obrazovka
+         poskakovala (videa od Adama, iPhone 17 Pro). Na iOS proto appka
+         výřez následuje: body je fixed a posune se o offsetTop (hub.css,
+         --app-top), takže hlavička i pole zůstanou na místě. */
+      if (ios) {
+        const top = kbd ? Math.max(0, Math.round(vv.offsetTop)) : 0;
+        if (top !== lastTop) {
+          if (top) root.style.setProperty('--app-top', top + 'px');
+          else root.style.removeProperty('--app-top');
+          lastTop = top;
+        }
+        if (kbd) return;
       }
       // Stránka se sama nikdy neposouvá (body má overflow: hidden) — každý
       // posun je od prohlížeče kvůli klávesnici a má zmizet.

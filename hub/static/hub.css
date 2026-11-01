@@ -3240,6 +3240,13 @@ html:has(> body.is-touch), body.is-touch { height: var(--app-h, 100%); }
 /* Z ikony na ploše bez klávesnice celá obrazovka — 100 % tam na iPhonu
    vyjde o stavový řádek kratší (mobile.js). */
 html:has(> body.is-app.is-touch), body.is-app.is-touch { height: var(--app-h, 100vh); }
+/* iPhone: appka přilepená k viditelnému výřezu. Safari při klávesnici výřez
+   posune (vv.offsetTop) a body ho následuje, místo aby se stránka vracela
+   zpátky a poskakovala (mobile.js, --app-top). */
+body.is-ios.is-touch {
+  /* top místo transform: transform by změnil, k čemu se měří fixed okna a nabídky. */
+  position: fixed; top: var(--app-top, 0px); left: 0; right: 0;
+}
 
 /* Logo a název v liště = tlačítko domů (hub.js goHome). Vypadá jako dřív. */
 .topbar-home {

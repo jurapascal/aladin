@@ -483,21 +483,42 @@
     // Na počítači brána není — dotaz by jen skončil chybou 404 v konzoli.
     const st = io && io.state;
     if (!(st && st.config && st.config.gateway_user)) return;
+    /* Sekce Tým dřív při chybě nebo dlouhém počítání potichu zmizela. Teď je
+       hned vidět, že se počítá, a když to nevyjde, řekne proč a nabídne
+       „Zkusit znovu“ (po restartu brány se spotřeba počítá znovu, pár minut). */
+    const hlaska = (text, znovu) => {
+      if (!root) return;
+      box.textContent = '';
+      const s = section('Tým — spotřeba za 7 dní');
+      s.appendChild(el('div', 'set-note', text));
+      if (znovu) {
+        const b = el('button', 'btn ghost', 'Zkusit znovu');
+        b.onclick = () => kresliTym(box);
+        s.appendChild(b);
+      }
+      box.appendChild(s);
+    };
+    hlaska('Počítám spotřebu všech lidí na serveru… Po restartu brány to může trvat i pár minut.');
     let d;
     try {
       d = await gwSpotreba();
       // Brána krátce počítá na pozadí — chvíli počkat, než čísla přijdou.
-      for (let i = 0; d.pocita && i < 40 && root; i++) {
+      for (let i = 0; d.pocita && i < 120 && root; i++) {
         await new Promise((r) => setTimeout(r, 1500));
         d = await gwSpotreba();
       }
-    } catch (_) { return; }               // mimo server /gw/spotreba není
-    if (!root || !d || !d.lide) return;
+    } catch (err) {
+      hlaska('Spotřebu týmu se teď nepodařilo načíst: ' + ((err && err.message) || 'server neodpovídá') + '.', true);
+      return;
+    }
+    if (root && d && d.pocita) { hlaska('Spotřeba se ještě počítá — zkus to za chvíli.', true); return; }
+    if (root && (!d || !d.lide)) { hlaska('Server vrátil neúplná data, zkus to znovu.', true); return; }
+    if (!root) return;
     tymData = d;
     box.textContent = '';
     const admin = !!d.admin;
     const lide = d.admin ? d.lide : d.lide.filter((r) => limitText(r));
-    if (!lide.length) return;
+    if (!lide.length) { box.textContent = ''; return; }
     const s = section(admin ? 'Tým — spotřeba za 7 dní' : 'Tvůj týdenní limit',
       admin ? 'Odhad podle ceníku API (server i počítače na stejném předplatném); na předplatném se neplatí. ' +
               'Limit upozorní, se stopkou zastaví nové zprávy Claudovi. ' +

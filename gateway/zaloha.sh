@@ -95,7 +95,8 @@ zabal() {
     # nice/ionice: na stroji zároveň pracují lidé, záloha jim nesmí ubrat výkon.
     # Vynechané cesty jsou cache (stáhnou se znovu), závislosti projektů
     # (node_modules, virtuální prostředí Pythonu — poznají se podle pyvenv.cfg)
-    # a koše po smazaných účtech. --exclude-caches-all: složky označené
+    # koše po smazaných účtech a ~/Cloud (od 2.113.0 přípojka Google Disku /
+    # OneDrivu: root do ní nevidí, tar by padal, a data patří cloudu, ne serveru). --exclude-caches-all: složky označené
     # CACHEDIR.TAG (standard pro cache, dělá ho uv, pip, cargo…).
     nice -n 19 ionice -c3 tar -C "$(dirname "$SRC")" -cf - \
             --warning=no-file-changed --warning=no-file-ignored \
@@ -110,6 +111,7 @@ zabal() {
             --exclude='*/node_modules' \
             --exclude='*/.claude/projects/*/[0-9a-f]*.jsonl.bak' \
             --exclude='users/_smazany-*' \
+            --exclude='users/*/Cloud' \
             "$(basename "$SRC")" 2>>"$LOG" \
         | nice -n 19 zstd -3 -T2 -q \
         | GNUPGHOME="$RING" gpg --batch --yes --quiet --trust-model always \

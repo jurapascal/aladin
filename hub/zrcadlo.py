@@ -240,8 +240,54 @@ def _posli_smazane():
             _BEH["seznam_cas"] = 0.0
 
 
+SIROTCI_KAZDYCH = 60      # s — jak často se porovnává server s tím, co je na počítači
+SIROTCI_NAJEDNOU = 25     # nejvíc smazaných kopií za jedno porovnání
+_SIROTCI = {"cas": 0.0}
+
+
+def uklid_sirotku():
+    """Kopie na serveru, které už na počítači nemají přepis (smazal jsem je tady,
+    ještě než to hub uměl hlásit, nebo ručně ze složky): zmizí ze serveru taky.
+    Bere se jen to, co sem kopíroval právě tenhle počítač (`drzi` = pc a stejné
+    id počítače) a co tu doopravdy nikde není — přesun do koše na serveru jde
+    vrátit. Když složka s přepisy na počítači není vidět, nedělá se nic."""
+    if time.time() - _SIROTCI["cas"] < SIROTCI_KAZDYCH:
+        return
+    _SIROTCI["cas"] = time.time()
+    root = os.path.join(core.CLAUDE_DIR, "projects")
+    if not os.path.isdir(root):
+        return
+    from . import pocitac
+    res, _err, _kind = account._call("/gw/zrcadlo/seznam", token=core.CONFIG.get("gw_token", ""), timeout=20)
+    seznam = (res or {}).get("chaty") if res else None
+    if not seznam:
+        return
+    ja = pocitac.device_id()
+    data = _nacti()
+    fronta = set(data["smazat"])
+    nove = []
+    for c in seznam:
+        cid = str(c.get("id") or "")
+        if not SESSION_ID.fullmatch(cid) or c.get("drzi") != "pc" or c.get("pocitac") != ja or cid in fronta:
+            continue
+        if prenos.najdi(core.CLAUDE_DIR, cid)[0] or _tab_chatu(cid)[0] is not None:
+            continue
+        nove.append(cid)
+        if len(nove) >= SIROTCI_NAJEDNOU:
+            break
+    if not nove:
+        return
+    with _LOCK:
+        data = _nacti()
+        data["smazat"] = (data["smazat"] + [c for c in nove if c not in data["smazat"]])[-200:]
+        for cid in nove:
+            data["chaty"].pop(cid, None)
+        _uloz(data)
+
+
 def kolo():
     """Jedno kopírování: nové řádky změněných chatů, uvolnění, co chce telefon."""
+    uklid_sirotku()
     if _nacti().get("smazat"):
         _posli_smazane()
     data = _nacti()

@@ -409,13 +409,83 @@ def probe(server):
                              "Aladina. Zkontroluj adresu."}
 
 
+def _saved():
+    """Uložené servery, které právě nejsou aktivní: [{server, token, user}]."""
+    out = []
+    for e in core.CONFIG.get("gw_servers") or []:
+        if isinstance(e, dict) and normalize(e.get("server")):
+            out.append({"server": normalize(e["server"]),
+                        "token": str(e.get("token") or ""),
+                        "user": e.get("user") if isinstance(e.get("user"), dict) else None})
+    return out
+
+
+def _active_entry():
+    base = _base()
+    if not base:
+        return None
+    return {"server": base, "token": core.CONFIG.get("gw_token") or "",
+            "user": core.CONFIG.get("gw_user") or None}
+
+
+def _activate(base, token, user, extra=None):
+    """Udělá z `base` aktivní server. Dosavadní aktivní se uloží do seznamu,
+    ať se k němu dá jedním klikem vrátit; aktivní v seznamu nikdy není."""
+    keep = [e for e in _saved() if e["server"] != base]
+    prev = _active_entry()
+    if prev and prev["server"] != base:
+        keep.append(prev)
+    core.save_config({"gw_server": base, "gw_token": token, "gw_user": user,
+                      "gw_servers": keep, **(extra or {})})
+
+
+def servers():
+    """Všechny servery, kde má appka účet — aktivní první."""
+    out = []
+    act = _active_entry()
+    if act:
+        out.append({**act, "active": True})
+    out += [{**e, "active": False} for e in _saved()]
+    return [{"server": e["server"], "host": _host(e["server"]), "active": e["active"],
+             "logged_in": bool(e["token"]),
+             "email": (e["user"] or {}).get("email", ""),
+             "name": (e["user"] or {}).get("name", "")} for e in out]
+
+
+def switch(server):
+    """Přepne aktivní server na jiný, kde už je účet uložený (nebo jen adresa).
+    Nic neověřuje po síti — stav ukáže `status()`; vypršelý token tak skončí
+    u přihlášení s předvyplněnou adresou a e-mailem."""
+    base = normalize(server)
+    if not base:
+        return {"error": "Zadej adresu serveru."}
+    if base == _base():
+        return status()
+    found = next((e for e in _saved() if e["server"] == base), None)
+    if not found:
+        return {"error": "Tenhle server tu nemáš uložený."}
+    _activate(base, found["token"], found["user"], {"server_mode": False})
+    return status()
+
+
+def forget(server):
+    """Zapomene uložený (neaktivní) server — bez odhlášení na něm; token tam
+    platí dál, dokud se neodhlásí z jiného zařízení."""
+    base = normalize(server)
+    if base == _base():
+        return {"error": "Aktivní server se odhlašuje tlačítkem Odhlásit se."}
+    core.save_config({"gw_servers": [e for e in _saved() if e["server"] != base]})
+    return {"servers": servers()}
+
+
 def status(timeout=TIMEOUT):
     """Stav přihlášení. Nikdy nevyhodí výjimku — kreslí se z toho nastavení."""
     server = _base()
     token = core.CONFIG.get("gw_token") or ""
     cached = core.CONFIG.get("gw_user") or None
     base = {"server": server, "host": _host(server) if server else "",
-            "server_mode": bool(core.CONFIG.get("server_mode"))}
+            "server_mode": bool(core.CONFIG.get("server_mode")),
+            "servers": servers()}
     if not server or not token:
         out = {**base, "logged_in": False, "user": cached if server else None}
         if server and base["server_mode"]:
@@ -471,8 +541,7 @@ def login(server, email, password):
         return {"error": err or "Přihlášení se nepovedlo."}
     # Adresa se ukládá až po úspěchu: nepovedený pokus nesmí přepsat server,
     # na kterém je člověk přihlášený.
-    core.save_config({"gw_server": base, "gw_token": data["token"],
-                      "gw_user": data.get("user")})
+    _activate(base, data["token"], data.get("user"))
     return status()
 
 
@@ -500,7 +569,7 @@ def browser_poll(server, nonce):
     if not data:
         return {"error": err or "Server neodpovídá."}
     if data.get("stav") == "hotovo" and data.get("token"):
-        core.save_config({"gw_server": base, "gw_token": data["token"], "gw_user": data.get("user")})
+        _activate(base, data["token"], data.get("user"))
         return {"stav": "hotovo", **status()}
     return {"stav": "ceka"}
 
@@ -515,8 +584,7 @@ def second_factor(server, ticket, code):
                              payload={"ticket": str(ticket), "code": str(code or "")})
     if not data or not data.get("token"):
         return {"error": err or "Ověření se nepovedlo."}
-    core.save_config({"gw_server": base, "gw_token": data["token"],
-                      "gw_user": data.get("user")})
+    _activate(base, data["token"], data.get("user"))
     out = status()
     if isinstance(data.get("recovery"), list):
         out["recovery"] = [str(c) for c in data["recovery"]][:20]

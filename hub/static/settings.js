@@ -1997,6 +1997,7 @@
     function drawLogin(data) {
       body.textContent = '';
       if (data.note) body.appendChild(el('div', 'set-warn', '! ' + data.note));
+      if ((data.servers || []).length > 1) body.appendChild(serveryBlok(data));
       body.appendChild(HubServer.panel(io, {
         server: data.server || state.config.gw_server,
         email: (data.user && data.user.email) || state.config.gw_email,
@@ -2064,6 +2065,7 @@
       row.appendChild(out);
       body.appendChild(row);
       body.appendChild(err);
+      body.appendChild(serveryBlok(data));
 
       body.appendChild(el('div', 'set-note',
         'Appka si pamatuje, kde jsi pracoval naposledy. Ze serveru se sem ' +
@@ -2155,6 +2157,71 @@
         try { kresli(await io.api('mcp-pc-obnovit', {})); } catch (err) { io.toast(err.message); }
         obnovit.disabled = false;
       };
+      return box;
+    }
+
+    /* Všechny servery, kde má appka účet: přepnutí jedním klikem a přidání
+       dalšího (hub/account.py: servers, switch, forget). Aktivní je ten, na
+       který míří „Otevřít můj prostor“. */
+    function serveryBlok(data) {
+      const list = data.servers || [];
+      const box = el('div', 'acc-sec');
+      box.appendChild(el('div', 'set-title', 'Servery'));
+      for (const s of list) {
+        const row = el('div', 'set-row');
+        const label = s.host + (s.email ? ' · ' + s.email : '');
+        row.appendChild(el('span', s.active ? 'set-ok' : null, (s.active ? '● ' : '○ ') + label));
+        row.appendChild(el('span', 'spacer'));
+        if (!s.active) {
+          if (!s.logged_in) row.appendChild(el('span', 'set-note', 'přihlášení vypršelo'));
+          const sw = el('button', 'btn ghost', 'Přepnout');
+          sw.onclick = async () => {
+            sw.disabled = true;
+            try {
+              const res = await io.api('account', {action: 'switch', server: s.server});
+              if (res.error) { io.toast(res.error); sw.disabled = false; return; }
+              state.config.gw_server = res.server;
+              state.config.gw_servers = res.servers || [];
+              state.config.gw_logged_in = !!res.logged_in;
+              state.config.gw_email = (res.user && res.user.email) || '';
+              state.config.server_mode = false;
+              draw(res);
+              io.toast('Přepnuto na ' + res.host + '.');
+            } catch (e) { io.toast(e.message); sw.disabled = false; }
+          };
+          const fg = el('button', 'btn ghost', 'Zapomenout');
+          fg.title = 'Smaže uložené přihlášení k tomuhle serveru z tohoto počítače.';
+          fg.onclick = async () => {
+            fg.disabled = true;
+            try {
+              const res = await io.api('account', {action: 'forget', server: s.server});
+              if (res.error) { io.toast(res.error); fg.disabled = false; return; }
+              data.servers = res.servers;
+              state.config.gw_servers = res.servers;
+              row.remove();
+            } catch (e) { io.toast(e.message); fg.disabled = false; }
+          };
+          row.append(sw, fg);
+        }
+        box.appendChild(row);
+      }
+      const addWrap = el('div');
+      const add = el('button', 'btn ghost', 'Přidat další server');
+      add.onclick = () => {
+        add.hidden = true;
+        addWrap.appendChild(HubServer.panel(io, {
+          autoProbe: false,
+          onReady: (res) => {
+            state.config.gw_server = res.server;
+            state.config.gw_servers = res.servers || [];
+            state.config.gw_logged_in = true;
+            state.config.server_mode = false;
+            io.toast('Přidáno a přepnuto na ' + res.host + '.');
+            draw(res);
+          },
+        }));
+      };
+      box.append(add, addWrap);
       return box;
     }
 

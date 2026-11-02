@@ -3173,6 +3173,18 @@ async function switchPlace() {
       HubServer.backTo('local');
       return;
     } else {
+      const known = (STATE.config.gw_servers || []);
+      if (known.length > 1) {
+        // Víc serverů: nejdřív nabídka, kam. Aktivní jde rovnou, jiný se
+        // nejdřív přepne (a když mu vypršelo přihlášení, otevře se Účet).
+        const b = badge.getBoundingClientRect();
+        showMenu(b.left, b.bottom, known.map((s) => ({
+          icon: 'i-hub',
+          label: (s.active ? '● ' : '') + s.host + (s.email ? ' · ' + s.email : ''),
+          run: () => prepniNaServer(s),
+        })));
+        return;
+      }
       const res = await HubServer.go(hubIO()).catch((e) => ({error: e.message}));
       if (res && res.ok) return;
       if (res && res.error) toast(res.error);
@@ -3240,6 +3252,27 @@ async function pristupGw(payload) {
   const data = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(data.error || 'Server teď neodpovídá, zkus to za chvíli.');
   return data;
+}
+
+/* Přepnout appku na jiný uložený server a rovnou do něj vejít. */
+async function prepniNaServer(s) {
+  try {
+    if (!s.active) {
+      const st = await api('account', {action: 'switch', server: s.server});
+      if (st.error) return toast(st.error);
+      STATE.config.gw_server = st.server;
+      STATE.config.gw_servers = st.servers || [];
+      STATE.config.gw_logged_in = !!st.logged_in;
+      if (!st.logged_in) {
+        toast('Přihlášení k ' + s.host + ' vypršelo, přihlas se znovu.');
+        return HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'});
+      }
+    }
+    const res = await HubServer.go(hubIO()).catch((e) => ({error: e.message}));
+    if (res && res.ok) return;
+    if (res && res.error) toast(res.error);
+    HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'});
+  } catch (e) { toast(e.message); }
 }
 
 async function prostorJdi(ownerId) {
@@ -3338,7 +3371,7 @@ function renderPlace() {
   badge.title = u
     ? `Pracuješ na serveru · ${u.name || u.email}` +
       (lzePrepnout ? ' — klikni a přepneš na počítač' : '')
-    : 'Pracuješ na tomhle počítači — klikni a přepneš na server';
+    : ((STATE.config.gw_servers || []).length > 1 ? 'Pracuješ na tomhle počítači — klikni a vybereš server' : 'Pracuješ na tomhle počítači — klikni a přepneš na server');
   // Počítač, na který Claude z prostoru dosáhne (hub/pocitac.py).
   if (u) HubPocitac.chip(hubIO());
   // Připojené předplatné, které běžící prostor ještě nemá — jednou za načtení.

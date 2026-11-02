@@ -1627,6 +1627,8 @@ class Handler(BaseHTTPRequestHandler):
                            "gw_server": core.CONFIG.get("gw_server") or "",
                            "gw_email": (core.CONFIG.get("gw_user") or {}).get("email", ""),
                            "gw_logged_in": bool(core.CONFIG.get("gw_token")),
+                           # Servery, kde má appka účet (bez tokenů) — rychlé přepnutí v hlavičce.
+                           "gw_servers": account.servers(),
                            "server_mode": bool(core.CONFIG.get("server_mode")),
                            # Claude ze serveru na tomhle počítači (hub/pocitac.py).
                            "pocitac_access": pocitac.access_level(),
@@ -1881,6 +1883,12 @@ class Handler(BaseHTTPRequestHandler):
                 if action == "connect" and res.get("url"):
                     core.save_config({"server_mode": True})
                 return self._json(res)
+            if action == "servers":
+                return self._json({"servers": account.servers()})
+            if action == "switch":
+                return self._json(account.switch(payload.get("server", "")))
+            if action == "forget":
+                return self._json(account.forget(payload.get("server", "")))
             if action == "local":
                 core.save_config({"server_mode": False})
                 return self._json({"ok": True})

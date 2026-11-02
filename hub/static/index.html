@@ -294,11 +294,21 @@
         <!-- Jen v motivu Claude (hub.css: .welcome-prompt je jinak skryté): úvod jako
              nový chat — pole na psaní, odeslání otevře chat a pošle mu zprávu. -->
         <div class="welcome-prompt" id="welcome-prompt">
+          <div class="composer-atts" id="welcome-prompt-atts" hidden></div>
           <textarea id="welcome-prompt-input" rows="2" spellcheck="false" autocomplete="off"
                     placeholder="Na čem budeme pracovat?"></textarea>
-          <div class="welcome-prompt-bar">
+          <!-- Stejné ovládání jako bublina v chatu (composer.js); obsluha v hub.js, welcomeBar. -->
+          <div class="welcome-prompt-bar composer-bar">
+            <div class="composer-tools">
+              <button class="composer-chip" data-act="file" id="welcome-prompt-file" title="Přiložit soubor nebo obrázek"><svg class="ico"><use href="#i-image"/></svg> Příloha</button>
+              <button class="composer-chip" data-act="slash" id="welcome-prompt-slash" hidden>/ příkazy</button>
+              <button class="composer-chip" data-act="model" id="welcome-prompt-model" title="Model pro nový chat" hidden><span class="val"></span></button>
+              <button class="composer-chip" data-act="mode" id="welcome-prompt-mode"><span class="val"></span></button>
+            </div>
             <span class="spacer"></span>
+            <button id="welcome-prompt-mic" class="composer-mic" title="Diktovat česky — klikni, mluv, klikni znovu" aria-label="Diktovat" hidden><svg class="ico"><use href="#i-mic"/></svg></button>
             <button id="welcome-prompt-send" class="composer-send" title="Odeslat (Enter)" aria-label="Odeslat"><svg class="ico"><use href="#i-up"/></svg></button>
+            <input type="file" id="welcome-prompt-picker" multiple hidden>
           </div>
         </div>
         <div class="welcome-actions" id="welcome-actions"></div>

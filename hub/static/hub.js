@@ -826,21 +826,22 @@ function tabProstor(t) {
 /* Firemní tab: Claude v něm pracuje nad Obsidianem firmy a zapisuje do něj
    rovnou — souhlas dal uživatel tím, že tab otevřel. Bez podkategorie je to
    chat celé firmy, s ní chat té podkategorie (Claude začne jejím CLAUDE.md). */
-function openFirmaTab(slug, klient, podkat) {
+function openFirmaTab(slug, klient, podkat, model) {
   const f = (slug && firmyList().find((x) => x.zkratka === slug)) || prostorFirma() || firmyList()[0];
   if (!f) return null;
   if (f.zkratka !== prostor()) setProstor(f.zkratka, true);
   const title = [f.nazev, podkat || klient].filter(Boolean).join(' · ');
   return openTab({kind: 'project', path: firmaPrace(f.zkratka, klient, podkat), title,
-                  agent: 'claude', vault: firmaVaultId(f)});
+                  agent: 'claude', vault: firmaVaultId(f), model: model || ''});
 }
 
 /* Nový chat v prostoru okna: ve firmě chat firmy, jinak osobní. Model řídí
    automatika v poli (composer.js); člověk vybírá jen AI agenta, a to jen
    když jich má víc a v nastavení není „vždy tenhle“. */
-function newChatHere(agentId) {
-  if (prostorFirma()) return openFirmaTab();
-  const otevri = (a) => openTab({kind: 'project', path: STATE.home, title: newTabLabel(), agent: a.id});
+function newChatHere(agentId, opts) {
+  const model = (opts && opts.model) || '';
+  if (prostorFirma()) return openFirmaTab('', '', '', model);
+  const otevri = (a) => openTab({kind: 'project', path: STATE.home, title: newTabLabel(), agent: a.id, model});
   if (agentId) {
     const a = agentById(agentId);
     return a ? otevri(a) : HubSettings.open({...hubIO(), state: STATE, tab: 'agenti'});
@@ -3465,18 +3466,181 @@ function renderGreeting() {
 }
 
 /* Úvod jako nový chat (motiv Claude): zpráva z pole na úvodu otevře nový chat
-   a pošle se mu, jakmile je bublina připravená (rozjezd Claude Code řeší composer). */
+   a pošle se mu, jakmile je bublina připravená (rozjezd Claude Code řeší composer).
+   Pole má stejné ovládání jako bublina v chatu — příloha, / příkazy, model,
+   režim a diktování; co se tu vybere, převezme nový chat. */
+const WELCOME = {atts: [], rezim: ''};
+const WELCOME_REZIM_KEY = 'hub.welcome-rezim';
+
+function welcomeAgentId() {
+  if (prostorFirma()) return 'claude';
+  const a = agentById(STATE.config.novy_chat_agent || '') || agentById(STATE.default_agent) || agentList(true)[0];
+  return (a && a.id) || 'claude';
+}
+function welcomeModely() {
+  const a = agentById(welcomeAgentId());
+  return (a && a.models) || (window.HubComposer ? HubComposer.MODELS : []);
+}
+function lsGet(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (_) { /* soukromé okno */ } }
+
+/* Stav lišty: model (stejné klíče jako composer.js, takže volba platí i v chatu)
+   a režim (pamatuje se zvlášť pro úvod). */
+function welcomeSyncBar() {
+  if (!$('welcome-prompt-bar-ok')) return;
+  const id = welcomeAgentId();
+  const auto = lsGet('hub.auto:' + id) !== '0';
+  const key = lsGet('hub.model:' + id) || '';
+  const m = welcomeModely().find((x) => x[1] === key);
+  const pro = !!window.HUB_ADVANCED;
+  const modelBtn = $('welcome-prompt-model');
+  modelBtn.hidden = !pro || !welcomeModely().length;
+  modelBtn.querySelector('.val').textContent = auto ? 'Auto' : (m ? m[0] : 'Výchozí model');
+  $('welcome-prompt-slash').hidden = !pro;
+  const modes = window.HubComposer ? HubComposer.MODES : [];
+  const r = modes.find((x) => x[0] === WELCOME.rezim);
+  $('welcome-prompt-mode').querySelector('.val').textContent =
+    r ? (pro ? r[1] : r[3]) : (pro ? 'Režim' : 'Jak se ptát');
+}
+
+function welcomeRenderAtts() {
+  const box = $('welcome-prompt-atts');
+  box.textContent = '';
+  box.hidden = !WELCOME.atts.length;
+  for (const path of WELCOME.atts) {
+    const name = path.split(/[\\/]/).pop();
+    const chip = document.createElement('div');
+    chip.className = 'composer-att';
+    chip.title = path;
+    const x = document.createElement('button');
+    x.className = 'composer-att-x';
+    x.title = 'Odebrat přílohu';
+    x.innerHTML = icon('i-close');
+    x.onclick = () => { WELCOME.atts = WELCOME.atts.filter((p) => p !== path); welcomeRenderAtts(); };
+    const jmeno = () => {
+      chip.classList.remove('img');
+      chip.classList.add('bare');
+      const n = document.createElement('span');
+      n.className = 'composer-att-name';
+      n.textContent = name;
+      chip.insertBefore(n, x);
+    };
+    if (/\.(png|jpe?g|gif|webp|bmp)$/i.test(name)) {
+      chip.classList.add('img');
+      const img = document.createElement('img');
+      img.src = imageUrl(path);
+      img.alt = name;
+      img.onerror = () => { img.remove(); jmeno(); };
+      chip.append(img, x);
+    } else {
+      chip.appendChild(x);
+      jmeno();
+    }
+    box.appendChild(chip);
+  }
+}
+
+async function welcomePriloz(files) {
+  const paths = await uploadFiles(files);
+  for (const p of paths) if (!WELCOME.atts.includes(p)) WELCOME.atts.push(p);
+  welcomeRenderAtts();
+  $('welcome-prompt-input').focus();
+}
+
+function welcomeKotva(btn) {
+  const b = btn.getBoundingClientRect();
+  return [b.left, b.top];
+}
+
+function welcomeModelMenu(ev) {
+  const id = welcomeAgentId();
+  const [x, y] = welcomeKotva(ev.currentTarget);
+  const auto = lsGet('hub.auto:' + id) !== '0';
+  const key = lsGet('hub.model:' + id) || '';
+  const items = [{icon: 'i-bolt', label: 'Automaticky podle úkolu', on: auto,
+                  run: () => { lsSet('hub.auto:' + id, '1'); welcomeSyncBar(); }}];
+  for (const [label, k, star] of welcomeModely()) {
+    if (star) continue;
+    items.push({icon: 'i-star', label, on: !auto && k === key,
+                run: () => { lsSet('hub.auto:' + id, '0'); lsSet('hub.model:' + id, k); welcomeSyncBar(); }});
+  }
+  showMenu(x, y, items, {above: true});
+}
+
+function welcomeModeMenu(ev) {
+  const [x, y] = welcomeKotva(ev.currentTarget);
+  const pro = !!window.HUB_ADVANCED;
+  const items = [{icon: 'i-dot', label: pro ? 'Výchozí (podle nastavení)' : 'Jak je nastaveno', on: !WELCOME.rezim,
+                  run: () => { WELCOME.rezim = ''; lsSet(WELCOME_REZIM_KEY, ''); welcomeSyncBar(); }}];
+  // Bypass jde zapnout jen v novém chatu po varování — to umí bublina v chatu.
+  for (const [key, label, , simple] of (window.HubComposer ? HubComposer.MODES : [])) {
+    if (key === 'bypass') continue;
+    items.push({icon: key === 'plan' ? 'i-note' : 'i-dot', label: pro ? label : simple, on: key === WELCOME.rezim,
+                run: () => { WELCOME.rezim = key; lsSet(WELCOME_REZIM_KEY, key); welcomeSyncBar(); }});
+  }
+  showMenu(x, y, items, {above: true});
+}
+
+function welcomeSlashMenu(ev) {
+  const [x, y] = welcomeKotva(ev.currentTarget);
+  const own = (STATE.skills || []).map((s) => '/' + s).sort();
+  const vestavene = window.HubComposer ? HubComposer.BUILTIN : [];
+  const input = $('welcome-prompt-input');
+  const items = [...new Set([...own, ...vestavene])].map((cmd) => ({
+    icon: cmd === '/clear' || cmd === '/compact' ? 'i-refresh' : 'i-terminal',
+    label: cmd,
+    run: () => { input.value = cmd + ' ' + input.value.replace(/^\/\S*\s*/, ''); input.focus(); },
+  }));
+  showMenu(x, y, items, {above: true});
+}
+
+function welcomeBar() {
+  if ($('welcome-prompt-bar-ok')) return;
+  const ok = document.createElement('span');
+  ok.id = 'welcome-prompt-bar-ok';
+  ok.hidden = true;
+  $('welcome-prompt').appendChild(ok);
+  WELCOME.rezim = lsGet(WELCOME_REZIM_KEY) || '';
+  const picker = $('welcome-prompt-picker');
+  $('welcome-prompt-file').onclick = () => picker.click();
+  picker.onchange = () => { if (picker.files && picker.files.length) welcomePriloz(picker.files); picker.value = ''; };
+  $('welcome-prompt-model').onclick = welcomeModelMenu;
+  $('welcome-prompt-mode').onclick = welcomeModeMenu;
+  $('welcome-prompt-slash').onclick = welcomeSlashMenu;
+  const input = $('welcome-prompt-input');
+  // Obrázek ze schránky (Ctrl+V) se přiloží, text vloží prohlížeč sám.
+  input.addEventListener('paste', (ev) => {
+    const files = [...((ev.clipboardData && ev.clipboardData.files) || [])];
+    if (!files.length) return;
+    ev.preventDefault();
+    welcomePriloz(files);
+  });
+  if (window.HubHlas) HubHlas.mic($('welcome-prompt-mic'), input, {notice: toast});
+  // Přepnutí „Pro pokročilé" mění třídu na <body> — model a / příkazy se ukážou hned.
+  new MutationObserver(welcomeSyncBar).observe(document.body, {attributes: true, attributeFilter: ['class']});
+  welcomeSyncBar();
+}
+
 function welcomeSend() {
   const input = $('welcome-prompt-input');
   const text = String(input.value || '').trim();
-  if (!text) return;
-  const tab = newChatHere();
+  const prilohy = WELCOME.atts.slice();
+  if (!text && !prilohy.length) return;
+  const id = welcomeAgentId();
+  const model = lsGet('hub.auto:' + id) === '0' ? (lsGet('hub.model:' + id) || '') : '';
+  const tab = newChatHere('', {model});
   if (!tab) return;
   input.value = '';
+  WELCOME.atts = [];
+  welcomeRenderAtts();
+  const rezim = WELCOME.rezim;
   let tries = 0;
   const t = setInterval(() => {
     if (++tries > 60 || !TABS.includes(tab)) return clearInterval(t);
-    if (tab.composer && tab.composer.run && tab.composer.run(text + '\r')) clearInterval(t);
+    const c = tab.composer;
+    if (!c) return;
+    const hotovo = c.odeslat ? c.odeslat(text, prilohy, rezim) : (c.run && c.run(text + '\r'));
+    if (hotovo) clearInterval(t);
   }, 250);
 }
 
@@ -5911,6 +6075,7 @@ async function main() {
     }
   });
   $('welcome-prompt-send').onclick = () => welcomeSend();
+  welcomeBar();
   $('pp-q').oninput = renderProjekty;
   $('pp-sort').onclick = () => {
     ppSort = ppSort === 'recent' ? 'name' : ppSort === 'name' ? 'cena' : 'recent';

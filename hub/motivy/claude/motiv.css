@@ -307,6 +307,10 @@ html, body { font-family: var(--font-sans); }
 .welcome-prompt textarea::placeholder { color: var(--dim); }
 .welcome-prompt-bar { display: flex; align-items: center; }
 .welcome-prompt .composer-send { opacity: 1; }
+/* Lišta jako v bublině chatu: příloha a / příkazy vlevo, model a režim vpravo u odeslání. */
+.welcome-prompt .composer-tools { flex: 1; min-width: 0; }
+.welcome-prompt-bar .spacer { display: none; }
+.welcome-prompt .composer-atts { margin: 0 0 8px; }
 .welcome-actions, .welcome-open, .welcome-usage, .welcome-stats, .welcome-cols,
 .welcome-facts, .welcome-firmy { display: none !important; }
 .welcome-greet { margin-bottom: 18px; }

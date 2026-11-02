@@ -2777,6 +2777,31 @@
         return true;
       },
       focus: () => { if (shown) input.focus(); },
+      /* První zpráva z pole na úvodní stránce (hub.js, welcomeSend): text,
+         přílohy a případně režim vybraný ještě před otevřením chatu. Režim se
+         přepíná Shift+Tabem v běžícím Claude Code, takže se napřed počká, až
+         je připravený, a zpráva odejde až v novém režimu. */
+      odeslat: (text, prilohy, rezim) => {
+        if (!shown) return false;
+        const ven = () => {
+          if (konec()) return;
+          input.value = text || '';
+          for (const p of prilohy || []) if (!atts.includes(p)) atts.push(p);
+          if (atts.length) renderAtts();
+          send();
+        };
+        if (rezim && AG.full) {
+          (async () => {
+            const do30s = Date.now() + 30000;
+            await dokud(() => konec() || everIdle || Date.now() > do30s);
+            if (!konec() && readMode() !== rezim) await setMode(rezim);
+            ven();
+          })();
+        } else {
+          ven();
+        }
+        return true;
+      },
       // Rozepsaná zpráva — přežije restart prostoru při aktualizaci (hub.js).
       draft: () => input.value,
       znovu,
@@ -2830,6 +2855,6 @@
     };
   }
 
-  global.HubComposer = {install, installKeys, _test: {scanOptions, permInfo, permsOf, dialogBody, bodyBlocks}};
+  global.HubComposer = {install, installKeys, MODELS, MODES, BUILTIN, _test: {scanOptions, permInfo, permsOf, dialogBody, bodyBlocks}};
 
 })(window);

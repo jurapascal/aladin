@@ -36,7 +36,7 @@
     ['hlas',       'Hlas',      'i-mic',      () => hlas()],
     // Co je v panelu vlevo a vedle tabů: Nový chat, Obsidian, Projekty (Klienti),
     // terminál — jedna sekce, každá věc jen jednou (dřív zvlášť i záložka Taby).
-    ['panel',      'Panel a lišta', 'i-menu', () => panelVlevo()],
+    ['panel',      'Panel a lišta', 'i-menu', () => panelAPole()],
     // Všechno, čím se Claude rozšiřuje — služby, pluginy, skilly, MCP, pluginy appky.
     ['rozsireni',  'Napojení a pluginy', 'i-hub', () => rozsireni()],
     // Místo na disku serveru a oznámení lidem (gateway/uloziste.py, oznameni.py; uloziste.js).
@@ -589,6 +589,65 @@
       polozka('terminal', 'Terminál', 'Holý terminál bez Clauda. Jen ve vývojářském režimu.',
         () => nav('nav-terminal').click(), 'shell');
     }
+    box.appendChild(rows);
+    return box;
+  }
+
+  /* Panel a lišta + pole na psaní v jedné záložce. */
+  function panelAPole() {
+    const box = el('div');
+    box.append(panelVlevo(), poleNaPsani());
+    return box;
+  }
+
+  /* Pole na psaní: co v něm je vidět a automatické zhuštění kontextu. Platí jen
+     na tomhle zařízení (HubPole v composer.js) a hned. */
+  function poleNaPsani() {
+    const box = section('Pole na psaní',
+      'Co je vidět pod polem, kam píšeš Claudovi. Skryté věci pořád fungují, jen nejsou na očích.');
+    const rows = el('div', 'set-rows');
+    const P = global.HubPole;
+    const prepinac = (klic, nazev, popis, jenPokrocili) => {
+      if (jenPokrocili && !advanced()) return;
+      const lbl = el('label', 'set-panel-v');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = !!P.get(klic);
+      cb.onchange = () => P.set(klic, cb.checked);
+      lbl.append(cb, el('span', null, 'Zobrazit'));
+      rows.appendChild(radek(nazev, popis, lbl));
+    };
+    prepinac('priloha', 'Příloha', 'Tlačítko pro přiložení obrázku nebo souboru.');
+    prepinac('historie', 'Historie zadání', 'Ikona se seznamem toho, co jsi dřív psal.');
+    prepinac('kontext', 'Ukazatel kontextu', 'Kolik okna už konverzace zabírá („Kontext: 187k / 200k · 93 %“).');
+    prepinac('slash', '/ příkazy', 'Nabídka příkazů a skillů.', true);
+    prepinac('model', 'Model', 'Přepínač modelu a úsilí.', true);
+    prepinac('rezim', 'Režim', 'Jak moc se má Claude ptát, než něco udělá.');
+    prepinac('mic', 'Diktování', 'Mikrofon (jen kde je diktování zapnuté v záložce Hlas).');
+    if (advanced()) {
+      const lbl = el('label', 'set-panel-v');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = !!P.get('bypass');
+      cb.onchange = () => P.set('bypass', cb.checked);
+      lbl.append(cb, el('span', null, 'Nabízet'));
+      rows.appendChild(radek('Režim bez ptaní (Bypass)',
+        'Claude pak sám spouští programy a mění soubory bez ptaní. Zapneš ho vždy s varováním.', lbl));
+    }
+    // Automatické zhuštění: po dokončení úkolu, když je kontext skoro plný.
+    const zh = el('label', 'set-panel-v');
+    const zcb = el('input');
+    zcb.type = 'checkbox';
+    zcb.checked = !!P.get('zhustit');
+    const prah = vyber([['70', 'od 70 %'], ['80', 'od 80 %'], ['90', 'od 90 %']], String(P.get('prah')),
+      (v) => P.set('prah', Number(v)));
+    prah.disabled = !zcb.checked;
+    zcb.onchange = () => { P.set('zhustit', zcb.checked); prah.disabled = !zcb.checked; };
+    zh.append(zcb, el('span', null, 'Zhustit samo'));
+    const ovl = el('div', 'set-panel-ovl');
+    ovl.append(zh, prah);
+    rows.appendChild(radek('Automatické zhuštění kontextu',
+      'Když Claude dokončí úkol a kontext je skoro plný, sám pošle /compact — jindy by tě zaskočil uprostřed další práce.', ovl));
     box.appendChild(rows);
     return box;
   }

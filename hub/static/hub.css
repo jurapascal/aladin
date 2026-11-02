@@ -5451,3 +5451,12 @@ html[data-theme="light"] .chat-wa.druh-terminal .chat-av { background: #3a3f47; 
   .ul-slozky.s-cloudem .st-track, .ul-cloud-zaznam .set-dim { display: none; }
   .ul-cloud-auto { flex-direction: row; align-items: flex-start; }
 }
+
+/* Co si člověk v Nastavení → Panel a lišta skryl v poli na psaní (composer.js, HubPole). */
+html[data-pole-skryto~="kontext"] .composer-ctx,
+html[data-pole-skryto~="historie"] .composer-chip[data-act=history],
+html[data-pole-skryto~="priloha"] .composer-chip[data-act=file],
+html[data-pole-skryto~="slash"] .composer-chip[data-act=slash],
+html[data-pole-skryto~="model"] .composer-chip[data-act=model],
+html[data-pole-skryto~="rezim"] .composer-chip[data-act=mode],
+html[data-pole-skryto~="mic"] .composer-mic { display: none !important; }

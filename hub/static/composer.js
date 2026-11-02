@@ -1365,6 +1365,24 @@
       ctxBtn.textContent = text;
       ctxBtn.title = tip;
     }
+    /* Úkol je hotový a kontext je téměř plný: zhustit konverzaci hned teď,
+       dokud Claude nic nedělá, ať nás zhuštění nezaskočí uprostřed další práce.
+       Nic nepíše do pole ani do fronty — jen pošle /compact. */
+    let zhustenoAt = 0;
+    async function zhustitPoUloze() {
+      if (!AG.full || !io.tabContext || !tab.id || konec() || !HubPole.get('zhustit')) return;
+      if (pracuje || spinner || tab.ceka || askingNow || codePrompt || fronta.length || pumpuje || cekaZprava) return;
+      if (Date.now() - zhustenoAt < 600000) return;
+      let r;
+      try { r = await io.tabContext(tab.id, banner1m); } catch (_) { return; }
+      paintContext(r);
+      if (!r || r.tokens == null || !(r.window > 0)) return;
+      if (r.tokens * 100 / r.window < (Number(HubPole.get('prah')) || 80)) return;
+      if (konec() || pracuje || spinner || tab.ceka || askingNow || fronta.length || input.value.trim()) return;
+      zhustenoAt = Date.now();
+      submit('/compact');
+      if (io.notice) io.notice('Kontext byl skoro plný, tak jsem konverzaci zhustil (/compact).');
+    }
     function refreshContext() {
       if (!AG.full || !io.tabContext || !tab.id || ctxBusy || Date.now() - ctxAsked < 5000) return;
       ctxBusy = true;
@@ -1522,7 +1540,7 @@
       const pro = advanced();
       // Bypass je jen pro pokročilé — v jednoduchém režimu se nenabízí vůbec.
       const items = MODES
-        .filter(([key]) => key !== 'bypass' || (pro && (AG.bypass || seenBypass)))
+        .filter(([key]) => key !== 'bypass' || (pro && HubPole.get('bypass') && (AG.bypass || seenBypass)))
         .map(([key, label, , simple]) => ({
           icon: key === 'plan' ? 'i-note' : 'i-dot',
           label: pro ? label : simple,
@@ -2452,8 +2470,10 @@
       /* Po odpovědi ještě běží hooky (Stop: „Auto-saving… 0/3 · 7s") — spinner
          je stejný, ale Claude už nepracuje. Automatika pak smí přepnout: slash
          příkazy se zařadí do fronty před zprávu a proběhnou, až hooky doběhnou. */
+      const bylaPrace = pracuje;
       pracuje = !!stav.on && !stav.hook;
       spinner = !!stav.on;
+      if (bylaPrace && !pracuje) setTimeout(zhustitPoUloze, 4000);
       hookBezi = !!stav.hook;
       if (pracuje) pracovalAt = Date.now();
       const sig = JSON.stringify(stav);
@@ -2854,6 +2874,35 @@
       },
     };
   }
+
+  /* Co je vidět v poli na psaní a jestli se samo zhušťuje kontext. Volí se
+     v Nastavení → Panel a lišta (settings.js), platí na tomhle zařízení a
+     hned. Skrývá se CSS přes atribut na <html> — stejně pro bublinu v chatu
+     i pole na úvodu. */
+  const POLE_VYCHOZI = {kontext: false, historie: true, priloha: true, slash: true, model: true,
+                        rezim: true, bypass: false, mic: true, zhustit: true, prah: 80};
+  const POLE_KEY = 'hub-pole';
+  const HubPole = {
+    vychozi: POLE_VYCHOZI,
+    get(k) {
+      let v = {};
+      try { v = JSON.parse(localStorage.getItem(POLE_KEY) || '{}') || {}; } catch (_) { /* soukromé okno */ }
+      return k in v ? v[k] : POLE_VYCHOZI[k];
+    },
+    set(k, hodnota) {
+      let v = {};
+      try { v = JSON.parse(localStorage.getItem(POLE_KEY) || '{}') || {}; } catch (_) { /* nic */ }
+      v[k] = hodnota;
+      try { localStorage.setItem(POLE_KEY, JSON.stringify(v)); } catch (_) { /* nic */ }
+      HubPole.aplikuj();
+    },
+    aplikuj() {
+      const skryto = ['kontext', 'historie', 'priloha', 'slash', 'model', 'rezim', 'mic'].filter((k) => !HubPole.get(k));
+      document.documentElement.dataset.poleSkryto = skryto.join(' ');
+    },
+  };
+  HubPole.aplikuj();
+  global.HubPole = HubPole;
 
   global.HubComposer = {install, installKeys, MODELS, MODES, BUILTIN, _test: {scanOptions, permInfo, permsOf, dialogBody, bodyBlocks}};
 

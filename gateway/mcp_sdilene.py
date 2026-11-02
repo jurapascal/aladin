@@ -368,6 +368,8 @@ SERVICES = {"freelo": "Freelo", "canva": "Canva", "ecomail": "Ecomail",
 # Služby spouštěné příkazem s tokenem v proměnné (hub/connect.py, druh „token").
 COMMAND_SERVICES = {"facebook": ("@oliverames/meta-mcp-server", "META_ACCESS_TOKEN"),
                     "ecomail": ("ecomail-mcp", "ECOMAIL_API_KEY")}
+# Obal z tools/, přes který služba běží (hub/connect.py, SERVICES[…]["wrapper"]).
+COMMAND_WRAPPERS = {"ecomail": "ecomail_mcp.py"}
 ACCOUNT_NAME = re.compile(r"[a-z0-9][a-z0-9-]{0,60}")
 GOOGLE_TOOLS = ["gmail", "drive", "calendar", "docs", "sheets", "slides",
                 "forms", "tasks", "contacts"]
@@ -426,8 +428,16 @@ def _owner_command(entry):
     # Jen balíček, nanejvýš s číslem verze — nic, co by npx vzal odjinud.
     verze = [str(a) for a in spec.get("args") or []
              if re.fullmatch(re.escape(package) + r"(@\d+\.\d+\.\d+)?", str(a))]
-    return {"kind": "prikaz", "command": ["npx", "-y", verze[0] if verze else package],
-            "env": {var: token}}
+    command = ["npx", "-y", verze[0] if verze else package]
+    wrapper = COMMAND_WRAPPERS.get(entry["service"])
+    if wrapper:
+        from . import workspace
+        script = os.path.realpath(os.path.join(workspace.REPO_DIR, "tools", wrapper))
+        if os.path.isfile(script):
+            # Skript z repa hubu, ne od vlastníka; do sandboxu jen ke čtení.
+            return {"kind": "prikaz", "command": ["python3", script, *command],
+                    "env": {var: token}, "ro": [script]}
+    return {"kind": "prikaz", "command": command, "env": {var: token}}
 
 
 def _check_account(owner_uid, service, account):
@@ -790,7 +800,12 @@ class _Process:
         os.makedirs(home, mode=0o700, exist_ok=True)
         argv = list(entry["command"])
         if config.ISOLATION == "bwrap":
-            argv = isolation._bwrap(argv, home, extra_ro=())
+            from . import workspace
+            tools = os.path.realpath(os.path.join(workspace.REPO_DIR, "tools")) + os.sep
+            # Jen obaly z tools/ hubu (COMMAND_WRAPPERS) — nic jiného z disku brány.
+            ro = tuple(p for p in entry.get("ro") or ()
+                       if os.path.realpath(p).startswith(tools))
+            argv = isolation._bwrap(argv, home, extra_ro=ro)
             # Proces patří bráně: když brána skončí, skončí i on (a s ním celý
             # jmenný prostor PID) — žádná scope, kterou by musel někdo uklízet.
             argv.insert(argv.index("--"), "--die-with-parent")

@@ -74,6 +74,10 @@ SERVICES = {
         "kind": "token",
         "command": ["npx", "-y", "ecomail-mcp@1.0.0"],
         "package": "ecomail-mcp",
+        # Obal tools/ecomail_mcp.py doplní, co balíček 1.0.0 neumí: HTML minulé
+        # kampaně (get-campaign zahodí template_id), posílání na segmenty
+        # a update-campaign, který API bez názvu odmítne (2. 11. 2026).
+        "wrapper": "ecomail_mcp.py",
         "env": "ECOMAIL_API_KEY",
         "field": {"name": "account", "label": "API klíč z Ecomailu", "secret": True,
                   "help": "Ecomail → Správa účtu → Pro vývojáře → Zkopírovat API klíč"},
@@ -654,7 +658,7 @@ def add_account(service, label="", account="", client_id="", client_secret=""):
             return {"ok": False, "detail": f"Účet „{slug}“ u služby {spec['label']} už je "
                                            "— zvol jiný popisek."}
         r = _run([claude, "mcp", "add", "-s", "user", name, "-e", f"{spec['env']}={key}",
-                  "--", *spec["command"]])
+                  "--", *_service_command(spec)])
         if r.returncode != 0:
             return {"ok": False, "detail": (r.stderr or r.stdout or "nepovedlo se").strip()[:300]}
         core.log(f"služby: přidán účet {name}")
@@ -1256,6 +1260,53 @@ def github_remove(name):
     return {"ok": True, "detail": f"GitHub {login} odebrán (i z gh)."}
 
 
+def _service_command(spec):
+    """Příkaz služby druhu „token" — s obalem z tools/, když ho služba má."""
+    wrapper = spec.get("wrapper")
+    if not wrapper:
+        return list(spec["command"])
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return [sys.executable or "python3", os.path.join(root, "tools", wrapper),
+            *spec["command"]]
+
+
+def wrapper_upgrade():
+    """Účty služeb s obalem (Ecomail), napojené dřív přímo na balíček, převede
+    na obal — se stejnými proměnnými (klíčem), bez nového zadávání. Hub běží
+    dřív než Claude v prostoru; na počítači se změna projeví v novém chatu."""
+    claude = _claude()
+    if not claude:
+        return
+    for service_id, spec in SERVICES.items():
+        if not spec.get("wrapper"):
+            continue
+        want = _service_command(spec)
+        if not os.path.isfile(want[1]):
+            continue
+        for name, entry in list(_user_servers().items()):
+            if not isinstance(entry, dict) or \
+                    (name != service_id and not name.startswith(service_id + "-")):
+                continue
+            args = [str(a) for a in entry.get("args") or []]
+            if not any(spec["package"] in a for a in args):
+                continue
+            if [entry.get("command"), *args] == want:
+                continue
+            env = [f"{k}={v}" for k, v in (entry.get("env") or {}).items()]
+            if not env:
+                continue
+            _run([claude, "mcp", "remove", name, "-s", "user"], 30)
+            flags = [x for e in env for x in ("-e", e)]
+            r = _run([claude, "mcp", "add", "-s", "user", name, *flags, "--", *want])
+            if r.returncode != 0:
+                # Klíč se nesmí ztratit — vrátit účet, jak byl.
+                _run([claude, "mcp", "add", "-s", "user", name, *flags, "--",
+                      entry.get("command") or "npx", *args])
+            core.log(f"služby: {name} převeden na obal {spec['wrapper']}"
+                     + ("" if r.returncode == 0 else f" — selhalo: {(r.stderr or '')[:200]}"),
+                     "info" if r.returncode == 0 else "warn")
+
+
 def github_upgrade():
     """Účty z 2.67 (jen MCP, výchozí sady nástrojů, gh nepřihlášené) převede
     na plné napojení — se stejným tokenem, bez nového přihlašování."""
@@ -1718,6 +1769,10 @@ def _sync_on_start():
         github_upgrade()
     except Exception as exc:
         core.log(f"napojení GitHub při startu: {exc}", "warn")
+    try:
+        wrapper_upgrade()
+    except Exception as exc:
+        core.log(f"napojení s obalem při startu: {exc}", "warn")
     # sync_shared přehled v CLAUDE.md zapíše samo — když doběhne.
     if not core.on_gateway() or sync_shared() is None:
         write_claude_md()

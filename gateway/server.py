@@ -1124,7 +1124,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self._gw_mcp_pc(route, method)
             # Počítač počítá, kopie chatů je tady (gateway/zrcadlo.py): token zařízení.
             if route in ("/gw/zrcadlo/sync", "/gw/zrcadlo/seznam", "/gw/zrcadlo/prevzit",
-                         "/gw/zrcadlo/stahnout"):
+                         "/gw/zrcadlo/stahnout", "/gw/zrcadlo/smazat"):
                 return self._gw_zrcadlo(route, method)
             # Spotřeba z počítače (hub/spotreba_pc.py, token zařízení) a stopka
             # pro hub a hook v prostoru (žeton prostoru, jen loopback).
@@ -2818,6 +2818,16 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                                                chaty[:50], [str(c) for c in uvolneno][:50]))
             if route == "/gw/zrcadlo/stahnout":
                 return self._json(zrcadlo.stahnout(user, form.get("chat"), form.get("od")))
+            if route == "/gw/zrcadlo/smazat":
+                def smaz(chat):
+                    proc = self.hubs.procs.get(user["id"]) if self.hubs else None
+                    if not proc or not proc.alive():
+                        return ""
+                    out = hub_post(proc, "chat-delete", {"id": chat}, timeout=30)
+                    if out.get("ok") or "neexistuje" in str(out.get("error") or ""):
+                        return "ok"
+                    return "otevreny" if "otevřená v tabu" in str(out.get("error") or "") else ""
+                return self._json(zrcadlo.smazat(user, form.get("chat"), smaz))
 
             def uvolni(chat):
                 proc = self.hubs.procs.get(user["id"]) if self.hubs else None

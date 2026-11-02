@@ -62,6 +62,7 @@ def _nacti():
     data.setdefault("chaty", {})
     data.setdefault("od", time.time() - PRVNI_DNI * 86400)
     data.setdefault("server", [])          # chaty, které teď drží server
+    data.setdefault("smazat", [])          # smazané chaty, které server ještě nemá odepsané
     return data
 
 
@@ -203,8 +204,46 @@ def _pust_taby(data):
     return pustit
 
 
+def smazano(chat):
+    """Chat smazaný na počítači — kopie na serveru má zmizet taky. Zapíše se do
+    fronty (přežije vypnutý počítač nebo server) a odešle se v dalším kole."""
+    chat = str(chat or "")
+    if not SESSION_ID.fullmatch(chat) or not zapnuto():
+        return
+    with _LOCK:
+        data = _nacti()
+        if chat not in data["smazat"]:
+            data["smazat"].append(chat)
+        data["smazat"] = data["smazat"][-200:]
+        data["chaty"].pop(chat, None)
+        _uloz(data)
+    threading.Thread(target=_posli_smazane, daemon=True, name="zrcadlo-smazat").start()
+
+
+def _posli_smazane():
+    """Odešle frontu smazaných chatů bráně; co se nepovede, zůstane na příště."""
+    with _LOCK:
+        data = _nacti()
+        fronta = list(data["smazat"])
+    hotovo = []
+    for cid in fronta:
+        res, _err, _kind = account._call("/gw/zrcadlo/smazat", token=core.CONFIG.get("gw_token", ""),
+                                         timeout=40, payload={"chat": cid})
+        if res is not None and res.get("ok"):
+            hotovo.append(cid)
+    if hotovo:
+        with _LOCK:
+            data = _nacti()
+            data["smazat"] = [c for c in data["smazat"] if c not in hotovo]
+            _uloz(data)
+        with _LOCK:
+            _BEH["seznam_cas"] = 0.0
+
+
 def kolo():
     """Jedno kopírování: nové řádky změněných chatů, uvolnění, co chce telefon."""
+    if _nacti().get("smazat"):
+        _posli_smazane()
     data = _nacti()
     pustit = _pust_taby(data)
     davka, velikost, mapa = [], 0, {}

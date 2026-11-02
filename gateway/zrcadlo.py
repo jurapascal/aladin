@@ -358,5 +358,52 @@ def stahnout(user, chat, od):
     return {"ok": True, "radky": radky, "od": od, "celkem": celkem}
 
 
+def smazat(user, chat, smaz_v_prostoru=None):
+    """Chat smazaný na počítači zmizí i z kopie na serveru. Přepis se přesune do
+    koše ~/.claude/hub-kos/chaty/ (omyl jde vrátit) a chat se odepíše z registru,
+    ať ho počítač už nekopíruje. `smaz_v_prostoru(chat)` smaže přes běžící
+    prostor (ten pozná, že chat běží v tabu) → "ok" | "otevreny" | "" (neběží).
+    Vrací {"ok": True, "smazano": n}; otevřený chat se nemaže ({"ok": False})."""
+    chat = str(chat or "")
+    if not SESSION_ID.fullmatch(chat):
+        raise ValueError("Neplatná konverzace.")
+    if smaz_v_prostoru:
+        r = smaz_v_prostoru(chat)
+        if r == "otevreny":
+            return {"ok": False, "stav": "otevreny"}
+        if r == "ok":
+            with _zamek(user):
+                data = _nacti(user)
+                data["chaty"].pop(chat, None)
+                _uloz(user, data)
+            return {"ok": True, "smazano": 1}
+    claude = _claude_dir(user)
+    root = os.path.join(claude, "projects")
+    kos = os.path.join(claude, "hub-kos", "chaty")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    n = 0
+    try:
+        slozky = os.listdir(root)
+    except OSError:
+        slozky = []
+    for slozka in slozky:
+        for name in (chat + ".jsonl", chat):
+            src = os.path.join(root, slozka, name)
+            if not os.path.lexists(src) or os.path.islink(src):
+                continue
+            dst = os.path.join(kos, slozka)
+            os.makedirs(dst, exist_ok=True)
+            os.replace(src, os.path.join(dst, "%s-%s" % (stamp, name)))
+            n += 1
+    with _MEZI:
+        for k in [k for k in _INFO if chat in k]:
+            _INFO.pop(k, None)
+    with _zamek(user):
+        data = _nacti(user)
+        data["chaty"].pop(chat, None)
+        _uloz(user, data)
+    return {"ok": True, "smazano": n}
+
+
 def je_id(chat):
     return bool(re.fullmatch(SESSION_ID.pattern, str(chat or "")))

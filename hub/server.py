@@ -1385,6 +1385,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": f"Nepovedlo se smazat: {exc}"}, 500)
             if not moved:
                 return self._json({"error": "Konverzace už neexistuje."}, 404)
+            try:
+                from . import zrcadlo
+                zrcadlo.smazano(chat_id)         # kopie na serveru zmizí taky (jen na počítači)
+            except Exception as exc:             # smazání nesmí selhat kvůli serveru
+                core.log_error("chaty: smazání kopie na serveru", exc)
             return self._json({"ok": True})
         if name == "chat-vetev":
             # Větvení konverzace (hub/vetev.py): nový přepis jen do zvoleného místa,

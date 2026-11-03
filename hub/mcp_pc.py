@@ -92,7 +92,13 @@ def sync():
         with _LOCK:
             _STAV.update(kdy=time.time(), chyba="", napojeni=[])
         return prehled()
-    res, err, _kind = account._call("/gw/mcp-pc", token=core.CONFIG.get("gw_token", ""), timeout=30)
+    kam = int(core.CONFIG.get("gw_space") or 0)
+    res, err, _kind = account._call("/gw/mcp-pc" + (f"?prostor={kam}" if kam else ""),
+                                    token=core.CONFIG.get("gw_token", ""), timeout=30)
+    if res is not None and not res.get("ok") and res.get("gone") and kam:
+        # Přístup do cizího prostoru zanikl — zpátky do vlastního.
+        core.save_config({"gw_space": 0, "gw_space_name": ""})
+        return sync()
     if res is None or not res.get("ok"):
         with _LOCK:
             _STAV.update(kdy=time.time(), chyba=(res or {}).get("error") or err or "Server neodpověděl.")

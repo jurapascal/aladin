@@ -62,8 +62,65 @@ def _moje(user):
     return out
 
 
-def seznam(user):
-    """Co si počítač může napojit: [{jmeno, zdroj, nazev}]."""
+# Co smí host v cizím prostoru z počítače: jen Obsidian vlastníka (osobní).
+# Soubory, příkazy a firemní Obsidian by byly práva vlastníka, ne hosta.
+HOST_NASTROJE = {"obsidian_seznam", "obsidian_hledat", "obsidian_cti", "obsidian_zapis"}
+HOST_ROLE = ("pomocnik", "plny")
+
+
+def prostor(h, user, kam):
+    """Prostor, v kterém počítač pracuje: (vlastník, role). Vlastní prostor
+    = (user, ""). Cizí jen s platným přístupem — ptá se každá zpráva, takže
+    odebrání platí hned. Správa předplatného do hubu nesmí, tedy ani sem."""
+    try:
+        oid = int(kam or 0)
+    except (TypeError, ValueError):
+        raise PermissionError("Neznámý prostor.") from None
+    if not oid or oid == int(user["id"]):
+        return user, ""
+    role, _pres = h.accounts.access_detail(oid, user["id"])
+    owner = h.accounts.by_id(oid) if role in HOST_ROLE else None
+    if not owner:
+        raise PermissionError("Do tohohle prostoru přístup nemáš.")
+    return owner, role
+
+
+def _aladin_host(h, owner, role, msg):
+    """Aladin v cizím prostoru: jen osobní Obsidian vlastníka. Pomocník smí
+    zapisovat nové poznámky, přepisovat jen plný přístup."""
+    owner = {**owner, "client_id": "pocitac-host"}
+    mid = msg.get("id")
+    method = msg.get("method")
+    params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
+    if method == "tools/call":
+        name = str(params.get("name") or "")
+        args = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
+        if name not in HOST_NASTROJE:
+            return None if mid is None else mcp._rpc_error(
+                mid, -32602, "V cizím prostoru je dostupný jen Obsidian.")
+        if str(args.get("obsidian") or "osobni") not in ("osobni", "osobní"):
+            return None if mid is None else mcp._rpc_error(
+                mid, -32602, "V cizím prostoru je dostupný jen osobní Obsidian vlastníka.")
+        args = {**args, "obsidian": "osobni"}
+        if name == "obsidian_zapis" and role != "plny":
+            args["prepsat"] = False
+        msg = {**msg, "params": {**params, "arguments": args}}
+    reply = mcp._handle(h, owner, msg)
+    if method == "tools/list" and isinstance(reply, dict) and isinstance(reply.get("result"), dict):
+        reply["result"]["tools"] = [t for t in reply["result"].get("tools", [])
+                                    if t.get("name") in HOST_NASTROJE]
+    return reply
+
+
+def seznam(user, owner=None, role=""):
+    """Co si počítač může napojit: [{jmeno, zdroj, nazev}]. `owner` = cizí
+    prostor, kde je člověk hostem: napojení vlastníka a jeho Obsidian."""
+    if owner is not None and owner is not user:
+        out = [{"jmeno": ALADIN, "zdroj": "brana",
+                "nazev": "Obsidian v prostoru: " + str(owner.get("name") or owner["email"])}]
+        for jmeno in sorted(_moje(owner)):
+            out.append({"jmeno": jmeno, "zdroj": "prostor", "nazev": jmeno})
+        return out
     out = [{"jmeno": ALADIN, "zdroj": "brana", "nazev": "Aladin (prostor, konverzace a Obsidian na serveru)"}]
     for jmeno in sorted(_moje(user)):
         out.append({"jmeno": jmeno, "zdroj": "prostor", "nazev": jmeno})
@@ -76,13 +133,27 @@ def seznam(user):
     return out
 
 
-def volani(h, user, jmeno, relace, msg):
+def volani(h, user, jmeno, relace, msg, kam=None):
     """Jedna zpráva JSON-RPC z mostu na počítači → zprávy pro Claude Code."""
     jmeno, relace = str(jmeno or ""), str(relace or "")
     if not RELACE.fullmatch(relace):
         raise ValueError("Neplatné sezení mostu.")
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0":
         raise ValueError("Zpráva není JSON-RPC.")
+    owner, role = prostor(h, user, kam)
+    if owner is not user:
+        if jmeno == ALADIN:
+            odpoved = _aladin_host(h, owner, role, msg)
+            return [odpoved] if odpoved else []
+        sluzba = _moje(owner).get(jmeno)
+        if not sluzba:
+            raise PermissionError("Tohle napojení v prostoru nemá.")
+        entry = {"kind": "ucet", "owner": int(owner["id"]), "account": jmeno, "service": sluzba}
+        item = mcp_sdilene.POOL.get("pc-" + jmeno, int(owner["id"]), relace, entry)
+        try:
+            return item.send(msg)
+        except (OSError, ValueError) as exc:
+            raise RuntimeError(f"Služba není k dosažení: {exc}") from None
     if jmeno == ALADIN:
         odpoved = mcp._handle(h, {**user, "client_id": "pocitac"}, msg)
         return [odpoved] if odpoved else []

@@ -919,7 +919,8 @@ function renderProstorBtn() {
   const f = prostorFirma();
   const g = STATE.guest;
   const zakladat = !!(STATE.firma && STATE.firma.zakladat);
-  b.hidden = !onServer() || (!hasFirma() && !zakladat && !g && !PROSTORY.kam.length);
+  if (!onServer()) return renderProstorBtnPc(b);
+  b.hidden = (!hasFirma() && !zakladat && !g && !PROSTORY.kam.length);
   b.classList.toggle('firma', !!f);
   b.classList.toggle('guest', !!g);
   // V cizím prostoru: čí je a role — Osobní / firma je pak ta vlastníkova.
@@ -933,7 +934,85 @@ function renderProstorBtn() {
     : PROSTORY.kam.length && !hasFirma() ? 'Okno je v tvém prostoru — klikni a přepneš do prostoru, kam máš přístup'
     : 'Okno je v osobním prostoru — klikni pro přepnutí na firmu';
 }
+/* Na počítači: kdo je „aktivní prostor“ — čí napojení a Obsidian má Claude.
+   Výkon zůstává na počítači, mění se jen prostor na serveru. */
+function renderProstorBtnPc(b) {
+  const cfg = STATE.config || {};
+  const on = !!(cfg.gw_server && cfg.gw_logged_in);
+  b.hidden = !on;
+  b.classList.remove('firma');
+  b.classList.toggle('guest', !!cfg.gw_space);
+  const name = b.querySelector('.prostor-name');
+  if (name) name.textContent = cfg.gw_space ? (cfg.gw_space_name || '?') : 'Můj prostor';
+  b.title = 'Prostor pro napojení a Obsidian (' + (hostOfServer(cfg.gw_server) || 'server') +
+    '). Výpočty zůstávají na počítači — klikni a přepneš prostor nebo server.';
+}
+function hostOfServer(url) {
+  try { return new URL(url).host; } catch (_) { return url || ''; }
+}
+
+async function prostorMenuPc(ev) {
+  const r = ev.currentTarget.getBoundingClientRect();
+  let res = {};
+  try { res = await api('account', {action: 'spaces'}); } catch (e) { res = {error: e.message}; }
+  const items = [];
+  if (res.error) {
+    items.push({heading: 'Prostory'}, {icon: 'i-lock', label: res.error, run: () => {}});
+  } else {
+    items.push({heading: 'Prostory na ' + hostOfServer(STATE.config.gw_server)});
+    for (const sp of res.spaces) {
+      items.push({icon: sp.id ? 'i-lock' : 'i-user', on: sp.active,
+                  label: sp.id ? sp.name + ' · ' + sp.label : 'Můj prostor',
+                  run: () => { if (!sp.active) vyberProstorPc(sp); }});
+    }
+  }
+  const known = (STATE.config.gw_servers || []).filter((s) => !s.active);
+  if (known.length) {
+    items.push({heading: 'Další servery'});
+    for (const sv of known) {
+      items.push({icon: 'i-hub', label: sv.host + (sv.email ? ' · ' + sv.email : ''),
+                  run: () => vyberServerPc(sv)});
+    }
+  }
+  items.push({heading: 'Jinak'});
+  items.push({icon: 'i-hub', label: 'Otevřít prostor na serveru', run: () => switchPlace()});
+  items.push({icon: 'i-user', label: 'Přidat server…',
+              run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
+  showMenu(r.left, r.bottom, items);
+}
+
+async function vyberProstorPc(sp) {
+  try {
+    const res = await api('account', {action: 'space', space: sp.id});
+    if (res.error) return toast(res.error);
+    STATE.config.gw_space = res.active;
+    STATE.config.gw_space_name = sp.id ? sp.name : '';
+    renderProstorBtn();
+    toast('Prostor: ' + (sp.id ? sp.name : 'můj') + '. Napojení a Obsidian se přepnou za chvíli; ' +
+          'v běžících chatech po jejich novém startu.');
+  } catch (e) { toast(e.message); }
+}
+
+async function vyberServerPc(sv) {
+  try {
+    const st = await api('account', {action: 'switch', server: sv.server});
+    if (st.error) return toast(st.error);
+    STATE.config.gw_server = st.server;
+    STATE.config.gw_servers = st.servers || [];
+    STATE.config.gw_logged_in = !!st.logged_in;
+    STATE.config.gw_space = 0;
+    STATE.config.gw_space_name = '';
+    renderProstorBtn();
+    if (!st.logged_in) {
+      toast('Přihlášení k ' + sv.host + ' vypršelo, přihlas se znovu.');
+      return HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'});
+    }
+    toast('Server: ' + sv.host + '.');
+  } catch (e) { toast(e.message); }
+}
+
 async function prostorMenu(ev) {
+  if (!onServer()) return prostorMenuPc(ev);
   const r = ev.currentTarget.getBoundingClientRect();
   await loadProstory(10000);
   const now = prostor();

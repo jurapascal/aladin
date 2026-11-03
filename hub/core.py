@@ -113,6 +113,10 @@ DEFAULTS = {
     "gw_user": None,
     # Další servery, kde má appka účet (aktivní je vždy v gw_*): [{server, token, user}].
     "gw_servers": [],
+    # Prostor, ve kterém počítač pracuje: 0 = vlastní, jinak id vlastníka cizího
+    # prostoru, kam má člověk přístup. Napojení a Obsidian se řídí podle něj.
+    "gw_space": 0,
+    "gw_space_name": "",
     # Že se má appka otevírat rovnou v prostoru na serveru (`gw_server`).
     # Zapíná se, až když přihlášení i předání okna vyšlo — sama adresa nic
     # nepřepíná, kdo si ji jen zkusil, o hub na počítači nepřijde.

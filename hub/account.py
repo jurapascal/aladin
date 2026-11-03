@@ -435,8 +435,12 @@ def _activate(base, token, user, extra=None):
     prev = _active_entry()
     if prev and prev["server"] != base:
         keep.append(prev)
+    # Jiný server = začínáme ve vlastním prostoru; stejný (nové přihlášení) nechat.
+    same = base == _base()
     core.save_config({"gw_server": base, "gw_token": token, "gw_user": user,
-                      "gw_servers": keep, **(extra or {})})
+                      "gw_servers": keep,
+                      **({} if same else {"gw_space": 0, "gw_space_name": ""}),
+                      **(extra or {})})
 
 
 def servers():
@@ -466,6 +470,42 @@ def switch(server):
         return {"error": "Tenhle server tu nemáš uložený."}
     _activate(base, found["token"], found["user"], {"server_mode": False})
     return status()
+
+
+def spaces():
+    """Prostory aktivního serveru, kam smí počítač: vlastní + cizí s přístupem.
+    {"spaces": [{id, name, label, active}], "active": id} nebo {"error"}."""
+    token = core.CONFIG.get("gw_token") or ""
+    if not _base() or not token:
+        return {"error": "Nejsi přihlášený."}
+    data, err, _kind = _call("/gw/mcp-pc/prostory", token=token, timeout=8)
+    if not data or not data.get("ok"):
+        return {"error": err or "Server prostory nevrátil — aktualizuj ho."}
+    cur = int(core.CONFIG.get("gw_space") or 0)
+    me = (core.CONFIG.get("gw_user") or {})
+    out = [{"id": 0, "name": me.get("name") or me.get("email") or "Můj prostor",
+            "label": "Můj prostor", "active": cur == 0}]
+    for k in data.get("kam") or []:
+        out.append({"id": int(k["id"]), "name": k.get("name") or k.get("email") or "?",
+                    "label": k.get("label") or "", "active": cur == int(k["id"])})
+    return {"spaces": out, "active": cur}
+
+
+def set_space(space_id):
+    """Přepne prostor, ve kterém počítač pracuje. Zůstává se na počítači —
+    mění se jen to, čí napojení a Obsidian má Claude k dispozici."""
+    try:
+        want = int(space_id or 0)
+    except (TypeError, ValueError):
+        return {"error": "Neznámý prostor."}
+    res = spaces()
+    if res.get("error"):
+        return res
+    hit = next((s for s in res["spaces"] if s["id"] == want), None)
+    if not hit:
+        return {"error": "Do tohohle prostoru přístup nemáš."}
+    core.save_config({"gw_space": want, "gw_space_name": "" if want == 0 else hit["name"]})
+    return spaces()
 
 
 def forget(server):

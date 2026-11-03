@@ -1120,7 +1120,7 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/gw/prenos/nahrat":
                 return self._gw_prenos(method)
             # Napojení ze serveru v Claudovi na počítači (gateway/mcp_pc.py): token zařízení.
-            if route in ("/gw/mcp-pc", "/gw/mcp-pc/volani"):
+            if route in ("/gw/mcp-pc", "/gw/mcp-pc/volani", "/gw/mcp-pc/prostory"):
                 return self._gw_mcp_pc(route, method)
             # Počítač počítá, kopie chatů je tady (gateway/zrcadlo.py): token zařízení.
             if route in ("/gw/zrcadlo/sync", "/gw/zrcadlo/seznam", "/gw/zrcadlo/prevzit",
@@ -2776,12 +2776,23 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         user = self._bearer()
         if not user:
             return self._json({"error": "Nepřihlášeno."}, 401)
+        if route == "/gw/mcp-pc/prostory":
+            # Prostory, kam smí počítač (hosté jen jako Pomocník / Plný přístup).
+            kam = [k for k in pristup.kam_only(self.accounts, user)["kam"]
+                   if k.get("role") in mcp_pc.HOST_ROLE]
+            return self._json({"ok": True, "kam": kam})
         if route == "/gw/mcp-pc":
-            return self._json({"ok": True, "napojeni": mcp_pc.seznam(user)})
+            query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            try:
+                owner, role = mcp_pc.prostor(self, user, (query.get("prostor") or [""])[0])
+            except PermissionError as exc:
+                return self._json({"ok": False, "error": str(exc), "gone": True})
+            return self._json({"ok": True, "napojeni": mcp_pc.seznam(user, owner, role)})
         if method != "POST":
             return self._json({"error": "Jen POST."}, 405)
         try:
-            out = mcp_pc.volani(self, user, form.get("jmeno"), form.get("relace"), form.get("zprava"))
+            out = mcp_pc.volani(self, user, form.get("jmeno"), form.get("relace"), form.get("zprava"),
+                                form.get("prostor"))
         except PermissionError as exc:
             return self._json({"ok": False, "error": str(exc), "gone": True})
         except (ValueError, RuntimeError) as exc:

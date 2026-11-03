@@ -2182,6 +2182,7 @@
               if (res.error) { io.toast(res.error); sw.disabled = false; return; }
               state.config.gw_server = res.server;
               state.config.gw_servers = res.servers || [];
+              state.config.gw_space = 0; state.config.gw_space_name = "";
               state.config.gw_logged_in = !!res.logged_in;
               state.config.gw_email = (res.user && res.user.email) || '';
               state.config.server_mode = false;
@@ -2214,6 +2215,7 @@
           onReady: (res) => {
             state.config.gw_server = res.server;
             state.config.gw_servers = res.servers || [];
+            state.config.gw_space = 0; state.config.gw_space_name = "";
             state.config.gw_logged_in = true;
             state.config.server_mode = false;
             io.toast('Přidáno a přepnuto na ' + res.host + '.');

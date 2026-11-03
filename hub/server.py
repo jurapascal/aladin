@@ -1629,6 +1629,8 @@ class Handler(BaseHTTPRequestHandler):
                            "gw_logged_in": bool(core.CONFIG.get("gw_token")),
                            # Servery, kde má appka účet (bez tokenů) — rychlé přepnutí v hlavičce.
                            "gw_servers": account.servers(),
+                           "gw_space": int(core.CONFIG.get("gw_space") or 0),
+                           "gw_space_name": core.CONFIG.get("gw_space_name") or "",
                            "server_mode": bool(core.CONFIG.get("server_mode")),
                            # Claude ze serveru na tomhle počítači (hub/pocitac.py).
                            "pocitac_access": pocitac.access_level(),
@@ -1885,6 +1887,14 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(res)
             if action == "servers":
                 return self._json({"servers": account.servers()})
+            if action == "spaces":
+                return self._json(account.spaces())
+            if action == "space":
+                res = account.set_space(payload.get("space"))
+                if not res.get("error"):
+                    from . import mcp_pc
+                    threading.Thread(target=mcp_pc.sync, daemon=True).start()
+                return self._json(res)
             if action == "switch":
                 return self._json(account.switch(payload.get("server", "")))
             if action == "forget":

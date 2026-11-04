@@ -5520,3 +5520,20 @@ html[data-misto-dole="1"] #btn-prostor { display: none !important; }
 .tab.na-pozadi:not(.pracuje) .tab-agent { animation: pozadi-dych 2.4s ease-in-out infinite; }
 @keyframes pozadi-dych { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
 @media (prefers-reduced-motion: reduce) { .tab.na-pozadi .tab-agent { animation: none; } }
+
+/* Proužek menu samostatné appky (.appmenu, 28 px) leží nad všemi překryvy.
+   Okna a dialogy (.onb, .modal) proto začínají až pod ním — jinak menu
+   zakrývalo hlavičku Nastavení s výškou 95 % (Jura, 5. 11. 2026). */
+html:has(#appmenu:not([hidden])) .onb,
+html:has(#appmenu:not([hidden])) .modal { top: 29px; }
+@media (min-width: 900px) {
+  html:has(#appmenu:not([hidden])) .onb.okno-velke .onb-box { height: calc(95vh - 29px); max-height: calc(95vh - 29px); }
+}
+/* Tečka v čipu „kde pracuju“: druh prostoru (osobní modře, firma fialově,
+   cizí zeleně) — po přepnutí je hned vidět, kam Claude sahá. */
+.composer-chip.composer-misto .misto-tecka {
+  width: 8px; height: 8px; border-radius: 50%; flex: none; margin-left: 2px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 15%, transparent);
+}
+/* Karta přes celou šířku mřížky (Servery v Nastavení → Účet na počítači). */
+.acc-cards > .acc-siroka { grid-column: 1 / -1; }

@@ -2012,26 +2012,29 @@
     }
 
     // ---- hub na počítači, přihlášený ----
+    // Stejné rozvržení jako účet v prostoru na serveru: kdo jsem a tlačítka
+    // nahoře, pod tím karty po tématech. Dřív to byl jeden dlouhý sloupec
+    // nadpisů a odstavců, ve kterém se nedalo vyznat (Jura, 5. 11. 2026).
     function drawIn(data) {
       const u = data.user || {};
       body.textContent = '';
 
-      body.appendChild(el('div', data.offline ? 'set-warn' : 'set-ok',
-        data.offline ? '! Server teď neodpovídá' : '✓ Přihlášeno'));
-      who(u, data.host);
-      if (data.offline && data.note) {
-        body.appendChild(el('div', 'set-note', data.note +
-          ' Zůstáváš přihlášený, jen se teď k serveru nedá.'));
-      }
-
+      const prof = el('div', 'acc-profile');
+      const name = u.name || u.email || '';
+      const initials = name.split(/[\s.@]+/).filter(Boolean).slice(0, 2)
+        .map((w) => w[0].toUpperCase()).join('');
+      prof.appendChild(el('span', 'acc-avatar', initials || '?'));
+      const col = el('span', 'acc-id');
+      col.appendChild(el('strong', null, name));
+      col.appendChild(el('small', null, [u.name ? u.email : '', u.role === 'admin' ? 'správce' : '',
+        data.offline ? 'server teď neodpovídá' : '✓ přihlášeno k ' + (data.host || 'serveru')].filter(Boolean).join(' · ')));
+      prof.appendChild(col);
+      const acts = el('span', 'acc-acts');
+      const open = el('button', 'btn primary', 'Pracovat na serveru');
+      open.title = 'Okno přejde do tvého prostoru na serveru (výkon serveru). Taby na počítači běží dál.';
+      open.disabled = !!data.offline;
       const err = el('div', 'set-warn');
       err.hidden = true;
-
-      const row = el('div', 'set-row');
-      const open = el('button', 'btn primary', 'Otevřít můj prostor');
-      open.title = 'Okno přejde na server. Taby na počítači běží dál a ' +
-        'appka se příště otevře rovnou v prostoru.';
-      open.disabled = !!data.offline;
       open.onclick = async () => {
         open.disabled = true;
         open.textContent = 'otevírám…';
@@ -2040,15 +2043,12 @@
         err.textContent = '! ' + (res.error || 'Nepovedlo se.');
         err.hidden = false;
         open.disabled = false;
-        open.textContent = 'Otevřít můj prostor';
+        open.textContent = 'Pracovat na serveru';
         if (res.kind === 'auth') load();
       };
-      row.appendChild(open);
-
-      row.appendChild(el('span', 'spacer'));
+      acts.appendChild(open);
       const out = el('button', 'btn ghost', 'Odhlásit se');
-      out.title = 'Zahodí přihlášení tohohle počítače. Ostatní zařízení ' +
-        'zůstanou přihlášená.';
+      out.title = 'Zahodí přihlášení tohohle počítače k aktivnímu serveru. Ostatní zařízení zůstanou přihlášená.';
       out.onclick = async () => {
         out.disabled = true;
         try {
@@ -2062,19 +2062,25 @@
           out.disabled = false;
         }
       };
-      row.appendChild(out);
-      body.appendChild(row);
+      acts.appendChild(out);
+      prof.appendChild(acts);
+      body.appendChild(prof);
       body.appendChild(err);
-      body.appendChild(serveryBlok(data));
+      if (data.offline && data.note) {
+        body.appendChild(el('div', 'set-warn', '! ' + data.note + ' Zůstáváš přihlášený, jen se teď k serveru nedá.'));
+      }
 
+      const cards = el('div', 'acc-cards');
+      const sv = card(serveryBlok(data), 'i-hub');
+      sv.classList.add('acc-siroka');
+      cards.appendChild(sv);
+      cards.appendChild(card(zrcadloBlok(), 'i-book'));
+      cards.appendChild(card(napojeniZeServeru(), 'i-hub'));
+      cards.appendChild(card(HubPocitac.panel(io), 'i-laptop'));
+      cards.appendChild(card(HubPredplatne.panel(io), 'i-user'));
+      body.appendChild(cards);
       body.appendChild(el('div', 'set-note',
-        'Appka si pamatuje, kde jsi pracoval naposledy. Ze serveru se sem ' +
-        'vrátíš v jeho nastavení: Účet → Pracovat na tomto počítači. Heslo ' +
-        'a záložní kódy změníš tamtéž, v Nastavení → Účet v prostoru na serveru.'));
-      body.appendChild(zrcadloBlok());
-      body.appendChild(napojeniZeServeru());
-      body.appendChild(HubPredplatne.panel(io));
-      body.appendChild(HubPocitac.panel(io));
+        'Heslo, záložní kódy a přístupy jiných lidí do tvého prostoru se mění v prostoru na serveru: Pracovat na serveru → Nastavení → Účet.'));
     }
 
     /* Počítač počítá, kopie chatů je na serveru (hub/zrcadlo.py): vypínač

@@ -474,23 +474,29 @@ def switch(server):
     return status()
 
 
-def spaces():
-    """Prostory aktivního serveru, kam smí počítač: vlastní + cizí s přístupem.
-    {"spaces": [{id, name, label, active}], "active": id} nebo {"error"}."""
-    token = core.CONFIG.get("gw_token") or ""
-    if not _base() or not token:
-        return {"error": "Nejsi přihlášený."}
-    data, err, _kind = _call("/gw/mcp-pc/prostory", token=token, timeout=8)
+def spaces(server=""):
+    """Prostory serveru (výchozí aktivního), kam smí počítač: vlastní + cizí
+    s přístupem. {"spaces": [{id, name, label, active}], "active": id,
+    "server"} nebo {"error"}. U neaktivního serveru není žádný „active“."""
+    base = normalize(server) if server else _base()
+    aktivni = base == _base()
+    if aktivni:
+        token, me = core.CONFIG.get("gw_token") or "", (core.CONFIG.get("gw_user") or {})
+    else:
+        hit = next((e for e in _saved() if e["server"] == base), None)
+        token, me = (hit["token"], hit["user"] or {}) if hit else ("", {})
+    if not base or not token:
+        return {"error": "Nejsi přihlášený.", "server": base}
+    data, err, _kind = _call("/gw/mcp-pc/prostory", token=token, base=base, timeout=8)
     if not data or not data.get("ok"):
-        return {"error": err or "Server prostory nevrátil — aktualizuj ho."}
-    cur = int(core.CONFIG.get("gw_space") or 0)
-    me = (core.CONFIG.get("gw_user") or {})
+        return {"error": err or "Server prostory nevrátil — aktualizuj ho.", "server": base}
+    cur = int(core.CONFIG.get("gw_space") or 0) if aktivni else -1
     out = [{"id": 0, "name": me.get("name") or me.get("email") or "Můj prostor",
             "label": "Můj prostor", "active": cur == 0}]
     for k in data.get("kam") or []:
         out.append({"id": int(k["id"]), "name": k.get("name") or k.get("email") or "?",
                     "label": k.get("label") or "", "active": cur == int(k["id"])})
-    return {"spaces": out, "active": cur}
+    return {"spaces": out, "active": cur, "server": base}
 
 
 def set_space(space_id):

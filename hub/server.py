@@ -1907,7 +1907,7 @@ class Handler(BaseHTTPRequestHandler):
                 rid = str(payload.get("id") or "")
                 return self._json(account.handoff_na(payload.get("server", ""), "/?relace=" + rid))
             if action == "spaces":
-                return self._json(account.spaces())
+                return self._json(account.spaces(payload.get("server") or ""))
             if action == "space":
                 res = account.set_space(payload.get("space"))
                 if not res.get("error"):

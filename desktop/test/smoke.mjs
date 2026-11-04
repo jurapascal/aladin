@@ -429,10 +429,20 @@ if (!process.env.HUB_DESKTOP_EXE) {
     const pred = port(okno1.url());
     await prace(okno1);
     await okno1.evaluate(() => api('restart').catch(() => {}));
-    for (let i = 0; i < 160 && port(okno1.url()) === pred; i++) await pauza(250);
-    ok('okno přepnul hlídač appky na pomalou novou instanci', port(okno1.url()) !== pred && app.windows().length === 1,
+    // Port (hub-port) i token (hub-token) jsou stálé, takže adresa okna po
+    // restartu většinou zůstane platná; jinak ji přepne hlídač. Rozhoduje, že
+    // okno odpovídá a běží nová instance (jiné pid v hub-bezi.json).
+    const beziNova = async () => {
+      let b = null;
+      try { b = JSON.parse(fs.readFileSync(path.join(claude, 'hub-bezi.json'), 'utf8')); } catch (_) { return false; }
+      if (!b || Number(b.pid) === staryPid) return false;
+      return fetch(okno1.url()).then((r) => r.ok).catch(() => false);
+    };
+    let naNove = false;
+    for (let i = 0; i < 160 && !(naNove = await beziNova()); i++) await pauza(250);
+    ok('okno je po restartu na pomalé nové instanci', naNove && app.windows().length === 1,
       `${pred} → ${port(okno1.url())}`);
-    if (port(okno1.url()) === pred) { vypisLog(claude); vypisProcesy(claude); }
+    if (!naNove) { vypisLog(claude); vypisProcesy(claude); }
     await nacteno(okno1);
     ok('stará instance skončila', !zije(staryPid));
     ok('přepnutí hlídačem se při práci neptalo „Opravdu odejít?"',

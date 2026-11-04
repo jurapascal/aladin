@@ -324,6 +324,13 @@ async function otevriOkno(primo = '') {
  * pomaleji, než stihl starý hub okna přepnout) → když už běží nová
  * (hub-bezi.json), okno se na ni přepne samo. */
 const port = (u) => (String(u).match(/^http:\/\/127\.0\.0\.1:(\d+)/) || [])[1];
+// Port i token: od 2.119 je port stálý (hub-port) a od 2.120 i token, takže po
+// restartu bývá adresa stejná a okno se připojí samo. Přepnout je potřeba,
+// jen když se liší port nebo token — samotný port nestačí.
+const klic = (u) => {
+  const m = String(u).match(/^http:\/\/127\.0\.0\.1:(\d+)\/?\?(?:[^#]*&)?t=([^&#]+)/);
+  return m ? m[1] + '|' + m[2] : String(port(u) || '');
+};
 function hlidej() {
   let bezi = false;
   setInterval(async () => {
@@ -334,7 +341,7 @@ function hlidej() {
         const u = win.webContents.getURL();
         if (!HUB_URL.test(u) || win.webContents.isLoading() || (await dotaz(u, 1500))) continue;
         const nova = await bezici();
-        if (nova && port(nova) !== port(u) && !win.isDestroyed()) {
+        if (nova && klic(nova) !== klic(u) && !win.isDestroyed()) {
           hubUrl = nova;
           // Přechod na novou instanci není odchod (jako okno-jdi v hubu).
           await win.webContents.executeJavaScript('window.HUB_LEAVING = true').catch(() => {});

@@ -3547,7 +3547,14 @@ OBRAZKY_PROMPT = (
     "Aplikace Aladin ukáže obrázek (PNG, JPG, GIF, WebP, SVG) přímo v chatu, jakmile v odpovědi "
     "uvedeš jeho úplnou cestu, nejlépe jako `![popis](/úplná/cesta/obrazek.png)`. Nikdy nepiš, že "
     "obrázek v chatu ukázat nejde, a nenahrávej ho kvůli tomu na web. Grafické výstupy (grafy, "
-    "schémata, náhledy, mapy) ulož jako obrázek a cestu dej do odpovědi.")
+    "schémata, náhledy, mapy) ulož jako obrázek a cestu dej do odpovědi.\n"
+    "Aladin umí v chatu ukázat i ŽIVÉ, klikací věci. Blok ```html se vykreslí jako běžící stránka "
+    "(skripty a formuláře fungují, vše v jedné stránce, bez vlastních souborů) — hodí se na "
+    "interaktivní grafy, kalkulačky, tabulky s filtrem, drobné aplikace. Chart.js je už v Aladinu: "
+    "stačí `new Chart(...)`, žádný <script src> ani CDN. Na rychlý graf stačí blok ```chart s JSON "
+    "tak, jak ho bere Chart.js ({\"type\":\"bar\",\"data\":{...},\"options\":{...}}). Blok ```svg se "
+    "ukáže jako obrázek. Když si uživatel o graf, přehled nebo stránku řekne, preferuj tohle před "
+    "uložením statického PNG.")
 
 
 def navaznost_prompt(chat_id=""):

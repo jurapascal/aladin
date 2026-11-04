@@ -2522,6 +2522,9 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 }
 .cteni-html-btn:hover { color: var(--fg); border-color: var(--border); }
 .cteni-html-btn.on { color: var(--fg-bright); background: var(--bg); border-color: var(--border); }
+.cteni-html-vpravo { margin-left: auto; }
+.cteni-html.cele { position: fixed; inset: 0; z-index: 9000; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
+.cteni-html.cele .cteni-html-ram { flex: 1; height: auto !important; }
 .cteni-html-ram { display: block; width: 100%; height: 320px; border: none; background: #fff; }
 .cteni-html-kod { margin: 0; border: none; border-radius: 0; max-height: 60vh; overflow: auto; }
 .cteni-html-otevrit { align-self: flex-start; margin: 2px 0 4px 22px; border-color: var(--border); }

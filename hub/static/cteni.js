@@ -331,29 +331,75 @@
   }
 
   /* Kód v bloku ```html se ukáže jako vykreslená stránka s přepínačem na zdroj.
-     iframe je bez skriptů (sandbox), takže HTML od Clauda nemůže nic spustit;
-     `allow-same-origin` jen kvůli změření výšky. */
-  function nahledHtml(kod) {
+     Stránka je živá: skripty běží, takže grafy, formuláře i drobné aplikace od
+     Clauda jdou vyzkoušet přímo v chatu. Bezpečnost drží sandbox BEZ
+     `allow-same-origin` — rám má vlastní prázdný původ, nedosáhne na Aladina,
+     jeho cookies, token ani úložiště. Výšku hlásí rám sám přes postMessage.
+     Chart.js je přibalený (vendor/chart.js) a vloží se, jakmile ho stránka
+     použije — bez internetu a bez CDN. */
+  let chartLib = null;
+  function nactiChart() {
+    if (!chartLib) {
+      chartLib = fetch('/vendor/chart.js', {credentials: 'same-origin'})
+        .then((r) => (r.ok ? r.text() : ''))
+        .catch(() => '');
+    }
+    return chartLib;
+  }
+  const CHART_CDN = /<script[^>]+src=["'][^"']*chart(?:\.umd)?(?:\.min)?\.js[^"']*["'][^>]*>\s*<\/script>/gi;
+  const POUZIVA_CHART = /\bnew\s+Chart\s*\(|chart(?:\.umd)?(?:\.min)?\.js/i;
+  let ramPoradi = 0;
+
+  const RAM_ZAKLAD = '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<base target="_blank"><style>' +
+    'body{font:14px/1.55 system-ui,sans-serif;margin:14px;color:#1b1b1b;background:#fff}' +
+    'table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px;text-align:left;vertical-align:top}' +
+    'img,canvas,svg{max-width:100%}</style>';
+
+  function sestavStranku(kod, id, chart) {
+    let k = String(kod);
+    if (chart) k = k.replace(CHART_CDN, '');
+    // Rám sám změří a ohlásí výšku (rodič do něj nevidí).
+    const mer = '<script>(function(){var id=' + JSON.stringify(id) + ';function p(){try{parent.postMessage({aladinRam:id,h:Math.max(' +
+      'document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0)},"*")}catch(e){}}' +
+      'addEventListener("load",function(){p();setTimeout(p,300);setTimeout(p,1200)});' +
+      'if(window.ResizeObserver)new ResizeObserver(p).observe(document.documentElement);' +
+      'addEventListener("error",function(){});})()<\/script>';
+    const lib = chart ? '<script>' + chart.replace(/<\/script/gi, '<\\/script') + '<\/script>' : '';
+    return RAM_ZAKLAD + lib + k + mer;
+  }
+
+  function nahledHtml(kod, volby) {
+    volby = volby || {};
     const box = el('div', 'cteni-html');
     const bar = el('div', 'cteni-html-bar');
     const zdroj = el('button', 'cteni-html-btn', 'Kód');
     const nahled = el('button', 'cteni-html-btn on', 'Náhled');
-    bar.append(nahled, zdroj);
+    const znovu = el('button', 'cteni-html-btn cteni-html-vpravo', '↻');
+    znovu.title = 'Načíst znovu';
+    const velke = el('button', 'cteni-html-btn', '⤢');
+    velke.title = 'Na celou obrazovku';
+    bar.append(nahled, zdroj, znovu, velke);
     const ram = el('iframe', 'cteni-html-ram');
-    ram.setAttribute('sandbox', 'allow-same-origin');
+    // Skripty ano, ale jen v cizím původu: bez allow-same-origin.
+    ram.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
     ram.setAttribute('loading', 'lazy');
-    const zaklad = '<meta charset="utf-8"><base target="_blank"><style>' +
-      'body{font:14px/1.55 system-ui,sans-serif;margin:14px;color:#1b1b1b;background:#fff}' +
-      'table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:6px 10px;text-align:left;vertical-align:top}' +
-      'img{max-width:100%}</style>';
-    ram.srcdoc = zaklad + kod;
-    ram.onload = () => {
-      try {
-        ram.style.height = '0px';     // jinak scrollHeight nikdy nezmenší pod výšku rámu
-        const h = ram.contentDocument.documentElement.scrollHeight;
-        ram.style.height = Math.min(h + 4, Math.round(window.innerHeight * 0.8)) + 'px';
-      } catch (_) { /* zůstane výchozí výška */ }
+    const id = 'r' + (++ramPoradi) + '-' + Math.random().toString(36).slice(2, 8);
+    const poslouchej = (ev) => {
+      const d = ev.data;
+      if (!d || d.aladinRam !== id || ev.source !== ram.contentWindow) return;
+      if (!document.body.contains(box)) { removeEventListener('message', poslouchej); return; }
+      if (box.classList.contains('cele')) return;
+      const h = Math.max(40, Math.min(+d.h || 0, Math.round(window.innerHeight * 0.85)));
+      ram.style.height = (h + 4) + 'px';
     };
+    addEventListener('message', poslouchej);
+    const kresli = async () => {
+      const chart = (volby.chart || POUZIVA_CHART.test(kod)) ? await nactiChart() : '';
+      ram.srcdoc = sestavStranku(kod, id, chart);
+    };
+    kresli();
+    znovu.onclick = kresli;
     const pre = el('pre', 'vault-code cteni-html-kod');
     pre.hidden = true;
     pre.appendChild(el('code', '', kod));
@@ -365,14 +411,48 @@
     };
     zdroj.onclick = () => prepni(true);
     nahled.onclick = () => prepni(false);
+    // Celá obrazovka: stejný rám, jen roztažený (Esc nebo ⤡ vrátí zpět).
+    const zpet = () => {
+      box.classList.remove('cele');
+      velke.textContent = '⤢';
+      document.removeEventListener('keydown', naEsc, true);
+      ram.style.height = '';
+    };
+    function naEsc(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zpet(); } }
+    velke.onclick = () => {
+      if (box.classList.contains('cele')) return zpet();
+      box.classList.add('cele');
+      velke.textContent = '⤡';
+      prepni(false);
+      document.addEventListener('keydown', naEsc, true);
+    };
     box.append(bar, ram, pre);
     return box;
   }
 
+  /* ```chart — krátký zápis grafu: JSON s tím, co bere Chart.js
+     ({type, data, options}). Claude nemusí psát celou stránku. */
+  function stranaGrafu(json) {
+    let cfg;
+    try { cfg = JSON.parse(json); } catch (_) { return null; }
+    if (!cfg || typeof cfg !== 'object') return null;
+    cfg.options = Object.assign({responsive: true, maintainAspectRatio: false}, cfg.options || {});
+    const text = JSON.stringify(cfg).replace(/</g, '\\u003c');
+    return '<div style="position:relative;height:340px"><canvas id="g"></canvas></div>' +
+      '<script>new Chart(document.getElementById("g"),' + text + ')<\/script>';
+  }
+
   function ozivHtml(koren) {
     for (const pre of koren.querySelectorAll('pre.vault-code[data-lang]')) {
-      if (!/^(html?|xhtml)$/.test(pre.dataset.lang)) continue;
-      pre.replaceWith(nahledHtml(pre.textContent));
+      const jazyk = pre.dataset.lang;
+      if (/^(html?|xhtml)$/.test(jazyk)) {
+        pre.replaceWith(nahledHtml(pre.textContent));
+      } else if (jazyk === 'svg') {
+        pre.replaceWith(nahledHtml(pre.textContent));
+      } else if (jazyk === 'chart') {
+        const strana = stranaGrafu(pre.textContent);
+        if (strana) pre.replaceWith(nahledHtml(strana, {chart: true}));
+      }
     }
   }
 

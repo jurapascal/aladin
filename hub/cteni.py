@@ -832,7 +832,10 @@ def agenti(path):
 # Monitor, agent na pozadí. Konec ohlásí <task-notification> se stejným
 # tool-use-id, případně TaskStop. Úlohy jsou děti procesu Claude Code — co se
 # spustilo dřív, než tenhle proces naběhl (`od`), už neběží a nepočítá se.
-_BG_ID = re.compile(r"(?:resumedAgentId\"?:\s*\"|with ID|agentId|task_id)[:=]?\s*([A-Za-z0-9_-]+)")
+# Id úlohy: „with ID: x", „agentId: x", „task_id=x". Dvojtečka u agentId je
+# povinná — výsledek spuštění agenta obsahuje i větu „…including the agentId
+# below…" a z ní se dřív vzalo „below".
+_BG_ID = re.compile(r"(?:resumedAgentId\"?:\s*\"|with ID:?|agentId:|task_id[:=])\s*([A-Za-z0-9_-]{4,})")
 # „Resuming agent" = SendMessage znovu rozběhl doběhlého agenta: běží zase na
 # pozadí a konec ohlásí task-notification s jeho id jako task-id.
 _BG_ZNAK = ("running in background", "Async agent launched", "Monitor started",
@@ -859,6 +862,13 @@ def _bg_konec(stav, text):
 
 def _bg_radek(stav, entry):
     typ = entry.get("type")
+    # Jen skutečné řádky konverzace. Claude Code od listopadu 2026 zapisuje
+    # i `api-request-blob` — kopii celého požadavku (všechna dřívější volání
+    # nástrojů i výsledky) bez času. Ten úlohy na pozadí zakládal znovu s časem
+    # 0 a filtr podle startu procesu je pak zahodil: karta agenta na pozadí
+    # po minutě ticha hlásila „Hotovo", i když agent pořád pracoval.
+    if typ not in ("user", "assistant", "queue-operation", "attachment"):
+        return
     if typ == "queue-operation":
         _bg_konec(stav, entry.get("content") or "")
         return

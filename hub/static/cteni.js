@@ -579,7 +579,7 @@
     return out;
   }
 
-  function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null,
+  function flow(mount, imageUrl, {historie = false, openLink = null, notice = null, zive = null, naPozadi = null,
                                   udalost = null, naPrehled = null, dulKlic = null, copy = null, sdileny = null,
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
                                   pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null,
@@ -1622,9 +1622,13 @@
     }
 
     /* Hotovo podle hlášky o doběhlé úloze (`task`) nebo podle výsledku. */
-    function dobehl(k, stav, vysledek) {
+    function dobehl(k, stav, vysledek, odhad) {
       if (udalost && k.stav === 'bezi' && stav !== 'bezi') udalost({co: 'konec', id: k.id, stav});
       k.stav = stav;
+      // `odhad` = konec jen podle ticha v přepisu, ne podle hlášky Claude Code.
+      // Když agent pak zase píše, karta se vrátí na „Běží" (prubeh).
+      k.odhad = !!odhad;
+      k.posledniPriKonci = k.posledni || 0;
       if (vysledek) k.vysledek = vysledek;
       if (!k.ms && k.start && k.posledni) k.ms = Math.max(0, k.posledni - k.start);
     }
@@ -1643,12 +1647,23 @@
         if (a.model) k.model = a.model;       // čím agent doopravdy jede
         if (Array.isArray(a.last)) k.kroky = a.last;
         /* Agent skončil, ale hláška o tom ještě nedorazila (nebo v přepisu
-           staré konverzace chybí): po chvíli se bere jako hotový. */
-        if (k.stav === 'bezi' && a.konec) {
+           staré konverzace chybí): po chvíli se bere jako hotový. Agent na
+           pozadí ne, dokud ho server vidí mezi úlohami — ten často skončí tah
+           a čeká na vlastní příkazy na pozadí (testy, databáze); konec ohlásí
+           Claude Code zprávou o úloze. */
+        const zijeNaServeru = k.bg && ulohyNacteny && ulohyData.some((u) => u.id === k.id);
+        if (k.stav === 'bezi' && a.konec && !zijeNaServeru) {
           k.konecOd = k.konecOd || Date.now();
-          if (historie || Date.now() - k.konecOd > 8000) dobehl(k, 'hotovo', '');
+          if (historie || Date.now() - k.konecOd > 8000) dobehl(k, 'hotovo', '', true);
         } else if (!a.konec) {
           k.konecOd = 0;
+        }
+        // Konec jen odhadnutý a agent mezitím zase píše → pořád běží.
+        if (!historie && k.odhad && k.stav === 'hotovo' && !a.konec && a.update &&
+            a.update > (k.posledniPriKonci || 0)) {
+          k.stav = 'bezi';
+          k.odhad = false;
+          k.ms = 0;
         }
         kresliAgenta(k);
       }
@@ -1673,7 +1688,7 @@
         if (zije.has(k.id)) continue;
         if (!k.posledni || ted - k.posledni < AGENT_TICHO_MS) continue;
         if (!k.bg && pr.pracuje) continue;
-        dobehl(k, 'hotovo', '');
+        dobehl(k, 'hotovo', '', true);
         kresliAgenta(k);
         zmenil = true;
       }
@@ -1719,6 +1734,7 @@
       ulohyData = res.tasks || [];
       ulohyNacteny = true;
       uklidAgenty();
+      hlasPozadi();
       kresliUlohy();
       zmenaPrehledu();
       // Rozbalený detail zůstane rozbalený i po překreslení.
@@ -1733,8 +1749,20 @@
     function bezici() {
       return [...agenti.values()].filter((k) => k.stav === 'bezi');
     }
+    /* Kolik agentů a úloh na pozadí v chatu běží — pro seznam chatů vlevo
+       (hub.js, chatStav). Hlásí se jen změna. */
+    let pozadiPosledni = '';
+    function hlasPozadi() {
+      if (!naPozadi || historie) return;
+      const stav = {agenti: bezici().length, ulohy: ulohyData.filter((u) => u.name !== 'Agent').length};
+      const klic = stav.agenti + '/' + stav.ulohy;
+      if (klic === pozadiPosledni) return;
+      pozadiPosledni = klic;
+      naPozadi(stav);
+    }
     function hlidej() {
       const bezi = bezici();
+      hlasPozadi();
       pozadi.hidden = !bezi.length || historie;
       if (bezi.length) {
         const jmena = bezi.map((k) => jmenoAgenta(k.typ));
@@ -2330,6 +2358,7 @@
     let nacteno = false;
     const proud = flow(mount, io.imageUrl, {
       openLink: io.openLink, notice: io.notice, copy: io.copy, odpovez: io.odpovez,
+      naPozadi: io.naPozadi || null,
       sdileny: io.sdileny || null,
       znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
       serverSeznam: io.serverSeznam || null, serverUprav: io.serverUprav || null, serverSmaz: io.serverSmaz || null,

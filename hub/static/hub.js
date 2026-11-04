@@ -1887,8 +1887,20 @@ function chatStav(c) {
   const t = TABS.find((x) => tabPatriChatu(x, c));
   if (!t) return '';
   if (t.ceka) return 'Čeká na tebe';
-  if (t.pracuje) return 'Claude píše…';
-  return '';
+  const bg = pozadiText(t);
+  if (t.pracuje) return 'Claude píše…' + (bg ? ' · ' + bg : '');
+  return bg;
+}
+/* „Běží 3 agenti · 1 na pozadí" — co v chatu pracuje, i když Claude sám už
+   skončil tah a čeká na ně (cteni.js → naPozadi). */
+function pozadiText(t) {
+  const p = t && t.pozadi;
+  if (!p) return '';
+  const casti = [];
+  if (p.agenti) casti.push('běží ' + p.agenti + ' ' + (p.agenti === 1 ? 'agent' : p.agenti < 5 ? 'agenti' : 'agentů'));
+  if (p.ulohy) casti.push(p.ulohy + ' na pozadí');
+  const text = casti.join(' · ');
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 /* Chat, který sdílím já: komu (štítek „s Tomáš Peška, …"). */
@@ -4672,6 +4684,14 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
       odeslano: (zprava, stav) => { if (tab.cteni) tab.cteni.odeslano(zprava, stav); },
       // Claude se ptá (karta s volbami) — tab svítí, dokud se neodpoví.
       ceka: (on) => { tab.ceka = !!on; oznacTab(tab); },
+      // Agenti a úlohy na pozadí v tomhle chatu (cteni.js) — seznam chatů vlevo
+      // to ukáže u řádku, i když se na chat nikdo nedívá.
+      naPozadi: (st) => {
+        tab.pozadi = st && (st.agenti || st.ulohy) ? st : null;
+        if (tab.el) tab.el.classList.toggle('na-pozadi', !!tab.pozadi);
+        chatsSig = '';
+        renderChatsSoon();
+      },
       // Claude v tabu spadl (wrapper to napsal do terminálu).
       upozorni: (text) => { if (tab.cteni) tab.cteni.upozorni(text); else toast(text); },
       agents: (ready) => agentList(!!ready),

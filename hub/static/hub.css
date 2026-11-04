@@ -5514,3 +5514,9 @@ html[data-misto-dole="1"] #btn-prostor { display: none !important; }
 .cteni-obrazek-popis { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cteni-ke-stazeni .cteni-obrazek { margin: 8px 0 2px 26px; }
 .cteni-ke-stazeni .cteni-obrazek img { max-height: 300px; }
+
+/* Tab, ve kterém běží agenti nebo úlohy na pozadí (hub.js, naPozadi): tečka
+   dýchá i po skončení Claudeova tahu, ať je vidět, že chat pořád pracuje. */
+.tab.na-pozadi:not(.pracuje) .tab-dot { animation: pozadi-dych 2.4s ease-in-out infinite; }
+@keyframes pozadi-dych { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .tab.na-pozadi .tab-dot { animation: none; } }

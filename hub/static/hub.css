@@ -5517,6 +5517,6 @@ html[data-misto-dole="1"] #btn-prostor { display: none !important; }
 
 /* Tab, ve kterém běží agenti nebo úlohy na pozadí (hub.js, naPozadi): tečka
    dýchá i po skončení Claudeova tahu, ať je vidět, že chat pořád pracuje. */
-.tab.na-pozadi:not(.pracuje) .tab-dot { animation: pozadi-dych 2.4s ease-in-out infinite; }
+.tab.na-pozadi:not(.pracuje) .tab-agent { animation: pozadi-dych 2.4s ease-in-out infinite; }
 @keyframes pozadi-dych { 0%, 100% { opacity: 1; } 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .tab.na-pozadi .tab-dot { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .tab.na-pozadi .tab-agent { animation: none; } }

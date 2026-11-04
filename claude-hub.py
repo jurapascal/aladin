@@ -340,17 +340,39 @@ def main():
 
     # Appka už běží na pozadí (zavřené okno) → jen se k ní otevře nové okno.
     # Druhá instance nad stejnými chaty by si přepisovala konverzace.
-    if "--no-browser" not in args and "--vlastni-okno" not in args and not core.TEST_MODE:
-        bezi = pozadi.bezici_url()
-        if bezi:
-            core.log("běží na pozadí — otevírám okno k ní")
-            host, proc, blocking = otevri_okno(bezi, prefer, appka_ok, vlastni_server=False)
-            if blocking:
-                blocking()
-            return 0
+    restart = "--bez-okna" in args or "--vlastni-okno" in args
+    if "--no-browser" not in args and not core.TEST_MODE:
+        if restart:
+            # Restart po aktualizaci: stará instance zámek pustí, až se okno
+            # přepne sem (hub/restart.py) — počkat na ni, ale ne donekonečna.
+            threading.Thread(target=pozadi.zamek, kwargs={"cekat": 30.0}, daemon=True).start()
+        elif not pozadi.zamek():
+            # Zámek drží jiná appka: počkat, až odpoví (start, restart po
+            # aktualizaci), a otevřít okno k ní — ne pouštět druhou.
+            bezi = pozadi.pockej_na_bezici(25.0)
+            if bezi:
+                core.log("běží na pozadí — otevírám okno k ní")
+                host, proc, blocking = otevri_okno(bezi, prefer, appka_ok, vlastni_server=False)
+                if blocking:
+                    blocking()
+                return 0
+            core.log("start: zámek drží appka, která neodpovídá — spouštím novou", "warn")
+        else:
+            bezi = pozadi.bezici_url()
+            if bezi:
+                # Starší verze appky (bez zámku) ještě běží: okno k ní.
+                core.log("běží na pozadí — otevírám okno k ní")
+                host, proc, blocking = otevri_okno(bezi, prefer, appka_ok, vlastni_server=False)
+                if blocking:
+                    blocking()
+                return 0
 
     httpd, url = server.start()
     pozadi.zapis(url)
+    if "--no-browser" not in args and not restart:
+        # Instance, které tu zůstaly z dřívějška (závod při spuštění, stará
+        # verze bez zámku), se řádně ukončí — jinak hlásí bráně stejný počítač.
+        threading.Thread(target=pozadi.uklid_dalsi_instance, daemon=True).start()
     if "--no-browser" not in args and "--vlastni-okno" not in args:
         # Aktualizace přepíše spouštěč na výchozí název a ikonu; okno se po
         # restartu jen přepne, takže vlastní vzhled se musí vrátit tady.

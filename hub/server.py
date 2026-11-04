@@ -1861,18 +1861,22 @@ class Handler(BaseHTTPRequestHandler):
             if action == "probe":
                 return self._json(account.probe(payload.get("server", "")))
             if action == "login":
-                return self._json(account.login(
-                    payload.get("server", ""),
-                    payload.get("email", ""),
-                    payload.get("password", "")))
+                res = account.login(payload.get("server", ""), payload.get("email", ""),
+                                    payload.get("password", ""))
+                pocitac.wake()          # most k nově přihlášenému serveru hned
+                return self._json(res)
             if action == "browser-start":
                 return self._json(account.browser_start(payload.get("server", "")))
             if action == "browser-poll":
-                return self._json(account.browser_poll(payload.get("server", ""), payload.get("n", "")))
+                res = account.browser_poll(payload.get("server", ""), payload.get("n", ""))
+                if res.get("stav") == "hotovo":
+                    pocitac.wake()
+                return self._json(res)
             if action == "2fa":
-                return self._json(account.second_factor(
-                    payload.get("server", ""), payload.get("ticket", ""),
-                    payload.get("code", "")))
+                res = account.second_factor(payload.get("server", ""), payload.get("ticket", ""),
+                                            payload.get("code", ""))
+                pocitac.wake()
+                return self._json(res)
             if action == "logout":
                 res = account.logout()
                 pocitac.wake()
@@ -1896,9 +1900,13 @@ class Handler(BaseHTTPRequestHandler):
                     threading.Thread(target=mcp_pc.sync, daemon=True).start()
                 return self._json(res)
             if action == "switch":
-                return self._json(account.switch(payload.get("server", "")))
+                res = account.switch(payload.get("server", ""))
+                pocitac.wake()
+                return self._json(res)
             if action == "forget":
-                return self._json(account.forget(payload.get("server", "")))
+                res = account.forget(payload.get("server", ""))
+                pocitac.wake()
+                return self._json(res)
             if action == "local":
                 core.save_config({"server_mode": False})
                 return self._json({"ok": True})
@@ -2698,6 +2706,38 @@ class HubHTTPServer(ThreadingHTTPServer):
         self.server_port = port
 
 
+def _stabilni_token():
+    """Token appky na počítači zůstává stejný i po restartu a aktualizaci.
+
+    Okno v prostoru na serveru si cestu zpátky na počítač pamatuje i s tokenem
+    (`#local=`, server.js). S novým tokenem po každém startu vedla po
+    aktualizaci appky (restart) cesta zpátky na „Neplatný token" — přepnutí
+    serveru na počítač „spadlo" a appka nešla aktualizovat, protože k tomu je
+    potřeba vrátit se na počítač. Soubor má práva jen pro vlastníka, stejně
+    jako `hub-bezi.json`, kde token byl i dřív. Zkušební hub a hub v prostoru
+    na serveru dostávají token nový, jako dřív."""
+    if core.TEST_MODE or core.on_gateway() or os.environ.get("HUB_PORT_SOUBOR"):
+        return secrets.token_urlsafe(24)
+    path = os.path.join(core.CLAUDE_DIR, "hub-token")
+    try:
+        with open(path, encoding="utf-8") as fh:
+            old = fh.read().strip()
+        if re.fullmatch(r"[A-Za-z0-9_-]{32,64}", old):
+            return old
+    except OSError:
+        pass
+    token = secrets.token_urlsafe(24)
+    try:
+        os.makedirs(core.CLAUDE_DIR, exist_ok=True)
+        fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(token)
+        os.replace(path + ".tmp", path)
+    except OSError:
+        pass
+    return token
+
+
 def _otevrit_server(token):
     """Hub po každém startu na stejném portu, když je volný.
 
@@ -2761,7 +2801,7 @@ def start():
         web.pri_startu()
     except Exception as exc:
         core.log_error("prostor: zápis webu selhal", exc)
-    token = secrets.token_urlsafe(24)
+    token = _stabilni_token()
     httpd = _otevrit_server(token)
     port = httpd.server_address[1]
     httpd.origins = {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}

@@ -203,11 +203,15 @@ function applyMotiv(m) {
       link = document.createElement('link');
       link.id = 'hub-motiv';
       link.rel = 'stylesheet';
+      // Přepínač „kde pracuju“ (renderMistoChips) se řídí tím, jestli motiv
+      // ukazuje pole na úvodu — to je poznat až po načtení jeho CSS.
+      link.addEventListener('load', () => { if (typeof renderMistoChips === 'function') renderMistoChips(); });
       document.head.appendChild(link);
     }
     if (link.getAttribute('href') !== href) link.setAttribute('href', href);
   }
   document.documentElement.dataset.motiv = motiv.id;
+  if (!href && typeof renderMistoChips === 'function') setTimeout(renderMistoChips, 0);
   applyTheme();
   if (typeof renderNewTabButtons === 'function' && STATE) { try { renderNewTabButtons(); } catch (_) { /* ještě není vykresleno */ } }
 }
@@ -933,6 +937,7 @@ function renderProstorBtn() {
     : f ? 'Okno pracuje pro firmu ' + f.nazev + ' (' + ROLE_FIRMY[f.role] + ') — klikni pro přepnutí'
     : PROSTORY.kam.length && !hasFirma() ? 'Okno je v tvém prostoru — klikni a přepneš do prostoru, kam máš přístup'
     : 'Okno je v osobním prostoru — klikni pro přepnutí na firmu';
+  renderMistoChips();
 }
 /* Na počítači: kdo je „aktivní prostor“ — čí napojení a Obsidian má Claude.
    Výkon zůstává na počítači, mění se jen prostor na serveru. */
@@ -946,6 +951,7 @@ function renderProstorBtnPc(b) {
   if (name) name.textContent = cfg.gw_space ? (cfg.gw_space_name || '?') : 'Můj prostor';
   b.title = 'Prostor pro napojení a Obsidian (' + (hostOfServer(cfg.gw_server) || 'server') +
     '). Výpočty zůstávají na počítači — klikni a přepneš prostor nebo server.';
+  renderMistoChips();
 }
 function hostOfServer(url) {
   try { return new URL(url).host; } catch (_) { return url || ''; }
@@ -3461,6 +3467,134 @@ function renderPlace() {
     if (u) HubPredplatne.notice(hubIO());
     HubPredplatne.hlidej(hubIO());
   }
+  renderMistoChips();
+}
+
+/* ── Kde pracuju: přepínač dole u bubliny ────────────────────────────────────
+   Dřív to byly dvě cedulky nahoře vedle loga (PC/Server a prostor). Lidi je
+   tam nehledali a na přepínání mezi servery byly malé — teď je to jeden čip
+   v liště pole na psaní (v chatu i na úvodu), jako výběr modelu v Claude.ai.
+   Nabídka: kde chat běží (počítač / servery), ze kterého serveru a prostoru
+   jsou napojení a Obsidian, osobní / firma / cizí prostory. Cedulky nahoře
+   zůstávají v motivech bez pole na úvodu (jinak by se z úvodu nedalo přepnout). */
+function zkratkaServeru(url) {
+  const host = hostOfServer(url).replace(/^www\./, '');
+  const parts = host.split('.');
+  return parts.length >= 2 ? parts[parts.length - 2] : host;
+}
+
+function mistoText() {
+  const cfg = (STATE && STATE.config) || {};
+  if (onServer()) {
+    const f = prostorFirma();
+    const g = STATE.guest;
+    const kdo = g ? (g.owner_name || '?') + (f ? ' · ' + f.nazev : '') : f ? f.nazev : 'Osobní';
+    return {ico: 'i-hub', text: 'Server · ' + kdo, druh: f ? 'firma' : g ? 'guest' : 'server',
+            title: 'Chat běží na serveru ' + location.host + ' · prostor: ' + kdo +
+                   ' — klikni a přepneš prostor, firmu nebo se vrátíš na počítač'};
+  }
+  const on = !!(cfg.gw_server && cfg.gw_logged_in);
+  if (!on) {
+    return {ico: 'i-laptop', text: 'Počítač', druh: 'pc',
+            title: 'Chat běží na tomhle počítači — klikni a připojíš server (napojení, Obsidian, sdílení)'};
+  }
+  const kde = zkratkaServeru(cfg.gw_server) + (cfg.gw_space ? ' · ' + (cfg.gw_space_name || '?') : '');
+  return {ico: 'i-laptop', text: 'Počítač · ' + kde, druh: cfg.gw_space ? 'guest' : 'pc',
+          title: 'Chat běží na tomhle počítači (výkon PC). Napojení a Obsidian: ' +
+                 hostOfServer(cfg.gw_server) + ', ' + (cfg.gw_space ? 'prostor ' + (cfg.gw_space_name || '?') : 'tvůj prostor') +
+                 ' — klikni a vybereš jiný server nebo prostor'};
+}
+
+function renderMistoChips() {
+  if (!STATE || !STATE.config) return;
+  const m = mistoText();
+  for (const btn of document.querySelectorAll('.composer-chip[data-act=misto]')) {
+    btn.hidden = false;
+    btn.innerHTML = icon(m.ico) + '<span class="val"></span><span class="misto-caret">▾</span>';
+    btn.querySelector('.val').textContent = m.text;
+    btn.title = m.title;
+    btn.dataset.druh = m.druh;
+    btn.onclick = mistoMenu;
+  }
+  // Pole na úvodu je jen v některých motivech; kde je, cedulky nahoře zmizí.
+  const wp = $('welcome-prompt');
+  const dole = !!wp && getComputedStyle(wp).display !== 'none';
+  document.documentElement.dataset.mistoDole = dole ? '1' : '';
+}
+window.HubMisto = {render: renderMistoChips};
+
+function vcas(promise, ms, fallback) {
+  return Promise.race([promise, new Promise((r) => setTimeout(() => r(fallback), ms))]);
+}
+
+async function mistoMenu(ev) {
+  ev.preventDefault();
+  ev.stopPropagation();
+  const b = ev.currentTarget.getBoundingClientRect();
+  const cfg = STATE.config || {};
+  const items = [];
+  if (onServer()) {
+    items.push({heading: 'Kde chat běží'});
+    items.push({icon: 'i-hub', label: 'Na serveru · ' + location.host, on: true, run: () => {}});
+    if (!STATE.guest && window.HubServer && HubServer.localBack()) {
+      items.push({icon: 'i-laptop', label: 'Na tomto počítači (výkon počítače)', run: () => HubServer.backTo('local')});
+    }
+    await vcas(loadProstory(10000), 2500, null);
+    const now = prostor();
+    const g = STATE.guest;
+    items.push({heading: 'Prostor a Obsidian'});
+    items.push({icon: 'i-user', label: g ? 'Osobní · ' + (g.owner_name || '?') : 'Osobní',
+                on: !now, color: 'var(--accent)', run: () => setProstor('')});
+    for (const f of firmyList()) {
+      items.push({icon: 'i-folder', label: f.nazev + ' · ' + ROLE_FIRMY[f.role], on: now === f.zkratka,
+                  color: 'var(--firma)', run: () => setProstor(f.zkratka)});
+    }
+    if (g || PROSTORY.kam.length) {
+      items.push({heading: 'Prostory, kam máš přístup'});
+      if (g) items.push({icon: 'i-hub', label: 'Zpět do svého prostoru', run: () => prostorJdi(0)});
+      for (const k of PROSTORY.kam) {
+        const tady = !!(g && g.owner === k.id);
+        items.push({icon: 'i-lock', on: tady,
+                    label: prostorKdo(k) + ' · ' + k.label + (k.pres === 'vsem' ? ' (všem)' : ''),
+                    run: () => { if (!tady) prostorJdi(k.id); }});
+      }
+    }
+  } else {
+    const servers = cfg.gw_servers || [];
+    items.push({heading: 'Kde chat běží'});
+    items.push({icon: 'i-laptop', label: 'Na tomto počítači (výkon počítače)', on: true, run: () => {}});
+    for (const sv of servers) {
+      items.push({icon: 'i-hub', label: 'Na serveru · ' + sv.host, run: () => prepniNaServer(sv)});
+    }
+    if (servers.length) {
+      items.push({heading: 'Napojení a Obsidian ze serveru'});
+      for (const sv of servers) {
+        items.push({icon: 'i-hub', label: sv.host + (sv.email ? ' · ' + sv.email : '') +
+                                          (sv.logged_in ? '' : ' (přihlásit)'),
+                    on: !!sv.active, run: () => { if (!sv.active || !sv.logged_in) vyberServerPc(sv); }});
+      }
+      if (cfg.gw_logged_in) {
+        const res = await vcas(api('account', {action: 'spaces'}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'});
+        if (!res.error && (res.spaces || []).length > 1) {
+          items.push({heading: 'Prostor na ' + hostOfServer(cfg.gw_server)});
+          for (const sp of res.spaces) {
+            items.push({icon: sp.id ? 'i-lock' : 'i-user', on: sp.active,
+                        label: sp.id ? sp.name + ' · ' + sp.label : 'Můj prostor',
+                        run: () => { if (!sp.active) vyberProstorPc(sp); }});
+          }
+        }
+      }
+    }
+  }
+  items.push({heading: 'Jinak'});
+  const brain = $('btn-brain');
+  if (brain && !brain.hidden) items.push({icon: 'i-book', label: 'Otevřít Obsidian', run: () => brain.click()});
+  if (!onServer()) {
+    items.push({icon: 'i-plus', label: (cfg.gw_servers || []).length ? 'Přidat další server…' : 'Připojit server…',
+                run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
+  }
+  items.push({icon: 'i-gear', label: 'Účet a servery…', run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
+  showMenu(b.left, b.top - 4, items, {above: true});
 }
 
 /* Uvítání. Není to jen ozdoba — je to jediná obrazovka, kterou člověk vidí,

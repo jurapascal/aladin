@@ -150,24 +150,74 @@ def set_access(level):
     return status()
 
 
+_WAKE_COND = threading.Condition()
+_WAKE_GEN = [0]
+STATES = {}                 # adresa serveru -> {"state", "note", "since"}
+
+
 def wake():
+    """Probudí všechny smyčky mostu (změna přístupu, jiný server, přihlášení)."""
     _WAKE.set()
+    with _WAKE_COND:
+        _WAKE_GEN[0] += 1
+        _WAKE_COND.notify_all()
+
+
+def _sleep(seconds, gen):
+    """Čeká `seconds`, nebo dokud někdo nezavolá wake() po generaci `gen`."""
+    with _WAKE_COND:
+        _WAKE_COND.wait_for(lambda: _WAKE_GEN[0] != gen, timeout=seconds)
+
+
+# ── víc serverů naráz ───────────────────────────────────────────────────────
+def targets():
+    """Servery, ke kterým se počítač hlásí: aktivní a všechny uložené, kde je
+    appka přihlášená. Dřív jen aktivní — kdo měl dva servery (BB a Tiskárna),
+    tomu Claude na druhém serveru počítač neviděl, a přepnutí serveru v appce
+    odneslo most s sebou. [(adresa, token)], aktivní první."""
+    out, seen = [], set()
+    base, token = account._base(), core.CONFIG.get("gw_token") or ""
+    if base and token:
+        out.append((base, token))
+        seen.add(base)
+    for e in account._saved():
+        if e["token"] and e["server"] not in seen:
+            out.append((e["server"], e["token"]))
+            seen.add(e["server"])
+    return out
+
+
+def _token(base):
+    """Aktuální token pro server (po přepnutí se tokeny přesouvají v nastavení)."""
+    return next((t for b, t in targets() if b == base), "")
 
 
 def status():
     with _LOCK:
         recent = list(RECENT)[::-1]
+    act = account._base()
+    servers = [{"server": b, "host": account._host(b), "active": b == act,
+                "state": STATES.get(b, {}).get("state", "connecting"),
+                "note": STATES.get(b, {}).get("note", "")} for b, _t in targets()]
     return {"access": access_level(), "asked": bool(core.CONFIG.get("pocitac_asked")),
             "state": STATE["state"], "note": STATE["note"],
-            "server": account._host(account._base()) if account._base() else "",
+            "server": account._host(act) if act else "", "servers": servers,
             "name": _machine_name(), "recent": recent[:6], "ukoly": ukoly(),
             "pending": pending_public(), "grants": grants_public()}
 
 
-def _set(state, note=""):
+def _set(state, note="", base=None):
+    """Stav mostu k serveru `base`; aktivní server (nebo stav bez serveru) je
+    zároveň STATE, který ukazuje appka."""
+    if base:
+        cur = STATES.get(base) or {}
+        if cur.get("state") != state or cur.get("note") != note:
+            if state == "online" and cur.get("state") != "online":
+                core.log(f"počítač: připojeno k {account._host(base)}")
+            STATES[base] = {"state": state, "note": note, "since": time.time()}
+        if base != account._base():
+            return
     if STATE["state"] != state or STATE["note"] != note:
-        if state == "online" and STATE["state"] != "online":
-            core.log(f"počítač: připojeno k {account._host(account._base())}")
         STATE.update(state=state, note=note, since=time.time())
 
 
@@ -236,82 +286,112 @@ def stop():
 
 
 def _bye(timeout=8):
-    token = core.CONFIG.get("gw_token") or ""
-    if token and account._base():
-        account._call("/gw/pocitac/poll", token=token, timeout=timeout,
+    """Odhlásí počítač u všech serverů najednou (vypnutý přístup, konec appky)."""
+    def jeden(base, token):
+        account._call("/gw/pocitac/poll", token=token, timeout=timeout, base=base,
                       payload={"bye": True, "computer": {"id": device_id()}})
+    vlakna = [threading.Thread(target=jeden, args=bt, daemon=True) for bt in targets()]
+    for t in vlakna:
+        t.start()
+    for t in vlakna:
+        t.join(timeout + 1)
 
 
-def _supported():
+def _supported(base=None):
     """Umí brána most? Starší na neznámou adresu odpoví 401 jako na špatný
     token — podle toho by se appka mylně odhlásila."""
-    data, err, kind = account._call("/gw/info", timeout=10)
+    data, err, kind = account._call("/gw/info", timeout=10, base=base)
     if data is None:
         return None, err
     return "pocitac" in (data.get("features") or []), ""
 
 
+_WORKERS = {}               # adresa serveru -> vlákno smyčky
+
+
 def _loop():
-    backoff = 0
-    checked = ""                      # server, u kterého už víme, že most umí
+    """Hlídá, ke kterým serverům se má počítač hlásit, a pro každý drží vlastní
+    smyčku (_loop_one). Nový server nebo přihlášení → nová smyčka do pár sekund."""
     while True:
-        # Probuzení (změna v nastavení) platí pro stav přečtený až po něm.
-        _WAKE.clear()
+        gen = _WAKE_GEN[0]
         access = access_level()
-        token = core.CONFIG.get("gw_token") or ""
-        base = account._base()
+        bases = [b for b, _t in targets()]
         if not access:
             _set("off")
-        elif not base or not token:
+        elif not bases:
             _set("waiting", "Appka není přihlášená k serveru.")
-        if not access or not base or not token:
-            _WAKE.wait(60)
-            backoff = 0
-            continue
+        elif account._base() not in bases:
+            _set("waiting", "Aktivní server není přihlášený — most běží k ostatním uloženým serverům.")
+        if access:
+            for base in bases:
+                w = _WORKERS.get(base)
+                if w is None or not w.is_alive():
+                    w = threading.Thread(target=_loop_one, args=(base,), daemon=True,
+                                         name="pocitac-" + account._host(base))
+                    _WORKERS[base] = w
+                    w.start()
+        for base in list(STATES):
+            if base not in bases:
+                STATES.pop(base, None)
+        _sleep(20, gen)
 
-        if checked != base:
-            ok, err = _supported()
+
+def _loop_one(base):
+    """Most k jednomu serveru: dotaz, úkoly, výsledky — dokud je server mezi
+    `targets()` a přístup je zapnutý. Pak skončí (smyčka _loop ho pustí znovu)."""
+    backoff = 0
+    checked = False                   # už víme, že brána most umí
+    while True:
+        gen = _WAKE_GEN[0]
+        access = access_level()
+        token = _token(base)
+        if not access or not token:
+            STATES.pop(base, None)
+            return
+
+        if not checked:
+            ok, err = _supported(base)
             if ok is None:
                 backoff = min(60, max(3, backoff * 2))
-                _set("connecting", err)
-                _WAKE.wait(backoff)
+                _set("connecting", err, base)
+                _sleep(backoff, gen)
                 continue
             if not ok:
                 _set("unsupported", "Server tohle ještě neumí — potřebuje novější verzi "
-                                    "Aladina (aktualizuje se sama v noci).")
-                _WAKE.wait(15 * 60)
+                                    "Aladina (aktualizuje se sama v noci).", base)
+                _sleep(15 * 60, gen)
                 continue
-            checked = base
+            checked = True
 
         data, err, kind = account._call("/gw/pocitac/poll", token=token, timeout=POLL_TIMEOUT,
-                                        payload={"computer": describe(access)})
+                                        base=base, payload={"computer": describe(access)})
         if data is not None and isinstance(data.get("tasks"), list):
-            _set("online")
+            _set("online", "", base)
             backoff = 0
             for task in data["tasks"]:
                 if isinstance(task, dict):
-                    threading.Thread(target=_handle, args=(task, token), daemon=True).start()
+                    threading.Thread(target=_handle, args=(task, token, base), daemon=True).start()
             for cmd in data.get("prikazy") or []:
                 if isinstance(cmd, dict):
                     _directive(cmd)
             for offer in data.get("ukoly") or []:
                 if isinstance(offer, dict):
-                    _take_later(str(offer.get("id") or ""), token)
-            if time.time() - _SYNC["at"] > 300:
-                _SYNC["at"] = time.time()
-                threading.Thread(target=_sync_reports, args=(token,), daemon=True).start()
+                    _take_later(str(offer.get("id") or ""), token, base)
+            if time.time() - _SYNC.get(base, 0.0) > 300:
+                _SYNC[base] = time.time()
+                threading.Thread(target=_sync_reports, args=(token, base), daemon=True).start()
             continue
         if kind == account.AUTH:
-            _set("error", "Přihlášení k serveru vypršelo — přihlas se znovu (Nastavení → Účet).")
-            _WAKE.wait(300)
+            _set("error", "Přihlášení k serveru vypršelo — přihlas se znovu (Nastavení → Účet).", base)
+            _sleep(300, gen)
             continue
-        checked = ""                   # po výpadku se ověří znovu (třeba jiná verze)
+        checked = False                # po výpadku se ověří znovu (třeba jiná verze)
         backoff = min(60, max(3, backoff * 2))
-        _set("connecting", err or "Server neodpovídá.")
-        _WAKE.wait(backoff)
+        _set("connecting", err or "Server neodpovídá.", base)
+        _sleep(backoff, gen)
 
 
-def _handle(task, token):
+def _handle(task, token, base=None):
     rid = str(task.get("id") or "")
     op = str(task.get("op") or "")
     args = task.get("args") if isinstance(task.get("args"), dict) else {}
@@ -327,7 +407,7 @@ def _handle(task, token):
     _remember(op, args, reply, started)
     payload = {"computer": device_id(), "id": rid, **reply}
     for attempt in range(3):
-        data, _err, kind = account._call("/gw/pocitac/vysledek", token=token,
+        data, _err, kind = account._call("/gw/pocitac/vysledek", token=token, base=base,
                                          payload=payload, timeout=120)
         if data is not None or kind == account.AUTH:
             return
@@ -418,13 +498,11 @@ def grants_public():
 
 
 def _push_pending():
-    """Žádost se hned ohlásí bráně, ať ji člověk uvidí i v prostoru na serveru."""
-    token = core.CONFIG.get("gw_token") or ""
-    if not token or not account._base():
-        return
-    account._call("/gw/pocitac/schvaleni", token=token, timeout=10,
-                  payload={"computer": device_id(), "pending": pending_public(),
-                           "grants": grants_public()})
+    """Žádost se hned ohlásí branám, ať ji člověk uvidí i v prostoru na serveru
+    (na kterémkoli, kde je appka přihlášená)."""
+    payload = {"computer": device_id(), "pending": pending_public(), "grants": grants_public()}
+    for base, token in targets():
+        account._call("/gw/pocitac/schvaleni", token=token, timeout=10, base=base, payload=payload)
 
 
 def _need_approval(op, args, rid):
@@ -1155,25 +1233,26 @@ OPS = {"sessions": op_sessions, "session_read": op_session_read, "session_send":
 _SYNC = {"at": 0.0}
 
 
-def _take_later(tid, token):
+def _take_later(tid, token, base=None):
     if not UKOL_ID.fullmatch(tid):
         return
     with _LOCK:
         if tid in _TAKING:
             return
         _TAKING.add(tid)
-    threading.Thread(target=_fetch_ukol, args=(tid, token), daemon=True).start()
+    threading.Thread(target=_fetch_ukol, args=(tid, token, base), daemon=True).start()
 
 
-def _fetch_ukol(tid, token):
+def _fetch_ukol(tid, token, base=None):
     """Stáhne úkol, uloží ho, potvrdí bráně a spustí (plný přístup) nebo ohlásí."""
+    base = base or account._base()
     try:
         meta = _read_ukol(tid)
         if meta is None:
             # Přílohy po jedné (`bez_dat`): chat ze serveru má i stovky MB.
             # Starší brána `bez_dat` nezná a pošle je rovnou v odpovědi.
             data, err, _kind = account._call(
-                "/gw/pocitac/ukol", token=token, timeout=180,
+                "/gw/pocitac/ukol", token=token, timeout=180, base=base,
                 payload={"action": "take", "computer": device_id(), "id": tid, "bez_dat": True})
             if data is None or not data.get("ok"):
                 if not (data or {}).get("gone"):
@@ -1183,13 +1262,13 @@ def _fetch_ukol(tid, token):
 
             def stahni(name):
                 res, err2, _k = account._call(
-                    "/gw/pocitac/ukol", token=token, timeout=300,
+                    "/gw/pocitac/ukol", token=token, timeout=300, base=base,
                     payload={"action": "soubor", "computer": device_id(), "id": tid, "name": name})
                 if res is None or not res.get("ok"):
                     raise ValueError(f"příloha {name} se nestáhla — {(res or {}).get('error') or err2}")
                 return base64.b64decode(str(res.get("data") or ""), validate=True)
             try:
-                meta = _store_ukol(data.get("ukol") or {}, stahni)
+                meta = _store_ukol(data.get("ukol") or {}, stahni, base)
             except (OSError, ValueError) as exc:
                 core.log_error("počítač: úkol ze serveru se nepodařilo uložit", exc)
                 return
@@ -1243,7 +1322,7 @@ def _write_ukol(meta):
                   json.dumps(meta, ensure_ascii=False, indent=1).encode("utf-8"))
 
 
-def _store_ukol(ukol, stahni=None):
+def _store_ukol(ukol, stahni=None, base=None):
     tid = str(ukol.get("id") or "")
     if not UKOL_ID.fullmatch(tid):
         raise ValueError("úkol bez platného id")
@@ -1263,7 +1342,10 @@ def _store_ukol(ukol, stahni=None):
             "kind": "chat" if ukol.get("kind") == "chat" else "",
             "folder": str(ukol.get("folder") or "")[:500], "files": names,
             "created": int(ukol.get("created") or 0), "received": int(time.time()),
-            "server": account._host(account._base()) if account._base() else "",
+            "server": account._host(base or account._base()) if (base or account._base()) else "",
+            # Kam se hlásí stav: server, ze kterého úkol přišel (ne ten, který
+            # je v appce zrovna aktivní).
+            "server_base": base or account._base() or "",
             "state": "ceka", "changed": int(time.time()), "reported": ""}
     _write_ukol(meta)
     return meta
@@ -1272,11 +1354,12 @@ def _store_ukol(ukol, stahni=None):
 def _report(meta, token=""):
     """Řekne bráně, kde úkol je. Když se to nepovede, zkusí to smyčka později."""
     want = UKOL_REPORT.get(meta.get("state"))
-    token = token or core.CONFIG.get("gw_token") or ""
-    if not want or meta.get("reported") == want or not token or not account._base():
+    base = meta.get("server_base") or account._base()
+    token = token or (_token(base) if base else "")
+    if not want or meta.get("reported") == want or not token or not base:
         return
     data, _err, _kind = account._call(
-        "/gw/pocitac/ukol", token=token, timeout=20,
+        "/gw/pocitac/ukol", token=token, timeout=20, base=base,
         payload={"action": "state", "computer": device_id(), "id": meta["id"], "state": want})
     if data is not None and (data.get("ok") or data.get("gone")):
         with _LOCK:
@@ -1286,8 +1369,12 @@ def _report(meta, token=""):
                 _write_ukol(fresh)
 
 
-def _sync_reports(token):
+def _sync_reports(token, base=None):
+    base = base or account._base()
     for meta in ukoly():
+        # Úkol před 2.120 server nemá zapsaný — patří tomu, který byl aktivní.
+        if (meta.get("server_base") or account._base()) != base:
+            continue
         if UKOL_REPORT[meta["state"]] != meta.get("reported"):
             _report(meta, token)
 

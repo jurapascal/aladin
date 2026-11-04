@@ -2456,7 +2456,7 @@
 
   /* ── okno se starou konverzací ──────────────────────────────────────────── */
   function open(io, chat) {
-    const box = el('div', 'onb set-modal cteni-modal');
+    const box = el('div', 'onb set-modal cteni-modal okno-velke');
     box.innerHTML = `
       <div class="onb-box">
         <div class="onb-head">

@@ -1463,7 +1463,7 @@
     if (io.onPlace) io.onPlace(opts.path || '');
     // Firemní trezor je fialový jako všude jinde — třída přebije barvu
     // prostředí uvnitř celého okna, ať se osobní a firemní nespletou.
-    box = node('div', 'onb set-modal vault-modal' + (isFirma() ? ' firma' : ''));
+    box = node('div', 'onb set-modal vault-modal okno-velke' + (isFirma() ? ' firma' : ''));
     box.innerHTML = `
       <div class="onb-box">
         <div class="onb-head">

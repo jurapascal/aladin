@@ -603,6 +603,9 @@
           <!-- Nástroje jedou v jedné řadě a na úzké obrazovce se posouvají
                prstem. Odeslat a Esc zůstávají mimo posuv, pořád na očích. -->
           <div class="composer-tools">
+          <!-- Kde chat běží a čí prostor (PC / server, osobní / firma) —
+               přepínač, který dřív byl nahoře vedle loga (hub.js, HubMisto). -->
+          <button class="composer-chip composer-misto" data-act="misto" hidden></button>
           <button class="composer-chip" data-act="agent"
                   title="Čím tenhle tab jede. Přepnout se dá jen novým tabem — agent běží jako vlastní program.">
             <span class="composer-dot"></span><span class="val"></span> ▾</button>
@@ -623,6 +626,7 @@
       </div>
       <input type="file" multiple hidden>`;
     tab.pane.appendChild(root);
+    if (global.HubMisto) global.HubMisto.render();
 
     /* Karta s dotazem leží přes terminál. Když se Claude Code ptá, nemá být
        na co koukat do výpisu: otázka i volby patří do okna, ne mezi čáry

@@ -432,6 +432,21 @@
         } else {
           line.appendChild(el('span', 'set-warn', '! ' + (st.note || 'Počítač není připojený.')));
         }
+        // Most jede ke všem uloženým serverům naráz (hub/pocitac.py, targets) —
+        // ať je vidět, kterým z nich je počítač k dispozici.
+        const others = (st.servers || []).filter((s) => !s.active);
+        if (others.length) {
+          const box = el('div', 'pc-servery set-dim');
+          box.appendChild(document.createTextNode('Další servery: '));
+          others.forEach((s, i) => {
+            if (i) box.appendChild(document.createTextNode(', '));
+            const ok = s.state === 'online';
+            const span = el('span', ok ? 'set-ok' : 'set-warn', (ok ? '✓ ' : '! ') + s.host);
+            span.title = ok ? 'Claude na tomhle serveru na počítač dosáhne.' : (s.note || 'Nepřipojeno.');
+            box.appendChild(span);
+          });
+          line.appendChild(box);
+        }
       }
       drawTasks(st.ukoly || []);
       // Souhlas: platné povolení na 30 minut a čekající žádosti.

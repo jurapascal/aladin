@@ -123,7 +123,7 @@
 
   async function open(opts) {
     io = opts;
-    root = el('div', 'onb');
+    root = el('div', 'onb okno-velke');
     root.innerHTML = `
       <div class="onb-box st-box">
         <div class="onb-head">

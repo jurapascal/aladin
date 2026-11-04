@@ -88,7 +88,7 @@
     if (opts.tab === 'napojeni' || opts.tab === 'pluginy') opts.tab = 'rozsireni';
     if (opts.tab === 'taby') opts.tab = 'panel';          // Tlačítka nových tabů jsou v Panelu a liště
     if (opts.tab && SECTIONS.some(([id]) => id === opts.tab)) active = opts.tab;
-    root = el('div', 'onb set-modal');
+    root = el('div', 'onb set-modal okno-velke');
     root.innerHTML = `
       <div class="onb-box">
         <div class="onb-head">

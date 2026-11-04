@@ -5460,3 +5460,34 @@ html[data-pole-skryto~="slash"] .composer-chip[data-act=slash],
 html[data-pole-skryto~="model"] .composer-chip[data-act=model],
 html[data-pole-skryto~="rezim"] .composer-chip[data-act=mode],
 html[data-pole-skryto~="mic"] .composer-mic { display: none !important; }
+
+/* Velká okna (Nastavení, Statistiky, Obsidian, čtení chatu) na počítači:
+   95 % šířky i výšky okna. Na velkém monitoru bylo 880 × 720 px malé okénko
+   uprostřed prázdné plochy. Specifičtější než `.set-modal .onb-box`, ať to
+   platí i pod motivem (motiv.css nastavuje vlastní rozměr). Telefon a úzké
+   okno mají svoje (celá obrazovka). */
+@media (min-width: 900px) {
+  .onb.okno-velke { padding: 2.5vh 2.5vw; }
+  .onb.okno-velke .onb-box {
+    width: 95vw; max-width: none;
+    height: 95vh; max-height: 95vh;
+  }
+  .onb.okno-velke .st-box > .onb-body { flex: 1; min-height: 0; }
+}
+
+/* Přepínač „kde pracuju“ v liště pole na psaní (hub.js, renderMistoChips).
+   Barva podle místa jako dřív cedulka nahoře: počítač / server v barvě
+   prostředí, firma fialově, cizí prostor zvýrazněný. */
+.composer-chip.composer-misto { color: var(--accent); font-weight: 600; }
+.composer-chip.composer-misto .ico { width: 14px; height: 14px; }
+.composer-chip.composer-misto .misto-caret { opacity: .7; font-weight: 400; }
+.composer-chip.composer-misto[data-druh=firma] { color: var(--firma); }
+.composer-chip.composer-misto[data-druh=guest] { color: var(--green); }
+.composer-chip.composer-misto .val { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 700px) {
+  .composer-chip.composer-misto .val { max-width: 150px; }
+}
+/* Cedulky nahoře vedle loga jsou teď dole u pole na psaní — kde je pole i na
+   úvodu (motiv Claude), nahoře zmizí. */
+html[data-misto-dole="1"] #btn-place,
+html[data-misto-dole="1"] #btn-prostor { display: none !important; }

@@ -383,6 +383,15 @@ def _google_accounts():
     return out
 
 
+def google_accounts_view():
+    """Účty pro Nastavení: navíc kterému Claude dává přednost (`vychozi`)."""
+    accounts = _google_accounts()
+    default = _google_default() if accounts else ""
+    for a in accounts:
+        a["vychozi"] = a["name"] == default and len(accounts) > 1
+    return accounts
+
+
 def _mcp_accounts(service_id, spec, states):
     host = urllib.parse.urlparse(spec["url"].replace("{account}", "x")).hostname or ""
     per_account = "{account}" in spec["url"]
@@ -551,7 +560,7 @@ def services(refresh=False):
                 "field": spec.get("field")}
         if spec["kind"] == "google":
             cid, _, source = google_client()
-            item["accounts"] = _google_accounts()
+            item["accounts"] = google_accounts_view()
             item["client"] = source
             if not cid:
                 if core.on_gateway():
@@ -755,7 +764,45 @@ def _google_default():
     nepovinný a bez něj se použije tenhle účet."""
     accounts = _google_accounts()
     ok = [a["name"] for a in accounts if a["state"] == "ok"]
+    # Výchozí účet si uživatel může zvolit: e-mail v souboru `vychozi` ve složce
+    # s Google účty (Nastavení → Napojení → Google → Výchozí). Bez něj vyhraje
+    # první podle abecedy, což u víc účtů bývá ten méně používaný (a Claude pak
+    # dostává jiný účet, než uživatel chce). Návrh: Tomáš Peška, 4. 11. 2026.
+    zvoleny = _google_vychozi()
+    if zvoleny and zvoleny in [n.lower() for n in ok]:
+        return next(n for n in ok if n.lower() == zvoleny)
     return (ok or [a["name"] for a in accounts] or [""])[0]
+
+
+def _google_vychozi():
+    try:
+        with open(os.path.join(_google_dir(), "vychozi"), encoding="utf-8") as fh:
+            return fh.read().strip().lower()
+    except OSError:
+        return ""
+
+
+def set_google_default(email):
+    """Zvolí výchozí Google účet pro Clauda (USER_GOOGLE_EMAIL a CLAUDE.md)."""
+    email = str(email or "").strip()
+    names = [a["name"] for a in _google_accounts() if a["state"] == "ok"]
+    if email.lower() not in [n.lower() for n in names]:
+        return {"ok": False, "detail": "Takový přihlášený Google účet tu není."}
+    path = os.path.join(_google_dir(), "vychozi")
+    try:
+        os.makedirs(_google_dir(), exist_ok=True)
+        tmp = path + ".tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(email.lower() + "\n")
+        os.replace(tmp, path)
+    except OSError as exc:
+        return {"ok": False, "detail": f"Nepodařilo se uložit: {exc}"}
+    res = _ensure_google_server()
+    write_claude_md()
+    if not res.get("ok"):
+        return {"ok": False, "detail": res.get("detail") or "Napojení Google se nepodařilo přenastavit."}
+    return {"ok": True, "detail": f"Výchozí Google účet: {email}. Platí v nových chatech."}
 
 
 def _google_command():

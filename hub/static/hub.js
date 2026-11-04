@@ -1954,12 +1954,22 @@ function renderChatsFiltr() {
   }
 }
 
+/* Kmen slova pro hledání (stejně jako hub/hledani.py, kmen): „faktury“ najde
+   i „fakturu“ a „fakturách“. Krátká slova a čísla beze změny. */
+const KONCOVKY = ['ami', 'ach', 'ech', 'ich', 'ovi', 'eho', 'emu', 'ych', 'ymi', 'ima', 'ove', 'ovy',
+  'um', 'ou', 'em', 'ho', 'mi', 'ty', 'ti', 'te', 'ta', 'a', 'e', 'i', 'o', 'u', 'y'];
+function kmenSlova(w) {
+  if (w.length < 5 || !/^[a-z]+$/.test(w)) return w;
+  for (const k of KONCOVKY) if (w.endsWith(k) && w.length - k.length >= 4) return w.slice(0, -k.length);
+  return w;
+}
+
 function renderChats() {
   const box = $('chats');
   vyberLista();
   renderChatsFiltr();
   const filtr = chatsFiltr();
-  const words = foldText($('chats-search').value.trim()).split(/\s+/).filter(Boolean);
+  const words = foldText($('chats-search').value.trim()).split(/\s+/).filter(Boolean).map(kmenSlova);
   // Jen chaty prostoru okna: ve firmě její, v osobním prostoru osobní —
   // pokud si člověk nerozbalil celou historii.
   const filtrovat = !!(STATE && STATE.config && hasFirma());

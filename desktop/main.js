@@ -217,10 +217,16 @@ function zajistiHub() {
 function duveryhodne(url) {
   if (HUB_URL.test(url)) return true;
   // Prostor na serveru (brána): okno z hubu přejde na adresu serveru z nastavení.
+  // Od 2.118 jich může být víc (Nastavení → Účet → Servery): okno smí na každý
+  // uložený, ne jen na aktivní — jinak se druhý server (nebo sdílený chat na
+  // něm) otevřel v prohlížeči místo v appce.
   const cfg = readJson(path.join(claudeDir(), 'hub-config.json')) || {};
-  try {
-    return !!cfg.gw_server && new URL(url).origin === new URL(cfg.gw_server).origin;
-  } catch (_) { return false; }
+  const servery = [cfg.gw_server, ...(Array.isArray(cfg.gw_servers) ? cfg.gw_servers.map((s) => s && s.server) : [])];
+  let origin = '';
+  try { origin = new URL(url).origin; } catch (_) { return false; }
+  return servery.some((s) => {
+    try { return !!s && new URL(s).origin === origin; } catch (_) { return false; }
+  });
 }
 
 function ven(url) {

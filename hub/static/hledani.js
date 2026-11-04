@@ -57,7 +57,7 @@
 
   function uryvek(n) {
     const p = el('div', 'hl-uryvek');
-    p.appendChild(el('span', 'hl-role', n.role === 'me' ? 'Ty' : n.role === 'claude' ? 'Claude' : 'Nástroj'));
+    p.appendChild(el('span', 'hl-role', n.role === 'me' ? 'Ty' : n.role === 'claude' ? 'Claude' : n.role === 'nazev' ? 'Název' : 'Nástroj'));
     let kam = 0;
     if (n.pred) p.appendChild(document.createTextNode('… '));
     for (const [od, delka] of n.ranges || []) {

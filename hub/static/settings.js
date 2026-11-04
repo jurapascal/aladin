@@ -2467,6 +2467,24 @@
         };
         row.appendChild(again);
       }
+      // Google s víc účty: kterému Claude dává přednost (bez zvolení první podle abecedy).
+      if (svc.kind === 'google' && acc.state === 'ok' && (svc.accounts || []).length > 1) {
+        if (acc.vychozi) {
+          row.appendChild(el('span', 'set-ok svc-vychozi', '★ Výchozí'));
+        } else {
+          const def = el('button', 'btn ghost', 'Nastavit jako výchozí');
+          def.title = 'Claude použije tenhle účet, když neřekneš jiný';
+          def.onclick = async () => {
+            def.disabled = true;
+            try {
+              const r = await io.api('connect', {action: 'google-vychozi', email: acc.name});
+              io.toast(r.detail || 'Uloženo.');
+              load(true);
+            } catch (err) { io.toast('Nepovedlo se: ' + err.message); def.disabled = false; }
+          };
+          row.appendChild(def);
+        }
+      }
       const del = el('button', 'set-x', '×');
       del.title = 'Odebrat účet';
       del.onclick = async () => {

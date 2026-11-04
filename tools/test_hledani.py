@@ -212,5 +212,35 @@ class T(unittest.TestCase):
         self.assertIn("zkrácený", data.decode())
 
 
+class Vylepseni(unittest.TestCase):
+    """2.120: slova kdekoli v konverzaci, tvary slov, shoda v názvu, pořadí."""
+    def setUp(self):
+        for name in os.listdir(PROJ):
+            os.remove(os.path.join(PROJ, name))
+
+    def test_slova_v_ruznych_zpravach(self):
+        zapis(ID1, [user("Pošli mi fakturu"), asst("Hotovo, je pro Lukom shop")])
+        zapis(ID2, [user("Jen faktura bez dalšího")])
+        s = hledej("faktura lukom")
+        self.assertEqual([v["id"] for v in s["vysledky"]], [ID1])
+
+    def test_tvary_slov(self):
+        zapis(ID1, [user("Kde jsou ty fakturách za září?")])
+        self.assertEqual(len(hledej("faktury")["vysledky"]), 1)
+        self.assertEqual(len(hledej("faktura")["vysledky"]), 1)
+
+    def test_kratka_slova_beze_zmeny(self):
+        self.assertEqual(hledani.kmen("auto"), "auto")
+        self.assertEqual(hledani.kmen("2026"), "2026")
+        self.assertEqual(hledani.kmen("faktury"), "faktur")
+
+    def test_poradi_nejvic_shod_prvni(self):
+        zapis(ID1, [user("lukom"), asst("faktura")], )
+        zapis(ID2, [user("lukom a faktura spolu")])
+        os.utime(os.path.join(PROJ, ID1 + ".jsonl"), (time.time() + 5, time.time() + 5))
+        s = hledej("lukom faktura")
+        self.assertEqual(s["vysledky"][0]["id"], ID2)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

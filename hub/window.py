@@ -240,9 +240,12 @@ def _allow_microphone(view, WebKit, url):
     from urllib.parse import urlsplit
     # Stránka hubu, a brána, kterou okno ukazuje jako prostor na serveru.
     allowed = {urlsplit(url).netloc}
-    gw = str(core.CONFIG.get("gw_server") or "")
-    if gw.startswith("https://"):
-        allowed.add(urlsplit(gw).netloc)
+    # Všechny uložené servery (od 2.118 jich může být víc), ne jen aktivní.
+    for gw in [core.CONFIG.get("gw_server")] + [e.get("server") for e in (core.CONFIG.get("gw_servers") or [])
+                                                if isinstance(e, dict)]:
+        gw = str(gw or "")
+        if gw.startswith("https://"):
+            allowed.add(urlsplit(gw).netloc)
 
     def request(_view, req):
         wanted = getattr(WebKit, "UserMediaPermissionRequest", None)

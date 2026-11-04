@@ -2360,6 +2360,9 @@ class Handler(BaseHTTPRequestHandler):
                 # Sdílená napojení se změnila (nastavení mluví s bránou samo);
                 # srovnat registrace v Claude Code.
                 return self._json({"ok": True, "count": connect.sync_shared()})
+            if action == "google-vychozi":
+                result = connect.set_google_default(payload.get("email", ""))
+                return self._json(result, 200 if result.get("ok") else 400)
             if action == "google-client":
                 result = connect.save_google_client(payload.get("client_id", ""),
                                                     payload.get("client_secret", ""))

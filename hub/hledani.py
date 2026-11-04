@@ -60,6 +60,24 @@ def fold(text):
     return _DOPLNEK_RE.sub(lambda m: _DOPLNEK[m.group()], s).casefold()
 
 
+# Česká slova se skloňují: „faktura“ má najít i „faktury“, „fakturu“,
+# „fakturách“. Delší slovo se proto hledá podle kmene bez koncovky (substring
+# najde všechny tvary). Krátká slova a čísla zůstávají, jak jsou.
+_KONCOVKY = sorted(["ami", "ach", "ech", "ich", "ovi", "eho", "emu", "ych", "ymi", "ima", "ove", "ovy",
+                    "um", "ou", "em", "ho", "mi", "ty", "ti", "te", "ta",
+                    "a", "e", "i", "o", "u", "y"], key=len, reverse=True)
+
+
+def kmen(slovo):
+    """Kmen slova pro hledání (už složeného přes fold). Min. 4 znaky."""
+    if len(slovo) < 5 or not slovo.isalpha():
+        return slovo
+    for k in _KONCOVKY:
+        if slovo.endswith(k) and len(slovo) - len(k) >= 4:
+            return slovo[:-len(k)]
+    return slovo
+
+
 def _slova(dotaz):
     """Dotaz -> seznam složených slov, nebo ValueError s větou pro člověka."""
     if not isinstance(dotaz, str):
@@ -76,7 +94,7 @@ def _slova(dotaz):
     slova = slova[:MAX_SLOV]
     if not slova or max(len(w) for w in slova) < MIN_DOTAZ:
         raise ValueError(f"Napiš aspoň {MIN_DOTAZ} znaky.")
-    return slova
+    return [kmen(w) for w in slova]
 
 
 def _cteni_radku(fh, limit):
@@ -138,13 +156,16 @@ def _cas(entry, zalozni):
     return zalozni
 
 
-def _uryvek(text, slova):
+def _uryvek(text, slova, cast=False):
     """Úryvek kolem první shody + místa zvýraznění, nebo None, když zpráva
-    nemá všechna slova. Pozice se mapují zpět na původní text (diakritika
-    může změnit délku)."""
+    nemá všechna slova (`cast` = stačí aspoň jedno; pak i `shod` = kolik).
+    Pozice se mapují zpět na původní text (diakritika může změnit délku)."""
     text = text[:MAX_TEXT]
-    if not all(w in fold(text) for w in slova):
+    slozeny = fold(text)
+    mam = [w for w in slova if w in slozeny]
+    if not mam or (not cast and len(mam) < len(slova)):
         return None                          # rychlá cesta: většina zpráv končí tady
+    slova = mam
     mapa, slozene = [], []
     for i, ch in enumerate(text):
         f = fold(ch)
@@ -182,12 +203,18 @@ def _uryvek(text, slova):
             ranges.append([zv[a], zv[b] - zv[a]])
     ranges.sort()
     return {"text": "".join(nove), "ranges": ranges,
-            "pred": od > 0, "po": do < len(text)}
+            "pred": od > 0, "po": do < len(text), "shod": len(slova)}
 
 
-def _projdi_soubor(path, slova, nastroje, zrusit, konec, st):
-    """Nálezy v jednom přepisu: seznam {role, when, uryvek, ranges…}."""
+def _projdi_soubor(path, slova, nastroje, zrusit, konec, st, uz=()):
+    """Nálezy v jednom přepisu: seznam {role, when, uryvek, ranges…}.
+
+    Konverzace se hodí, když v ní (nebo v jejím názvu, `uz`) jsou všechna
+    slova — nemusí být v jedné zprávě. Dřív se hledalo jen ve zprávách, kde
+    byla všechna slova naráz, a „faktura Lukom“ nenašla chat, kde se o faktuře
+    a o Lukomu psalo v různých zprávách. Úryvky jsou zprávy s nejvíc shodami."""
     nalezy, pocet = [], 0
+    videno = set(uz)
     try:
         fh = open(path, "rb")
     except OSError:
@@ -216,15 +243,29 @@ def _projdi_soubor(path, slova, nastroje, zrusit, konec, st):
                 continue
             try:
                 for role, text in _texty(entry, nastroje):
-                    u = _uryvek(text, slova)
+                    u = _uryvek(text, slova, cast=True)
                     if not u:
                         continue
                     pocet += 1
-                    if len(nalezy) < LIMIT_NALEZU:
-                        nalezy.append(dict(u, role=role, when=_cas(entry, int(st.st_mtime))))
+                    slozeny = None
+                    for w in slova:
+                        if w not in videno:
+                            slozeny = slozeny if slozeny is not None else fold(text[:MAX_TEXT])
+                            if w in slozeny:
+                                videno.add(w)
+                    nalez = dict(u, role=role, when=_cas(entry, int(st.st_mtime)))
+                    if len(nalezy) < LIMIT_NALEZU * 4:
+                        nalezy.append(nalez)
+                    elif u["shod"] > min(n["shod"] for n in nalezy):
+                        nalezy.remove(min(nalezy, key=lambda n: n["shod"]))
+                        nalezy.append(nalez)
             except Exception:                # nečekaný tvar zprávy
                 continue
-    return nalezy, pocet
+    if not all(w in videno for w in slova):
+        return [], 0                         # chybí některé slovo — konverzace se nehodí
+    # Nejlepší úryvky (nejvíc slov naráz), v pořadí, jak šly v konverzaci.
+    nejlepsi = sorted(range(len(nalezy)), key=lambda i: (-nalezy[i]["shod"], i))[:LIMIT_NALEZU]
+    return [nalezy[i] for i in sorted(nejlepsi)], pocet
 
 
 def _seznam_prepisu():
@@ -272,13 +313,18 @@ def _beh(job, slova, nastroje):
             if time.monotonic() >= konec:
                 job["castecne"] = True
                 break
-            nalezy, pocet = _projdi_soubor(path, slova, nastroje, job["zrusit"], konec, st)
+            try:
+                title = chats.title_for(path)
+            except Exception:
+                title = ""
+            v_nazvu = [w for w in slova if w in fold(title)] if title else []
+            nalezy, pocet = _projdi_soubor(path, slova, nastroje, job["zrusit"], konec, st, v_nazvu)
+            if not nalezy and v_nazvu and len(v_nazvu) == len(slova):
+                pocet = 0                    # shoda jen v názvu — taky výsledek
+                nalezy = [{"text": title, "ranges": [], "pred": False, "po": False,
+                           "shod": len(slova), "role": "nazev", "when": int(st.st_mtime)}]
             job["prohledano"] += 1
             if nalezy:
-                try:
-                    title = chats.title_for(path)
-                except Exception:
-                    title = ""
                 cwd = ""
                 with chats._LOCK:
                     info = (chats._CACHE.get(path) or (0, 0, None))[2] or {}
@@ -287,13 +333,16 @@ def _beh(job, slova, nastroje):
                     "id": os.path.basename(path)[:-6], "title": title or "(bez názvu)",
                     "project": info.get("project", ""), "cwd": cwd,
                     "exists": bool(cwd) and os.path.isdir(cwd),
-                    "updated": int(st.st_mtime), "pocet": pocet, "nalezy": nalezy})
+                    "updated": int(st.st_mtime), "pocet": pocet, "nalezy": nalezy,
+                    # Pořadí: shoda v názvu, pak zpráva s nejvíc slovy naráz, pak čas.
+                    "skore": (len(v_nazvu) * 10 + max(n.get("shod", 0) for n in nalezy))})
                 job["nalezeno"] += pocet
                 if len(job["vysledky"]) >= LIMIT_CHATU:
                     job["castecne"] = True
                     break
         if job["zrusit"].is_set():
             return
+        job["vysledky"].sort(key=lambda v: (-v.get("skore", 0), -v["updated"]))
     except Exception as exc:                 # hledání nesmí nikdy shodit hub
         core.log_error("hledání v konverzacích", exc)
         job["chyba"] = "Hledání se nepovedlo."

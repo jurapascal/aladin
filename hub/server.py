@@ -1182,13 +1182,19 @@ class Handler(BaseHTTPRequestHandler):
             fh = open(full, "rb")
         except OSError:
             return self._json({"error": "Soubor nejde přečíst."}, 404)
+        # Náhled obrázku přímo v chatu (cteni.js): obrázek se správným typem,
+        # ať ho prohlížeč nakreslí v <img>. Pořád s CSP sandbox, takže ani SVG
+        # otevřené samo nic nespustí; vše ostatní dál jen jako příloha.
+        typ = _NAHLED_TYPY.get(os.path.splitext(fname)[1].lower()) \
+            if query.get("nahled", [""])[0] == "1" else None
         with fh:
             self.send_response(200)
             # Vždycky jako příloha: HTML ani SVG z prostoru se pod adresou
             # hubu nikdy neotevře jako stránka (stejně jako vault-file).
-            for k, v in (("Content-Type", "application/octet-stream"),
+            for k, v in (("Content-Type", typ or "application/octet-stream"),
                          ("Content-Length", str(velikost)),
-                         ("Content-Disposition", f"attachment; filename=\"{ascii_name}\"; "
+                         ("Content-Disposition", ("inline" if typ else "attachment") +
+                                                 f"; filename=\"{ascii_name}\"; "
                                                  f"filename*=UTF-8''{urllib.parse.quote(fname)}"),
                          ("Content-Security-Policy", "default-src 'none'; sandbox"),
                          ("X-Content-Type-Options", "nosniff"), ("X-Frame-Options", "DENY"),
@@ -1891,6 +1897,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(res)
             if action == "servers":
                 return self._json({"servers": account.servers()})
+            if action == "sdilene":
+                # Chaty sdílené se mnou ze všech přihlášených serverů (seznam chatů na PC).
+                if core.on_gateway():
+                    return self._json({"chaty": [], "chyby": []})
+                return self._json(account.sdilene_vse(0 if payload.get("hned") else 45))
+            if action == "sdilene-otevrit":
+                # Okno přejde na server rovnou do sdíleného chatu (aktivní server se nemění).
+                rid = str(payload.get("id") or "")
+                return self._json(account.handoff_na(payload.get("server", ""), "/?relace=" + rid))
             if action == "spaces":
                 return self._json(account.spaces())
             if action == "space":
@@ -2670,6 +2685,10 @@ def listdir(path):
         "dirs": [{"name": n, "path": os.path.join(path, n)} for n in names],
         "roots": roots,
     }
+
+
+_NAHLED_TYPY = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
+                ".webp": "image/webp", ".svg": "image/svg+xml", ".avif": "image/avif", ".bmp": "image/bmp"}
 
 
 class HubHTTPServer(ThreadingHTTPServer):

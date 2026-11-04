@@ -596,6 +596,8 @@ function souborUrl(path, info) {
 }
 window.HubSoubor = {
   url: (path) => souborUrl(path),
+  // Obrázek k náhledu přímo v chatu (správný typ místo přílohy, hub/server.py).
+  nahled: (path) => souborUrl(path) + '&nahled=1',
   info: async (path) => {
     const r = await fetch(souborUrl(path, true), {credentials: 'same-origin'});
     return r.json().catch(() => ({ok: false}));
@@ -1930,9 +1932,33 @@ for (const el of [document.documentElement, document.body]) {
   el.addEventListener('scroll', () => { if (el.scrollLeft) el.scrollLeft = 0; }, {passive: true});
 }
 
+/* Filtr seznamu chatů: '' = vše, 'moje' = jen moje (bez cizích sdílených),
+   'sdilene' = sdílené se mnou i ty, které sdílím já. Pamatuje se v prohlížeči. */
+function chatsFiltr() {
+  const v = lsGet('hub.chats-filtr') || '';
+  return ['moje', 'sdilene'].includes(v) ? v : '';
+}
+function renderChatsFiltr() {
+  const box = $('chats-filtr');
+  if (!box) return;
+  const f = chatsFiltr();
+  for (const b of box.querySelectorAll('button')) {
+    b.classList.toggle('on', (b.dataset.f || '') === f);
+    b.setAttribute('aria-selected', String((b.dataset.f || '') === f));
+    b.onclick = (ev) => {
+      ev.stopPropagation();
+      lsSet('hub.chats-filtr', b.dataset.f || '');
+      chatsSig = '';
+      renderChats();
+    };
+  }
+}
+
 function renderChats() {
   const box = $('chats');
   vyberLista();
+  renderChatsFiltr();
+  const filtr = chatsFiltr();
   const words = foldText($('chats-search').value.trim()).split(/\s+/).filter(Boolean);
   // Jen chaty prostoru okna: ve firmě její, v osobním prostoru osobní —
   // pokud si člověk nerozbalil celou historii.
@@ -1942,15 +1968,18 @@ function renderChats() {
   const others = CHATS.length - here.length;
   const vse = filtrovat && others > 0 && chatsVse();
   const scope = vse ? CHATS : here;
-  const list0 = words.length
+  const list00 = words.length
     ? scope.filter((c) => {
       const hay = foldText([c.title, c.prompt, c.project, c.posledni].join(' '));
       return words.every((w) => hay.includes(w));
     })
     : scope;
+  // Sdílené = chaty, které sdílím já (štítek „s …“), a cizí sdílené níž.
+  const list0 = filtr === 'sdilene' ? list00.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c)) : list00;
   // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
   // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
-  const extra = relaceRadky().filter((r) => !words.length || words.every((w) => foldText(r.text).includes(w)));
+  const extra = relaceRadky().filter((r) => (filtr !== 'moje' || !r.sdileny) &&
+    (!words.length || words.every((w) => foldText(r.text).includes(w))));
   const list = list0.concat(extra).sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
   // Otevřený chat je v seznamu chatů (zelená tečka) — v panelu Otevřené zůstanou jen taby bez řádku v seznamu.
@@ -1983,6 +2012,7 @@ function renderChats() {
     const note = document.createElement('div');
     note.className = 'empty';
     note.textContent = words.length ? 'Nic takového jsem nenašel.'
+      : filtr === 'sdilene' ? 'Nikdo s tebou zatím nic nesdílí a ty taky nic nesdílíš.'
       : 'Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.';
     box.appendChild(note);
     toggle();
@@ -2583,8 +2613,58 @@ async function loadRelace() {
   relaceHotovo = true;
   renderRelace();
   if (ACTIVE) renderPrehled(ACTIVE);
+  // Appka na počítači otevřela okno rovnou do sdíleného chatu (`/?relace=<id>`).
+  const chci = new URLSearchParams(location.search).get('relace');
+  if (chci && !loadRelace.otevreno) {
+    loadRelace.otevreno = true;
+    const p = new URLSearchParams(location.search);
+    p.delete('relace');
+    history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : ''));
+    const hit = RELACE.semnou.find((x) => x.id === chci);
+    if (hit) otevriSdilenyTab(hit, true);
+    else toast('Tenhle sdílený chat už s tebou nikdo nesdílí.');
+  }
 }
 let relaceHotovo = false;
+
+/* ── Sdílené chaty na počítači ze všech serverů ───────────────────────────
+   Appka na počítači se zeptá každého serveru, kde je přihlášená (hub/account.py,
+   sdilene_vse), co jí kdo sdílí. Řádky jsou v seznamu chatů se štítkem serveru;
+   klik otevře okno na serveru rovnou v tom chatu (sdílený chat žije v prostoru
+   majitele, na počítači ho není odkud číst). */
+let RELACE_PC = [];
+let relacePcTimer = null;
+async function loadRelacePc(hned) {
+  if (onServer()) return;
+  let data;
+  try { data = await api('account', {action: 'sdilene', hned: !!hned}); } catch (_) { return; }
+  const pred = JSON.stringify(RELACE_PC.map((x) => [x.server, x.id, x.aktivita]));
+  RELACE_PC = Array.isArray(data.chaty) ? data.chaty : [];
+  const nove = RELACE_PC.filter((x) => !relaceOznameneLokalne.has(x.server + '#' + x.id) && !x.oznameno);
+  if (nove.length && pred !== '[]') {
+    toast(nove.length === 1 ? `${nove[0].majitel} s tebou sdílí chat „${nove[0].titulek}“ (${nove[0].host}).`
+      : `S tebou sdílí ${nove.length} ${nove.length < 5 ? 'nové chaty' : 'nových chatů'}.`);
+  }
+  for (const x of RELACE_PC) relaceOznameneLokalne.add(x.server + '#' + x.id);
+  try { localStorage.setItem('hub-relace-oznamene', JSON.stringify([...relaceOznameneLokalne].slice(-300))); } catch (_) { /* soukromé okno */ }
+  if (JSON.stringify(RELACE_PC.map((x) => [x.server, x.id, x.aktivita])) !== pred) {
+    chatsSig = '';
+    renderChatsSoon();
+  }
+}
+
+async function otevriSdilenyPc(x) {
+  try {
+    const res = await api('account', {action: 'sdilene-otevrit', server: x.server, id: x.id});
+    if (!res.url) return toast(res.error || 'Server teď neodpovídá, zkus to za chvíli.');
+    const here = new URL(location.href);
+    here.hash = '';
+    here.searchParams.delete('mode');
+    window.HUB_LEAVING = true;
+    location.href = res.url + '#local=' + encodeURIComponent(here.toString()) +
+      '&app=' + encodeURIComponent((STATE.version && STATE.version.version) || '');
+  } catch (e) { toast(e.message); }
+}
 
 /* Majitel se v sdíleném chatu hlásí taky (kdo se dívá, kdo píše) — jednou za pár
    sekund, jen z aktivního tabu a ne když je okno skryté. „Píše“ = úhoz v posledních 4 s. */
@@ -2684,7 +2764,20 @@ async function zrusitSdileni(rel) {
 /* Sdílené a uložené chaty jsou v seznamu Chaty mezi ostatními, podle času
    (renderChats). Samostatná sekce v panelu už není. */
 function relaceRadky() {
-  if (!onServer()) return [];
+  if (!onServer()) {
+    return RELACE_PC.map((x) => {
+      const kdy = x.aktivita || x.vytvoreno;
+      return {updated: kdy, sdileny: true, text: x.titulek + ' ' + x.majitel + ' ' + x.host + ' ' + (x.posledni || ''), build: () => {
+        const row = chatRadek({druh: 'sdileny', titulek: x.titulek, cas: kdy, bezHvezdy: true,
+          stitek: 'od ' + x.majitel + ' · ' + zkratkaServeru(x.server),
+          nahled: x.posledni || (x.role === 'pise' ? 'smíš psát' : 'jen čtení')});
+        row.title = `${x.titulek}\nSdílí ${x.majitel} na serveru ${x.host} — ` +
+          (x.role === 'pise' ? 'smíš psát' : 'jen čtení') + '\nKlikni a otevře se na serveru.';
+        row.onclick = () => { otevriSdilenyPc(x); closeDrawer(); };
+        return row;
+      }};
+    });
+  }
   const out = [];
   // Uložené a podkategorii sdílené chaty jen v prostoru své firmy.
   for (const u of (RELACE.ulozene || []).filter((u) => !u.firma || u.firma === prostor())) {
@@ -2700,7 +2793,7 @@ function relaceRadky() {
     // Čas a náhled poslední zprávy dává brána z přepisu majitele (relace._nahled);
     // starší brána je nemá — pak čas sdílení a co smím.
     const kdy = s.aktivita || s.vytvoreno;
-    out.push({updated: kdy, text: s.titulek + ' ' + s.majitel + ' ' + (s.posledni || ''), build: () => {
+    out.push({updated: kdy, sdileny: true, text: s.titulek + ' ' + s.majitel + ' ' + (s.posledni || ''), build: () => {
       const row = chatRadek({druh: 'sdileny', titulek: s.titulek, cas: kdy, bezHvezdy: true,
         stitek: 'od ' + s.majitel,
         // Zpráva člena chodí jako „[Jméno] text" (sdilet_poslat) — jméno už nese.
@@ -4298,6 +4391,10 @@ async function reload() {
     relaceTimer = setInterval(() => { if (!document.hidden) loadRelace(); }, 5000);
     relacePritTimer = setInterval(relacePritomnost, 3000);
     loadRelace();
+  }
+  if (!onServer() && !relacePcTimer && (STATE.config.gw_servers || []).length) {
+    relacePcTimer = setInterval(() => { if (!document.hidden) loadRelacePc(); }, 60000);
+    setTimeout(loadRelacePc, 4000);
   }
   if (!$('projekty-page').hidden) renderProjekty();
   renderMemory();

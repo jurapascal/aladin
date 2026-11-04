@@ -150,9 +150,43 @@
     if (b < 1024 * 1024) return Math.round(b / 1024) + ' kB';
     return (b / 1024 / 1024).toFixed(b < 10 * 1024 * 1024 ? 1 : 0).replace('.', ',') + ' MB';
   }
+  /* Obrázky v odpovědi Clauda: cesta k obrázku (v ![…](cesta), v `cestě`
+     nebo jen tak v textu) se v chatu ukáže jako obrázek — „kdekoli chci
+     grafické výstupy přímo v chatu“ (Adam, 4. 11. 2026). Hub ji před
+     nakreslením ověří (/api/soubor info), takže neexistující cesta nic nezobrazí. */
+  const OBRAZEK = /\.(png|jpe?g|gif|webp|svg|avif|bmp)$/i;
+  const CESTA_OBRAZKU = /(?:!\[[^\]]*\]\(\s*<?([^)\s>]+)>?\s*\))|`([^`\n]+)`|(?<![\w:/.~\\-])((?:~|\/|[A-Za-z]:[\\/])[^\s`"'<>()]*?\.(?:png|jpe?g|gif|webp|svg|avif|bmp))(?=[\s.,;:!?)"'»”]|$)/gi;
+  function cestyObrazku(text) {
+    const out = [];
+    for (const m of String(text || '').matchAll(CESTA_OBRAZKU)) {
+      let c = (m[1] || m[2] || m[3] || '').trim();
+      if (c.startsWith('file://')) c = decodeURIComponent(c.slice(7));
+      if (!OBRAZEK.test(c) || /^https?:/i.test(c) || c.length > 1000) continue;
+      if (!/^(~|\/|[A-Za-z]:[\\/])/.test(c)) continue;          // jen úplné cesty
+      if (!out.includes(c)) out.push(c);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }
+  function nahledObrazku(cesta, st) {
+    const src = st && st.nahled ? st.nahled(cesta) : '';
+    if (!src) return null;
+    const fig = el('figure', 'cteni-obrazek');
+    const img = el('img');
+    img.loading = 'lazy';
+    img.alt = jmenoSouboru(cesta);
+    img.title = cesta + ' — klikni pro zvětšení';
+    img.src = src;
+    img.onerror = () => fig.remove();
+    img.onclick = (ev) => { ev.stopPropagation(); zvetsit(src); };
+    fig.append(img, el('figcaption', 'cteni-obrazek-popis', jmenoSouboru(cesta)));
+    return fig;
+  }
+
   function vychoziStahovani() {
     return {
       url: (p) => (global.HubSoubor ? global.HubSoubor.url(p) : ''),
+      nahled: (p) => (global.HubSoubor && global.HubSoubor.nahled ? global.HubSoubor.nahled(p) : ''),
       info: (p) => (global.HubSoubor ? global.HubSoubor.info(p) : Promise.resolve(null)),
       // Na počítači jde soubor i rovnou otevřít (hub.js, HubSoubor.otevri).
       otevri: global.HubSoubor && global.HubSoubor.lzeOtevrit() ? (p) => global.HubSoubor.otevri(p) : null,
@@ -613,8 +647,32 @@
         txt.title = cesta;
         r.append(el('span', 'cteni-ks-ico', '⤓'), txt, tlacitkoStahnout(cesta, st, notice, 'hlavni', 'Stáhnout'));
         k.appendChild(r);
+        // Obrázek je vidět rovnou v kartě, ne až po stažení.
+        if (OBRAZEK.test(cesta)) {
+          const fig = nahledObrazku(cesta, st);
+          if (fig) k.appendChild(fig);
+        }
       }
       naKonec();
+    }
+    /* Obrázky, na které Claude v odpovědi odkazuje cestou — pod text odpovědi.
+       Soubory, které už jsou v kartě ke stažení, se neopakují. */
+    function obrazkyZTextu(box, text) {
+      const cesty = cestyObrazku(text).filter((c) => !tah.soubory.includes(c));
+      if (!cesty.length || !st.nahled) return;
+      for (const cesta of cesty) {
+        Promise.resolve(st.info(cesta)).then((info) => {
+          if (!info || !info.ok) return;
+          let galerie = box.querySelector(':scope > .cteni-obrazky');
+          if (!galerie) {
+            galerie = el('div', 'cteni-obrazky');
+            const kdy = box.querySelector(':scope > .cteni-kdy, :scope > .cteni-cas');
+            box.insertBefore(galerie, kdy || null);
+          }
+          const fig = nahledObrazku(cesta, st);
+          if (fig) { galerie.appendChild(fig); naKonec(); }
+        }).catch(() => {});
+      }
     }
     /* Výstupy příkazu (cesty v textu příkazu, hub/cteni.py) — jen ty, které
        po doběhnutí opravdu existují. */
@@ -623,6 +681,13 @@
         Promise.resolve(st.info(cesta)).then((info) => {
           if (!info || !info.ok) return;
           if (!overene.includes(cesta)) overene.push(cesta);
+          if (box._tah === tah) {
+            // Jde do oranžové karty ke stažení — malý řádek pod příkazem by to
+            // jen zdvojoval (lidi nevěděli, na které z toho klepnout).
+            doTahu(cesta);
+            zmenaPrehledu();
+            return;
+          }
           let radek = box.querySelector('.cteni-tool-soubor');
           if (!radek) {
             radek = el('div', 'cteni-tool-soubor');
@@ -630,7 +695,6 @@
           }
           radek.appendChild(tlacitkoStahnout(cesta, st, notice, 'tichy', '⤓ ' + jmenoSouboru(cesta)
                                              + (info.size ? ' · ' + velikost(info.size) : '')));
-          if (box._tah === tah) doTahu(cesta);
           zmenaPrehledu();
         }).catch(() => {});
       }
@@ -894,8 +958,10 @@
         };
         box.insertBefore(nahled, detail);
       }
-      // Zapsaný / upravený soubor: nenápadné „Stáhnout" pod řádkem nástroje.
-      if (b.soubor) {
+      // Zapsaný / upravený soubor: nenápadné „Stáhnout" pod řádkem nástroje —
+      // jen u souborů, které nejdou do oranžové karty ke stažení (zdrojáky).
+      // Výstup pro člověka má kartu, malý řádek by ho zdvojoval.
+      if (b.soubor && !proCloveka(b.soubor)) {
         const radek = el('div', 'cteni-tool-soubor');
         radek.appendChild(tlacitkoStahnout(b.soubor, st, notice, 'tichy', '⤓ Stáhnout ' + jmenoSouboru(b.soubor)));
         box.insertBefore(radek, detail);
@@ -1836,6 +1902,7 @@
         if (html) { box.innerHTML = html; ozivHtml(box); kopirovaniKodu(box); }
         else box.textContent = b.text;
         mount.appendChild(box);
+        obrazkyZTextu(box, b.text);
         // Karta se soubory ke stažení jde vždycky pod poslední text odpovědi.
         if (tah.karta) mount.appendChild(tah.karta);
         const moznosti = odpovez ? rychleOdpovedi(b.text) : [];

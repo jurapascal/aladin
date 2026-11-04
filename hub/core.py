@@ -3538,6 +3538,18 @@ def _zkrat_home(path):
     return "~" + path[len(HOME):] if path == HOME or path.startswith(HOME + os.sep) else path
 
 
+# Claude v tabu nevěděl, že čtení v Aladinu obrázky ukazuje, a lidem psal, že
+# obrázek „do chatu vložit nedokáže“ (Adam, 4. 11. 2026). Čtení (cteni.js)
+# ukáže náhled u každé cesty k obrázku v odpovědi i u souborů, které Claude
+# zapíše. Krátké — jde do každého tabu.
+OBRAZKY_PROMPT = (
+    "## Obrázky v chatu Aladina\n"
+    "Aplikace Aladin ukáže obrázek (PNG, JPG, GIF, WebP, SVG) přímo v chatu, jakmile v odpovědi "
+    "uvedeš jeho úplnou cestu, nejlépe jako `![popis](/úplná/cesta/obrazek.png)`. Nikdy nepiš, že "
+    "obrázek v chatu ukázat nejde, a nenahrávej ho kvůli tomu na web. Grafické výstupy (grafy, "
+    "schémata, náhledy, mapy) ulož jako obrázek a cestu dej do odpovědi.")
+
+
 def navaznost_prompt(chat_id=""):
     """Pokyn pro nový chat: poslední konverzace uživatele a co dělat, když
     zpráva navazuje na něco, co v tomhle chatu není.
@@ -3620,6 +3632,7 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
     if firma:
         pokyny.append(firma_tab_prompt(vault, path))
     if (spec.get("id") or "") == "claude":
+        pokyny.append(OBRAZKY_PROMPT)
         if not resume:
             pokyny.append(navaznost_prompt(session))
         try:

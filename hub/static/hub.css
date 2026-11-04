@@ -5491,3 +5491,26 @@ html[data-pole-skryto~="mic"] .composer-mic { display: none !important; }
    úvodu (motiv Claude), nahoře zmizí. */
 html[data-misto-dole="1"] #btn-place,
 html[data-misto-dole="1"] #btn-prostor { display: none !important; }
+
+/* Filtr seznamu chatů (Vše / Moje / Sdílené) v hlavičce sekce Chaty. */
+.chats-filtr { display: inline-flex; gap: 2px; margin-left: 8px; }
+.chats-filtr button {
+  background: none; border: 1px solid transparent; border-radius: 999px;
+  color: var(--dim); font: inherit; font-size: 10.5px; font-weight: 600;
+  padding: 1px 8px; cursor: pointer; text-transform: none; letter-spacing: 0;
+}
+.chats-filtr button:hover { color: var(--fg-bright); background: var(--card-hover); }
+.chats-filtr button.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* Obrázky přímo v chatu (cteni.js, nahledObrazku): pod odpovědí i v kartě
+   ke stažení. Klik zvětší přes celé okno (cteni-lupa). */
+.cteni-obrazky { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
+.cteni-obrazek { margin: 0; display: flex; flex-direction: column; gap: 4px; max-width: min(100%, 560px); }
+.cteni-obrazek img {
+  display: block; max-width: 100%; max-height: 420px; width: auto; height: auto;
+  border-radius: 10px; border: 1px solid var(--border); background: var(--bg-card);
+  cursor: zoom-in; object-fit: contain;
+}
+.cteni-obrazek-popis { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cteni-ke-stazeni .cteni-obrazek { margin: 8px 0 2px 26px; }
+.cteni-ke-stazeni .cteni-obrazek img { max-height: 300px; }

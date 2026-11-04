@@ -31,6 +31,8 @@ import datetime
 import email.utils
 import json
 import os
+import re
+import time
 import socket
 import ssl
 import urllib.error
@@ -651,6 +653,67 @@ def logout():
     # zapamatované, ať se dá přihlásit zpátky bez vypisování.
     core.save_config({"gw_token": "", "server_mode": False})
     return status()
+
+
+_SDILENE = {"at": 0.0, "data": None}
+
+
+def _vsechny_prihlasene():
+    """[(adresa, token, uživatel)] všech serverů, kde je appka přihlášená."""
+    out = []
+    act = _active_entry()
+    if act and act["token"]:
+        out.append((act["server"], act["token"], act["user"]))
+    out += [(e["server"], e["token"], e["user"]) for e in _saved() if e["token"]]
+    return out
+
+
+def sdilene_vse(max_age=45):
+    """Chaty, které mi někdo sdílí, ze všech serverů naráz — pro seznam chatů
+    na počítači. Dřív je bylo vidět jen v okně na serveru, a jen na tom jednom.
+    {"chaty": [{…, server, host}], "chyby": [{host, error}]}"""
+    import threading
+    if _SDILENE["data"] is not None and time.time() - _SDILENE["at"] < max_age:
+        return _SDILENE["data"]
+    vysledky = {}
+
+    def jeden(base, token):
+        data, err, kind = _call("/gw/pc/sdilene", token=token, base=base, timeout=8)
+        vysledky[base] = (data, err, kind)
+    vlakna = [threading.Thread(target=jeden, args=(b, t), daemon=True)
+              for b, t, _u in _vsechny_prihlasene()]
+    for v in vlakna:
+        v.start()
+    for v in vlakna:
+        v.join(10)
+    chaty, chyby = [], []
+    for base, (data, err, kind) in vysledky.items():
+        if data and data.get("ok"):
+            for s in data.get("semnou") or []:
+                if isinstance(s, dict) and s.get("id"):
+                    chaty.append({**s, "server": base, "host": _host(base)})
+        elif err and "aktualizuje" not in err:
+            # Starší brána (bez /gw/pc/sdilene) mlčky — přijde s aktualizací.
+            chyby.append({"host": _host(base), "error": err})
+    out = {"chaty": chaty, "chyby": chyby}
+    _SDILENE.update(at=time.time(), data=out)
+    return out
+
+
+def handoff_na(server, nxt="", timeout=TIMEOUT):
+    """Jako handoff(), ale pro kterýkoli uložený server a s cílem po přihlášení
+    (`/?relace=<id>` = rovnou sdílený chat). Aktivní server se nemění."""
+    base = normalize(server)
+    hit = next(((b, t) for b, t, _u in _vsechny_prihlasene() if b == base), None)
+    if not hit:
+        return {"error": "Na tomhle serveru nejsi přihlášený.", "kind": AUTH}
+    data, err, kind = _call("/gw/handoff", token=hit[1], payload={}, base=base, timeout=timeout)
+    if not data or not data.get("url"):
+        return {"error": err or "Nepovedlo se připravit přihlášení.", "kind": kind or HTTP}
+    url = data["url"]
+    if nxt and re.fullmatch(r"/\?relace=[A-Za-z0-9_-]{4,64}", nxt):
+        url += "&next=" + urllib.parse.quote(nxt, safe="")
+    return {"url": url}
 
 
 def handoff(timeout=TIMEOUT):

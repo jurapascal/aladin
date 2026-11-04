@@ -25,6 +25,7 @@ import os
 import secrets
 import socket
 import subprocess
+import re
 import threading
 import time
 import urllib.parse
@@ -1090,6 +1091,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._gw_me()
             if route == "/gw/handoff":
                 return self._gw_handoff(method)
+            if route == "/gw/pc/sdilene":
+                return self._gw_pc_sdilene()
             # Most na počítač: počítač se ptá tokenem zařízení, prostor volá
             # svým žetonem. Ani jedno nejde přes cookie a nic z toho se neproxuje.
             if route == "/gw/pocitac/poll":
@@ -1551,8 +1554,14 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(200, login_page(
                         "Odkaz na přihlášení už platnost ztratil. "
                         "Zkus to z appky znovu."), "text/html; charset=utf-8")
+                # Kam po přihlášení: appka na počítači tak otevírá rovnou
+                # sdílený chat (`/?relace=<id>`). Jen tenhle tvar — z odkazu se
+                # nesmí dát udělat přesměrování na cizí web.
+                nxt = urllib.parse.parse_qs(
+                    urllib.parse.urlparse(self.path).query).get("next", [""])[0]
+                kam = nxt if re.fullmatch(r"/\?relace=[A-Za-z0-9_-]{4,64}", nxt or "") else "/"
                 return self._redirect(
-                    "/", extra={"Set-Cookie": self._set_cookie(token)})
+                    kam, extra={"Set-Cookie": self._set_cookie(token)})
             return self._send(200, login_page(),
                               "text/html; charset=utf-8")
         form = self._read_form()
@@ -2707,7 +2716,8 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                            "version": __version__,
                            # Co brána umí navíc — appka podle toho pozná, jestli
                            # se má ptát třeba na most na počítač.
-                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni", "zrcadlo", "spotreba", "mcp-pc"],
+                           "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni", "zrcadlo", "spotreba", "mcp-pc",
+                                        "sdilene-pc"],
                            "host": self._public_host()})
 
     def _gw_me(self):
@@ -2716,6 +2726,23 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         if not user:
             return self._json({"error": "Neplatný token."}, 401)
         return self._json({"user": user})
+
+    def _gw_pc_sdilene(self):
+        """Chaty, které mi někdo sdílí — pro appku na počítači (token zařízení).
+        Appka je ukazuje v seznamu chatů ze všech serverů, kde je přihlášená, a
+        po kliknutí otevře okno na serveru rovnou v nich (handoff + next)."""
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Neplatný token."}, 401)
+        try:
+            data = relace.seznam(user)
+        except Exception as exc:          # noqa: BLE001 — seznam je navíc, nesmí shodit bránu
+            _errlog("sdílené chaty pro počítač", exc)
+            return self._json({"ok": False, "error": "Seznam se teď nepodařilo načíst."}, 500)
+        keep = ("id", "titulek", "majitel", "role", "vytvoreno", "aktivita", "posledni",
+                "posledni_kdo", "oznameno")
+        return self._json({"ok": True, "semnou": [{k: s.get(k) for k in keep if k in s}
+                                                   for s in data.get("semnou") or []]})
 
     def _gw_handoff(self, method):
         """Vymění platný token za jednorázový kód do adresy prohlížeče."""

@@ -195,6 +195,12 @@
     </div>
     <div class="section section-head">
       <span id="list-head">Chaty</span>
+      <!-- Filtr seznamu: všechny / jen moje / jen sdílené (hub.js, chatsFiltr). -->
+      <span id="chats-filtr" class="chats-filtr" role="tablist" aria-label="Které chaty ukázat">
+        <button type="button" class="keep-drawer" data-f="" role="tab">Vše</button>
+        <button type="button" class="keep-drawer" data-f="moje" role="tab">Moje</button>
+        <button type="button" class="keep-drawer" data-f="sdilene" role="tab">Sdílené</button>
+      </span>
       <span class="section-count" id="projects-count"></span>
       <span class="section-count" id="chats-count" hidden></span>
       <button id="btn-chats-vyber" class="iconbtn chats-vyber-btn" title="Vybrat více chatů" aria-label="Vybrat více chatů">

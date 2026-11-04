@@ -854,10 +854,14 @@ function newChatHere(agentId, opts) {
   }
   const ready = agentList(true);
   if (!ready.length) return HubSettings.open({...hubIO(), state: STATE, tab: 'agenti'});
-  const pevny = ready.find((a) => a.id === (STATE.config.novy_chat_agent || ''));
-  if (pevny) return otevri(pevny);
-  if (ready.length === 1) return otevri(ready[0]);
-  zeptejSeNaAgenta(ready, otevri);
+  // Ptát se jen na výslovné přání (Nastavení → AI agenti → „Zeptat se pokaždé“).
+  // Dřív se ptalo u každého nového chatu, kdo měl víc agentů — na telefonu se
+  // „Vždy používat“ špatně trefovalo a lidi omylem skončili v Codexu místo
+  // Clauda (Adam, 3. 11. 2026: „vůbec nechci, ať se mě ptá“).
+  const volba = STATE.config.novy_chat_agent || '';
+  if (volba === 'zeptat' && ready.length > 1) return zeptejSeNaAgenta(ready, otevri);
+  const pevny = ready.find((a) => a.id === volba) || ready.find((a) => a.id === STATE.default_agent) || ready[0];
+  return otevri(pevny);
 }
 
 function zeptejSeNaAgenta(ready, otevri) {

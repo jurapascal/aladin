@@ -1077,8 +1077,8 @@
     const cfg = (state && state.config) || {};
     const ready = ((state && state.agents) || []).filter((a) => a.path);
     if (ready.length < 2) return rows;
-    rows.appendChild(radek('AI agent pro nový chat', 'Po otevření nového chatu se zeptá, s kterým agentem — nebo rovnou použije zvoleného. Model se vybírá sám podle úkolu.',
-      vyber([['', 'Zeptat se pokaždé'], ...ready.map((a) => [a.id, a.label])],
+    rows.appendChild(radek('AI agent pro nový chat', 'Nový chat se otevře rovnou s výchozím agentem (nebo se zvoleným). „Zeptat se pokaždé“ = při každém novém chatu výběr. Model se vybírá sám podle úkolu.',
+      vyber([['', 'Výchozí agent, bez ptaní'], ['zeptat', 'Zeptat se pokaždé'], ...ready.map((a) => [a.id, a.label])],
         cfg.novy_chat_agent || '', (v) => save({novy_chat_agent: v}))));
     return rows;
   }

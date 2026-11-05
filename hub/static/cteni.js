@@ -593,10 +593,35 @@
     ram.setAttribute('loading', 'lazy');
     ram.setAttribute('allow', 'clipboard-write; fullscreen');
     ram.referrerPolicy = 'no-referrer';
-    ram.src = adr.nahled;
     const pozn = el('div', 'cteni-google-pozn',
       'Nevidíš obsah? Tenhle prohlížeč není přihlášený ke Googlu s přístupem k souboru — otevři ho v Google nebo v prohlížeči appky.');
-    znovu.onclick = () => { ram.src = 'about:blank'; setTimeout(() => { ram.src = adr.nahled; }, 30); };
+    pozn.hidden = true;
+    /* Nejdřív obsah, který hub stáhne připojeným Google napojením (nepotřebuje přihlášený prohlížeč).
+       Když to nejde (formulář, soubor bez přístupu, napojení chybí), zůstává Googlí /preview v rámu. */
+    let blob = '';
+    const nacti = async () => {
+      if (blob) { URL.revokeObjectURL(blob); blob = ''; }
+      ram.removeAttribute('srcdoc');
+      ram.setAttribute('sandbox', '');
+      const t = new URLSearchParams(location.search).get('t');
+      try {
+        if (g.druh === 'forms') throw new Error('formulář');
+        const r = await fetch('/api/google-nahled?id=' + encodeURIComponent(g.id) + '&druh=' + g.druh +
+                              (t ? '&t=' + encodeURIComponent(t) : ''), {credentials: 'same-origin'});
+        if (!r.ok) throw new Error('nelze');
+        const typ = r.headers.get('Content-Type') || '';
+        if (/text\/html/.test(typ)) { ram.srcdoc = await r.text(); return; }
+        blob = URL.createObjectURL(await r.blob());
+        ram.removeAttribute('sandbox');           // prohlížeč PDF a obrázků v rámu bez sandboxu
+        ram.src = blob;
+      } catch (_) {
+        ram.removeAttribute('sandbox');
+        ram.src = adr.nahled;
+        pozn.hidden = false;
+      }
+    };
+    znovu.onclick = () => { ram.src = 'about:blank'; setTimeout(nacti, 30); };
+    nacti();
     const zpet = () => {
       box.classList.remove('cele');
       velke.textContent = '⤢';

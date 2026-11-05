@@ -1774,6 +1774,16 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(200, fh.read(), ctype, {
                     "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox",
                     "X-Content-Type-Options": "nosniff"})
+        if name == "google-nahled":
+            # Náhled Google souboru přes připojený Google účet (hub/googlenahled.py).
+            from . import googlenahled
+            if guest:
+                return self._json({"error": "Host tohle nevidí."}, 403)
+            kod, typ, telo = googlenahled.nahled((query.get("id") or [""])[0], (query.get("druh") or [""])[0])
+            return self._send(kod, telo, typ, {
+                "Content-Security-Policy": "sandbox; default-src 'none'; img-src data: https:; "
+                                           "style-src 'unsafe-inline'; object-src 'self'; frame-src 'self'",
+                "X-Frame-Options": "SAMEORIGIN"})
         if name == "soubor":
             return self._soubor_ke_stazeni(query, guest)
         if name == "stazene":

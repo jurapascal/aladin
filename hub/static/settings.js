@@ -1154,7 +1154,7 @@
     const btns = el('div', 'onb-btns');
     const check = el('button', 'btn ghost', 'Zkontrolovat znovu');
     btns.appendChild(check);
-    box.append(novyChatAgent(), summary, list, ollama, btns);
+    box.append(aiVolba(), novyChatAgent(), summary, list, ollama, btns);
 
     function busy(text) {
       summary.textContent = '';

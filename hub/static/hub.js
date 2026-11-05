@@ -5696,21 +5696,23 @@ function topbarMenu(btn, opts) {
      kliknuto. */
   const items = [];
   // Průběh chatu, na který se zrovna kouká (na počítači je vpravo).
-  if (ACTIVE && ACTIVE.cteni && ACTIVE.cteni.prehled) {
+  if (!zeSupliku && ACTIVE && ACTIVE.cteni && ACTIVE.cteni.prehled) {
     items.push({icon: 'i-status', label: 'Průběh', color: 'var(--accent)', run: () => openPrehled(ACTIVE)});
   }
   // Sdílení chatu: na telefonu není lišta s tlačítkem, tak je to tady.
-  if (onServer() && ACTIVE && (ACTIVE.chat || ACTIVE.resume) && ACTIVE.kind !== 'shell') {
+  if (!zeSupliku && onServer() && ACTIVE && (ACTIVE.chat || ACTIVE.resume) && ACTIVE.kind !== 'shell') {
     const rel = relaceTabu(ACTIVE);
     items.push({icon: 'i-user', label: rel ? 'Sdílení chatu (' + (rel.clenove.length + (rel.skupiny || []).length) + ')…' : 'Sdílet chat…',
                 color: 'var(--accent)', run: () => sdiletChat(ACTIVE)});
   }
   if (!zeSupliku) items.push({icon: 'i-note', label: 'Chaty', run: () => open('chats')});
-  items.push({icon: 'i-folder', label: ($('nav-projekty').textContent || '').trim() || 'Projekty',
+  /* Z hlavičky šuplíku se Projekty a Obsidian nenabízejí: jsou o kus níž přímo v šuplíku
+     (a Průběh a Sdílení patří ⋯ nahoře u chatu) — nic se v nabídkách neopakuje. */
+  if (!zeSupliku) items.push({icon: 'i-folder', label: ($('nav-projekty').textContent || '').trim() || 'Projekty',
               run: () => showProjekty(true)});
   // Poznámky jen v Obsidianu (přepínač osobní / firemní je uvnitř).
   const mem = STATE.memory || {};
-  if (mem.enabled || hasFirma()) {
+  if (!zeSupliku && (mem.enabled || hasFirma())) {
     items.push({icon: 'i-book', label: 'Obsidian',
                 run: () => (window.HubVault ? openVault() : openExternal('', 'brain'))});
   }

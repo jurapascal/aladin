@@ -57,6 +57,13 @@ def port():
         return int(env)
     if IS_WINDOWS or not hasattr(os, "getuid"):
         return 9333
+    if os.environ.get("HUB_POCITAC_TOKEN"):
+        # Prostor na bráně: všechny běží pod jedním systémovým účtem, port
+        # z uid by vyšel všem stejný (hub jednoho by viděl a zavíral Chromium
+        # druhého). Novější brána posílá HUB_BROWSER_PORT; do té doby podle
+        # domova, který má každý prostor jiný.
+        import zlib
+        return 20000 + zlib.crc32(claude_dir().encode("utf-8")) % 12000
     return 9300 + os.getuid() % 600
 
 

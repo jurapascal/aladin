@@ -2743,7 +2743,7 @@
     root.querySelector('[data-act=history]').onclick = historyMenu;
     root.querySelector('[data-act=file]').onclick = () => picker.click();
     modeBtn.onclick = (ev) => { syncLevel(); modeMenu(ev); };
-    root.querySelector('[data-act=esc]').onclick = () => { toPty('\x1b'); input.focus(); };
+    root.querySelector('[data-act=esc]').onclick = () => { toPty('\x1b'); if (!document.body.classList.contains('is-touch')) input.focus(); };
     picker.onchange = () => {
       if (picker.files && picker.files.length) attach(picker.files);
       picker.value = '';

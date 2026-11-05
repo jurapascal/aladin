@@ -5608,3 +5608,22 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
   .composer-tools .composer-chip.composer-misto { flex: 0 1 auto; min-width: 0; }
   .composer-tools .composer-chip.composer-misto .val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* Nastavení → Účet → Kdo další smí do prostoru: druhá podoba .set-row (řádek
+   s dvojicí text + hodnota) měla pevnou výšku a mezeru 24 px, takže se výběry
+   na telefonu smrskly na pár písmen a pod nimi zůstaly prázdné pruhy.
+   Tady je řádek svislý, výběry přes celou šířku, tlačítka vedle sebe. */
+.pristup-radek, .pristup-vsem, .pristup-pridat {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start;
+  gap: 8px; min-height: 0; padding: 10px 0;
+}
+.pristup-radek > span, .pristup-vsem > span { flex: 1 1 100%; min-width: 0; overflow-wrap: anywhere; }
+.pristup-radek > select, .pristup-vsem > select, .pristup-pridat > select {
+  flex: 1 1 100%; width: 100%; max-width: none; min-width: 0; height: 40px;
+}
+.pristup-radek > .btn, .pristup-vsem > .btn, .pristup-pridat > .btn { flex: 1 1 auto; min-height: 40px; }
+@media (min-width: 821px) {
+  .pristup-radek > span, .pristup-vsem > span { flex: 1 1 200px; }
+  .pristup-radek > select, .pristup-vsem > select, .pristup-pridat > select { flex: 0 1 220px; width: auto; height: 34px; }
+  .pristup-radek > .btn, .pristup-vsem > .btn, .pristup-pridat > .btn { flex: none; min-height: 0; }
+}

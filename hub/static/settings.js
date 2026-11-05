@@ -1725,7 +1725,7 @@
             'Lidé níž mají vlastní roli — ta platí místo role pro všechny (i když je nižší).'));
         }
         for (const g of d.moje) {
-          const row = el('div', 'set-row');
+          const row = el('div', 'set-row pristup-radek');
           row.appendChild(el('span', null, (g.name || g.email) + (g.name ? ' · ' + g.email : '') +
                                            (g.online ? ' · právě tady' : '')));
           const sel = roleSelect(g.role, vsem || g.vyjimka);

@@ -73,18 +73,28 @@
       const app = /&app=([0-9.]{1,20})(?:&|$)/.exec(location.hash);
       // Appka před 2.14.1 verzi neposílala — prázdná = starší.
       sessionStorage.setItem(APP_KEY, app ? app[1] : '');
+      /* Navíc i trvale: sessionStorage zmizí s oknem, a když se appka otevře rovnou na serveru
+         (pamatuje si ho) nebo vznikne druhé okno, cesta zpátky na počítač by chyběla. */
+      try {
+        localStorage.setItem(LOCAL_KEY, u.toString());
+        localStorage.setItem(APP_KEY, app ? app[1] : '');
+      } catch (_) { /* bez localStorage zůstane jen sessionStorage */ }
     } catch (_) { /* bez sessionStorage cesta zpátky prostě nebude */ }
     history.replaceState(null, '', location.pathname + location.search);
   }
 
   function localBack() {
-    try { return sessionStorage.getItem(LOCAL_KEY) || ''; } catch (_) { return ''; }
+    try {
+      const ses = sessionStorage.getItem(LOCAL_KEY);
+      if (ses) return ses;
+    } catch (_) { /* dál */ }
+    try { return localStorage.getItem(LOCAL_KEY) || ''; } catch (_) { return ''; }
   }
 
   /* Umí appka na počítači, ze které okno přišlo, aspoň verzi `min`? */
   function appAtLeast(min) {
     let have = '';
-    try { have = sessionStorage.getItem(APP_KEY) || ''; } catch (_) { return false; }
+    try { have = sessionStorage.getItem(APP_KEY) || localStorage.getItem(APP_KEY) || ''; } catch (_) { return false; }
     const num = (v) => String(v).split('.').map((n) => parseInt(n, 10) || 0);
     const a = num(have), b = num(min);
     if (!have) return false;

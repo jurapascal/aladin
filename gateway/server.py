@@ -1573,6 +1573,11 @@ class Handler(BaseHTTPRequestHandler):
         if wait:
             return self._login_error(too_many(wait), 429)
         user = self.accounts.verify(email, password)
+        if not user and password != password.strip():
+            # Heslo zkopírované ze zprávy často nese mezeru nebo konec řádku navíc
+            # (Tomáš, 3.–5. 11. 2026: „heslo z tvojí zprávy nebere“ a zámek na hodinu).
+            # Hesla od brány mezery na krajích nemají — zkusí se i bez nich, jako jeden pokus.
+            user = self.accounts.verify(email, password.strip())
         if not user:
             locked, left = self._failed(keys)
             if locked:

@@ -358,7 +358,10 @@ def authorize(h, method):
         if wait:
             from .server import too_many
             return _form_page(h, rid, req, too_many(wait))
-        user = h.accounts.verify(email, form.get("password") or "")
+        heslo = form.get("password") or ""
+        user = h.accounts.verify(email, heslo)
+        if not user and heslo != heslo.strip():
+            user = h.accounts.verify(email, heslo.strip())   # mezera navíc ze zkopírovaného hesla
         if not user:
             note, _left = h._failed(keys)
             return _form_page(h, rid, req, "Špatný e-mail nebo heslo. " + (note or ""))

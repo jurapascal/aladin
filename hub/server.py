@@ -1614,6 +1614,7 @@ class Handler(BaseHTTPRequestHandler):
                            "panel": core.CONFIG.get("panel") or {},
                            # Agent pro nový chat: "" = zeptat se (když jich je víc), jinak vždy tenhle (hub.js, newChatHere).
                            "novy_chat_agent": core.CONFIG.get("novy_chat_agent") or "",
+                           "muj_jmeno": core.CONFIG.get("muj_jmeno") or "",
                            # Kopie chatů na server (hub/zrcadlo.py), výchozí zapnuto.
                            "zrcadlo": core.CONFIG.get("zrcadlo", True) is not False,
                            "server_napojeni": core.CONFIG.get("server_napojeni", True) is not False,
@@ -1761,7 +1762,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(mcp_pc.prehled())
             if name == "mcp-pc-nastav":
                 return self._json(mcp_pc.nastav((payload or {}).get("zapnout")))
-            return self._json(mcp_pc.sync())
+            # Obnovit = srovnat na pozadí; stránka sleduje `bezi` (mcp-pc) a ví, kdy je hotovo.
+            mcp_pc.sync_na_pozadi()
+            return self._json(mcp_pc.prehled())
         if name in ("zrcadlo", "zrcadlo-prevzit", "zrcadlo-nastav", "zrcadla", "zrcadlo-na-server",
                     "zrcadlo-uvolnit"):
             return self._zrcadlo(name, query, payload, guest)
@@ -1912,7 +1915,7 @@ class Handler(BaseHTTPRequestHandler):
                 res = account.set_space(payload.get("space"))
                 if not res.get("error"):
                     from . import mcp_pc
-                    threading.Thread(target=mcp_pc.sync, daemon=True).start()
+                    mcp_pc.sync_na_pozadi()
                 return self._json(res)
             if action == "switch":
                 res = account.switch(payload.get("server", ""))
@@ -2074,7 +2077,7 @@ class Handler(BaseHTTPRequestHandler):
                        "agents", "default_agent", "project_agents",
                        "remote_keep_running", "dev_mode", "memory_autosave",
                        "hlas_model", "theme", "prohlizec_okno", "na_pozadi", "bez_spanku", "tray",
-                       "auto_update", "verxee_debug_klic", "panel", "novy_chat_agent")
+                       "auto_update", "verxee_debug_klic", "panel", "novy_chat_agent", "muj_jmeno")
             updates = {k: v for k, v in payload.items() if k in allowed}
             if "panel" in updates:
                 # Položky panelu vlevo (Nastavení → Přizpůsobit → Panel vlevo).
@@ -2095,6 +2098,9 @@ class Handler(BaseHTTPRequestHandler):
                 updates["verxee_debug_klic"] = klic
             if "novy_chat_agent" in updates and not re.fullmatch(r"[a-z0-9_-]{0,40}", str(updates["novy_chat_agent"])):
                 return self._json({"error": "Neznámý agent."}, 400)
+            if "muj_jmeno" in updates:
+                # Jméno na tomhle počítači (patka panelu vlevo). Prázdné = jméno ze systému.
+                updates["muj_jmeno"] = " ".join(str(updates["muj_jmeno"] or "").split())[:60]
             if "theme" in updates and updates["theme"] not in ("", "dark", "light"):
                 return self._json({"error": "Neznámé téma."}, 400)
             if "hlas_model" in updates and updates["hlas_model"] not in ("turbo", "small"):

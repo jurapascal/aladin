@@ -26,7 +26,7 @@ from . import account, core
 
 PREFIX = "server-"
 KAZDYCH = 30 * 60
-_STAV = {"kdy": 0, "chyba": "", "napojeni": []}
+_STAV = {"kdy": 0, "chyba": "", "napojeni": [], "bezi": False}
 _LOCK = threading.Lock()
 _STARTED = False
 
@@ -141,9 +141,31 @@ def prehled():
     with _LOCK:
         stav = dict(_STAV)
     return {"zapnuto": zapnuto(), "nastaveno": core.CONFIG.get("server_napojeni", True) is not False,
-            "kdy": int(stav["kdy"]), "chyba": stav["chyba"], "napojeni": stav["napojeni"]}
+            "kdy": int(stav["kdy"]), "chyba": stav["chyba"], "napojeni": stav["napojeni"],
+            "bezi": bool(stav.get("bezi"))}
+
+
+def sync_na_pozadi():
+    """Spustí sync() ve vlákně a hned se vrátí. Srovnání mostů volá `claude mcp
+    add/remove` za každé napojení (každé až minutu) — v HTTP požadavku to visela
+    stránka a přepnutí „Server“ vypadalo, že nic nedělá a nekomunikuje."""
+    with _LOCK:
+        if _STAV.get("bezi"):
+            return
+        _STAV["bezi"] = True
+
+    def beh():
+        try:
+            sync()
+        except Exception as exc:
+            core.log_error("napojení ze serveru", exc)
+        finally:
+            with _LOCK:
+                _STAV["bezi"] = False
+    threading.Thread(target=beh, daemon=True, name="mcp-pc-sync").start()
 
 
 def nastav(zapnout):
     core.save_config({"server_napojeni": bool(zapnout)})
-    return sync()
+    sync_na_pozadi()
+    return prehled()

@@ -1497,6 +1497,38 @@
     return wrap;
   }
 
+  /* Jméno na tomhle počítači: ukazuje se v patce panelu vlevo místo jména ze systému
+     (pascaljura, Svobodici…). Na serveru jméno drží brána (účet), tam se tohle nekreslí. */
+  function mojeJmeno() {
+    const cfg = (state && state.config) || {};
+    const box = el('div', 'acc-jmeno');
+    const r = el('div', 'set-row');
+    const inp = el('input', 'srv-input');
+    inp.type = 'text';
+    inp.maxLength = 60;
+    inp.placeholder = (state && state.user) || 'Tvoje jméno';
+    inp.value = cfg.muj_jmeno || '';
+    inp.autocomplete = 'name';
+    const ok = el('button', 'btn ghost', 'Uložit');
+    const uloz = async () => {
+      ok.disabled = true;
+      try {
+        await io.api('config', {muj_jmeno: inp.value});
+        if (state && state.config) state.config.muj_jmeno = inp.value.trim();
+        await io.refreshState();
+        io.toast(inp.value.trim() ? 'Jméno uloženo.' : 'Jméno ze systému.');
+      } catch (err) { io.toast(err.message); }
+      ok.disabled = false;
+    };
+    ok.onclick = uloz;
+    inp.onkeydown = (ev) => { if (ev.key === 'Enter') uloz(); };
+    r.append(inp, ok);
+    box.append(el('div', 'set-title', 'Jméno na tomhle počítači'), r,
+      el('div', 'set-note', 'Ukazuje se vlevo dole místo jména ze systému. Prázdné = jméno ze systému. ' +
+        'Na serveru se jmenuješ podle účtu.'));
+    return box;
+  }
+
   function ucet() {
     // Na serverovou instanci píše brána údaje o uživateli do konfigurace,
     // takže se pozná podle nich — ne podle adresy, ta může být za proxy jaká chce.
@@ -2049,6 +2081,7 @@
     // ---- hub na počítači, nepřihlášený ----
     function drawLogin(data) {
       body.textContent = '';
+      body.appendChild(mojeJmeno());
       if (data.note) body.appendChild(el('div', 'set-warn', '! ' + data.note));
       if ((data.servers || []).length > 1) body.appendChild(serveryBlok(data));
       body.appendChild(HubServer.panel(io, {
@@ -2071,6 +2104,7 @@
     function drawIn(data) {
       const u = data.user || {};
       body.textContent = '';
+      body.appendChild(mojeJmeno());
 
       const prof = el('div', 'acc-profile');
       const name = u.name || u.email || '';
@@ -2206,14 +2240,22 @@
         list.appendChild(el('div', null, 'Nová napojení uvidí Claude v nově otevřených chatech.'));
       };
       io.api('mcp-pc').then(kresli, (err) => { list.textContent = err.message; });
+      // Srovnání mostů běží na pozadí (hub/mcp_pc.py) — počkat, až doběhne.
+      const doběhlo = async (st) => {
+        for (let i = 0; i < 80 && st && st.bezi; i++) {
+          await new Promise((r) => setTimeout(r, 1500));
+          st = await io.api('mcp-pc');
+        }
+        return st;
+      };
       cb.onchange = async () => {
         list.textContent = 'chvilku…';
-        try { kresli(await io.api('mcp-pc-nastav', {zapnout: cb.checked})); } catch (err) { io.toast(err.message); }
+        try { kresli(await doběhlo(await io.api('mcp-pc-nastav', {zapnout: cb.checked}))); } catch (err) { io.toast(err.message); }
       };
       obnovit.onclick = async () => {
         obnovit.disabled = true;
         list.textContent = 'načítám ze serveru…';
-        try { kresli(await io.api('mcp-pc-obnovit', {})); } catch (err) { io.toast(err.message); }
+        try { kresli(await doběhlo(await io.api('mcp-pc-obnovit', {}))); } catch (err) { io.toast(err.message); }
         obnovit.disabled = false;
       };
       return box;

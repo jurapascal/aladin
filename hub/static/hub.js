@@ -1016,8 +1016,8 @@ async function vyberProstorPc(sp) {
     STATE.config.gw_space = res.active;
     STATE.config.gw_space_name = sp.id ? sp.name : '';
     renderProstorBtn();
-    toast('Prostor: ' + (sp.id ? sp.name : 'můj') + '. Napojení a Obsidian se přepnou za chvíli; ' +
-          'v běžících chatech po jejich novém startu.');
+    toast('Prostor: ' + (sp.id ? sp.name : 'můj') + '. Napojení a Obsidian se přepínají…');
+    nabidniNovyStart();
   } catch (e) { toast(e.message); }
 }
 
@@ -3353,7 +3353,7 @@ function renderFooter() {
   // Jako v appce Claude: kolečko s iniciálou a jméno — klik vede do Účtu.
   // V prostoru na serveru běží hub pod účtem `hub` — jméno je z brány.
   const gw = (STATE.config && STATE.config.gateway_user) || null;
-  const name = String((gw && (gw.name || gw.email)) || STATE.user || '').trim();
+  const name = String((gw && (gw.name || gw.email)) || (STATE.config && STATE.config.muj_jmeno) || STATE.user || '').trim();
   const me = document.createElement('button');
   me.className = 'footer-me';
   me.title = 'Účet a nastavení';
@@ -3659,8 +3659,43 @@ async function napojeniZeServeru(zapnout) {
   try {
     await api('mcp-pc-nastav', {zapnout: !!zapnout});
     STATE.config.server_napojeni = !!zapnout;
+    nabidniNovyStart();
     return true;
   } catch (e) { toast(e.message); return false; }
+}
+
+/* Napojení (MCP) a Obsidian si Claude načte při startu chatu. Po přepnutí místa
+   (počítač ↔ server, jiný prostor) proto běžící chat dál vidí to staré a „nebere
+   data ze serveru“ (Jura, 5. 11. 2026). Hub na pozadí srovná mosty a pak nabídne
+   chat načíst znovu — konverzace pokračuje, jen s novým napojením. */
+let novyStartCeka = false;
+async function nabidniNovyStart() {
+  if (novyStartCeka) return;
+  novyStartCeka = true;
+  try {
+    // Mosty se srovnávají na pozadí (claude mcp add/remove) — počkat, až doběhnou.
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      let st = null;
+      try { st = await api('mcp-pc'); } catch (_) { break; }
+      if (!st.bezi) break;
+    }
+    const t = ACTIVE;
+    const chat = t && (t.chat || t.resume);
+    if (!t || t.exited || t.kind === 'shell' || !chat || (t.agent && t.agent !== 'claude')) {
+      toast('Napojení a Obsidian jsou přepnuté. Platí v nově otevřených chatech.');
+      return;
+    }
+    const ok = await HubDialog.confirm(
+      'Napojení a Obsidian se přepnuly. Tenhle chat je ještě vidí po starém.\n\n' +
+      'Načíst ho znovu? Konverzace pokračuje, jen s novým napojením. Pokud Claude právě pracuje, ' +
+      'rozdělaná odpověď se přeruší.',
+      {title: 'Načíst chat znovu', ok: 'Načíst znovu', zrusit: 'Až později'});
+    if (!ok) return;
+    const path = t.path, title = t.title, vault = t.vault || '';
+    closeTab(t);
+    setTimeout(() => openTab({kind: 'project', path, title, agent: 'claude', resume: chat, vault}), 700);
+  } finally { novyStartCeka = false; }
 }
 
 function renderMistoChips() {

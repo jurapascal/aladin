@@ -5555,3 +5555,9 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
 }
 /* Karta přes celou šířku mřížky (Servery v Nastavení → Účet na počítači). */
 .acc-cards > .acc-siroka { grid-column: 1 / -1; }
+
+/* Přepínač místa: přehled nahoře v nabídce — co se teď používá. */
+#ctxmenu .ctx-info { margin: 4px 6px 6px; padding: 7px 10px; border-radius: 8px; background: var(--bg); border: 1px solid var(--border); display: grid; gap: 3px; min-width: 250px; }
+#ctxmenu .ctx-info-r { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; line-height: 1.4; }
+#ctxmenu .ctx-info-k { color: var(--dim); white-space: nowrap; }
+#ctxmenu .ctx-info-v { color: var(--fg-bright); font-weight: 600; text-align: right; }

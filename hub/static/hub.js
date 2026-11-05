@@ -3615,19 +3615,36 @@ function mistoText() {
             title: 'Chat běží na serveru ' + location.host + ' · prostor: ' + kdo +
                    ' — klikni a přepneš prostor, firmu nebo se vrátíš na počítač'};
   }
-  const on = !!(cfg.gw_server && cfg.gw_logged_in);
-  if (!on) {
-    return {ico: 'i-laptop', text: 'Počítač', druh: 'pc', tecka: '',
-            title: 'Chat běží na tomhle počítači — klikni a připojíš server (napojení, Obsidian, sdílení)'};
+  const kde = pcProstor();
+  if (!kde) {
+    return {ico: 'i-laptop', text: 'Tento počítač', druh: 'pc', tecka: '',
+            title: 'Výkon, Obsidian i napojení z tohoto počítače — klikni a vybereš prostor na serveru'};
   }
-  const kde = zkratkaServeru(cfg.gw_server) + ' · ' + (cfg.gw_space ? (cfg.gw_space_name || '?') : 'můj prostor');
   const jenPc = cfg.zrcadlo === false;
-  return {ico: 'i-laptop', text: 'Počítač · ' + kde, druh: 'pc',
-          tecka: cfg.gw_space ? 'var(--green)' : 'var(--cloud)',
-          title: 'Výkon na tomhle počítači, chaty ' + (jenPc ? 'jen tady' : 'tady i v kopii na serveru') +
-                 '. Napojení a Obsidian: ' + hostOfServer(cfg.gw_server) + ', ' +
-                 (cfg.gw_space ? 'prostor ' + (cfg.gw_space_name || '?') : 'tvůj prostor') +
-                 ' — klikni a vybereš jiný server nebo prostor'};
+  return {ico: 'i-laptop', text: zkratkaServeru(cfg.gw_server) + ' · ' + kde.jmeno, druh: 'pc',
+          tecka: kde.cizi ? 'var(--green)' : 'var(--cloud)',
+          title: 'Výkon: tento počítač. Obsidian a napojení: ' + hostOfServer(cfg.gw_server) + ' · ' + kde.jmeno +
+                 '. Chaty ' + (jenPc ? 'jen na počítači' : 'na počítači i v kopii na serveru') +
+                 ' — klikni a přepneš prostor'};
+}
+
+/* Prostor, ze kterého má Claude na počítači Obsidian a napojení:
+   null = tento počítač (žádný server, nebo napojení ze serveru vypnutá). */
+function pcProstor() {
+  const cfg = (STATE && STATE.config) || {};
+  if (!(cfg.gw_server && cfg.gw_logged_in) || cfg.server_napojeni === false) return null;
+  return {jmeno: cfg.gw_space ? (cfg.gw_space_name || '?') : 'Můj prostor', cizi: !!cfg.gw_space};
+}
+
+/* Napojení (MCP) a Obsidian ze serveru v Claudovi na počítači zapnout /
+   vypnout (hub/mcp_pc.py). Vypnuto = prostor „Tento počítač“. */
+async function napojeniZeServeru(zapnout) {
+  if ((STATE.config.server_napojeni !== false) === !!zapnout) return true;
+  try {
+    await api('mcp-pc-nastav', {zapnout: !!zapnout});
+    STATE.config.server_napojeni = !!zapnout;
+    return true;
+  } catch (e) { toast(e.message); return false; }
 }
 
 function renderMistoChips() {
@@ -3663,6 +3680,11 @@ async function nastavZrcadlo(zapnout) {
 /* Prostor na kterémkoli uloženém serveru: nejdřív přepnout server (když není
    aktivní), pak prostor. Výkon i chaty zůstávají na počítači. */
 async function vyberPcProstor(sv, sp) {
+  const bylPc = STATE.config.server_napojeni === false;
+  if (!(await napojeniZeServeru(true))) return;
+  if (bylPc && sv.active && !sp.id && !STATE.config.gw_space) {
+    toast('Obsidian a napojení teď ze serveru ' + sv.host + ' (můj prostor). V běžících chatech po jejich novém startu.');
+  }
   if (!sv.active) {
     await vyberServerPc(sv);
     if (!STATE.config.gw_logged_in || STATE.config.gw_server !== sv.server) return;
@@ -3682,20 +3704,21 @@ async function mistoMenu(ev) {
   const cfg = STATE.config || {};
   const items = [];
   if (onServer()) {
-    items.push({heading: 'Kde chat běží'});
-    items.push({icon: 'i-hub', label: 'Na serveru · ' + location.host, on: true, run: () => {}});
-    if (!STATE.guest && window.HubServer && HubServer.localBack()) {
-      items.push({icon: 'i-laptop', label: 'Na tomto počítači (výkon počítače)', run: () => HubServer.backTo('local')});
-    }
     await vcas(loadProstory(10000), 2500, null);
     const now = prostor();
     const g = STATE.guest;
-    items.push({heading: 'Prostor a Obsidian'});
+    const f = prostorFirma();
+    const kdo = g ? (g.owner_name || '?') + (f ? ' · ' + f.nazev : '') : f ? f.nazev : 'Osobní';
+    items.push({info: [
+      {k: 'Výkon', v: 'server ' + location.host, color: 'var(--cloud)'},
+      {k: 'Obsidian a napojení', v: kdo, color: f ? 'var(--firma)' : g ? 'var(--green)' : 'var(--cloud)'},
+    ]});
+    items.push({heading: 'Prostor (Obsidian a napojení)'});
     items.push({icon: 'i-user', label: g ? 'Osobní · ' + (g.owner_name || '?') : 'Osobní',
                 on: !now, color: 'var(--cloud)', run: () => setProstor('')});
-    for (const f of firmyList()) {
-      items.push({icon: 'i-folder', label: f.nazev + ' · ' + ROLE_FIRMY[f.role], on: now === f.zkratka,
-                  color: 'var(--firma)', run: () => setProstor(f.zkratka)});
+    for (const fi of firmyList()) {
+      items.push({icon: 'i-folder', label: fi.nazev + ' · ' + ROLE_FIRMY[fi.role], on: now === fi.zkratka,
+                  color: 'var(--firma)', run: () => setProstor(fi.zkratka)});
     }
     if (g || PROSTORY.kam.length) {
       items.push({heading: 'Prostory, kam máš přístup'});
@@ -3707,25 +3730,30 @@ async function mistoMenu(ev) {
                     run: () => { if (!tady) prostorJdi(k.id); }});
       }
     }
-  } else {
-    // Na počítači: výkon je vždycky tady; chaty buď jen tady, nebo i v kopii
-    // na serveru. Každý server je kategorie se svými prostory — výběr určí,
-    // odkud má Claude napojení a Obsidian (osobní modře, cizí zeleně).
-    const servers = cfg.gw_servers || [];
-    items.push({heading: 'Tento počítač'});
-    items.push({icon: 'i-laptop', label: 'Výkon na tomto počítači', on: true, color: 'var(--amber)', run: () => {}});
-    if (servers.length) {
-      const kopie = cfg.zrcadlo !== false;
-      items.push({icon: 'i-laptop', label: 'Chaty jen na tomto počítači', on: !kopie, color: 'var(--amber)',
-                  run: () => { if (kopie) nastavZrcadlo(false); }});
-      items.push({icon: 'i-hub', label: 'Chaty i v kopii na serveru (telefon, sdílení)', on: kopie,
-                  run: () => { if (!kopie) nastavZrcadlo(true); }});
+    if (!g && window.HubServer && HubServer.localBack()) {
+      items.push({heading: 'Výkon'});
+      items.push({icon: 'i-laptop', label: 'Zpět na počítač (výkon počítače, tenhle prostor zůstane)',
+                  color: 'var(--amber)', run: () => HubServer.backTo('local')});
     }
+  } else {
+    /* Na počítači: výkon je vždycky tenhle počítač. Vybírá se jen prostor,
+       odkud má Claude Obsidian a napojení — tento počítač, nebo prostor na
+       některém serveru (každý server je kategorie se svými prostory). */
+    const servers = cfg.gw_servers || [];
+    const kde = pcProstor();
+    items.push({info: [
+      {k: 'Výkon', v: 'tento počítač', color: 'var(--amber)'},
+      {k: 'Obsidian a napojení', v: kde ? hostOfServer(cfg.gw_server) + ' · ' + kde.jmeno : 'tento počítač',
+       color: kde ? (kde.cizi ? 'var(--green)' : 'var(--cloud)') : 'var(--amber)'},
+    ].concat(servers.length ? [{k: 'Chaty', v: cfg.zrcadlo === false ? 'jen na počítači' : 'na počítači + kopie na serveru'}] : [])});
+    items.push({heading: 'Prostor (Obsidian a napojení)'});
+    items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--amber)',
+                run: async () => { if (kde && await napojeniZeServeru(false)) { toast('Obsidian a napojení teď z tohoto počítače.'); renderMistoChips(); } }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
       ? vcas(api('account', {action: 'spaces', server: sv.server}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'})
       : Promise.resolve({error: 'nepřihlášený'})));
     servers.forEach((sv, i) => {
-      items.push({heading: sv.host + (sv.active ? ' · napojení a Obsidian odsud' : '')});
+      items.push({heading: sv.host});
       if (!sv.logged_in) {
         items.push({icon: 'i-user', label: 'Přihlásit se…', run: () => vyberServerPc(sv)});
         return;
@@ -3733,14 +3761,25 @@ async function mistoMenu(ev) {
       const res = prostory[i] || {};
       const seznam = (res.spaces && res.spaces.length) ? res.spaces : [{id: 0, name: '', label: ''}];
       for (const sp of seznam) {
-        const zde = !!sv.active && sp.id === Number(cfg.gw_space || 0);
+        const zde = !!kde && !!sv.active && sp.id === Number(cfg.gw_space || 0);
         items.push({icon: sp.id ? 'i-lock' : 'i-user', on: zde,
                     color: sp.id ? 'var(--green)' : 'var(--cloud)',
                     label: sp.id ? sp.name + ' · ' + sp.label : 'Můj prostor',
-                    run: () => { if (!zde) vyberPcProstor(sv, sp); }});
+                    run: async () => { if (!zde) { await vyberPcProstor(sv, sp); renderMistoChips(); } }});
       }
-      items.push({icon: 'i-hub', label: 'Pracovat přímo na serveru (výkon serveru)', run: () => prepniNaServer(sv)});
     });
+    if (servers.length) {
+      const kopie = cfg.zrcadlo !== false;
+      items.push({heading: 'Chaty'});
+      items.push({icon: 'i-laptop', label: 'Jen na tomto počítači', on: !kopie, color: 'var(--amber)',
+                  run: () => { if (kopie) nastavZrcadlo(false); }});
+      items.push({icon: 'i-hub', label: 'I v kopii na serveru (telefon, sdílení)', on: kopie,
+                  run: () => { if (!kopie) nastavZrcadlo(true); }});
+      items.push({heading: 'Výkon serveru místo počítače'});
+      for (const sv of servers.filter((x) => x.logged_in)) {
+        items.push({icon: 'i-hub', label: 'Otevřít ' + sv.host + ' (Claude poběží na serveru)', run: () => prepniNaServer(sv)});
+      }
+    }
   }
   items.push({heading: 'Jinak'});
   const brain = $('btn-brain');
@@ -5563,6 +5602,26 @@ function showMenu(x, y, items, opts) {
       h.className = 'ctx-head';
       h.textContent = item.heading;
       menu.appendChild(h);
+      continue;
+    }
+    // Přehled (neklikací): co se teď používá — řádky „Výkon: …“, „Obsidian: …“.
+    if (item.info) {
+      const box = document.createElement('div');
+      box.className = 'ctx-info';
+      for (const r of item.info) {
+        const row = document.createElement('div');
+        row.className = 'ctx-info-r';
+        const k = document.createElement('span');
+        k.className = 'ctx-info-k';
+        k.textContent = r.k;
+        const v = document.createElement('span');
+        v.className = 'ctx-info-v';
+        v.textContent = r.v;
+        if (r.color) v.style.color = r.color;
+        row.append(k, v);
+        box.appendChild(row);
+      }
+      menu.appendChild(box);
       continue;
     }
     const el = document.createElement('button');

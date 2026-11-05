@@ -3817,10 +3817,9 @@ async function mistoMenu(ev) {
                   run: () => { if (kopie) nastavZrcadlo(false); }});
       items.push({icon: 'i-hub', label: 'I v kopii na serveru (telefon, sdílení)', on: kopie,
                   run: () => { if (!kopie) nastavZrcadlo(true); }});
-      items.push({heading: 'Výkon serveru místo počítače'});
-      for (const sv of servers.filter((x) => x.logged_in)) {
-        items.push({icon: 'i-hub', label: 'Otevřít ' + sv.host + ' (Claude poběží na serveru)', run: () => prepniNaServer(sv)});
-      }
+      /* Přepínač mění jen ZDROJ Obsidianu a napojení — okno, chaty a výkon zůstávají. Dřív tu byla
+         i položka „Otevřít server“, která celé okno přepnula na rozhraní serveru; Tomáš ji bral
+         za výběr serveru (5. 11. 2026). Práce přímo na serveru je v Nastavení → Účet. */
     }
   }
   items.push({heading: 'Jinak'});

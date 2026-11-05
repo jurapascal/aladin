@@ -2164,8 +2164,11 @@
         data.offline ? 'server teď neodpovídá' : '✓ přihlášeno k ' + (data.host || 'serveru')].filter(Boolean).join(' · ')));
       prof.appendChild(col);
       const acts = el('span', 'acc-acts');
-      const open = el('button', 'btn primary', 'Pracovat na serveru');
-      open.title = 'Okno přejde do tvého prostoru na serveru (výkon serveru). Taby na počítači běží dál.';
+      // Ne hlavní tlačítko: jde o přepnutí celého okna na rozhraní serveru. Zdroj Obsidianu a napojení
+      // se přepíná dole u pole na psaní, okno přitom zůstává.
+      const open = el('button', 'btn ghost', 'Otevřít prostor na serveru (jiné rozhraní)');
+      open.title = 'Okno přejde do tvého prostoru na serveru (výkon serveru). Taby na počítači běží dál. ' +
+        'Chceš jen Obsidian a napojení ze serveru? Přepni to dole u pole na psaní.';
       open.disabled = !!data.offline;
       const err = el('div', 'set-warn');
       err.hidden = true;
@@ -2177,7 +2180,7 @@
         err.textContent = '! ' + (res.error || 'Nepovedlo se.');
         err.hidden = false;
         open.disabled = false;
-        open.textContent = 'Pracovat na serveru';
+        open.textContent = 'Otevřít prostor na serveru (jiné rozhraní)';
         if (res.kind === 'auth') load();
       };
       acts.appendChild(open);

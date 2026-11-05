@@ -2658,40 +2658,78 @@ def version_info(check_remote=False):
     return info
 
 
+def _zdroj_cely(path):
+    """Je ve složce celý zdroj hubu (spouštěč, appka i instalačka)?"""
+    return all(os.path.exists(os.path.join(path, x))
+               for x in ("claude-hub.py", "hub", "install.sh", "install.ps1"))
+
+
+def _vymen_zdroj(new):
+    """Hotový zdroj `new` dá na místo SRC_DIR. Starý se nejdřív odsune stranou
+    (přejmenování), ne maže: na Windows mazání složky, ze které něco běží, skončí
+    v půlce a v hub-src pak chyběl claude-hub.py (instalace padala na Copy-Item).
+    Když ani přejmenování nejde, nový zdroj se nakopíruje přes starý."""
+    if os.path.isdir(SRC_DIR):
+        old = f"{SRC_DIR}.old-{int(time.time())}"
+        try:
+            os.replace(SRC_DIR, old)
+        except OSError:
+            shutil.copytree(new, SRC_DIR, dirs_exist_ok=True)
+            shutil.rmtree(new, ignore_errors=True)
+            return
+        shutil.rmtree(old, ignore_errors=True)
+    os.replace(new, SRC_DIR)
+    # Zbytky starých odsunutých zdrojů (dřív se nepovedlo smazat) — tiše uklidit.
+    parent = os.path.dirname(SRC_DIR)
+    for name in os.listdir(parent):
+        if name.startswith(os.path.basename(SRC_DIR) + ".old-"):
+            shutil.rmtree(os.path.join(parent, name), ignore_errors=True)
+
+
 def _fetch_source():
     """Zajistí, že v ~/.claude/hub-src je aktuální zdroj. Vrací (ok, detail).
 
     Klon se používá, když už tam je; jinak se stáhne tarball, takže aktualizace
-    funguje i tomu, kdo hub dostal jako ZIP a git nemá.
+    funguje i tomu, kdo hub dostal jako ZIP a git nemá. Nový zdroj vzniká vedle
+    (hub-src.new) a na místo jde, až je celý — nepovedené stažení nikdy nenechá
+    hub-src rozbitý.
     """
-    if GIT and os.path.isdir(os.path.join(SRC_DIR, ".git")):
+    if GIT and os.path.isdir(os.path.join(SRC_DIR, ".git")) and _zdroj_cely(SRC_DIR):
         # Repo se přejmenovalo (claude-code-hub → aladin): klon, který míří na
         # starý název, se přepne na nový — přesměrování GitHubu je jen záplata.
         subprocess.run([GIT, "-C", SRC_DIR, "remote", "set-url", "origin", f"https://github.com/{REPO}.git"],
                        capture_output=True, text=True, timeout=30)
         r = subprocess.run([GIT, "-C", SRC_DIR, "pull", "--ff-only", "--quiet"],
                            capture_output=True, text=True, timeout=180)
-        if r.returncode != 0:
-            return False, (r.stderr or "git pull selhal").strip()[:300]
-        return True, "git pull"
+        if r.returncode == 0 and _zdroj_cely(SRC_DIR):
+            return True, "git pull"
+        # Rozbitý nebo rozjetý klon: stáhnout znovu celý (níž), ne skončit.
+    parent = os.path.dirname(SRC_DIR)
+    os.makedirs(parent, exist_ok=True)
+    new = SRC_DIR + ".new"
+    shutil.rmtree(new, ignore_errors=True)
     if GIT:
-        parent = os.path.dirname(SRC_DIR)
-        os.makedirs(parent, exist_ok=True)
-        if os.path.isdir(SRC_DIR):
-            shutil.rmtree(SRC_DIR, ignore_errors=True)
         r = subprocess.run([GIT, "clone", "--quiet", "--depth", "1",
-                            f"https://github.com/{REPO}.git", SRC_DIR],
+                            f"https://github.com/{REPO}.git", new],
                            capture_output=True, text=True, timeout=300)
-        if r.returncode == 0:
+        if r.returncode == 0 and _zdroj_cely(new):
+            try:
+                _vymen_zdroj(new)
+            except OSError as exc:
+                return False, f"zdroj nejde vyměnit: {exc}"[:300]
             return True, "klon"
-        return False, (r.stderr or "klonování selhalo").strip()[:300]
+        shutil.rmtree(new, ignore_errors=True)
+        detail = (r.stderr or "klonování selhalo").strip()[:300]
+        # Bez gitu (síť blokuje git) ještě tarball níž.
+    else:
+        detail = ""
 
     import tarfile
     import tempfile
     import urllib.request
     url = f"https://codeload.github.com/{REPO}/tar.gz/refs/heads/main"
     try:
-        with tempfile.TemporaryDirectory() as tmp:
+        with tempfile.TemporaryDirectory(dir=parent) as tmp:
             archive = os.path.join(tmp, "hub.tgz")
             urllib.request.urlretrieve(url, archive)
             with tarfile.open(archive) as tf:
@@ -2709,13 +2747,13 @@ def _fetch_source():
                     tf.extractall(tmp)
             inner = [os.path.join(tmp, n) for n in os.listdir(tmp)
                      if os.path.isdir(os.path.join(tmp, n))]
-            if not inner:
-                return False, "stažený balík byl prázdný"
-            if os.path.isdir(SRC_DIR):
-                shutil.rmtree(SRC_DIR, ignore_errors=True)
-            shutil.move(inner[0], SRC_DIR)
+            if not inner or not _zdroj_cely(inner[0]):
+                return False, "stažený balík byl neúplný" + (f" ({detail})" if detail else "")
+            shutil.move(inner[0], new)
+        _vymen_zdroj(new)
         return True, "tarball"
     except Exception as exc:
+        shutil.rmtree(new, ignore_errors=True)
         return False, f"stažení nevyšlo: {exc}"[:300]
 
 
@@ -2791,6 +2829,10 @@ def bundled_runtime():
 
 def update_hub():
     """Stáhne nejnovější verzi a přeinstaluje ji. Nikdy nevyhazuje."""
+    if SETUP_MODE:
+        # Hub běží z ~/.claude/hub-src a instalace odtud právě kopíruje — stáhnout
+        # zdroj znovu by ho smazalo pod rukama.
+        return {"ok": False, "detail": "Nejdřív se musí dokončit instalace, aktualizace až potom."}
     was = version()
     job_step("update", "stahuju…")
     ok, detail = _fetch_source()

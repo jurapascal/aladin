@@ -7117,6 +7117,10 @@ function markAutoTried(version) {
 
 async function autoUpdateAtStart() {
   if (STATE.config && STATE.config.auto_update === false) return;
+  /* Instalace v okně (Setup.exe) běží ze ~/.claude/hub-src — aktualizace by tu složku
+     stáhla znovu a smazala instalaci pod rukama („Cannot find path …hub-src\claude-hub.py“,
+     Svobodovi 5. 11. 2026). Instalačka stejně nainstaluje, co přinesla; aktualizace až potom. */
+  if (STATE.setup) return;
   const splash = startSplash();
   const started = Date.now();
   const finish = async () => {

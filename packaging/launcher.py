@@ -122,7 +122,15 @@ def sync_source():
     if os.path.isdir(SRC_DIR):
         old = SRC_DIR + ".old"
         shutil.rmtree(old, ignore_errors=True)
-        os.replace(SRC_DIR, old)
+        try:
+            os.replace(SRC_DIR, old)
+        except OSError:
+            # Složku drží jiný proces (běžící hub z předchozí instalace) — nový
+            # zdroj se nakopíruje přes starý, ať v něm nic nechybí.
+            log("hub-src nejde odsunout, kopíruji přes něj")
+            shutil.copytree(tmp, SRC_DIR, dirs_exist_ok=True, symlinks=True)
+            shutil.rmtree(tmp, ignore_errors=True)
+            return
         shutil.rmtree(old, ignore_errors=True)
     os.replace(tmp, SRC_DIR)
 

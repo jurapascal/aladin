@@ -42,6 +42,16 @@ function Write-Info ($m) { Write-Host "  ▸ $m" -ForegroundColor DarkYellow }
 function Write-Warn ($m) { Write-Host "  ⚠ $m" -ForegroundColor Yellow }
 function Write-Dim  ($m) { Write-Host "    $m" -ForegroundColor DarkGray }
 
+# Neúplný zdroj (dřív ho uprostřed instalace smazala automatická aktualizace)
+# poznat hned, ne až po deseti krocích na „Copy-Item: Cannot find path“.
+$chybi = @('claude-hub.py', 'hub', 'tools', 'hooks') | Where-Object { -not (Test-Path (Join-Path $Src $_)) }
+if ($chybi) {
+    Write-Warn "Zdroj instalace v $Src je neúplný (chybí: $($chybi -join ', '))."
+    Write-Warn 'Zavři Aladina (i ikonku u hodin → Ukončit appku) a spusť instalačku znovu:'
+    Write-Warn 'https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-Setup.exe'
+    exit 1
+}
+
 # Calling a program that is not installed raises a terminating CommandNotFoundException
 # that `2>$null` does not swallow — with ErrorActionPreference=Stop it kills the whole
 # install. Every external program therefore gets checked before it is called.

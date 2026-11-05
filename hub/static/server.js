@@ -75,9 +75,18 @@
       sessionStorage.setItem(APP_KEY, app ? app[1] : '');
       /* Navíc i trvale: sessionStorage zmizí s oknem, a když se appka otevře rovnou na serveru
          (pamatuje si ho) nebo vznikne druhé okno, cesta zpátky na počítač by chyběla. */
+      // Jen od 2.120 (stálý port a token hubu na počítači): starší hub po každém restartu
+      // dostane jinou adresu a uložený odkaz by vedl na mrtvý port.
+      const ver = app ? app[1].split('.').map((n) => parseInt(n, 10) || 0) : [];
+      const stabilni = ver.length >= 2 && (ver[0] > 2 || (ver[0] === 2 && ver[1] >= 120));
       try {
-        localStorage.setItem(LOCAL_KEY, u.toString());
-        localStorage.setItem(APP_KEY, app ? app[1] : '');
+        if (stabilni) {
+          localStorage.setItem(LOCAL_KEY, u.toString());
+          localStorage.setItem(APP_KEY, app[1]);
+        } else {
+          localStorage.removeItem(LOCAL_KEY);
+          localStorage.removeItem(APP_KEY);
+        }
       } catch (_) { /* bez localStorage zůstane jen sessionStorage */ }
     } catch (_) { /* bez sessionStorage cesta zpátky prostě nebude */ }
     history.replaceState(null, '', location.pathname + location.search);

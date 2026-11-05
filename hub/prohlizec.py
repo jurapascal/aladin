@@ -21,6 +21,7 @@ import glob
 import hashlib
 import json
 import os
+import platform
 import re
 import shutil
 import socket
@@ -126,6 +127,61 @@ def alive():
         return bool(_get("/json/version", 0.6))
     except Exception:
         return False
+
+
+def alive_jiste():
+    """Pro rozhodnutí „spadl“: jedno pomalé odpovězení není pád. Na vytíženém
+    serveru (plný disk, hodně tabů) /json/version občas nestihne 0,6 s — hub
+    to bral jako pád, pouštěl druhý Chromium nad zamčeným profilem a ten hned
+    skončil („nad profilem nejspíš běží jiný Chrome“), karty se zapomněly
+    a obraz v appce zmizel (Tomáš, 4. 11. 2026)."""
+    if alive():
+        return True
+    for wait in (3, 5):
+        try:
+            if _get("/json/version", wait):
+                return True
+        except Exception:
+            time.sleep(0.5)
+    return False
+
+
+def _zamek_pid():
+    """PID Chromia, který drží profil (SingletonLock → „host-pid“), když na
+    tomhle stroji ještě žije. None = nikdo / neznámo."""
+    try:
+        cil = os.readlink(os.path.join(profile_dir(), "SingletonLock"))
+    except OSError:
+        return None
+    host, _, pid = cil.rpartition("-")
+    if not pid.isdigit() or host != platform.node():
+        return None
+    try:
+        os.kill(int(pid), 0)
+    except OSError:
+        return None
+    return int(pid)
+
+
+def _uvolni_zaseknuty():
+    """Chromium drží profil, ale ladicí port neodpovídá ani po chvíli —
+    zaseknutý. Ukončit ho, ať jde pustit znovu (jinak by nový hned skončil)."""
+    pid = _zamek_pid()
+    if not pid or IS_WINDOWS:
+        return False
+    import signal
+    for sig, cekat in ((signal.SIGTERM, 5), (signal.SIGKILL, 3)):
+        try:
+            os.kill(pid, sig)
+        except OSError:
+            return True
+        for _ in range(cekat * 4):
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                return True
+            time.sleep(0.25)
+    return False
 
 
 def zavri_kartu(tid):
@@ -465,7 +521,7 @@ def hlidej_necinnost(log=lambda *a: None, every=15):
         kolo += 1
         try:
             now = time.time()
-            zije = alive()
+            zije = alive() or (bezel and alive_jiste())
             if OKNO.pouziva_se():
                 OKNO.posledni = now
             last = max(start, posledni_aktivita(), OKNO.posledni,
@@ -609,6 +665,11 @@ def _priprav_profil():
 def ensure(wait=15.0):
     """Zajistí běžící prohlížeč. Vrací (ok, zpráva)."""
     with _launch_lock:
+        return _ensure(wait)
+
+
+def _ensure(wait, _znovu=False):
+    if True:
         if alive():
             return True, ""
         podil = vytizeni_pameti()
@@ -619,6 +680,13 @@ def ensure(wait=15.0):
         if not exe:
             return False, "Nenašel jsem Chromium (spusť instalačku nebo: npx @playwright/mcp install-browser chrome-for-testing)."
         os.makedirs(profile_dir(), exist_ok=True)
+        # Profil drží Chromium, který na portu neodpovídá: buď se teprve
+        # rozjíždí (pak za chvíli odpoví), nebo je zaseknutý — nový by se mu
+        # jen ohlásil a čekal. Zaseknutý se ukončí a jede se načisto.
+        if _zamek_pid():
+            if alive_jiste():
+                return True, ""
+            _uvolni_zaseknuty()
         _priprav_profil()
         # Bez --remote-allow-origins: webová stránka (ta pošle Origin vždycky)
         # se k ladicímu portu nepřipojí; Playwright ani hub Origin neposílají.
@@ -681,10 +749,12 @@ def ensure(wait=15.0):
                 # Souběh: prohlížeč chtěly naráz dva mosty (spouští se až při
                 # prvním použití) — druhý Chromium nad zamčeným profilem hned
                 # skončí, ale ten první za chvíli odpoví.
-                for _ in range(20):
-                    if alive():
-                        return True, ""
-                    time.sleep(0.25)
+                if alive_jiste():
+                    return True, ""
+                # Profil drží Chromium, který neodpovídá — zaseknutý. Jednou ho
+                # ukončit a pustit znovu, místo aby prohlížeč zůstal mrtvý.
+                if not _znovu and _zamek_pid() and _uvolni_zaseknuty():
+                    return _ensure(wait, _znovu=True)
                 return False, "Prohlížeč hned skončil — nad profilem nejspíš běží jiný Chrome."
             time.sleep(0.25)
         return False, "Prohlížeč se nerozjel včas."
@@ -1739,11 +1809,27 @@ def migruj(log=lambda *a: None):
     Co už člověk nastavil jinak (jiný server pod jménem `playwright`), nechá
     být. Běží na pozadí a nikdy nespadne."""
     try:
-        if not povoleno(na_serveru()) or registrace() != "jine":
+        if not povoleno(na_serveru()):
+            return
+        stav = registrace()
+        if stav == "zadna":
+            # Bez registrace Claude prohlížeč v appce vůbec nepoužívá — na
+            # serveru ho tak neměl skoro nikdo („nevidím, co Claudík dělá
+            # v prohlížeči“). Jednou ho zaregistrovat; kdo si ho pak sám
+            # odebere, tomu se nevrací.
+            znacka = os.path.join(claude_dir(), "hub-playwright-most")
+            if os.path.exists(znacka) or not find_chromium():
+                return
+            try:
+                with open(znacka, "w", encoding="utf-8") as fh:
+                    fh.write(time.strftime("%Y-%m-%d %H:%M\n"))
+            except OSError:
+                return
+        elif stav != "jine":
             return
         entry = _zaznam() or {}
         args = " ".join(str(a) for a in entry.get("args") or [])
-        if "@playwright/mcp" not in args or "--cdp-endpoint" in args:
+        if stav == "jine" and ("@playwright/mcp" not in args or "--cdp-endpoint" in args):
             return                           # vlastní nastavení — nesahat
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         bridge = os.path.join(here, "tools", "playwright_bridge.py")
@@ -1751,7 +1837,8 @@ def migruj(log=lambda *a: None):
             return
         res = subprocess.run([sys.executable or "python3", bridge, "--register"],
                              capture_output=True, text=True, timeout=60)
-        log("Playwright MCP přepnutý na prohlížeč v appce" if res.returncode == 0
+        log(("Playwright MCP zaregistrovaný na prohlížeč v appce" if stav == "zadna"
+             else "Playwright MCP přepnutý na prohlížeč v appce") if res.returncode == 0
             else "přepnutí Playwright MCP se nepovedlo: " + (res.stderr or res.stdout).strip()[:200])
     except Exception as exc:          # noqa: BLE001 — pozadí, nic nesmí shodit
         log(f"přepnutí Playwright MCP: {exc}")

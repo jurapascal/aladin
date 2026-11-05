@@ -746,6 +746,15 @@ def google_client():
 PROHLIZECE = "/usr/local/share/ms-playwright"
 
 
+def browser_port(user):
+    """Ladicí port Chromia v prostoru: 20000 + id účtu, pod rozsahem dočasných portů (32768+)."""
+    try:
+        return 20000 + int(user["id"]) % 12000
+    except (KeyError, TypeError, ValueError):
+        import zlib
+        return 20000 + zlib.crc32(str(user.get("email", "")).encode()) % 12000
+
+
 def session_env(user):
     """Proměnné prostředí navíc pro prostor: přihlášení Clauda a klient OAuth
     pro napojení na Google (všem — účty si každý přidává sám).
@@ -767,6 +776,11 @@ def session_env(user):
     # jinak by si ho každý stahoval do svého domova (~300 MB na člověka).
     if os.path.isdir(PROHLIZECE):
         env["PLAYWRIGHT_BROWSERS_PATH"] = PROHLIZECE
+    # Vlastní ladicí port prohlížeče pro každý prostor. Prostory běží pod
+    # jedním systémovým účtem, takže port odvozený z uid (hub/prohlizec.port)
+    # vycházel všem stejný: hub jednoho člověka viděl Chromium druhého,
+    # hlídač nečinnosti ho druhému zavíral a ten pak „padal“ (4. 11. 2026).
+    env["HUB_BROWSER_PORT"] = str(browser_port(user))
     # Web od správce: vždycky, i prázdný — prázdný říká hubu „web už nemáš“
     # (hub/web.py pri_startu ho zapíše nebo smaže a proměnnou zahodí).
     env["HUB_WEB"] = web_env(user)

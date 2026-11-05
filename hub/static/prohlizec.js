@@ -999,6 +999,16 @@
     otevriVzdy: () => { samo = true; nastav('okno'); usadViditelnost(); },
     /* Ikonka u tabu: prohlížeč s kartami toho chatu. */
     ukaz: (sid) => { aktivniTab = sidOf(sid); samo = false; nastav('okno'); vyberChat(sid); usadViditelnost(); },
+    /* Otevře adresu v nové kartě vestavěného prohlížeče (náhled Google
+       souboru z chatu → „V prohlížeči appky“). */
+    otevriAdresu: (url) => {
+      if (!/^https:\/\//.test(String(url || ''))) return;
+      samo = false;
+      nastav('okno');
+      usadViditelnost();
+      send({t: 'br', a: 'newtab'});
+      setTimeout(() => send({t: 'br', a: 'go', url}), 600);
+    },
     get stav() { return stav; },
   };
 })(window);

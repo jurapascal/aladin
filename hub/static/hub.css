@@ -2523,6 +2523,12 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-html-btn:hover { color: var(--fg); border-color: var(--border); }
 .cteni-html-btn.on { color: var(--fg-bright); background: var(--bg); border-color: var(--border); }
 .cteni-html-vpravo { margin-left: auto; }
+.cteni-google-nazev { align-self: center; padding: 0 6px; font-size: 12.5px; color: var(--fg-bright); font-weight: 600; }
+.cteni-html-bar a.cteni-html-btn { text-decoration: none; display: inline-flex; align-items: center; }
+.cteni-google-ram { height: 460px; }
+.cteni-google-pozn { padding: 4px 10px 6px; font-size: 11.5px; color: var(--fg-dim, var(--fg)); opacity: .75; border-top: 1px solid var(--border); }
+.cteni-tool + .cteni-google { margin: 4px 0 10px; }
+.cteni-html.cele .cteni-google-pozn { display: none; }
 .cteni-html.cele { position: fixed; inset: 0; z-index: 9000; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
 .cteni-html.cele .cteni-html-ram { flex: 1; height: auto !important; }
 .cteni-html-ram { display: block; width: 100%; height: 320px; border: none; background: #fff; }

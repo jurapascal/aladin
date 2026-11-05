@@ -456,6 +456,129 @@
     }
   }
 
+  /* ── Google v chatu ─────────────────────────────────────────────────────
+     Když Claude pracuje v Google dokumentu, tabulce, prezentaci nebo
+     formuláři (napojení `google`), ukáže se pod nástrojem živý náhled
+     toho souboru — bez přepínání do prohlížeče. Náhled je Googlí /preview
+     v rámu; zobrazí se, když je tenhle prohlížeč (nebo appka) přihlášený
+     ke Googlu s přístupem k souboru. Jinak pomůže „Otevřít v Google“ nebo
+     „V prohlížeči appky“ (tam je přihlášený Claudův profil). */
+  const GOOGLE_DRUH = {
+    document: {nazev: 'Google Dokument', ikona: '📄'},
+    spreadsheets: {nazev: 'Google Tabulka', ikona: '📊'},
+    presentation: {nazev: 'Google Prezentace', ikona: '📽️'},
+    forms: {nazev: 'Google Formulář', ikona: '📝'},
+    file: {nazev: 'Soubor na Disku', ikona: '📁'},
+  };
+  const GOOGLE_URL = /https:\/\/(?:docs|drive)\.google\.com\/(?:(document|spreadsheets|presentation|forms)\/d\/(?:e\/)?|file\/d\/|open\?id=)([A-Za-z0-9_-]{20,})/g;
+  const GOOGLE_KLIC = {
+    document_id: 'document', doc_id: 'document',
+    spreadsheet_id: 'spreadsheets', sheet_id: 'spreadsheets',
+    presentation_id: 'presentation', form_id: 'forms',
+    file_id: 'file', drive_file_id: 'file',
+  };
+
+  /* Seznamy a hledání (víc souborů naráz) náhled nedostanou — jen práce
+     s jedním konkrétním souborem. */
+  const jeGoogleNastroj = (name) => /^mcp__google__/.test(name || '') &&
+    !/(^|_)(list|search|query|get_events|gmail|calendar|contact|task|freebusy|filter|label|out_of_office|focus_time)/.test(
+      String(name).replace(/^mcp__google__/, ''));
+
+  function druhPodleNastroje(name) {
+    const n = String(name || '');
+    if (/sheet|spreadsheet/.test(n)) return 'spreadsheets';
+    if (/presentation|slides|page/.test(n)) return 'presentation';
+    if (/form/.test(n)) return 'forms';
+    if (/doc/.test(n)) return 'document';
+    return 'file';
+  }
+
+  /* {druh, id} z adres v textu, jinak z klíčů vstupu nástroje (JSON). */
+  function najdiGoogle(name, vstup, vysledek) {
+    const nalezene = new Map();
+    for (const text of [vstup, vysledek]) {
+      if (!text) continue;
+      GOOGLE_URL.lastIndex = 0;
+      let m;
+      while ((m = GOOGLE_URL.exec(text))) {
+        if (!nalezene.has(m[2])) nalezene.set(m[2], m[1] || 'file');
+      }
+    }
+    let v = null;
+    try { v = JSON.parse(vstup || 'null'); } catch (_) { v = null; }
+    if (v && typeof v === 'object') {
+      for (const [klic, druh] of Object.entries(GOOGLE_KLIC)) {
+        const id = v[klic];
+        if (typeof id === 'string' && /^[A-Za-z0-9_-]{20,}$/.test(id)) {
+          const d = druh === 'file' ? druhPodleNastroje(name) : druh;
+          nalezene.set(id, d);
+        }
+      }
+    }
+    if (nalezene.size !== 1) return null;        // nic, nebo celý seznam souborů
+    const [[id, druh]] = [...nalezene];
+    return {id, druh};
+  }
+
+  function googleAdresy(g) {
+    if (g.druh === 'file') {
+      return {nahled: `https://drive.google.com/file/d/${g.id}/preview`,
+              otevrit: `https://drive.google.com/file/d/${g.id}/view`};
+    }
+    if (g.druh === 'forms') {
+      return {nahled: `https://docs.google.com/forms/d/${g.id}/viewform?embedded=true`,
+              otevrit: `https://docs.google.com/forms/d/${g.id}/edit`};
+    }
+    return {nahled: `https://docs.google.com/${g.druh}/d/${g.id}/preview`,
+            otevrit: `https://docs.google.com/${g.druh}/d/${g.id}/edit`};
+  }
+
+  function kartaGoogle(g) {
+    const info = GOOGLE_DRUH[g.druh] || GOOGLE_DRUH.file;
+    const adr = googleAdresy(g);
+    const box = el('div', 'cteni-html cteni-google');
+    const bar = el('div', 'cteni-html-bar');
+    const nadpis = el('span', 'cteni-google-nazev', info.ikona + ' ' + info.nazev);
+    const znovu = el('button', 'cteni-html-btn cteni-html-vpravo', '↻');
+    znovu.title = 'Načíst znovu (ukáže nejnovější změny)';
+    const velke = el('button', 'cteni-html-btn', '⤢');
+    velke.title = 'Na celou obrazovku';
+    const otevrit = el('a', 'cteni-html-btn', 'Otevřít v Google');
+    otevrit.href = adr.otevrit;
+    otevrit.target = '_blank';
+    otevrit.rel = 'noopener';
+    bar.append(nadpis, znovu, velke, otevrit);
+    if (global.HubProhlizec && global.HubProhlizec.otevriAdresu) {
+      const vAppce = el('button', 'cteni-html-btn', 'V prohlížeči appky');
+      vAppce.title = 'Otevře soubor ve vestavěném prohlížeči, kde je přihlášený Claude';
+      vAppce.onclick = () => global.HubProhlizec.otevriAdresu(adr.otevrit);
+      bar.appendChild(vAppce);
+    }
+    const ram = el('iframe', 'cteni-html-ram cteni-google-ram');
+    ram.setAttribute('loading', 'lazy');
+    ram.setAttribute('allow', 'clipboard-write; fullscreen');
+    ram.referrerPolicy = 'no-referrer';
+    ram.src = adr.nahled;
+    const pozn = el('div', 'cteni-google-pozn',
+      'Nevidíš obsah? Tenhle prohlížeč není přihlášený ke Googlu s přístupem k souboru — otevři ho v Google nebo v prohlížeči appky.');
+    znovu.onclick = () => { ram.src = 'about:blank'; setTimeout(() => { ram.src = adr.nahled; }, 30); };
+    const zpet = () => {
+      box.classList.remove('cele');
+      velke.textContent = '⤢';
+      document.removeEventListener('keydown', naEsc, true);
+    };
+    function naEsc(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zpet(); } }
+    velke.onclick = () => {
+      if (box.classList.contains('cele')) return zpet();
+      box.classList.add('cele');
+      velke.textContent = '⤡';
+      document.addEventListener('keydown', naEsc, true);
+    };
+    box.append(bar, ram, pozn);
+    box._obnov = znovu.onclick;
+    return box;
+  }
+
   /* Obrázek přes celé okno — klepnutí nebo Esc ho zavře. */
   function zvetsit(src) {
     const box = el('div', 'cteni-lupa');
@@ -677,6 +800,22 @@
     });
 
     const tools = new Map();          // id nástroje → jeho řádek
+    // Náhledy Google souborů v tomhle chatu: jeden na soubor. Další práce
+    // ve stejném souboru ho přesune pod poslední nástroj a načte znovu.
+    const googleKarty = new Map();
+    function ukazGoogle(box, vysledek) {
+      const g = najdiGoogle(box._google.name, box._google.vstup, vysledek);
+      if (!g) return;
+      let karta = googleKarty.get(g.id);
+      if (karta && karta.isConnected) {
+        box.after(karta);
+        karta._obnov();
+        return;
+      }
+      karta = kartaGoogle(g);
+      googleKarty.set(g.id, karta);
+      box.after(karta);
+    }
     // Tlačítka rychlé odpovědi — jen pod poslední odpovědí Clauda.
     let volby = null;
     const agenti = new Map();         // id volání Agent → karta
@@ -2114,6 +2253,7 @@
         // okno prohlížeče (prohlizec.js to pozná podle jména).
         if (udalost && b.name) udalost({co: 'nastroj', name: b.name});
         const box = udelejNastroj(b);
+        if (jeGoogleNastroj(b.name)) box._google = {name: b.name, vstup: b.detail || ''};
         box.classList.add('ceka');
         if (b.vystupy && b.vystupy.length) { box._vystupy = b.vystupy; box._tah = tah; }
         if (b.id) tools.set(b.id, box);
@@ -2190,6 +2330,7 @@
         else if (b.radku) kus.push(b.radku + ' ř.');
         box._meta.textContent = kus.join(' · ');
         if (b.detail) pripisDetail(box, b.detail, b.ok);
+        if (b.ok && box._google) ukazGoogle(box, b.detail || '');
       }
     }
 

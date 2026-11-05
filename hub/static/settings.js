@@ -1136,11 +1136,58 @@
     return wrap;
   }
 
+  /* Spolupráce modelů: koho z ostatních AI smí hlavní model (Claude) zavolat jako pomocníka.
+     Který z nich se na úkol hodí, vybírá Claude sám z jejich seznamu (hub/pomocnici.py,
+     tools/pomocnici_mcp.py). Pomocníci smějí měnit soubory v projektu; Ollama jen text. */
+  function spoluprace() {
+    const wrap = el('div', 'svc-card');
+    const head = el('div', 'onb-row');
+    const col = el('span', 'onb-col');
+    col.appendChild(el('span', null, 'Spolupráce modelů'));
+    col.appendChild(el('small', null, 'Zaškrtni, koho smí Claude zavolat na pomoc. Na každý úkol si sám ' +
+      'vybere toho nejlepšího a jeho model. Codex, opencode a aider smějí měnit soubory v projektu; ' +
+      'Ollama (lokální modely) jen zpracuje text.'));
+    head.append(col);
+    const body = el('div', 'svc-form');
+    wrap.append(head, body);
+    let aktualni = [];
+    async function uloz() {
+      try { draw(await io.api('pomocnici', {agenti: aktualni})); }
+      catch (err) { io.toast(err.message); }
+    }
+    function draw(st) {
+      body.textContent = '';
+      aktualni = (st.agenti || []).filter((a) => a.enabled).map((a) => a.id);
+      for (const a of st.agenti || []) {
+        const r = el('label', 'onb-row');
+        const cb = el('input');
+        cb.type = 'checkbox';
+        cb.checked = a.enabled;
+        cb.disabled = !a.installed;
+        cb.onchange = () => {
+          aktualni = cb.checked ? [...new Set([...aktualni, a.id])] : aktualni.filter((x) => x !== a.id);
+          uloz();
+        };
+        const c = el('div', 'onb-col');
+        c.appendChild(el('span', null, 'Claude si smí zavolat: ' + a.nazev));
+        c.appendChild(el('small', a.installed ? null : 'set-dim',
+          a.installed ? 'nainstalovaný' : 'není nainstalovaný — nainstaluj ho níž v seznamu agentů'));
+        r.append(cb, c);
+        body.appendChild(r);
+      }
+      body.appendChild(el('div', 'set-note set-dim', 'Gemini si Claude volá zvlášť (karta Gemini níž). ' +
+        'Změna platí v nově načteném chatu.'));
+    }
+    io.api('pomocnici').then(draw, (err) => { body.textContent = 'nepodařilo se zjistit: ' + err.message; });
+    return wrap;
+  }
+
   function agenti() {
     if (!advanced()) {
       const only = section('AI agenti',
         'Claude, Gemini, nebo obojí — vyber nahoře. Gemini níž nainstaluješ a přihlásíš.');
       only.appendChild(aiVolba());
+      only.appendChild(spoluprace());
       only.appendChild(gemini());
       only.appendChild(jev());
       return only;
@@ -1154,7 +1201,7 @@
     const btns = el('div', 'onb-btns');
     const check = el('button', 'btn ghost', 'Zkontrolovat znovu');
     btns.appendChild(check);
-    box.append(aiVolba(), novyChatAgent(), summary, list, ollama, btns);
+    box.append(aiVolba(), spoluprace(), novyChatAgent(), summary, list, ollama, btns);
 
     function busy(text) {
       summary.textContent = '';

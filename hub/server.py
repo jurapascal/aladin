@@ -2000,6 +2000,14 @@ class Handler(BaseHTTPRequestHandler):
             if action == "remove":
                 return self._json(jev.remove())
             return self._json(jev.status())
+        if name == "pomocnici":
+            # Spolupráce modelů: koho smí Claude volat (hub/pomocnici.py).
+            from . import pomocnici
+            if core.on_gateway():
+                return self._json({"agenti": [], "registered": False, "test": False})
+            if payload and "agenti" in payload:
+                return self._json(pomocnici.nastav(payload.get("agenti")))
+            return self._json(pomocnici.stav())
         if name == "gemini":
             # Gemini (Google AI Pro) jako pomocník Clauda — stav, vypínač a
             # srovnání napojení (hub/gemini.py). Čtení stavu rovnou srovná
@@ -2905,6 +2913,8 @@ def start():
     # agy nainstalovaný (hub/gemini.py). Zkušební hub nic nemění.
     from . import gemini
     gemini.spust_na_pozadi()
+    from . import pomocnici
+    pomocnici.spust_na_pozadi()
     if core.on_gateway():
         threading.Thread(target=core.hlidej_pamet, args=(HUB.broadcast,),
                          daemon=True).start()

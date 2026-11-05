@@ -14,13 +14,41 @@ const OFFLINE = `<!doctype html><meta charset=utf-8>
 <title>Aladin</title>
 <style>body{font:16px/1.6 system-ui,sans-serif;margin:0;min-height:100vh;
 display:grid;place-items:center;background:#0d1117;color:#e8e3d3;padding:24px}
-div{max-width:22rem;text-align:center}b{color:#e0843c}
+div{max-width:24rem;text-align:center}b{color:#e0843c}small{color:#8b949e}
 button{margin-top:18px;padding:10px 18px;border-radius:9px;border:1px solid #3a3f47;
-background:#1b2129;color:#e8e3d3;font:inherit}</style>
-<div><p><b>Hub není k zastižení.</b></p>
-<p>Zkontroluj připojení k internetu. Když se připojuješ k počítači, musí na
+background:#1b2129;color:#e8e3d3;font:inherit;cursor:pointer}
+code{font-size:12px;background:#1b2129;padding:6px 8px;border-radius:6px;display:block;margin-top:6px;word-break:break-all;user-select:all}</style>
+<div><p><b id=n>Hub není k zastižení.</b></p>
+<p id=t>Zkontroluj připojení k internetu. Když se připojuješ k počítači, musí na
 něm běžet Aladin a telefon musí být v Tailscale.</p>
-<button onclick="location.reload()">Zkusit znovu</button></div>`;
+<p><small id=s>Zkouším to znovu samo…</small></p>
+<button onclick="zkus(true)">Zkusit znovu</button></div>
+<script>
+/* Na počítači (okno appky na 127.0.0.1): Aladin se po aktualizaci restartuje nebo
+   neběží — stránka to zkouší sama a jakmile odpoví, načte se. Dřív tu bylo jen
+   tlačítko, které načetlo tutéž mrtvou adresu a „nic nedělalo“. */
+var pc = ['127.0.0.1', 'localhost', '[::1]'].indexOf(location.hostname) >= 0;
+if (pc) {
+  document.getElementById('n').textContent = 'Aladin na tomhle počítači teď neodpovídá.';
+  document.getElementById('t').innerHTML = 'Nejspíš se restartuje po aktualizaci — chvilku počkej, okno se připojí samo. ' +
+    'Když se nic neděje: zavři okno, u hodin klikni pravým na ikonu Aladina → Ukončit appku a otevři Aladina znovu ze zástupce. ' +
+    'A když ani to nepomůže, přeinstaluj ho (PowerShell):' +
+    '<code>irm https://raw.githubusercontent.com/jurapascal/aladin/main/get.ps1 | iex</code>';
+}
+var n = 0;
+function zkus(rucne) {
+  var s = document.getElementById('s');
+  if (rucne) s.textContent = 'Zkouším…';
+  fetch(location.href, {cache: 'no-store'}).then(function (r) {
+    if (r.status !== 503) location.reload();
+    else throw 0;
+  }).catch(function () {
+    n++;
+    s.textContent = 'Pořád neodpovídá — zkouším znovu každé 3 s (' + n + '×).';
+  });
+}
+setInterval(zkus, 3000);
+</script>`;
 
 /* Sdílení do Aladina (share_target v manifest.webmanifest). Android pošle
  * soubory a text POSTem na /sdilet. Na server je posílat nejde: hub chce

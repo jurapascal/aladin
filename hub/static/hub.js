@@ -7225,3 +7225,148 @@ main().catch(err => {
   console.error(err);
   toast('Aplikace se nenačetla. Zkus ji zavřít a otevřít znovu.');
 });
+
+
+/* ── /mcp: přehled napojení ───────────────────────────────────────────────────
+ * Místo textového menu Claude Code (šipky, žádné tlačítka): seznam všech napojení
+ * se stavem — nahoře co chce přihlásit nebo nefunguje, pak funkční — s hledáním.
+ * U každého je to, co s ním jde udělat: přihlásit, odebrat, nebo otevřít Nastavení.
+ * Změna napojení platí v nově načteném chatu, proto je dole „Načíst chat znovu“. */
+document.addEventListener('hub-mcp-menu', () => mcpMenu());
+
+async function mcpMenu() {
+  const stary = $('mcp-menu');
+  if (stary) stary.remove();
+  const modal = document.createElement('div');
+  modal.className = 'modal mcp-menu';
+  modal.id = 'mcp-menu';
+  modal.innerHTML = '<div class="modal-box mcp-menu-box" role="dialog" aria-label="Napojení">' +
+    '<div class="mcp-menu-hlavicka"><div class="mcp-menu-titulek">Napojení (MCP)</div>' +
+    '<button type="button" class="mcp-menu-x" aria-label="Zavřít">×</button></div>' +
+    '<div class="mcp-menu-souhrn set-dim">Ptám se serverů…</div>' +
+    '<input type="search" class="mcp-menu-hledat" placeholder="Hledat napojení…" autocomplete="off">' +
+    '<div class="mcp-menu-seznam"></div>' +
+    '<div class="mcp-menu-pata"></div></div>';
+  document.body.appendChild(modal);
+  const zavri = () => { modal.remove(); document.removeEventListener('keydown', naKlavesu, true); };
+  function naKlavesu(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zavri(); } }
+  document.addEventListener('keydown', naKlavesu, true);
+  modal.addEventListener('mousedown', (ev) => { if (ev.target === modal) zavri(); });
+  modal.querySelector('.mcp-menu-x').onclick = zavri;
+  const souhrn = modal.querySelector('.mcp-menu-souhrn');
+  const seznam = modal.querySelector('.mcp-menu-seznam');
+  const pata = modal.querySelector('.mcp-menu-pata');
+  const hledat = modal.querySelector('.mcp-menu-hledat');
+  hledat.focus();
+
+  const STAV = {ok: ['ok', 'připojeno'], auth: ['auth', 'chce přihlásit'], fail: ['fail', 'nefunguje'],
+                local: ['dim', 'jen v projektu'], pc: ['dim', 'jen na počítači']};
+  const PORADI = {fail: 0, auth: 1, ok: 2, pc: 3, local: 3};
+  let data = null;
+
+  function kresli() {
+    seznam.textContent = '';
+    const q = hledat.value.trim().toLowerCase();
+    const vse = (data && data.servers) || [];
+    const porad = vse.slice().sort((a, b) => ((PORADI[a.state] ?? 4) - (PORADI[b.state] ?? 4)) ||
+      a.name.replace(/^claude\.ai /, '').localeCompare(b.name.replace(/^claude\.ai /, ''), 'cs'));
+    const videt = porad.filter((x) => !q || (x.name + ' ' + (x.where || '') + ' ' + (x.status || '')).toLowerCase().includes(q));
+    const ok = vse.filter((x) => x.state === 'ok').length;
+    const horsi = vse.filter((x) => x.state === 'fail' || x.state === 'auth').length;
+    souhrn.className = 'mcp-menu-souhrn ' + (horsi ? 'set-warn' : 'set-ok');
+    souhrn.textContent = vse.length
+      ? ok + ' z ' + vse.length + ' připojeno' + (horsi ? ' · ' + horsi + ' potřebuje péči' : '')
+      : 'Zatím žádné napojení.';
+    let nadpis = '';
+    for (const s of videt) {
+      const skupina = s.state === 'fail' || s.state === 'auth' ? 'Potřebuje péči' : s.state === 'ok' ? 'Funguje' : 'Jen v některých místech';
+      if (skupina !== nadpis) {
+        nadpis = skupina;
+        const h = document.createElement('div');
+        h.className = 'mcp-menu-skupina';
+        h.textContent = skupina;
+        seznam.appendChild(h);
+      }
+      const [cls, popis] = STAV[s.state] || ['dim', s.status || 'neznámý stav'];
+      const r = document.createElement('div');
+      r.className = 'mcp-menu-radek';
+      r.innerHTML = '<span class="mcp-menu-tecka"></span><span class="mcp-menu-text"><b></b><small></small></span>' +
+                    '<span class="mcp-menu-akce"></span>';
+      r.querySelector('.mcp-menu-tecka').classList.add('s-' + cls);
+      r.querySelector('b').textContent = s.name.replace(/^claude\.ai /, '');
+      r.querySelector('small').textContent = popis + (s.where ? ' · ' + s.where : '') +
+        (s.state === 'fail' && s.status && s.status !== popis ? ' — ' + s.status : '');
+      const akce = r.querySelector('.mcp-menu-akce');
+      const tl = (text, run, cls2) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'btn ' + (cls2 || 'ghost');
+        b.textContent = text;
+        b.onclick = run;
+        akce.appendChild(b);
+      };
+      if (s.state === 'auth') tl('Přihlásit', () => { zavri(); HubSettings.open({...hubIO(), state: STATE, tab: 'rozsireni'}); }, 'primary');
+      else if (s.state === 'fail') tl('Opravit', () => { zavri(); HubSettings.open({...hubIO(), state: STATE, tab: 'rozsireni'}); }, 'primary');
+      if (s.removable) {
+        tl('Odebrat', async () => {
+          if (!(await HubDialog.confirm('Odebrat napojení „' + s.name + '“? Claude ho přestane vidět.',
+                {title: 'Odebrat napojení', ok: 'Odebrat'}))) return;
+          try {
+            const res = await api('mcp', {action: 'remove', name: s.name, scope: s.scope || 'user'});
+            if (res && res.ok === false) throw new Error(res.detail || 'nepovedlo se');
+            toast('Napojení odebráno.');
+            nacti(true);
+          } catch (e) { toast(e.message); }
+        });
+      }
+      seznam.appendChild(r);
+    }
+    if (!videt.length && vse.length) {
+      const e = document.createElement('div');
+      e.className = 'set-note';
+      e.textContent = 'Nic takového nemáš.';
+      seznam.appendChild(e);
+    }
+  }
+
+  async function nacti(cerstve) {
+    souhrn.className = 'mcp-menu-souhrn set-dim';
+    souhrn.textContent = 'Ptám se serverů…';
+    try {
+      let d = await api('mcp' + (cerstve ? '?refresh=1' : ''));
+      for (let i = 0; i < 40 && d.running && document.body.contains(modal); i++) {
+        await new Promise((r) => setTimeout(r, 1500));
+        d = await api('mcp');
+      }
+      data = d;
+      if (document.body.contains(modal)) kresli();
+    } catch (e) { souhrn.textContent = 'Nepodařilo se zjistit: ' + e.message; }
+  }
+  hledat.oninput = kresli;
+
+  const nast = document.createElement('button');
+  nast.type = 'button'; nast.className = 'btn ghost'; nast.textContent = 'Přidat a spravovat…';
+  nast.onclick = () => { zavri(); HubSettings.open({...hubIO(), state: STATE, tab: 'rozsireni'}); };
+  const znovu = document.createElement('button');
+  znovu.type = 'button'; znovu.className = 'btn ghost'; znovu.textContent = 'Zkontrolovat znovu';
+  znovu.onclick = () => nacti(true);
+  const nacist = document.createElement('button');
+  nacist.type = 'button'; nacist.className = 'btn primary'; nacist.textContent = 'Načíst chat znovu';
+  nacist.title = 'Claude si napojení načte při startu chatu — po změně ho načti znovu, konverzace pokračuje.';
+  nacist.onclick = () => { zavri(); znovuNactiChat(); };
+  pata.append(nast, znovu, nacist);
+  nacti(false);
+}
+
+/* Načíst aktivní chat znovu (stejná konverzace, nové napojení). */
+async function znovuNactiChat() {
+  const t = ACTIVE;
+  const chat = t && (t.chat || t.resume);
+  if (!t || t.exited || t.kind === 'shell' || !chat || (t.agent && t.agent !== 'claude')) {
+    toast('Tenhle chat se načíst znovu nedá — nové napojení bude v dalším chatu.');
+    return;
+  }
+  const path = t.path, title = t.title, vault = t.vault || '';
+  closeTab(t);
+  setTimeout(() => openTab({kind: 'project', path, title, agent: 'claude', resume: chat, vault}), 700);
+}

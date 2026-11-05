@@ -1161,6 +1161,14 @@
          by ji mezitím smazal). Bez textu ji uvede slovo, ať lomítkem nezačíná. */
       const body = files ? (text ? text + ' ' + files : 'Příloha: ' + files) : text;
       if (!body.trim()) return;
+      /* /mcp = vlastní přehled napojení v Aladinovi (hub.js, mcpMenu). Textové menu
+         Claude Code se v bublině špatně ovládalo a nic z něj nešlo rovnou udělat. */
+      if (/^\s*\/mcp\s*$/i.test(body) && !files) {
+        input.value = '';
+        autogrow();
+        document.dispatchEvent(new CustomEvent('hub-mcp-menu', {detail: {tab: tab.id}}));
+        return;
+      }
       /* Stopka od správce (týdenní limit, hub/stopka.py): zpráva Claudovi
          neodejde a zůstane v poli. Příkazy (/…, !…) a odpovědi na otázku
          Clauda jdou dál — rozdělaná práce má doběhnout. */

@@ -552,32 +552,46 @@ function New-Shortcut($path) {
     $link.Save()
 }
 
-# Do 1.3.2 se zástupce jmenoval „Claude Code" — tedy stejně jako CLI, se kterým
-# se v nabídce Start pletl. Starý smažeme, ale jen když je doopravdy náš (míří na
-# claude-hub.py), ať nesáhneme na zástupce, kterého si udělal někdo sám.
-function Remove-OurOldShortcut($path) {
-    if (-not (Test-Path $path)) { return $false }
-    try {
-        $shell = New-Object -ComObject WScript.Shell
-        if ($shell.CreateShortcut($path).Arguments -notlike '*claude-hub.py*') { return $false }
-        Remove-Item $path -Force
-        return $true
-    } catch { return $false }
+$startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
+$desktop = [Environment]::GetFolderPath('Desktop')
+
+# Jeden Aladin, ne dva. Zástupci se během let jmenovali „Claude Code", pak
+# „Claude Code Hub" (skript i Setup.exe) a teď „Aladin" — staré po přejmenování
+# zůstaly a lidé měli na ploše i ve Startu dva Aladiny, které spouštěly totéž
+# (Tomáš, 5. 11. 2026). Smaže se každý NÁŠ zástupce s jiným jménem než Aladin:
+# jen ten, co míří na claude-hub.py nebo na spouštěč Setup.exe (launcher.py
+# v ClaudeCodeHub) — zástupce, které si člověk udělal sám na něco jiného, zůstanou.
+function Remove-OurDuplicates($dir) {
+    $smazano = 0
+    if (-not $dir -or -not (Test-Path $dir)) { return 0 }
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($f in @(Get-ChildItem $dir -Filter '*.lnk' -File -ErrorAction SilentlyContinue)) {
+        if ($f.Name -eq 'Aladin.lnk') { continue }
+        try {
+            $l = $shell.CreateShortcut($f.FullName)
+            $kam = "$($l.TargetPath) $($l.Arguments)"
+            if (($kam -like '*claude-hub.py*') -or ($kam -like '*ClaudeCodeHub*launcher.py*')) {
+                Remove-Item $f.FullName -Force
+                $smazano++
+            }
+        } catch { }
+    }
+    return $smazano
 }
 
-$startMenu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs'
-if (Remove-OurOldShortcut (Join-Path $startMenu 'Claude Code.lnk')) {
-    Write-Dim 'starý zástupce „Claude Code" v nabídce Start nahrazen'
-}
+$pryc = Remove-OurDuplicates $startMenu
 New-Shortcut (Join-Path $startMenu 'Aladin.lnk')
 Write-Ok 'zástupce v nabídce Start: Aladin'
+if ($pryc) { Write-Dim "staré zástupce v nabídce Start smazány: $pryc" }
 
-# Na ploše se neptáme znovu toho, kdo zástupce už má — jen ho přejmenujeme.
-$desktopOld = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Claude Code.lnk'
-$desktopNew = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Aladin.lnk'
-if ((Remove-OurOldShortcut $desktopOld) -or (Test-Path $desktopNew)) {
+# Na ploše se neptáme znovu toho, kdo zástupce už má (i pod starým jménem) —
+# dostane jeden Aladin místo všech starých.
+$desktopNew = Join-Path $desktop 'Aladin.lnk'
+$pryc = Remove-OurDuplicates $desktop
+if ($pryc -or (Test-Path $desktopNew)) {
     New-Shortcut $desktopNew
     Write-Ok 'zástupce na ploše: Aladin'
+    if ($pryc) { Write-Dim "staré zástupce na ploše smazány: $pryc" }
 } elseif (Want-Install 'Přidat zástupce i na plochu?') {
     New-Shortcut $desktopNew
     Write-Ok 'zástupce na ploše'

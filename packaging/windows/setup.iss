@@ -61,6 +61,12 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\launcher.py"""; \
   WorkingDir: "{app}"; Description: "Spustit Aladin"; \
   Flags: nowait postinstall
 
+[InstallDelete]
+; Zástupci z doby, kdy se appka jmenovala Claude Code Hub — jinak by na ploše
+; a ve Startu zůstaly dva Aladini vedle sebe (spouštěly totéž).
+Type: files; Name: "{userdesktop}\Claude Code Hub.lnk"
+Type: files; Name: "{userprograms}\Claude Code Hub.lnk"
+
 [UninstallDelete]
 ; Po odinstalování nemá zůstat nic, co by vedlo do prázdna. Data (projekty,
 ; paměť, ~/.claude) zůstávají — patří uživateli, ne appce.

@@ -336,6 +336,17 @@ def spust(url):
         return None
     from . import vzhled
     ikona = vzhled.ikona(512) or os.path.join(os.path.dirname(os.path.abspath(__file__)), "static", "icon-256.png")
+    # Ikonu drží proces v liště otevřenou po celou dobu běhu. Leží-li ve složce
+    # hubu, Windows pak při aktualizaci nedovolí složku smazat — proto kopie
+    # mimo ni (install.ps1 hub\ nahrazuje vcelku).
+    if os.path.dirname(os.path.abspath(ikona)).startswith(os.path.dirname(os.path.abspath(__file__))):
+        try:
+            import shutil
+            kopie = os.path.join(core.CLAUDE_DIR, "hub-tray-icon.png")
+            shutil.copyfile(ikona, kopie)
+            ikona = kopie
+        except OSError:
+            pass
     kw = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL,
           "stderr": open(os.path.join(core.CLAUDE_DIR, "hub-tray.log"), "a")}
     if sys.platform == "win32":

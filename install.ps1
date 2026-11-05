@@ -474,14 +474,36 @@ Copy-Tracked (Join-Path $Src 'agent-wrapper.sh')      (Join-Path $ClaudeDir 'age
 Copy-Tracked (Join-Path $Src 'hooks\save-session.py')  (Join-Path $ClaudeDir 'hooks\save-session.py')
 Copy-Tracked (Join-Path $Src 'hooks\session-start.py') (Join-Path $ClaudeDir 'hooks\session-start.py')
 Copy-Tracked (Join-Path $Src 'hooks\memory-autosave.py') (Join-Path $ClaudeDir 'hooks\memory-autosave.py')
+# Složku nahradí celou. Na Windows ji ale může něco držet otevřenou (ikonka
+# v liště drží obrázek, běžící hub .pyc) a Remove-Item pak spadne uprostřed —
+# aktualizace u Tomáše od 3. 11. končila na „icon-256.png drží jiný proces“.
+# Proto: pár pokusů, pak smazat aspoň, co jde, a nové soubory nakopírovat přes
+# zbytek (zamčený soubor se jen přeskočí, ten je stejný).
+function Replace-Dir($from, $dest) {
+    $hotovo = $false
+    for ($i = 0; $i -lt 4 -and -not $hotovo; $i++) {
+        try {
+            if (Test-Path $dest) { Remove-Item $dest -Recurse -Force -ErrorAction Stop }
+            $hotovo = $true
+        } catch { Start-Sleep -Milliseconds 800 }
+    }
+    if ($hotovo) {
+        Copy-Item $from $dest -Recurse -Force
+        return
+    }
+    Write-Warn "$(Split-Path -Leaf $dest): část souborů drží jiný program — přepisuju přes ně"
+    Get-ChildItem $dest -Recurse -File -Force -ErrorAction SilentlyContinue |
+        ForEach-Object { try { Remove-Item $_.FullName -Force -ErrorAction Stop } catch { } }
+    New-Item -ItemType Directory -Force -Path $dest | Out-Null
+    Copy-Item (Join-Path $from '*') $dest -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 # tools\ potřebuje sekce 10 (merge settings.json) i pozdější spuštění ručně
 $toolsDest = Join-Path $ClaudeDir 'tools'
-if (Test-Path $toolsDest) { Remove-Item $toolsDest -Recurse -Force }
-Copy-Item (Join-Path $Src 'tools') $toolsDest -Recurse -Force
+Replace-Dir (Join-Path $Src 'tools') $toolsDest
 # hub\ je celý náš — nahrazuje se vcelku, aby po updatu nezůstaly staré soubory
 $hubDest = Join-Path $ClaudeDir 'hub'
-if (Test-Path $hubDest) { Remove-Item $hubDest -Recurse -Force }
-Copy-Item (Join-Path $Src 'hub') $hubDest -Recurse -Force
+Replace-Dir (Join-Path $Src 'hub') $hubDest
 Get-ChildItem $hubDest -Recurse -Directory -Filter '__pycache__' -ErrorAction SilentlyContinue |
     Remove-Item -Recurse -Force
 Copy-Item (Join-Path $Src 'assets\claude-code.ico') (Join-Path $ClaudeDir 'claude-code.ico') -Force

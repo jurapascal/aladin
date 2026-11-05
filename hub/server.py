@@ -278,6 +278,31 @@ class Session:
         self.thread = threading.Thread(target=self._pump, daemon=True)
         self.thread.start()
 
+    _DUVERA = re.compile(r"(trust (this|the files in this|the contents of this) (folder|directory|workspace)|"
+                         r"do you trust|trust this workspace)", re.I)
+    _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07")
+
+    def _potvrd_duveru(self, text):
+        """Claude Code i Gemini se na začátku ptají „věříš téhle složce?“. Tab nad
+        složkou otevřel člověk sám, tak se potvrdí výchozí volba (Yes, I trust) —
+        jednou a jen v prvních vteřinách po startu agenta."""
+        if self.kind != "project" or getattr(self, "_duvera_hotova", False):
+            return
+        if time.time() - self.started > 90:
+            self._duvera_hotova = True
+            return
+        self._duvera_okno = (getattr(self, "_duvera_okno", "") + self._ANSI.sub("", text or ""))[-600:]
+        if self._DUVERA.search(self._duvera_okno):
+            self._duvera_hotova = True
+            self._duvera_okno = ""
+            def odpovez():
+                time.sleep(0.4)             # ať se nabídka dokreslí
+                try:
+                    self.pty.write(b"\r")
+                except Exception:
+                    pass
+            threading.Thread(target=odpovez, daemon=True).start()
+
     def _pump(self):
         while True:
             data = self.pty.read()
@@ -291,6 +316,7 @@ class Session:
                 if len(self.buffer) > SCROLLBACK:
                     del self.buffer[:len(self.buffer) - SCROLLBACK]
                 text = self._decoder.decode(data)
+                self._potvrd_duveru(text)
                 if text:
                     self._ceka.append(text)
                     # Dávka: první kus jde hned, další do 16 ms se slepí. Čtečka

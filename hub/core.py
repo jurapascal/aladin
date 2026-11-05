@@ -3166,6 +3166,11 @@ def trust_folder(path):
         return False
     target = os.path.join(HOME, ".claude.json")
     key = os.path.abspath(os.path.expanduser(path))
+    # Claude Code ukládá cesty s lomítky i na Windows a důvěru dědí podsložky —
+    # zapíše se proto i varianta s „/“, skutečná cesta (odkazy) a domovská složka.
+    vsechny = {key, key.replace("\\", "/"), os.path.realpath(key).replace("\\", "/")}
+    if os.path.abspath(HOME) != key and key.startswith(os.path.abspath(HOME)):
+        vsechny |= {os.path.abspath(HOME), os.path.abspath(HOME).replace("\\", "/")}
     for _pokus in range(3):
         try:
             before = os.stat(target).st_mtime_ns
@@ -3180,12 +3185,16 @@ def trust_folder(path):
         projects = data.setdefault("projects", {})
         if not isinstance(projects, dict):
             return False
-        entry = projects.setdefault(key, {})
-        if not isinstance(entry, dict):
-            return False
-        if entry.get("hasTrustDialogAccepted") is True:
+        zmena = False
+        for k in vsechny:
+            entry = projects.setdefault(k, {})
+            if not isinstance(entry, dict):
+                return False
+            if entry.get("hasTrustDialogAccepted") is not True:
+                entry["hasTrustDialogAccepted"] = True
+                zmena = True
+        if not zmena:
             return True
-        entry["hasTrustDialogAccepted"] = True
         tmp = target + ".hub-tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as fh:

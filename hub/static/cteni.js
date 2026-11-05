@@ -183,6 +183,41 @@
     return fig;
   }
 
+  /* Soubory pro člověka (dokumenty, tabulky…), na které Claude v textu
+     odkazuje úplnou cestou — ukážou se tam, kde je zmínil. */
+  const CESTA_SOUBORU = /(?:\]\(\s*<?|`|(?<![\w:/.~\\-]))((?:~|\/|[A-Za-z]:[\\/])[^\s`"'<>()]*?\.([A-Za-z0-9]{2,5}))(?=[\s.,;:!?)"'»”`]|$)/g;
+  function cestySouboru(text) {
+    const out = [];
+    for (const m of String(text || '').matchAll(CESTA_SOUBORU)) {
+      const c = m[1];
+      if (OBRAZEK.test(c) || !VYSTUP.test(c) || c.length > 1000) continue;
+      if (!out.includes(c)) out.push(c);
+      if (out.length >= 8) break;
+    }
+    return out;
+  }
+  const TABULKA = /\.(csv|tsv)$/i;
+  /* CSV/TSV → prvních pár řádků jako tabulka (uvozovky, středník i čárka). */
+  function rozdelCsv(text, tsv) {
+    const prvni = text.split('\n', 1)[0];
+    const odd = tsv ? '\t' : ((prvni.match(/;/g) || []).length > (prvni.match(/,/g) || []).length ? ';' : ',');
+    const radky = [];
+    let radek = [], pole = '', uvoz = false;
+    for (let i = 0; i < text.length && radky.length < 41; i++) {
+      const ch = text[i];
+      if (uvoz) {
+        if (ch === '"' && text[i + 1] === '"') { pole += '"'; i++; }
+        else if (ch === '"') uvoz = false;
+        else pole += ch;
+      } else if (ch === '"') uvoz = true;
+      else if (ch === odd) { radek.push(pole); pole = ''; }
+      else if (ch === '\n') { radek.push(pole.replace(/\r$/, '')); radky.push(radek); radek = []; pole = ''; }
+      else pole += ch;
+    }
+    if (pole || radek.length) { radek.push(pole); radky.push(radek); }
+    return radky.filter((r) => r.some((x) => x !== ''));
+  }
+
   function vychoziStahovani() {
     return {
       url: (p) => (global.HubSoubor ? global.HubSoubor.url(p) : ''),
@@ -311,10 +346,10 @@
   /* Markdown umí už prohlížeč poznámek — Claudeův text je tentýž Markdown,
      tak se kreslí stejně (a stejně se i escapuje). Bez vault.js zbyde holý
      text, což je pořád čitelné. */
-  function markdown(text) {
+  function markdown(text, image) {
     if (global.HubVault && global.HubVault.render) {
       try {
-        return global.HubVault.render(jakoHtml(text), {resolve: () => '', image: () => '', breaks: true}).html;
+        return global.HubVault.render(jakoHtml(text), {resolve: () => '', image: image || (() => ''), breaks: true}).html;
       } catch (_) { /* radši holý text než prázdno */ }
     }
     return '';
@@ -845,12 +880,15 @@
     let tah = {soubory: [], karta: null};
     const overene = [];
     function doTahu(cesta) {
-      if (!cesta || tah.soubory.includes(cesta)) return;
+      if (!cesta || tah.soubory.includes(cesta) || naMiste.has(cesta)) return;
       tah.soubory.push(cesta);
       kresliKartu();
     }
     function kresliKartu() {
-      if (!tah.soubory.length) return;
+      if (!tah.soubory.length) {
+        if (tah.karta) { tah.karta.remove(); tah.karta = null; }
+        return;
+      }
       if (!tah.karta) {
         tah.karta = el('div', 'cteni-ke-stazeni');
         mount.appendChild(tah.karta);
@@ -874,23 +912,112 @@
       }
       naKonec();
     }
-    /* Obrázky, na které Claude v odpovědi odkazuje cestou — pod text odpovědi.
-       Soubory, které už jsou v kartě ke stažení, se neopakují. */
+    /* Obrázky, soubory a tabulky, na které Claude v odpovědi odkazuje
+       cestou, se ukážou přímo tam, kde je zmínil — pod odstavcem, v bodu
+       seznamu, v buňce tabulky — ne až souhrnně na konci zprávy. Co se
+       nenajde v žádném bloku textu, jde jako dřív pod odpověď. */
+    const naMiste = new Set();                 // cesty už ukázané v textu (karta je neopakuje)
+    function blokSCestou(box, cesta) {
+      const jmeno = jmenoSouboru(cesta);
+      const bloky = [...box.querySelectorAll('p, li, td, th, h1, h2, h3, h4, h5, h6, pre, blockquote')];
+      const obsahuje = (n) => n.textContent.includes(cesta) ||
+        [...n.querySelectorAll('img.vault-img')].some((i) => i.dataset.cesta === cesta);
+      let hit = bloky.find((n) => obsahuje(n) && !bloky.some((m) => m !== n && n.contains(m) && obsahuje(m)));
+      // Claude často napíše jen jméno souboru (`tabulka.xlsx`) — stačí, když je jediné.
+      if (!hit && jmeno.length > 4) {
+        const podleJmena = bloky.filter((n) => n.textContent.includes(jmeno) &&
+          !bloky.some((m) => m !== n && n.contains(m) && m.textContent.includes(jmeno)));
+        if (podleJmena.length === 1) hit = podleJmena[0];
+      }
+      return hit || null;
+    }
+    const kotvy = new WeakMap();               // blok → poslední prvek vložený za něj (pořadí zůstane)
+    function vlozZa(box, blok, prvek) {
+      if (!blok) {
+        let galerie = box.querySelector(':scope > .cteni-obrazky');
+        if (!galerie) {
+          galerie = el('div', 'cteni-obrazky');
+          const kdy = box.querySelector(':scope > .cteni-kdy, :scope > .cteni-cas');
+          box.insertBefore(galerie, kdy || null);
+        }
+        galerie.appendChild(prvek);
+        return;
+      }
+      if (/^(LI|TD|TH)$/.test(blok.tagName)) { blok.appendChild(prvek); return; }
+      const za = kotvy.get(blok) || blok;
+      za.after(prvek);
+      kotvy.set(blok, prvek);
+    }
+    function souborNaMiste(cesta, info) {
+      const box = el('div', 'cteni-soubor-misto');
+      const hlava = el('div', 'cteni-ks-radek');
+      const txt = el('span', 'cteni-ks-text');
+      txt.append(el('span', 'cteni-ks-jmeno', jmenoSouboru(cesta)),
+                 el('span', 'cteni-ks-cesta', (info && info.size ? velikost(info.size) + ' · ' : '') +
+                    cesta.replace(/[\\/][^\\/]*$/, '')));
+      txt.title = cesta;
+      hlava.append(el('span', 'cteni-ks-ico', TABULKA.test(cesta) || /\.(xlsx?|ods)$/i.test(cesta) ? '📊' : '📄'),
+                   txt, tlacitkoStahnout(cesta, st, notice, 'hlavni', 'Stáhnout'));
+      if (st.otevri) {
+        const ot = el('button', 'cteni-stahnout', 'Otevřít');
+        ot.type = 'button';
+        ot.onclick = (ev) => { ev.stopPropagation(); st.otevri(cesta); };
+        hlava.appendChild(ot);
+      }
+      box.appendChild(hlava);
+      if (TABULKA.test(cesta) && (!info || !info.size || info.size < 2 * 1024 * 1024)) {
+        fetch(st.url(cesta), {credentials: 'same-origin'}).then((r) => (r.ok ? r.text() : ''))
+          .then((text) => {
+            const radky = rozdelCsv(text.slice(0, 200000), /\.tsv$/i.test(cesta));
+            if (!radky.length) return;
+            const obal = el('div', 'cteni-csv');
+            const t = el('table');
+            radky.slice(0, 40).forEach((r, i) => {
+              const tr = el('tr');
+              for (const bunka of r.slice(0, 30)) tr.appendChild(el(i ? 'td' : 'th', '', bunka));
+              t.appendChild(tr);
+            });
+            obal.appendChild(t);
+            if (radky.length > 40) obal.appendChild(el('div', 'cteni-csv-vic', 'Ukázka prvních 40 řádků — celý soubor stáhneš výše.'));
+            box.appendChild(obal);
+            naKonec();
+          }).catch(() => {});
+      }
+      return box;
+    }
     function obrazkyZTextu(box, text) {
-      const cesty = cestyObrazku(text).filter((c) => !tah.soubory.includes(c));
-      if (!cesty.length || !st.nahled) return;
-      for (const cesta of cesty) {
+      // ![popis](/cesta.png) už vykreslil Markdown přímo v textu — jen obalit.
+      for (const img of box.querySelectorAll('img.vault-img[data-cesta]')) {
+        const cesta = img.dataset.cesta;
+        const fig = nahledObrazku(cesta, st);
+        if (!fig) continue;
+        naMiste.add(cesta);
+        img.replaceWith(fig);
+      }
+      const obrazky = cestyObrazku(text).filter((c) => !naMiste.has(c));
+      const soubory = cestySouboru(text).filter((c) => !naMiste.has(c));
+      // Soubor z karty ke stažení zmíněný jen jménem — taky na místo.
+      for (const c of tah.soubory) {
+        if (!OBRAZEK.test(c) && !soubory.includes(c) && !naMiste.has(c) &&
+            String(text).includes(jmenoSouboru(c))) soubory.push(c);
+      }
+      for (const cesta of obrazky.concat(soubory)) {
+        const blok = blokSCestou(box, cesta);
+        if (!blok && !OBRAZEK.test(cesta)) continue;       // soubor mimo text: zůstane v kartě
+        naMiste.add(cesta);
+        if (tah.soubory.includes(cesta)) {
+          tah.soubory.splice(tah.soubory.indexOf(cesta), 1);
+          kresliKartu();
+        }
+        // Místo se zabere hned (pořadí jako v textu), obsah až po ověření.
+        const misto = el('div', 'cteni-misto');
+        vlozZa(box, blok, misto);
         Promise.resolve(st.info(cesta)).then((info) => {
-          if (!info || !info.ok) return;
-          let galerie = box.querySelector(':scope > .cteni-obrazky');
-          if (!galerie) {
-            galerie = el('div', 'cteni-obrazky');
-            const kdy = box.querySelector(':scope > .cteni-kdy, :scope > .cteni-cas');
-            box.insertBefore(galerie, kdy || null);
-          }
-          const fig = nahledObrazku(cesta, st);
-          if (fig) { galerie.appendChild(fig); naKonec(); }
-        }).catch(() => {});
+          if (!info || !info.ok) { misto.remove(); return; }
+          const prvek = OBRAZEK.test(cesta) ? (st.nahled ? nahledObrazku(cesta, st) : null)
+                                            : souborNaMiste(cesta, info);
+          if (prvek) { misto.replaceWith(prvek); naKonec(); } else misto.remove();
+        }).catch(() => misto.remove());
       }
     }
     /* Výstupy příkazu (cesty v textu příkazu, hub/cteni.py) — jen ty, které
@@ -2145,8 +2272,17 @@
       if (b.kind === 'say') {
         if (volby) { volby.remove(); volby = null; }
         const box = el('div', 'cteni-say vault-md');
-        const html = markdown(b.text);
-        if (html) { box.innerHTML = html; ozivHtml(box); kopirovaniKodu(box); }
+        // ![popis](/úplná/cesta.png) → obrázek přímo v textu (přes náhled hubu).
+        const html = markdown(b.text, (f) => (OBRAZEK.test(f) && /^(~|\/|[A-Za-z]:[\\/])/.test(f) && st.nahled
+          ? st.nahled(f) + '#cesta=' + encodeURIComponent(f) : ''));
+        if (html) {
+          box.innerHTML = html;
+          for (const img of box.querySelectorAll('img.vault-img')) {
+            const m = /#cesta=([^&]+)$/.exec(img.getAttribute('src') || '');
+            if (m) { img.dataset.cesta = decodeURIComponent(m[1]); img.src = img.getAttribute('src').replace(/#cesta=.*$/, ''); }
+          }
+          ozivHtml(box); kopirovaniKodu(box);
+        }
         else box.textContent = b.text;
         mount.appendChild(box);
         obrazkyZTextu(box, b.text);
@@ -3263,6 +3399,6 @@
     return {close: zavrit, wake: () => tik(true)};
   }
 
-  global.HubCteni = {install, open, openSdilene, claudik, paleta};
+  global.HubCteni = {install, open, openSdilene, claudik, paleta, _flow: flow};   // _flow: zkoušky (tools)
 
 })(typeof window !== 'undefined' ? window : globalThis);

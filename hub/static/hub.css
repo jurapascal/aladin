@@ -5522,6 +5522,15 @@ html[data-misto-dole="1"] #btn-prostor { display: none !important; }
 }
 .cteni-obrazek-popis { font-size: 11px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cteni-ke-stazeni .cteni-obrazek { margin: 8px 0 2px 26px; }
+.cteni-say > .cteni-obrazek, .cteni-say li > .cteni-obrazek, .cteni-say td > .cteni-obrazek { margin: 8px 0 10px; }
+.cteni-misto { min-height: 1px; }
+.cteni-soubor-misto { margin: 6px 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-card); padding: 6px 8px; max-width: 100%; }
+.cteni-soubor-misto .cteni-ks-radek { display: flex; align-items: center; gap: 8px; }
+.cteni-csv { margin-top: 6px; max-height: 360px; overflow: auto; border-top: 1px solid var(--border); }
+.cteni-csv table { border-collapse: collapse; font-size: 12px; width: max-content; min-width: 100%; }
+.cteni-csv th, .cteni-csv td { border: 1px solid var(--border); padding: 3px 8px; text-align: left; white-space: nowrap; max-width: 280px; overflow: hidden; text-overflow: ellipsis; }
+.cteni-csv th { position: sticky; top: 0; background: var(--bg); font-weight: 600; }
+.cteni-csv-vic { font-size: 11px; color: var(--dim); padding: 4px 2px; }
 .cteni-ke-stazeni .cteni-obrazek img { max-height: 300px; }
 
 /* Tab, ve kterém běží agenti nebo úlohy na pozadí (hub.js, naPozadi): tečka

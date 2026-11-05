@@ -630,6 +630,17 @@ window.HubSoubor = {
    se člověk dívá. */
 let stazenoTimer = null;
 function stazenoKarta(msg) {
+  /* Kdo stažení vyvolal (hub/stazene.py): Claude v některém chatu — karta patří jen tomu chatu,
+     ne tomu, na který se zrovna dívám. '' = otevřel to člověk ručně (ukáže se tam, kde je),
+     '?' = karta jiného hubu nebo terminálu (nic se neukazuje, soubor je ve Stažených). */
+  if (msg.tab === '?') return;
+  if (msg.tab) {
+    const vlastnik = TABS.find((t) => String(t.id) === String(msg.tab));
+    if (!vlastnik) return;
+    if (vlastnik.cteni && vlastnik.cteni.stazeno) vlastnik.cteni.stazeno(msg);
+    if (vlastnik !== ACTIVE) return;          // plovoucí karta jen v chatu, který stahoval
+    msg = {...msg, _uzUkazano: true};
+  }
   document.querySelectorAll('.stazeno-karta').forEach((n) => n.remove());
   const box = document.createElement('div');
   box.className = 'stazeno-karta';
@@ -659,7 +670,7 @@ function stazenoKarta(msg) {
   document.body.appendChild(box);
   clearTimeout(stazenoTimer);
   stazenoTimer = setTimeout(() => box.remove(), 30000);
-  if (ACTIVE && ACTIVE.cteni && ACTIVE.cteni.stazeno) ACTIVE.cteni.stazeno(msg);
+  if (!msg._uzUkazano && ACTIVE && ACTIVE.cteni && ACTIVE.cteni.stazeno) ACTIVE.cteni.stazeno(msg);
 }
 
 /* „ukládá se sama · naposledy 14:05" — ať je vidět, že se na nic klikat nemusí. */

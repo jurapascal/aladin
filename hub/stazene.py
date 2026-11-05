@@ -68,6 +68,25 @@ def _dokonceno(info, par):
     return cil
 
 
+def _tab_stazeni(frame):
+    """Tab hubu, jehož Claude stránku otevřel (podle vlastnictví karet v mostu).
+    Hlavní rámec stránky má id shodné s id karty. '' = nevíme (stránku otevřel
+    člověk ručně), '?' = karta patří jinému hubu nebo terminálu."""
+    if not frame:
+        return ""
+    try:
+        from . import prohlizec_proxy as px
+        znacka = px.vlastnici().get(frame) or ""
+    except Exception:
+        return ""
+    if not znacka:
+        return ""
+    pre = (prohlizec.INSTANCE + ":") if prohlizec.INSTANCE else ""
+    if pre and znacka.startswith(pre):
+        return znacka[len(pre):]
+    return "?"
+
+
 def _spojeni(oznam):
     ver = prohlizec._get("/json/version", 1.5) or {}
     url = ver.get("webSocketDebuggerUrl") or ""
@@ -91,7 +110,8 @@ def _spojeni(oznam):
             m, par = msg.get("method"), msg.get("params") or {}
             if m == "Browser.downloadWillBegin":
                 rozjete[par.get("guid")] = {"guid": par.get("guid"), "name": par.get("suggestedFilename") or "",
-                                            "url": str(par.get("url") or "")[:500]}
+                                            "url": str(par.get("url") or "")[:500],
+                                            "frame": par.get("frameId") or ""}
                 if len(rozjete) > 200:
                     rozjete.pop(next(iter(rozjete)))
             elif m == "Browser.downloadProgress" and par.get("state") in ("completed", "canceled"):
@@ -107,7 +127,7 @@ def _spojeni(oznam):
                     continue
                 zaznam = {"path": cesta, "name": os.path.basename(cesta),
                           "size": os.path.getsize(cesta), "url": info.get("url") or "",
-                          "cas": time.time()}
+                          "cas": time.time(), "tab": _tab_stazeni(info.get("frame"))}
                 with _lock:
                     _posledni.append(zaznam)
                     del _posledni[:-MAX_POSLEDNICH]

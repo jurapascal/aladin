@@ -2649,6 +2649,11 @@
       /* Vestavěný prohlížeč něco stáhl (hub/stazene.py → hub.js). */
       stazeno(info) {
         if (!info || !info.path) return;
+        // Stejný soubor ohlášený dvakrát po sobě (dvě události stahování) se ukáže jednou.
+        const ted = Date.now();
+        const pos = mount._stazeno || {};
+        if (pos.path === info.path && ted - pos.cas < 120000) return;
+        mount._stazeno = {path: info.path, cas: ted};
         const box = el('div', 'cteni-ke-stazeni prohlizec');
         box.appendChild(el('div', 'cteni-ks-nadpis', 'Stažené v prohlížeči'));
         const r = el('div', 'cteni-ks-radek');

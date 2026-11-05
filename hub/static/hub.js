@@ -3812,10 +3812,12 @@ async function mistoMenu(ev) {
     });
     if (servers.length) {
       const kopie = cfg.zrcadlo !== false;
-      items.push({heading: 'Chaty'});
-      items.push({icon: 'i-laptop', label: 'Jen na tomto počítači', on: !kopie, color: 'var(--amber)',
+      // Kam se chaty ukládají: výběr, ne popis. Kopie jde na aktivní server (telefon, sdílení).
+      const host = hostOfServer(cfg.gw_server) || 'serveru';
+      items.push({heading: 'Chaty — kam se ukládají'});
+      items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kopie, color: 'var(--amber)',
                   run: () => { if (kopie) nastavZrcadlo(false); }});
-      items.push({icon: 'i-hub', label: 'I v kopii na serveru (telefon, sdílení)', on: kopie,
+      items.push({icon: 'i-hub', label: 'Tento počítač + server ' + host, on: kopie,
                   run: () => { if (!kopie) nastavZrcadlo(true); }});
       /* Přepínač mění jen ZDROJ Obsidianu a napojení — okno, chaty a výkon zůstávají. Dřív tu byla
          i položka „Otevřít server“, která celé okno přepnula na rozhraní serveru; Tomáš ji bral

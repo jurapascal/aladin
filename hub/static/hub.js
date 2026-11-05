@@ -870,7 +870,12 @@ function newChatHere(agentId, opts) {
   // „Vždy používat“ špatně trefovalo a lidi omylem skončili v Codexu místo
   // Clauda (Adam, 3. 11. 2026: „vůbec nechci, ať se mě ptá“).
   const volba = STATE.config.novy_chat_agent || '';
-  if (volba === 'zeptat' && ready.length > 1) return zeptejSeNaAgenta(ready, otevri);
+  if (volba === 'zeptat' && ready.length > 1) {
+    // Nastavení → AI agenti → „Obojí“: bez pokročilého režimu jen Claude a Gemini,
+    // ne každé CLI, které na stroji náhodou je (Codex, Aider…).
+    const dva = ready.filter((a) => a.id === 'claude' || a.id === 'antigravity');
+    return zeptejSeNaAgenta(!STATE.config.dev_mode && dva.length === 2 ? dva : ready, otevri);
+  }
   const pevny = ready.find((a) => a.id === volba) || ready.find((a) => a.id === STATE.default_agent) || ready[0];
   return otevri(pevny);
 }

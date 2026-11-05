@@ -5627,3 +5627,13 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
   .pristup-radek > select, .pristup-vsem > select, .pristup-pridat > select { flex: 0 1 220px; width: auto; height: 34px; }
   .pristup-radek > .btn, .pristup-vsem > .btn, .pristup-pridat > .btn { flex: none; min-height: 0; }
 }
+
+/* Nastavení → AI agenti: Claude · Gemini · Obojí (settings.js aiVolba). */
+.ai-volba-seg { display: inline-flex; gap: 6px; flex: none; }
+.ai-volba-seg .btn { min-width: 76px; }
+.ai-volba-seg .btn:disabled { opacity: .45; cursor: not-allowed; }
+.ai-volba-popis { max-width: 52ch; }
+@media (max-width: 820px) {
+  .ai-volba-seg { display: flex; width: 100%; }
+  .ai-volba-seg .btn { flex: 1; min-height: 40px; }
+}

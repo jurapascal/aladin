@@ -1083,11 +1083,64 @@
     return rows;
   }
 
+  /* Kterou AI používat: jen Claude, jen Gemini, nebo obojí. Jedna volba místo
+     kombinace „agent pro nový chat“ + „Claude si smí volat Gemini“, ve které se
+     lidé ztráceli (Jura, 5. 11. 2026). Hodnota se skládá z existujících nastavení:
+       Claude  = nové chaty v Claudovi, Gemini mu nepomáhá,
+       Gemini  = nové chaty v Gemini (antigravity),
+       Obojí   = u nového chatu výběr Claude / Gemini a Claude si Gemini volá na pomoc. */
+  function aiVolba() {
+    const wrap = el('div', 'set-rows ai-volba');
+    const cfg = (state && state.config) || {};
+    const agents = (state && state.agents) || [];
+    const gem = agents.find((a) => a.id === 'antigravity');
+    const gemOk = !!(gem && gem.path);
+    const v = cfg.novy_chat_agent || '';
+    const ted = v === 'antigravity' ? 'gemini' : v === 'zeptat' ? 'oboji' : 'claude';
+    const MOZNOSTI = [
+      ['claude', 'Claude', 'Všechny chaty v Claudovi. Gemini se nepoužívá.'],
+      ['gemini', 'Gemini', 'Nové chaty v Gemini (Google AI Pro). Claudeův limit se nečerpá.'],
+      ['oboji', 'Obojí', 'U nového chatu si vybereš Claude, nebo Gemini. Claude si navíc Gemini sám zavolá na obrázky, přepisy nahrávek a videa.'],
+    ];
+    const seg = el('div', 'ai-volba-seg');
+    const popis = el('div', 'set-row-desc ai-volba-popis');
+    for (const [id, nazev, text] of MOZNOSTI) {
+      const b = el('button', 'btn ' + (id === ted ? 'primary' : 'ghost'), nazev);
+      b.type = 'button';
+      if (id !== 'claude' && !gemOk) {
+        b.disabled = true;
+        b.title = 'Nejdřív níž Gemini nainstaluj a přihlas.';
+      }
+      if (id === ted) popis.textContent = text;
+      b.onclick = async () => {
+        if (id === ted) return;
+        seg.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+        try {
+          // Pomocník Gemini pro Clauda: v „Claude“ vypnout, v „Obojí“ zapnout.
+          if (gemOk && id !== 'gemini') await io.api('gemini', {zapnout: id === 'oboji'}).catch(() => null);
+          await save({novy_chat_agent: id === 'gemini' ? 'antigravity' : id === 'oboji' ? 'zeptat' : 'claude'});
+          io.toast(id === 'claude' ? 'Používá se jen Claude.'
+                   : id === 'gemini' ? 'Nové chaty se otevřou v Gemini.'
+                   : 'U nového chatu si vybereš Claude, nebo Gemini.');
+        } catch (err) { io.toast(err.message); render(); }
+      };
+      seg.appendChild(b);
+    }
+    const r = radek('Kterou AI používat', '', seg);
+    r.querySelector('.set-row-text').appendChild(popis);
+    if (!gemOk) {
+      r.querySelector('.set-row-text').appendChild(el('div', 'set-row-desc set-dim',
+        'Gemini a Obojí půjdou vybrat, až níž Gemini nainstaluješ a přihlásíš.'));
+    }
+    wrap.appendChild(r);
+    return wrap;
+  }
+
   function agenti() {
     if (!advanced()) {
       const only = section('AI agenti',
-        'Modely, které si Claude umí zavolat na pomoc. Vyplníš údaje a je napojeno.');
-      only.appendChild(novyChatAgent());
+        'Claude, Gemini, nebo obojí — vyber nahoře. Gemini níž nainstaluješ a přihlásíš.');
+      only.appendChild(aiVolba());
       only.appendChild(gemini());
       only.appendChild(jev());
       return only;

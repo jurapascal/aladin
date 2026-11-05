@@ -204,16 +204,16 @@
   }
 
   /* Firmy (gateway/firmy.py): kde jsem a s jakou rolí, založení firmy a pro
-     kapitány lidé, klienti, podkategorie a kdo kam vidí. Rozhoduje brána —
+     generály lidé, klienti, podkategorie a kdo kam vidí. Rozhoduje brána —
      tady se jen kreslí a posílá; změny se v prostorech projeví po restartu. */
   function firmy() {
     const box = section('Firmy',
       'Každá firma má vlastní Obsidian, skilly a lidi. Obecné věci firmy vidí každý její člen; ' +
-      'klienty a jejich podkategorie (Web, Marketing…) jen ti, komu je kapitán zpřístupní.');
+      'klienty a jejich podkategorie (Web, Marketing…) jen ti, komu je generál zpřístupní.');
     box.classList.add('firmy-sec');
     const body = el('div');
     box.appendChild(body);
-    const ROLE = {kapitan: 'kapitán', clen: 'člen', host: 'host'};
+    const ROLE = {kapitan: 'generál', clen: 'člen', host: 'host'};
     const gw = async (payload) => {
       const r = await fetch('/gw/firmy', payload === undefined ? {credentials: 'same-origin'} : {
         method: 'POST', credentials: 'same-origin',
@@ -248,7 +248,7 @@
       }
       return sel;
     };
-    const roleOptions = [['kapitan', 'kapitán'], ['clen', 'člen'], ['host', 'host (jen čte)']];
+    const roleOptions = [['kapitan', 'generál'], ['clen', 'člen'], ['host', 'host (jen čte)']];
     const DRUHY = [['klienti', 'pracuje pro klienty (Klienti › klient › podkategorie)'],
                    ['projekty', 'pracuje pro sebe (rovnou projekty)']];
 
@@ -292,7 +292,7 @@
       }
     }
 
-    // Správa jedné firmy pro jejího kapitána.
+    // Správa jedné firmy pro jejího generála.
     function kapitan(slug, p, ucty) {
       const sec = el('div', 'firmy-firma');
       sec.appendChild(el('div', 'set-title', p.nazev + ' — správa'));
@@ -395,7 +395,7 @@
       wrap.appendChild(el('div', 'set-title firmy-sub', 'Klienti a kdo kam vidí'));
       wrap.appendChild(el('div', 'set-note',
         'Zaškrtni, kdo vidí klienta (jeho obecné věci) a kdo jednotlivé podkategorie. ' +
-        'Podkategorie zpřístupní i klienta. Kapitáni vidí všechno vždycky.'));
+        'Podkategorie zpřístupní i klienta. Generálové vidí všechno vždycky.'));
       const lidi = p.lide.filter((m) => m.role !== 'kapitan');
       const pristup = (rel, id) => (p.pristupy[rel] || []).includes(id);
       for (const [klient, podkategorie] of Object.entries(p.klienti)) {
@@ -456,12 +456,12 @@
     }
 
     /* Firma pro sebe: projekty v jedné tabulce (lidé × projekty), u každého
-       projektu přejmenovat / odložit. Kapitáni vidí všechno vždycky. */
+       projektu přejmenovat / odložit. Generálové vidí všechno vždycky. */
     function projekty(slug, p) {
       const wrap = el('div');
       wrap.appendChild(el('div', 'set-title firmy-sub', 'Projekty a kdo kam vidí'));
       wrap.appendChild(el('div', 'set-note',
-        'Zaškrtni, kdo vidí který projekt. Kapitáni vidí všechno vždycky.'));
+        'Zaškrtni, kdo vidí který projekt. Generálové vidí všechno vždycky.'));
       const lidi = p.lide.filter((m) => m.role !== 'kapitan');
       const names = Object.keys(p.klienti || {});
       for (const name of names) {

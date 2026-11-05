@@ -1,0 +1,67 @@
+- generic [ref=f8e1]:
+  - banner [ref=f8e2]:
+    - generic [ref=f8e3]:
+      - button [ref=f8e4] [cursor=pointer]:
+        - strong [ref=f8e7]: Aladin
+      - button "Aladin na serveru" [ref=f8e8] [cursor=pointer]: Server
+      - button "Osobní" [ref=f8e9] [cursor=pointer]
+      - generic [ref=f8e208]:
+        - generic [ref=f8e209]: Úklid místa
+        - generic [ref=f8e210]: < 1 min
+    - generic [ref=f8e14]:
+      - generic [ref=f8e15]:
+        - button "Nahlásit chybu" [ref=f8e16] [cursor=pointer]:
+          - generic [ref=f8e31]: Chyba
+        - button "Podat návrh" [ref=f8e32] [cursor=pointer]:
+          - generic [ref=f8e35]: Návrh
+      - button "Oznámení" [ref=f8e36] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f8e39] [cursor=pointer]
+      - button "Statistiky používání" [ref=f8e42] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f8e45] [cursor=pointer]
+  - generic [ref=f8e48]:
+    - complementary [ref=f8e49]:
+      - navigation [ref=f8e50]:
+        - button "Nový chat" [ref=f8e51] [cursor=pointer]
+        - button [ref=f8e56] [cursor=pointer]
+        - button [ref=f8e60] [cursor=pointer]
+      - generic [ref=f8e211]:
+        - generic [ref=f8e212]: Otevřené
+        - button "Úklid místa" [ref=f8e216] [cursor=pointer]
+      - generic [ref=f8e64]: Chaty
+      - generic [ref=f8e66]:
+        - searchbox "Hledat chat…" [ref=f8e68]
+        - button "Hledat v textu konverzací" [ref=f8e70] [cursor=pointer]
+        - generic [ref=f8e71]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f8e74]:
+        - button "A Anna Nováková" [ref=f8e218] [cursor=pointer]:
+          - generic [ref=f8e219]: A
+          - generic [ref=f8e220]: Anna Nováková
+        - button "v2.103.7" [ref=f8e221] [cursor=pointer]
+    - main [ref=f8e79]:
+      - generic [ref=f8e80]:
+        - text: ✻
+        - generic [ref=f8e222]:
+          - textbox "Terminal input" [ref=f8e227]
+          - generic [ref=f8e277]: Zatím nic — napiš Claudovi dole.
+          - generic [ref=f8e280]:
+            - textbox "Napiš, s čím ti má Claude Code pomoct… (Enter odešle, Shift+Enter nový řádek)" [active] [ref=f8e281]
+            - generic [ref=f8e282]:
+              - generic [ref=f8e283]:
+                - button "Historie" [ref=f8e284] [cursor=pointer]
+                - button "Příloha" [ref=f8e287] [cursor=pointer]
+                - 'button "Režim: Ptát se před změnami ▾" [ref=f8e290] [cursor=pointer]':
+                  - text: "Režim:"
+                  - generic [ref=f8e291]: Ptát se před změnami
+                  - text: ▾
+              - button "Zastavit" [ref=f8e292] [cursor=pointer]
+              - button "Odeslat (Enter)" [ref=f8e293] [cursor=pointer]
+    - complementary [ref=f8e296]:
+      - generic [ref=f8e297]:
+        - generic [ref=f8e298]:
+          - generic [ref=f8e299]: Sdílení
+          - generic [ref=f8e300]: Kolega uvidí tenhle chat živě — i kód, který Claude píše.
+          - button "Sdílet chat…" [ref=f8e301] [cursor=pointer]
+        - generic [ref=f8e302]:
+          - generic [ref=f8e303]: Přenos
+          - generic [ref=f8e304]: Pošli tenhle chat na počítač a pokračuj v něm tam.
+          - button "Pokračovat na počítači" [ref=f8e305] [cursor=pointer]

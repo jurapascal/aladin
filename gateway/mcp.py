@@ -610,7 +610,7 @@ def _check_vault(h, user, which, write=False):
         if not role:
             raise ToolError("Do téhle firmy nepatříš.")
         if write and role == "host":
-            raise ToolError("Ve firmě jsi host — jen čteš. O zápis požádej kapitána.")
+            raise ToolError("Ve firmě jsi host — jen čteš. O zápis požádej generála.")
         return
     if which.startswith("sdilene:"):
         if which[8:] not in {v["slug"] for v in shared.vaults_for(user)}:

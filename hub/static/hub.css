@@ -5561,3 +5561,50 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
 #ctxmenu .ctx-info-r { display: flex; justify-content: space-between; gap: 14px; font-size: 12px; line-height: 1.4; }
 #ctxmenu .ctx-info-k { color: var(--dim); white-space: nowrap; }
 #ctxmenu .ctx-info-v { color: var(--fg-bright); font-weight: 600; text-align: right; }
+
+/* ── Telefon: průhledná lišta, kulaté ikony, zatřesení místo Chyby/Návrhu ───
+   Vzor: lišta jako v appce Claude — žádné pozadí a rámeček, každá ikona v kolečku
+   (Adam, 5. 11. 2026, iPhone 17). Chyba / Návrh se na telefonu otevírá
+   zatřesením (mobile.js), tlačítko v liště tu není. */
+@media (max-width: 820px) {
+  .topbar {
+    background: transparent;
+    border-bottom: none;
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+  }
+  .topbar .iconbtn {
+    width: 40px; height: 40px; padding: 0; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: color-mix(in srgb, var(--bg-card) 62%, transparent);
+    border: 1px solid color-mix(in srgb, var(--border) 60%, transparent);
+    color: var(--fg-bright);
+  }
+  .topbar .iconbtn .ico { width: 20px; height: 20px; }
+  .topbar-actions { gap: 8px; }
+  #btn-verxee, .verxee-split { display: none !important; }
+  /* Jméno chatu bez podkladu — čte se přímo na pozadí. */
+  .topbar-title, .topbar-tabwrap, .topbar-tab { background: none; }
+}
+/* iPhone: pod 16 px Safari při klepnutí do jakéhokoli pole přiblíží stránku
+   (a nevrátí ji) — „náhodné přibližování při psaní“. Platí pro všechna pole. */
+@media (pointer: coarse) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]),
+  textarea, select { font-size: 16px; }
+  body { -webkit-text-size-adjust: 100%; }
+}
+/* Sdílený chat: pole na psaní celé nad spodní hranou a placeholder v jednom řádku. */
+@media (max-width: 820px) {
+  .cteni-write {
+    align-items: center;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  }
+  .cteni-input { min-height: 40px; line-height: 1.35; padding: 9px 12px; }
+  .cteni-input::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Nástroje pod polem na psaní se neposouvají do stran (nejezdí tam „server“). */
+  .composer-tools { overflow-x: hidden; -webkit-mask-image: none; mask-image: none; padding-right: 0; }
+}
+@media (max-width: 820px) {
+  .composer-tools { touch-action: pan-y; }
+  .composer-tools .composer-chip.composer-misto { flex: 0 1 auto; min-width: 0; }
+  .composer-tools .composer-chip.composer-misto .val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

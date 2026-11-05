@@ -1,0 +1,41 @@
+- generic [active] [ref=f4e1]:
+  - banner [ref=f4e2]:
+    - generic [ref=f4e3]:
+      - button [ref=f4e4] [cursor=pointer]:
+        - strong [ref=f4e7]: Aladin
+      - button "Aladin na serveru" [ref=f4e46] [cursor=pointer]: Server
+      - button "Osobní" [ref=f4e47] [cursor=pointer]
+    - generic [ref=f4e9]:
+      - generic [ref=f4e52]:
+        - button "Nahlásit chybu" [ref=f4e53] [cursor=pointer]:
+          - generic [ref=f4e68]: Chyba
+        - button "Podat návrh" [ref=f4e69] [cursor=pointer]:
+          - generic [ref=f4e72]: Návrh
+      - button "Oznámení (2 nepřečtených)" [ref=f4e73] [cursor=pointer]:
+        - generic: "2"
+      - button "Přepnout světlý/tmavý režim" [ref=f4e10] [cursor=pointer]
+      - button "Statistiky používání" [ref=f4e13] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f4e16] [cursor=pointer]
+  - generic [ref=f4e19]:
+    - complementary [ref=f4e20]:
+      - navigation [ref=f4e21]:
+        - button "Nový chat" [ref=f4e22] [cursor=pointer]
+        - button [ref=f4e76] [cursor=pointer]
+        - button [ref=f4e80] [cursor=pointer]
+      - generic [ref=f4e31]: Chaty
+      - generic [ref=f4e33]:
+        - searchbox "Hledat chat…" [ref=f4e35]
+        - button "Hledat v textu konverzací" [ref=f4e85] [cursor=pointer]
+        - generic [ref=f4e86]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f4e37]:
+        - button "A Anna Nováková" [ref=f4e88] [cursor=pointer]:
+          - generic [ref=f4e89]: A
+          - generic [ref=f4e90]: Anna Nováková
+        - button "v2.103.7" [ref=f4e91] [cursor=pointer]
+    - main [ref=f4e38]:
+      - generic [ref=f4e45]:
+        - generic [ref=f4e92]: ✻Dobrou noc, Anna.
+        - generic [ref=f4e93]:
+          - textbox "Na čem budeme pracovat?" [ref=f4e94]
+          - button "Odeslat" [ref=f4e97] [cursor=pointer]
+  - generic [ref=f4e100]: Máš 2 nová oznámení — zvonek nahoře.

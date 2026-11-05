@@ -1,0 +1,75 @@
+- generic [active] [ref=f1e1]:
+  - banner [ref=f1e2]:
+    - button "Projekty a chaty" [ref=f1e3] [cursor=pointer]
+    - generic [ref=f1e6]:
+      - button "Úvodní stránka" [ref=f1e7] [cursor=pointer]
+      - button "Paluba na počítači" [ref=f1e10] [cursor=pointer]: PC
+    - generic [ref=f1e11]:
+      - button "Nový chat" [ref=f1e12] [cursor=pointer]
+      - button "Nabídka" [ref=f1e15] [cursor=pointer]
+  - generic [ref=f1e18]:
+    - complementary [ref=f1e19]:
+      - generic [ref=f1e20]:
+        - strong [ref=f1e21]: Paluba
+        - button "Zavřít panel" [ref=f1e22] [cursor=pointer]
+      - navigation [ref=f1e25]:
+        - button "Nový chat" [ref=f1e26] [cursor=pointer]
+        - button [ref=f1e31] [cursor=pointer]
+        - button [ref=f1e35] [cursor=pointer]
+        - button [ref=f1e39] [cursor=pointer]
+      - generic [ref=f1e43]: Chaty
+      - generic [ref=f1e45]:
+        - searchbox "Hledat chat…" [ref=f1e47]
+        - generic [ref=f1e48]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f1e51]:
+        - button "P pascaljura" [ref=f1e52] [cursor=pointer]:
+          - generic [ref=f1e53]: P
+          - generic [ref=f1e54]: pascaljura
+        - button "v2.83.0" [ref=f1e55] [cursor=pointer]
+    - main [ref=f1e56]:
+      - generic [ref=f1e58]:
+        - generic [ref=f1e71]: Dobrý den, pascaljura.
+        - generic [ref=f1e72]:
+          - button "Nový chat" [ref=f1e73] [cursor=pointer]
+          - button "Otevřít terminál" [ref=f1e77] [cursor=pointer]
+          - button "Nastavení" [ref=f1e81] [cursor=pointer]
+        - generic [ref=f1e85]:
+          - generic [ref=f1e86]:
+            - generic [ref=f1e87]: Naposledy
+            - button "claude-code-hub dnes" [ref=f1e88] [cursor=pointer]:
+              - generic [ref=f1e89]: claude-code-hub
+              - generic [ref=f1e90]: dnes
+            - button "voice-agent dnes" [ref=f1e91] [cursor=pointer]:
+              - generic [ref=f1e92]: voice-agent
+              - generic [ref=f1e93]: dnes
+            - button "paluba-market dnes" [ref=f1e94] [cursor=pointer]:
+              - generic [ref=f1e95]: paluba-market
+              - generic [ref=f1e96]: dnes
+            - button "parlament včera" [ref=f1e97] [cursor=pointer]:
+              - generic [ref=f1e98]: parlament
+              - generic [ref=f1e99]: včera
+          - generic [ref=f1e100]:
+            - generic [ref=f1e101]: Rozdělané
+            - button "claude-code-hub 34 změn" [ref=f1e102] [cursor=pointer]:
+              - generic [ref=f1e103]: claude-code-hub
+              - generic [ref=f1e104]: 34 změn
+            - button "corposan 5 změn" [ref=f1e105] [cursor=pointer]:
+              - generic [ref=f1e106]: corposan
+              - generic [ref=f1e107]: 5 změn
+            - button "klaramiculkova.com 3 změn" [ref=f1e108] [cursor=pointer]:
+              - generic [ref=f1e109]: klaramiculkova.com
+              - generic [ref=f1e110]: 3 změn
+        - generic [ref=f1e112]:
+          - button "0 napsaných tokenů" [ref=f1e113] [cursor=pointer]:
+            - generic [ref=f1e114]: "0"
+            - generic [ref=f1e115]: napsaných tokenů
+          - button "0 zpráv" [ref=f1e116] [cursor=pointer]:
+            - generic [ref=f1e117]: "0"
+            - generic [ref=f1e118]: zpráv
+          - button "0 rozhovorů" [ref=f1e119] [cursor=pointer]:
+            - generic [ref=f1e120]: "0"
+            - generic [ref=f1e121]: rozhovorů
+          - button "7863 commitů za rok" [ref=f1e122] [cursor=pointer]:
+            - generic [ref=f1e123]: "7863"
+            - generic [ref=f1e124]: commitů za rok
+        - generic [ref=f1e125]: 336 poznámek v paměti · ukládá se sama · verze 2.83.0

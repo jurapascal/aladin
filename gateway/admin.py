@@ -724,15 +724,15 @@ def cmd_firma(a, args):
 
 def cmd_firmy(a, args):
     """Firmy (gateway/firmy.py): výpis, lidé a přístupy jedné firmy, založení,
-    kapitán a kdo smí zakládat. Běžně se to dělá v hubu (Nastavení → Firmy)."""
+    generál a kdo smí zakládat. Běžně se to dělá v hubu (Nastavení → Firmy)."""
     def who(u):
         return f"{u['email']} ({u['name']})" if u.get("name") else u["email"]
     if args.action == "zalozit":
         user = a.get(args.email or "")
         if not user:
-            raise ValueError("Kapitán: --kapitan <e-mail existujícího účtu>.")
+            raise ValueError("Generál: --kapitan <e-mail existujícího účtu>.")
         r = firmy.zalozit(None, args.cil, kapitan=user, druh_firmy=args.druh)
-        print(f"Firma „{r['nazev']}“ ({r['zkratka']}) založená, kapitán {user['email']}.")
+        print(f"Firma „{r['nazev']}“ ({r['zkratka']}) založená, generál {user['email']}.")
         return
     if args.action == "smazat":
         r = firmy.smazat_firmu({"role": "admin", "email": "claude-hub-admin", "id": 0}, args.cil)
@@ -743,7 +743,7 @@ def cmd_firmy(a, args):
         if not user:
             raise ValueError("Komu: --kapitan <e-mail existujícího účtu>.")
         firmy.admin_kapitan(args.cil, user["id"])
-        print(f"{user['email']} je kapitánem firmy {args.cil}.")
+        print(f"{user['email']} je generálem firmy {args.cil}.")
         return
     if args.action == "zakladatel":
         user = a.get(args.cil or "")
@@ -767,13 +767,13 @@ def cmd_firmy(a, args):
                 root = firmy.koren(slug)
                 for rel in [f"{root}/{klient}"] + [f"{root}/{klient}/{p}" for p in podkategorie]:
                     lidi = [ids[u]["email"] for u in prist.get(rel, []) if u in ids]
-                    print(f"  {rel:<46} {', '.join(lidi) or 'jen kapitáni'}")
+                    print(f"  {rel:<46} {', '.join(lidi) or 'jen generálové'}")
         return
     zakl = [r["email"] for r in a.list() if firmy.muze_zakladat(dict(r)) and r["role"] != "admin"]
     for slug in firmy.slugs():
         lide = firmy.clenove(slug)
         kap = [m["email"] for m in lide if m["role"] == "kapitan"]
-        print(f"{slug:<20} {firmy.nazev(slug):<28} {len(lide)} lidí · kapitáni: {', '.join(kap) or '—'}")
+        print(f"{slug:<20} {firmy.nazev(slug):<28} {len(lide)} lidí · generálové: {', '.join(kap) or '—'}")
     print("Zakládat firmy smí: admini" + (", " + ", ".join(zakl) if zakl else ""))
 
 
@@ -1097,11 +1097,11 @@ def build_parser():
     fi.add_argument("level", nargs="?", default="", help="none / read / write")
     fi.set_defaults(func=cmd_firma)
 
-    fy = sub.add_parser("firmy", help="firmy: výpis, lidé a přístupy, založení, kapitán, kdo smí zakládat")
+    fy = sub.add_parser("firmy", help="firmy: výpis, lidé a přístupy, založení, generál, kdo smí zakládat")
     fy.add_argument("action", nargs="?", default="",
                     help="<zkratka> | zalozit | kapitan | zakladatel | smazat")
     fy.add_argument("cil", nargs="?", default="", help="název firmy / zkratka / e-mail")
-    fy.add_argument("--kapitan", dest="email", default="", help="e-mail kapitána")
+    fy.add_argument("--kapitan", dest="email", default="", help="e-mail generála")
     fy.add_argument("--odebrat", action="store_true", help="zakladatel: odebrat právo")
     fy.add_argument("--druh", default="klienti", choices=sorted(firmy.DRUHY),
                     help="zalozit: klienti (agentura) nebo projekty (firma pro sebe)")

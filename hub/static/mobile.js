@@ -48,7 +48,11 @@
     drawerMisto();
   }
 
+  /* Po dlouhém stisku (nabídka „Zavřít“ u chatu) šuplík chvíli nejde zavřít:
+     doznívající klepnutí ho jinak zavřelo a nabídka zůstala viset bez něj. */
+  let nezavirat = 0;
   function closeDrawer() {
+    if (Date.now() < nezavirat) return;
     document.body.classList.remove('drawer-open');
     if (scrim) scrim.hidden = true;
     hledatZavri();
@@ -327,6 +331,7 @@
       fired = false;
       timer = setTimeout(() => {
         fired = true;
+        nezavirat = Date.now() + 1200;
         target.dispatchEvent(new MouseEvent('contextmenu', {
           bubbles: true, cancelable: true,
           clientX: start.x, clientY: start.y,
@@ -341,6 +346,11 @@
       if (Math.abs(t.clientX - start.x) > MOVE_TOLERANCE ||
           Math.abs(t.clientY - start.y) > MOVE_TOLERANCE) cancel();
     }, {passive: true});
+
+    // Klepnutí, které po podržení přijde za prstem, se nesmí dostat k položce ani k šuplíku.
+    document.addEventListener('click', (ev) => {
+      if (Date.now() < nezavirat && !ev.target.closest('#ctxmenu')) { ev.preventDefault(); ev.stopPropagation(); }
+    }, true);
 
     document.addEventListener('touchend', (ev) => {
       // Po vyvolané nabídce nesmí projít i klepnutí, jinak se rovnou otevře tab.
@@ -373,7 +383,12 @@
        Klávesnice = výřez o kus nižší než nejvyšší, jaký byl v téhle šířce. */
     const isApp = document.body.classList.contains('is-app');
     const tallest = {};
-    let pending = 0, last = 0, lastTop = 0;
+    let pending = 0, last = 0, lastTop = 0, kbdBylo = false;
+    // Chat zůstane u nejnovější zprávy, když vyjede / zajede klávesnice (cteni.js).
+    const dolu = () => {
+      const ev = () => window.dispatchEvent(new Event('hub-klavesnice'));
+      ev(); requestAnimationFrame(ev); setTimeout(ev, 120); setTimeout(ev, 350);
+    };
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                 (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     document.body.classList.toggle('is-ios', ios);
@@ -388,6 +403,7 @@
         root.style.setProperty('--app-h', h + 'px');
         last = h;
       }
+      if (kbd !== kbdBylo) { kbdBylo = kbd; dolu(); }
       /* iPhone: Safari při vyjetí klávesnice posune vizuální výřez nahoru
          (vv.offsetTop), aby bylo vidět pole. Vracení posunu přes scrollTo se
          s ním přetahovalo — hlavička ujela pod stavový řádek a obrazovka
@@ -419,7 +435,86 @@
     vv.addEventListener('scroll', nudge);
     // Po zavření klávesnice (fokus pryč z pole) ještě jednou, až dojede animace.
     document.addEventListener('focusout', () => setTimeout(nudge, 350));
+    document.addEventListener('focusin', (ev) => {
+      const t = ev.target;
+      if (t && (t.tagName === 'TEXTAREA' || t.tagName === 'INPUT')) dolu();
+    });
+    // Při psaní (pole roste o řádek) se chat drží dole.
+    document.addEventListener('input', (ev) => {
+      if (ev.target && ev.target.tagName === 'TEXTAREA') dolu();
+    });
     sync();
+  }
+
+  /* ── iPhone: lišta nad klávesnicí (šipky ↑ ↓ a fajfka) ─────────────────── */
+  /* Safari ji ukazuje, když je na stránce víc polí: šipky přeskakují mezi nimi.
+     Po dobu psaní proto ostatní pole nejdou „tabem“ (tabindex -1) — zůstane jen
+     nejnutnější lišta a šipky jsou šedé. Úplně vypnout ji iOS webu nedovolí. */
+  if (touch) {
+    const POLE = 'input, textarea, select, [contenteditable="true"]';
+    let upraveno = [];
+    document.addEventListener('focusin', (ev) => {
+      const t = ev.target;
+      if (!t || !t.matches || !t.matches(POLE)) return;
+      for (const x of upraveno) x.removeAttribute('tabindex');
+      upraveno = [];
+      for (const x of document.querySelectorAll(POLE)) {
+        if (x === t || x.hasAttribute('tabindex')) continue;
+        x.setAttribute('tabindex', '-1');
+        upraveno.push(x);
+      }
+    });
+    document.addEventListener('focusout', () => setTimeout(() => {
+      if (document.activeElement && document.activeElement.matches && document.activeElement.matches(POLE)) return;
+      for (const x of upraveno) x.removeAttribute('tabindex');
+      upraveno = [];
+    }, 300));
+  }
+
+  /* ── zatřesení = nahlásit chybu ───────────────────────────────────────────── */
+  /* Na telefonu v liště není tlačítko Chyba / Návrh (Verxee Debug). Zatřesení
+     otevře formulář, ve kterém se dá přepnout na návrh. iPhone si o pohyb
+     říká povolením — to se vyžádá při prvním klepnutí. */
+  if (touch && 'DeviceMotionEvent' in window) {
+    let poslední = 0, trhnuti = 0, zapnuto = false;
+    const otevri = () => {
+      const vx = $('btn-verxee');
+      if (!vx || vx.hidden) return;                // bez klíče (Verxee Debug) se nic neděje
+      document.dispatchEvent(new KeyboardEvent('keydown',
+        {key: 'B', code: 'KeyB', altKey: true, shiftKey: true, bubbles: true}));
+    };
+    const naPohyb = (ev) => {
+      const a = ev.accelerationIncludingGravity || ev.acceleration;
+      if (!a) return;
+      const g = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+      const ted = Date.now();
+      const sila = ev.accelerationIncludingGravity ? Math.abs(g - 9.81) : g;
+      if (sila < 18) return;
+      if (ted - trhnuti > 900) trhnuti = 0;
+      if (!trhnuti) { trhnuti = ted; poslední = ted; return; }
+      if (ted - poslední < 120) return;
+      poslední = ted;
+      trhnuti = 0;
+      if (ted - (naPohyb.naposled || 0) < 4000) return;
+      naPohyb.naposled = ted;
+      otevri();
+    };
+    const zapni = async () => {
+      if (zapnuto) return;
+      try {
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+          const r = await DeviceMotionEvent.requestPermission();
+          if (r !== 'granted') return;
+        }
+        window.addEventListener('devicemotion', naPohyb);
+        zapnuto = true;
+      } catch (_) { /* bez povolení se jen netřese */ }
+    };
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      document.addEventListener('touchend', zapni, {once: true});
+    } else {
+      zapni();
+    }
   }
 
   /* ── service worker ───────────────────────────────────────────────────── */

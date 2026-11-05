@@ -27,13 +27,13 @@ sdílených napojení a chatů a místo, kde se otevírá chat.
 
 | role | co smí |
 |---|---|
-| **kapitán** | všechno ve firmě: lidi, role, klienty, podkategorie, přístupy, mazat |
+| **generál** | všechno ve firmě: lidi, role, klienty, podkategorie, přístupy, mazat |
 | **člen** | číst a zapisovat tam, kam vidí; mazat jen s příznakem `mazat` |
 | **host** | jen číst tam, kam vidí |
 
 **Kdo co vidí:**
 
-- Kapitán vidí celou firmu.
+- Generál vidí celou firmu.
 - Člen a host vidí **obecné věci firmy** — všechno mimo `Klienti/`.
 - U firmy s projekty je **projekt** skrytý a zpřístupňuje se jednou úrovní.
 - **Klient** je ve výchozím stavu skrytý. Kdo dostane přístup ke klientovi, vidí
@@ -82,7 +82,7 @@ dělá brána (`firmy.prejmenovat`) a přepíše i cesty v `pristupy`.
 
 Dnešní firemní trezor se stane firmou se zkratkou `firma` — **nic se
 nestěhuje**, adresář zůstává `HUB_GW_COMPANY_DIR`. Lidé a role se pro ni
-odvozují z dnešní správy přístupů: admin → kapitán, `write` → člen (s `mazat`),
+odvozují z dnešní správy přístupů: admin → generál, `write` → člen (s `mazat`),
 `read` → host, `none` → není členem. Výchozí `HUB_GW_COMPANY_DEFAULT` platí dál,
 takže na serveru, kde nikdo další firmu nezaloží, je všechno jako dřív:
 stejné cesty, stejné pokyny pro Clauda, stejné tlačítko Přístupy.
@@ -128,14 +128,14 @@ odebranému člověku brána zastaví hned).
 Většinu dokumentace bude psát Claude. Každá firma, klient i podkategorie může
 mít vlastní `CLAUDE.md` — co do složky patří, co ne (citlivé údaje, finance),
 jak pojmenovávat poznámky. Pokyn firemního tabu říká: **před zápisem do složky
-si přečti `CLAUDE.md` v ní a ve všech složkách nad ní.** Kapitán je píše jako
+si přečti `CLAUDE.md` v ní a ve všech složkách nad ní.** Generál je píše jako
 každou jinou poznámku. Nová podkategorie dostane výchozí `CLAUDE.md`.
 
 ## Správa v appce: Nastavení → Firmy
 
 - **Založit firmu:** admin a účty, kterým to admin povolí (Nastavení → Tým
-  „smí zakládat firmy"). Kdo firmu založí, je její kapitán.
-- **Kapitán:** lidi (přidat existující účet, nebo pozvat nový — heslo vymyslí
+  „smí zakládat firmy"). Kdo firmu založí, je její generál.
+- **Generál:** lidi (přidat existující účet, nebo pozvat nový — heslo vymyslí
   brána jako v Týmu), role a `mazat`, klienti a podkategorie (založit,
   přejmenovat, smazat = odložit stranou), přístupy.
 - **Přehled „kdo kam vidí":** tabulka lidé × klienti a podkategorie se
@@ -203,11 +203,11 @@ bwrap) — výpis přímo v jmenném prostoru sandboxu (`nsenter -m`), ne jen v 
 | zápis do Finance odmítnut | ✅ |
 | nový přístup → „přístupy se změnily“ → po restartu vidí i Marketing | ✅ |
 | zavřený klient → nečinný prostor zastaven hned | ✅ |
-| host nezapisuje, člen bez „smí mazat“ nemaže, kapitán vidí vše | ✅ |
+| host nezapisuje, člen bez „smí mazat“ nemaže, generál vidí vše | ✅ |
 | napojení a chat sdílené podkategorii: má jen ten, kdo do ní vidí (tajemství nikdo) | ✅ |
 | chat uložený do podkategorie → „Pokračovat u sebe“ ho zapíše do prostoru člena | ✅ |
 | dnešní firma beze změny (role z přístupů, trezor v prostoru jako dřív) | ✅ |
 
 Logika je navíc pokrytá zkouškou nanečisto (52 kontrol, bez sandboxu) — i to, že
 odebráním přístupu napojení zmizí u další zprávy a že `Klienti/` v dnešní firmě
-se neskrývá, dokud to kapitán nezapne.
+se neskrývá, dokud to generál nezapne.

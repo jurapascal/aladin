@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="1024" height="1024">
+  <!-- Aladin: vlastní kresba džina se zkříženýma rukama — černá postava na bílém,
+       nahoře i dole stejný okraj. -->
+  <rect width="512" height="512" rx="112" fill="#ffffff"/>
+  <g transform="translate(0,-12)">
+  <g fill="#111111">
+    <!-- Plamínek nad turbanem -->
+    <path d="M254 44 C 280 54, 288 82, 270 104 C 266 92, 258 84, 246 82 C 258 74, 262 60, 254 44 Z"/>
+    <!-- Turban: vysoký, nahoře do špičky, dole užší -->
+    <path d="M200 176 C 188 150, 192 122, 212 104 C 228 92, 246 88, 256 86 C 266 88, 284 92, 300 104 C 320 122, 324 150, 312 176 Z"/>
+    <!-- Obličej: protáhlý, ostrá brada s bradkou -->
+    <path d="M206 172 L 306 172 C 308 190, 306 214, 300 230 C 294 248, 280 260, 268 266 L 256 288 L 244 266 C 232 260, 218 248, 212 230 C 206 214, 204 190, 206 172 Z"/>
+    <!-- Uši -->
+    <path d="M206 196 C 196 194, 192 204, 196 214 C 198 222, 204 226, 210 224 Z"/>
+    <path d="M306 196 C 316 194, 320 204, 316 214 C 314 222, 308 226, 302 224 Z"/>
+    <!-- Krk -->
+    <path d="M236 262 L 276 262 L 280 286 L 232 286 Z"/>
+    <!-- Ramena, paže a hruď -->
+    <path d="M118 318 C 114 292, 132 276, 162 270 C 190 264, 214 266, 232 278 L 256 302 L 280 278 C 298 266, 322 264, 350 270 C 380 276, 398 292, 394 318 L 388 366 C 384 386, 368 396, 348 396 L 164 396 C 144 396, 128 386, 124 366 Z"/>
+    <!-- Pás z dýmu stočený do ocasu -->
+    <path d="M190 394 L 322 394 C 318 410, 300 420, 280 428 C 252 438, 236 448, 240 462 C 244 474, 264 476, 272 466 C 268 460, 268 454, 276 450 C 292 456, 292 476, 276 484 C 248 498, 216 482, 216 456 C 216 434, 238 422, 256 416 C 232 418, 204 408, 190 394 Z"/>
+    <!-- Obláčky dýmu -->
+    <path d="M182 432 C 172 432, 166 424, 170 416 C 174 408, 184 408, 188 414 C 196 412, 202 420, 198 428 C 194 434, 188 434, 182 432 Z"/>
+    <path d="M330 432 C 340 432, 346 424, 342 416 C 338 408, 328 408, 324 414 C 316 412, 310 420, 314 428 C 318 434, 324 434, 330 432 Z"/>
+    <circle cx="190" cy="458" r="7"/>
+    <circle cx="326" cy="458" r="6"/>
+  </g>
+  <!-- Bílé kresby uvnitř siluety -->
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Ovinutí turbanu -->
+    <path d="M204 156 C 226 138, 286 138, 308 156" stroke-width="5"/>
+    <path d="M198 128 C 230 112, 282 112, 314 128" stroke-width="5"/>
+    <!-- Hrudní svaly -->
+    <path d="M176 302 C 200 292, 224 296, 242 310" stroke-width="5"/>
+    <path d="M336 302 C 312 292, 288 296, 270 310" stroke-width="5"/>
+    <!-- Paže podél těla (bicepsy) -->
+    <path d="M150 300 C 140 322, 140 346, 152 366" stroke-width="5"/>
+    <path d="M362 300 C 372 322, 372 346, 360 366" stroke-width="5"/>
+    <!-- Vnitřní linka dýmu -->
+    <path d="M262 422 C 242 432, 230 446, 236 462" stroke-width="4"/>
+  </g>
+  <g fill="#ffffff">
+    <!-- Šperk na turbanu -->
+    <ellipse cx="256" cy="132" rx="12" ry="15"/>
+    <!-- Lem turbanu -->
+    <path d="M204 168 L 308 168 L 306 178 L 206 178 Z"/>
+  </g>
+  <!-- Klidný sebevědomý obličej: otevřené mandlové oči, rovné obočí, jemný úsměv -->
+  <g fill="#ffffff">
+    <path d="M249 211 C 242 204, 230 202, 220 204 C 226 214, 240 216, 249 211 Z"/>
+    <path d="M263 211 C 270 204, 282 202, 292 204 C 286 214, 272 216, 263 211 Z"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M218 193 C 228 190, 240 192, 250 199" stroke-width="4"/>
+    <path d="M294 193 C 284 190, 272 192, 262 199" stroke-width="4"/>
+    <!-- Nos: hřbet a spodní oblouček -->
+    <path d="M256 214 L 256 227" stroke-width="3"/>
+    <path d="M249 232 C 252 235, 255 234, 256 232 C 257 234, 260 235, 263 232" stroke-width="3"/>
+    <path d="M243 244 C 250 250, 262 250, 269 243" stroke-width="4"/>
+  </g>
+  <g fill="#111111"><ellipse cx="256" cy="132" rx="6" ry="8"/></g>
+  <!-- Zkřížená předloktí do X: spodní a přes něj horní (bílý obrys = mezera), manžety u zápěstí -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M362 322 L 156 376" stroke="#ffffff" stroke-width="54"/>
+    <path d="M362 322 L 156 376" stroke="#111111" stroke-width="40"/>
+    <path d="M150 322 L 356 376" stroke="#ffffff" stroke-width="54"/>
+    <path d="M150 322 L 356 376" stroke="#111111" stroke-width="40"/>
+    <path d="M319 348 L 310 383" stroke="#ffffff" stroke-width="5"/>
+    <path d="M193 348 L 202 383" stroke="#ffffff" stroke-width="5"/>
+  </g>
+  </g>
+</svg>

@@ -24,7 +24,7 @@ počítači správce) omezení nepřenese — poznámka na nové cestě je pro v
 
 Každá firma (gateway/firmy.py) má registr ve své složce. U dnešní firmy
 (`firma`) jsou správci poznámek pevný seznam jako dřív, u nových firem jsou
-to její kapitáni. Klienty a podkategorie (výchozí skrytí) hlídá firmy.py —
+to její generálové. Klienty a podkategorie (výchozí skrytí) hlídá firmy.py —
 tady se jen přidají ke skrytým cestám.
 """
 import contextlib
@@ -79,7 +79,7 @@ def _load(firma=LEGACY):
         data = {}
     managers = [int(u) for u in data.get("spravci") or [] if isinstance(u, int)]
     if firma != LEGACY:
-        managers = firmy.kapitani(firma)     # u nových firem spravují kapitáni
+        managers = firmy.kapitani(firma)     # u nových firem spravují generálové
     out = {"spravci": managers}
     for key in ("poznamky", "slozky"):
         rules = data.get(key) if isinstance(data.get(key), dict) else {}

@@ -1182,7 +1182,9 @@
          zajíždění trvá a po celou dobu se výška okna přepočítávala po kouscích (mobile.js, visualViewport):
          konverzace i pole poskakovaly nahoru a dolů, pokaždé když se něco odeslalo. Chat tak jede
          v jednom kuse (jako v appkách na zprávy) a klávesnici si zavře člověk sám. */
-      input.focus({preventScroll: true});
+      /* Telefon: po odeslání klávesnice zajede (psaní dál je jedno klepnutí). Na počítači pole fokus drží. */
+      if (document.body.classList.contains('is-touch')) input.blur();
+      else input.focus({preventScroll: true});
     }
 
     function insert(text, {focus = true} = {}) {

@@ -821,6 +821,11 @@ def _google_command():
     return "uvx", ["workspace-mcp"]
 
 
+def _google_cs_dir():
+    """Složka se sitecustomize.py, který dá přihlášení ke Googlu českou stránku s fajfkou."""
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "google_cs")
+
+
 def _ensure_mcp_timeout():
     """Give MCP servers 2 minutes to connect (default 30 s) so one slow start (npx/uvx cold cache) does not
     leave a session without that server's tools."""
@@ -855,7 +860,8 @@ def _ensure_google_server():
     if isinstance(entry, dict) and entry.get("command") == cmd and entry.get("args") == args and \
             env.get("GOOGLE_OAUTH_CLIENT_ID") == cid and \
             env.get("USER_GOOGLE_EMAIL", "") == default and \
-            env.get("ALLOWED_FILE_DIRS") == GOOGLE_FILE_DIRS:
+            env.get("ALLOWED_FILE_DIRS") == GOOGLE_FILE_DIRS and \
+            env.get("PYTHONPATH") == _google_cs_dir():
         return {"ok": True}
     if entry:
         _run([claude, "mcp", "remove", GOOGLE_MCP_NAME, "-s", "user"], 30)
@@ -863,7 +869,8 @@ def _ensure_google_server():
     r = _run([claude, "mcp", "add", GOOGLE_MCP_NAME, "-s", "user",
               "-e", f"GOOGLE_OAUTH_CLIENT_ID={cid}",
               "-e", f"GOOGLE_OAUTH_CLIENT_SECRET={secret}",
-              "-e", f"ALLOWED_FILE_DIRS={GOOGLE_FILE_DIRS}", *extra,
+              "-e", f"ALLOWED_FILE_DIRS={GOOGLE_FILE_DIRS}",
+              "-e", f"PYTHONPATH={_google_cs_dir()}", *extra,
               "--", cmd, *args])
     if r.returncode != 0:
         return {"ok": False, "detail": (r.stderr or r.stdout or "nepovedlo se").strip()[:300]}

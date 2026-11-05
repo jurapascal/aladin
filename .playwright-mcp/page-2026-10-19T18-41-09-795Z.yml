@@ -1,0 +1,646 @@
+- generic [ref=e20]:
+  - banner [ref=e21]:
+    - generic [ref=e22]:
+      - generic [ref=e24]:
+        - generic [ref=e27]:
+          - button "Chaty" [pressed] [ref=e28] [cursor=pointer]
+          - generic:
+            - status:
+              - generic: "3"
+        - generic [ref=e35]:
+          - button "Hovory" [ref=e36] [cursor=pointer]
+          - generic:
+            - status:
+              - generic: "1"
+        - button "Stav" [ref=e44] [cursor=pointer]
+        - button "Kanály" [ref=e52] [cursor=pointer]
+        - generic [ref=e59]:
+          - button "Komunity" [ref=e60] [cursor=pointer]
+          - generic:
+            - status
+        - separator [ref=e65]
+        - button "Meta AI" [ref=e69] [cursor=pointer]
+      - generic [ref=e72]:
+        - button "Média" [ref=e76] [cursor=pointer]
+        - button "Vy" [ref=e84] [cursor=pointer]
+  - generic [ref=e87]:
+    - banner [ref=e88]:
+      - banner [ref=e89]:
+        - generic [ref=e90]:
+          - heading [level=2] [ref=e92]:
+            - generic "WhatsApp" [ref=e96]:
+              - img "wa-wordmark"
+          - generic [ref=e98]:
+            - button "Nabídka" [ref=e101] [cursor=pointer]
+            - button "Nový chat" [ref=e2015] [cursor=pointer]
+    - generic [ref=e114]:
+      - textbox "Vyhledejte chat nebo zahajte nový" [ref=e125]
+      - tablist "chat-list-filters" [ref=e126]:
+        - tab "Vše" [selected] [ref=e129] [cursor=pointer]:
+          - generic "Vše" [ref=e133]
+        - tab "Nepřečtené 3" [ref=e2020] [cursor=pointer]:
+          - generic [ref=e141]:
+            - generic "Nepřečtené" [ref=e143]
+            - generic [ref=e147]: "3"
+        - tab "Oblíbené" [ref=e151] [cursor=pointer]:
+          - generic "Oblíbené" [ref=e155]
+        - tab "Skupiny 1" [ref=e161] [cursor=pointer]:
+          - generic [ref=e163]:
+            - generic "Skupiny" [ref=e165]
+            - generic [ref=e169]: "1"
+        - tab "Nový seznam" [ref=e173] [cursor=pointer]
+      - generic [ref=e180]:
+        - button "Zavřít" [ref=e183] [cursor=pointer]
+        - generic [ref=e192]:
+          - text: Upozornění na zprávy a hovory jsou vypnutá.
+          - button "Zapnout" [ref=e193] [cursor=pointer]
+      - generic [ref=e194]:
+        - grid "Seznam chatů" [ref=e197]:
+          - row [ref=e198]:
+            - 'gridcell "Taťka | Osobní číslo 15:01 přidal/a reakci ❤️ na zprávu: \" 2 fotografie\" Připnutý chat Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e199]':
+              - generic [ref=e200]:
+                - generic [ref=e210] [cursor=pointer]:
+                  - gridcell "Taťka | Osobní číslo 15:01" [ref=e211]:
+                    - generic "Taťka | Osobní číslo" [ref=e215]
+                    - generic [ref=e216]: 15:01
+                  - generic [ref=e219]:
+                    - generic "‪2 fotografie‬" [ref=e221]:
+                      - generic [ref=e222]:
+                        - text: přidal/a reakci
+                        - img "❤️" [ref=e223]
+                        - text: "na zprávu:"
+                      - text: "\""
+                      - generic [ref=e227]: 2 fotografie"
+                    - gridcell [ref=e228]:
+                      - generic "Připnutý chat" [ref=e230]
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e232]:
+            - gridcell [ref=e233]:
+              - generic [ref=e234]:
+                - generic [ref=e244] [cursor=pointer]:
+                  - gridcell "Jiří Boucník (Vy) Včera" [ref=e245]:
+                    - generic [ref=e248]:
+                      - generic "Jiří Boucník" [ref=e249]
+                      - generic [ref=e250]: (Vy)
+                    - generic [ref=e251]: Včera
+                  - generic [ref=e254]:
+                    - 'generic "‪Přidáno v úterý v 23:46 konečně po všem okolo. URL: https://820849.myshoptet.com/admin/ Login: info@wcollagen.cz Heslo: CjuaV-2y8d2-RoGCG-hglcK 👍‬" [ref=e256]':
+                      - generic [ref=e259]:
+                        - text: "Přidáno v úterý v 23:46 konečně po všem okolo. URL: https://820849.myshoptet.com/admin/ Login: info@wcollagen.cz Heslo: CjuaV-2y8d2-RoGCG-hglcK"
+                        - img "👍" [ref=e260]
+                    - gridcell [ref=e261]:
+                      - generic "Připnutý chat" [ref=e263]
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e265]:
+            - gridcell "Koťátko moje 🥰 ❤️ 10. 10. 2026 3 videa Připnutý chat" [ref=e266]:
+              - generic [ref=e274] [cursor=pointer]:
+                - gridcell "Koťátko moje 🥰 ❤️ 10. 10. 2026" [ref=e275]:
+                  - generic "Koťátko moje 🥰❤️" [ref=e279]:
+                    - text: Koťátko moje
+                    - img "🥰" [ref=e280]
+                    - img "❤️" [ref=e281]
+                  - generic [ref=e282]: 10. 10. 2026
+                - generic [ref=e285]:
+                  - generic "‪3 videa‬" [ref=e287]: 3 videa
+                  - gridcell [ref=e293]:
+                    - generic "Připnutý chat" [ref=e295]
+          - row [ref=e2021]:
+            - gridcell "+420 777 870 904 20:37 0:26 Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e2022]:
+              - generic [ref=e475]:
+                - generic [ref=e485] [cursor=pointer]:
+                  - gridcell "+420 777 870 904 20:37" [ref=e2023]:
+                    - generic "+420 777 870 904" [ref=e491]
+                    - generic [ref=e492]: 20:37
+                  - generic [ref=e495]:
+                    - generic "‪0:26‬" [ref=e2024]: 0:26
+                    - gridcell
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e297]:
+            - 'gridcell "BB - IT 20:35 IT - BB x krekr pendulum Vy : Pendulum má fmožnot MCP akap řidat si do aplikace claudíka napojení konektor na pendulum to samé má i freelo a když to uděláš tak stačí říct claudíkovi že má z freela projekt conponsan dát do pendulum" [ref=e298]':
+              - generic [ref=e311] [cursor=pointer]:
+                - generic [ref=e312]:
+                  - generic "BB - IT" [ref=e313]
+                  - generic [ref=e314]: 20:35
+                - gridcell "IT - BB x krekr pendulum" [ref=e317]:
+                  - generic [ref=e318]:
+                    - generic "IT - BB x krekr pendulum" [ref=e319]
+                    - gridcell
+                - generic "‪Pendulum má fmožnot MCP akap řidat si do aplikace claudíka napojení konektor na pendulum to samé má i freelo a když to uděláš tak stačí říct claudíkovi že má z freela projekt conponsan dát do pendulum‬" [ref=e322]:
+                  - generic [ref=e325]: Vy
+                  - generic [ref=e328]: ":"
+                  - generic [ref=e329]: Pendulum má fmožnot MCP akap řidat si do aplikace claudíka napojení konektor na pendulum to samé má i freelo a když to uděláš tak stačí říct claudíkovi že má z freela projekt conponsan dát do pendulum
+          - row [ref=e2029]:
+            - 'gridcell "Tomáš Peška | E-shopy apod. 20:41 Čau, koukal jsem na to padání. Server nepadá, zamrzá ti stránka v prohlížeči — máš pár obřích chatů (20–60 MB, hodně screenshotů) a ty ji při načtení zaseknou. Včera ti navíc server párkrát shodil Clauda kvůli paměti. Než to opravím: zavři staré dlouhé taby a radši začínej nové chaty, a nenech Clauda pouštět hromadně další Claudy přes claude -p ve tvém tabu. Opravu, aby hub velké chaty zvládl, teď dělám. Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e2030]':
+              - generic [ref=e332]:
+                - generic [ref=e342] [cursor=pointer]:
+                  - gridcell "Tomáš Peška | E-shopy apod. 20:41" [ref=e2031]:
+                    - generic "Tomáš Peška | E-shopy apod." [ref=e347]
+                    - generic [ref=e348]: 20:41
+                  - generic [ref=e351]:
+                    - 'generic "‪Čau, koukal jsem na to padání. Server nepadá, zamrzá ti stránka v prohlížeči — máš pár obřích chatů (20–60 MB, hodně screenshotů) a ty ji při načtení zaseknou. Včera ti navíc server párkrát shodil Clauda kvůli paměti. Než to opravím: zavři staré dlouhé taby a radši začínej nové chaty, a nenech Clauda pouštět hromadně další Claudy přes claude -p ve tvém tabu. Opravu, aby hub velké chaty zvládl, teď dělám.‬" [ref=e2032]': "Čau, koukal jsem na to padání. Server nepadá, zamrzá ti stránka v prohlížeči — máš pár obřích chatů (20–60 MB, hodně screenshotů) a ty ji při načtení zaseknou. Včera ti navíc server párkrát shodil Clauda kvůli paměti. Než to opravím: zavři staré dlouhé taby a radši začínej nové chaty, a nenech Clauda pouštět hromadně další Claudy přes claude -p ve tvém tabu. Opravu, aby hub velké chaty zvládl, teď dělám."
+                    - gridcell
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e355]:
+            - gridcell "Petr Kadlec 20:09 0:04 Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e356]:
+              - generic [ref=e357]:
+                - generic [ref=e367] [cursor=pointer]:
+                  - gridcell "Petr Kadlec 20:09" [ref=e368]:
+                    - generic "Petr Kadlec" [ref=e372]
+                    - generic [ref=e373]: 20:09
+                  - generic [ref=e376]:
+                    - generic "‪0:04‬" [ref=e378]: 0:04
+                    - gridcell
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e384]:
+            - 'gridcell "4 nepřečtené zprávy Krekrrr 18:34 Freelo: Petr Hnát tě přiřadil(a) k úkolu Úkol: Klíčová slova Projekt: KUMO Otevři ho tlačítkem níž." [ref=e385]':
+              - generic [ref=e393] [cursor=pointer]:
+                - gridcell "4 nepřečtené zprávy Krekrrr 18:34" [ref=e394]:
+                  - generic [ref=e395]:
+                    - generic [ref=e396]: 4 nepřečtené zprávy
+                    - generic "Krekrrr" [ref=e399]
+                  - generic [ref=e400]: 18:34
+                - generic [ref=e403]:
+                  - 'generic "‪Freelo: Petr Hnát tě přiřadil(a) k úkolu Úkol: Klíčová slova Projekt: KUMO Otevři ho tlačítkem níž.‬" [ref=e405]': "Freelo: Petr Hnát tě přiřadil(a) k úkolu Úkol: Klíčová slova Projekt: KUMO Otevři ho tlačítkem níž."
+                  - gridcell [ref=e407]:
+                    - generic [ref=e408]: "4"
+          - row [ref=e412]:
+            - 'gridcell "EMBLIGO 18:14 11 nepřečtených zpráv Hejlovec | E-shop Jakub Vostal : jes no jasne 😂 🤦‍♂️" [ref=e413]':
+              - generic [ref=e425] [cursor=pointer]:
+                - generic [ref=e426]:
+                  - generic "EMBLIGO" [ref=e427]
+                  - generic [ref=e428]: 18:14
+                - gridcell "11 nepřečtených zpráv Hejlovec | E-shop" [ref=e431]:
+                  - generic [ref=e432]:
+                    - generic [ref=e433]: 11 nepřečtených zpráv
+                    - generic "Hejlovec | E-shop" [ref=e434]
+                    - gridcell [ref=e435]:
+                      - generic [ref=e436]: "11"
+                - generic "‪jes no jasne😂🤦‍♂️‬" [ref=e442]:
+                  - generic [ref=e443]: Jakub Vostal
+                  - generic [ref=e446]: ":"
+                  - generic [ref=e447]:
+                    - text: jes no jasne
+                    - img "😂" [ref=e448]
+                    - img "🤦‍♂️" [ref=e449]
+          - row [ref=e450]:
+            - gridcell [ref=e451]:
+              - generic [ref=e459] [cursor=pointer]:
+                - gridcell "Petr Hemza 17:58" [ref=e460]:
+                  - generic "Petr Hemza" [ref=e464]
+                  - generic [ref=e465]: 17:58
+                - generic [ref=e468]:
+                  - generic "‪Super! To zní skvěle. Těším se na meeting 😊‬" [ref=e470]:
+                    - generic [ref=e471]:
+                      - text: Super! To zní skvěle. Těším se na meeting
+                      - img "😊" [ref=e472]
+                  - gridcell
+          - row [ref=e504]:
+            - 'gridcell "EMBLIGO 15:56 Pokeccc | E-shop Přidal/a jste reakci ❤️ na zprávu: \" To byl dotaz odeme\"" [ref=e505]':
+              - generic [ref=e517] [cursor=pointer]:
+                - generic [ref=e518]:
+                  - generic "EMBLIGO" [ref=e519]
+                  - generic [ref=e520]: 15:56
+                - gridcell "Pokeccc | E-shop" [ref=e523]:
+                  - generic [ref=e524]:
+                    - generic "Pokeccc | E-shop" [ref=e525]
+                    - gridcell
+                - generic "‪To byl dotaz odeme‬" [ref=e528]:
+                  - generic [ref=e529]:
+                    - text: Přidal/a jste reakci
+                    - img "❤️" [ref=e530]
+                    - text: "na zprávu:"
+                  - text: "\""
+                  - generic [ref=e532]: To byl dotaz odeme"
+          - row [ref=e533]:
+            - gridcell "Sabina Hloušková | Customer Care 15:55 Ou... já zapomněl napravím promiň Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e534]:
+              - generic [ref=e535]:
+                - generic [ref=e536] [cursor=pointer]:
+                  - generic [ref=e542]:
+                    - img [aria-hidden]:
+                      - generic: S
+                  - generic [ref=e545]:
+                    - gridcell "Sabina Hloušková | Customer Care 15:55" [ref=e546]:
+                      - generic "Sabina Hloušková | Customer Care" [ref=e550]
+                      - generic [ref=e551]: 15:55
+                    - generic [ref=e554]:
+                      - generic "‪Ou... já zapomněl napravím promiň‬" [ref=e556]: Ou... já zapomněl napravím promiň
+                      - gridcell
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e560]:
+            - 'gridcell "EMBLIGO 15:12 LukoM | E-shop Jakub Vostal : podle me uz je hotové bro" [ref=e561]':
+              - generic [ref=e573] [cursor=pointer]:
+                - generic [ref=e574]:
+                  - generic "EMBLIGO" [ref=e575]
+                  - generic [ref=e576]: 15:12
+                - gridcell "LukoM | E-shop" [ref=e579]:
+                  - generic [ref=e580]:
+                    - generic "LukoM | E-shop" [ref=e581]
+                    - gridcell
+                - generic "‪podle me uz je hotové bro‬" [ref=e584]:
+                  - generic [ref=e585]: Jakub Vostal
+                  - generic [ref=e588]: ":"
+                  - generic [ref=e589]: podle me uz je hotové bro
+          - row [ref=e590]:
+            - gridcell [ref=e591]:
+              - generic [ref=e599] [cursor=pointer]:
+                - gridcell "Marek Mynář | Maris 15:07" [ref=e600]:
+                  - generic "Marek Mynář | Maris" [ref=e604]
+                  - generic [ref=e605]: 15:07
+                - generic [ref=e608]:
+                  - generic "‪Dobře. Chápu 😎 díky moc za info‬" [ref=e610]:
+                    - generic [ref=e613]:
+                      - text: Dobře. Chápu
+                      - img "😎" [ref=e614]
+                      - text: díky moc za info
+                  - gridcell
+          - row [ref=e615]:
+            - gridcell "Magdaléna Kryštofová 14:55 Určitě můžeme. Kdy se ti to hodí? Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e616]:
+              - generic [ref=e617]:
+                - generic [ref=e627] [cursor=pointer]:
+                  - gridcell "Magdaléna Kryštofová 14:55" [ref=e628]:
+                    - generic "Magdaléna Kryštofová" [ref=e632]
+                    - generic [ref=e633]: 14:55
+                  - generic [ref=e636]:
+                    - generic "‪Určitě můžeme. Kdy se ti to hodí?‬" [ref=e638]: Určitě můžeme. Kdy se ti to hodí?
+                    - gridcell
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e642]:
+            - 'gridcell "EMBLIGO 12:32 Celofiremní chat Martina Pešková : @Jakub Vostal | Grafik prosim vyrobni list shai" [ref=e643]':
+              - generic [ref=e655] [cursor=pointer]:
+                - generic [ref=e656]:
+                  - generic "EMBLIGO" [ref=e657]
+                  - generic [ref=e658]: 12:32
+                - gridcell "Celofiremní chat" [ref=e661]:
+                  - generic [ref=e662]:
+                    - generic "Celofiremní chat" [ref=e663]
+                    - gridcell
+                - generic "‪@Jakub Vostal | Grafik prosim vyrobni list shai‬" [ref=e666]:
+                  - generic [ref=e667]: Martina Pešková
+                  - generic [ref=e670]: ":"
+                  - generic [ref=e671]:
+                    - generic [ref=e672]: "@Jakub Vostal | Grafik"
+                    - text: prosim vyrobni list shai
+          - row [ref=e673]:
+            - gridcell "+420 734 544 748 12:20 staci free verze jen si tam udelas ucet a pres dns nebo code to propojis" [ref=e674]:
+              - generic [ref=e676] [cursor=pointer]:
+                - generic [ref=e682]:
+                  - img [aria-hidden]:
+                    - generic: D
+                - generic [ref=e683]:
+                  - gridcell "+420 734 544 748 12:20" [ref=e684]:
+                    - generic "+420 734 544 748" [ref=e688]
+                    - generic [ref=e689]: 12:20
+                  - generic [ref=e692]:
+                    - generic "‪staci free verze jen si tam udelas ucet a pres dns nebo code to propojis‬" [ref=e694]: staci free verze jen si tam udelas ucet a pres dns nebo code to propojis
+                    - gridcell
+          - row [ref=e696]:
+            - 'gridcell "AI Buržoazie 10:32 Tomáš Peška : @Barbora Svobodová | Spolubydlim @Lumír Hendrych | Buržoazní Marketing @Adam Uher | Co - Founder Brněnské Buržoazie Nejspíš Renča Janáková poprosím o reakci na toto" [ref=e697]':
+              - generic [ref=e706] [cursor=pointer]:
+                - gridcell "AI Buržoazie 10:32" [ref=e707]:
+                  - generic "AI Buržoazie" [ref=e709]
+                  - generic [ref=e710]: 10:32
+                - generic [ref=e713]:
+                  - generic "‪@Barbora Svobodová | Spolubydlim @Lumír Hendrych | Buržoazní Marketing @Adam Uher | Co - Founder Brněnské Buržoazie @~Renča Janáková poprosím o reakci na toto‬" [ref=e715]:
+                    - generic [ref=e716]: Tomáš Peška
+                    - generic [ref=e719]: ":"
+                    - generic [ref=e720]:
+                      - generic [ref=e721]: "@Barbora Svobodová | Spolubydlim"
+                      - generic [ref=e722]: "@Lumír Hendrych | Buržoazní Marketing"
+                      - generic [ref=e723]: "@Adam Uher | Co - Founder Brněnské Buržoazie"
+                      - generic "Nejspíš Renča Janáková" [ref=e724]: "@~Renča Janáková"
+                      - text: poprosím o reakci na toto
+                  - gridcell
+          - row [ref=e725]:
+            - gridcell "Martina Pešková | Tiskárna Lančov s.r.o. Včera Dobrý den, na SMS vám došel kód Meta . Poslala byste mi ho prosím? Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat." [ref=e726]:
+              - generic [ref=e727]:
+                - generic [ref=e737] [cursor=pointer]:
+                  - gridcell "Martina Pešková | Tiskárna Lančov s.r.o. Včera" [ref=e738]:
+                    - generic "Martina Pešková | Tiskárna Lančov s.r.o." [ref=e742]
+                    - generic [ref=e743]: Včera
+                  - generic [ref=e746]:
+                    - generic "‪Dobrý den, na SMS vám došel kód Meta . Poslala byste mi ho prosím?‬" [ref=e748]: Dobrý den, na SMS vám došel kód Meta . Poslala byste mi ho prosím?
+                    - gridcell
+                - generic "Nové zprávy z tohoto chatu 90 dnů po poslání zmizí, kromě těch, které se někdo z uživatelů rozhodne v chatu ponechat."
+          - row [ref=e752]:
+            - gridcell "Facebook Včera Přihlásil(a) jste se právě na novém zařízení? Zdravíme, Jiří, zaznamenali jsme neobvyklé přihlášení k vašemu Meta účtu. Pokud jste to nebyl(a) vy, pomůžeme vám v pár snadných krocích účet zabezpečit." [ref=e753]:
+              - generic [ref=e761] [cursor=pointer]:
+                - gridcell "Facebook Včera" [ref=e762]:
+                  - generic "Facebook" [ref=e766]
+                  - generic [ref=e767]: Včera
+                - generic [ref=e770]:
+                  - generic "‪Přihlásil(a) jste se právě na novém zařízení? Zdravíme, Jiří, zaznamenali jsme neobvyklé přihlášení k vašemu Meta účtu. Pokud jste to nebyl(a) vy, pomůžeme vám v pár snadných krocích účet zabezpečit.‬" [ref=e772]: Přihlásil(a) jste se právě na novém zařízení? Zdravíme, Jiří, zaznamenali jsme neobvyklé přihlášení k vašemu Meta účtu. Pokud jste to nebyl(a) vy, pomůžeme vám v pár snadných krocích účet zabezpečit.
+                  - gridcell
+        - generic [ref=e776]:
+          - text: Vaše osobní zprávy jsou
+          - button "opatřené koncovým šifrováním" [ref=e778] [cursor=pointer]
+          - text: .
+  - generic [ref=e860]:
+    - banner [ref=e862]:
+      - generic [ref=e863]:
+        - button "Údaje na profilu" [ref=e864] [cursor=pointer]
+        - button "Tomáš Peška | E-shopy apod. naposledy viděn/a dnes v 20:32" [ref=e2035] [cursor=pointer]:
+          - generic [ref=e871]: Tomáš Peška | E-shopy apod.
+          - generic "naposledy viděn/a dnes v 20:32" [ref=e2037]
+      - generic [ref=e880]:
+        - button "Videohovor" [ref=e884] [cursor=pointer]
+        - button "Hovor" [ref=e892] [cursor=pointer]
+        - button "Hledat" [ref=e900] [cursor=pointer]
+        - button "Nabídka" [ref=e908] [cursor=pointer]
+    - generic [ref=e917]:
+      - generic [ref=e919]: Pokud chcete zobrazit zprávy z období před 30. 5. 2026, otevřete WhatsApp na telefonu.
+      - generic [ref=e923]:
+        - generic [ref=e2038]: Včera
+        - generic [ref=e2041]:
+          - 'row "Tomáš Peška | E-shopy apod.: Vis co od toho tady sou jini 22:15 Toto je zpráva určená k automatickému odstranění." [ref=e2043]':
+            - generic [ref=e2048]:
+              - generic [ref=e2051]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e2053]:
+                  - generic [ref=e2054]: Vis co od toho tady sou jini
+                  - generic [ref=e2058]: 22:15
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Lidi 22:15 Toto je zpráva určená k automatickému odstranění." [ref=e2062]:
+            - generic [ref=e2067]:
+              - generic [ref=e2071]:
+                - generic [ref=e2072]: Lidi
+                - generic [ref=e2076]: 22:15
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Tomas olbort ma 20 3d riskaren napis mu 22:16 Toto je zpráva určená k automatickému odstranění." [ref=e2080]:
+            - generic [ref=e2085]:
+              - generic [ref=e2089]:
+                - generic [ref=e2090]: Tomas olbort ma 20 3d riskaren napis mu
+                - generic [ref=e2094]: 22:16
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: Treba by ti pomohl 22:16 Toto je zpráva určená k automatickému odstranění." [ref=e2098]':
+            - generic [ref=e2103]:
+              - generic [ref=e2105]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e2107]:
+                  - generic [ref=e2108]: Treba by ti pomohl
+                  - generic [ref=e2112]: 22:16
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - row [ref=e950]
+        - generic [ref=e953]:
+          - 'row "Tomáš Peška | E-shopy apod.: Stim 22:16 Toto je zpráva určená k automatickému odstranění." [ref=e1972]':
+            - generic [ref=e1975]:
+              - generic [ref=e1978]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1980]:
+                  - generic [ref=e1981]: Stim
+                  - generic [ref=e1985]: 22:16
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: Jasny no 22:16 Toto je zpráva určená k automatickému odstranění." [ref=e1988]':
+            - generic [ref=e1991]:
+              - generic [ref=e1993]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1995]:
+                  - generic [ref=e1996]: Jasny no
+                  - generic [ref=e2000]: 22:16
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Vy: Máme kontakt? 22:16 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e964]':
+          - generic [ref=e969]:
+            - generic [ref=e972]:
+              - generic "Vy:"
+              - generic [ref=e974]:
+                - generic [ref=e975]: Máme kontakt?
+                - button "22:16 Přečteno" [ref=e980] [cursor=pointer]:
+                  - generic [ref=e981]: 22:16
+                  - generic "Přečteno" [ref=e983]:
+                    - img "wds-ic-read"
+            - generic "Toto je zpráva určená k automatickému odstranění."
+        - generic [ref=e984]:
+          - 'row "Tomáš Peška | E-shopy apod.: Jojo 22:16 Toto je zpráva určená k automatickému odstranění." [ref=e986]':
+            - generic [ref=e991]:
+              - generic [ref=e994]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e996]:
+                  - generic [ref=e997]: Jojo
+                  - generic [ref=e1001]: 22:16
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "+420 731 445 155 22:16 Toto je zpráva určená k automatickému odstranění." [ref=e1005]:
+            - generic [ref=e1010]:
+              - generic [ref=e1014]:
+                - generic [ref=e1015]: +420 731 445 155
+                - generic [ref=e1020]: 22:16
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Hele inak na firmne mame pevnou linku 22:19 Toto je zpráva určená k automatickému odstranění." [ref=e1024]:
+            - generic [ref=e1029]:
+              - generic [ref=e1033]:
+                - generic [ref=e1034]: Hele inak na firmne mame pevnou linku
+                - generic [ref=e1038]: 22:19
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Kdyby jsme potrebovlai 22:19 Toto je zpráva určená k automatickému odstranění." [ref=e1042]:
+            - generic [ref=e1047]:
+              - generic [ref=e1051]:
+                - generic [ref=e1052]: Kdyby jsme potrebovlai
+                - generic [ref=e1056]: 22:19
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "😂 😂 22:19 Toto je zpráva určená k automatickému odstranění." [ref=e1060]:
+            - generic [ref=e1065]:
+              - generic [ref=e1069]:
+                - generic [ref=e1072]:
+                  - generic [ref=e1073]:
+                    - img "😂"
+                  - generic [ref=e1074]:
+                    - img "😂"
+                - generic [ref=e1075]: 22:19
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: Na to ai treba 22:19 Toto je zpráva určená k automatickému odstranění." [ref=e1079]':
+            - generic [ref=e1084]:
+              - generic [ref=e1086]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1088]:
+                  - generic [ref=e1089]: Na to ai treba
+                  - generic [ref=e1093]: 22:19
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Vy: Tam máme číslo už done 22:20 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1098]':
+          - generic [ref=e1103]:
+            - generic [ref=e1106]:
+              - generic "Vy:"
+              - generic [ref=e1108]:
+                - generic [ref=e1109]: Tam máme číslo už done
+                - button "22:20 Přečteno" [ref=e1114] [cursor=pointer]:
+                  - generic [ref=e1115]: 22:20
+                  - generic "Přečteno" [ref=e1117]:
+                    - img "wds-ic-read"
+            - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Tomáš Peška | E-shopy apod.: Jo ja jen kdyby ti to bylo k necemu 22:21 Toto je zpráva určená k automatickému odstranění." [ref=e1120]':
+          - generic [ref=e1125]:
+            - generic [ref=e1128]:
+              - generic "Tomáš Peška | E-shopy apod.:"
+              - generic [ref=e1130]:
+                - generic [ref=e1131]: Jo ja jen kdyby ti to bylo k necemu
+                - generic [ref=e1135]: 22:21
+            - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Vy: Jes 22:23 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1140]':
+          - generic [ref=e1145]:
+            - generic [ref=e1148]:
+              - generic "Vy:"
+              - generic [ref=e1150]:
+                - generic [ref=e1151]: Jes
+                - button "22:23 Přečteno" [ref=e1156] [cursor=pointer]:
+                  - generic [ref=e1157]: 22:23
+                  - generic "Přečteno" [ref=e1159]:
+                    - img "wds-ic-read"
+            - generic "Toto je zpráva určená k automatickému odstranění."
+        - generic [ref=e1160]:
+          - 'row "Tomáš Peška | E-shopy apod.: inak hub mi přestal kompltene fungovat nejde na nic kliknout ani v prohlížeci takže na to dneska jebu a jdu spát 22:25 Toto je zpráva určená k automatickému odstranění." [ref=e1162]':
+            - generic [ref=e1167]:
+              - generic [ref=e1170]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1172]:
+                  - generic [ref=e1173]: inak hub mi přestal kompltene fungovat nejde na nic kliknout ani v prohlížeci takže na to dneska jebu a jdu spát
+                  - generic [ref=e1177]: 22:25
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: XD 22:25 Toto je zpráva určená k automatickému odstranění." [ref=e1181]':
+            - generic [ref=e1186]:
+              - generic [ref=e1188]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1190]:
+                  - generic [ref=e1191]: XD
+                  - generic [ref=e1195]: 22:25
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Vy: Oukej 22:34 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1200]':
+          - generic [ref=e1205]:
+            - generic [ref=e1208]:
+              - generic "Vy:"
+              - generic [ref=e1210]:
+                - generic [ref=e1211]: Oukej
+                - button "22:34 Přečteno" [ref=e1216] [cursor=pointer]:
+                  - generic [ref=e1217]: 22:34
+                  - generic "Přečteno" [ref=e1219]:
+                    - img "wds-ic-read"
+            - generic "Toto je zpráva určená k automatickému odstranění."
+        - generic [ref=e1220]:
+          - 'row "Tomáš Peška | E-shopy apod.: Tedim se na zitrek 22:34 Toto je zpráva určená k automatickému odstranění." [ref=e1222]':
+            - generic [ref=e1227]:
+              - generic [ref=e1230]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1232]:
+                  - generic [ref=e1233]: Tedim se na zitrek
+                  - generic [ref=e1237]: 22:34
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: Rozjedem to 22:34 Toto je zpráva určená k automatickému odstranění." [ref=e1241]':
+            - generic [ref=e1246]:
+              - generic [ref=e1248]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1250]:
+                  - generic [ref=e1251]: Rozjedem to
+                  - generic [ref=e1255]: 22:34
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Vy: Jes 22:34 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1260]':
+          - generic [ref=e1265]:
+            - generic [ref=e1268]:
+              - generic "Vy:"
+              - generic [ref=e1270]:
+                - generic [ref=e1271]: Jes
+                - button "22:34 Přečteno" [ref=e1276] [cursor=pointer]:
+                  - generic [ref=e1277]: 22:34
+                  - generic "Přečteno" [ref=e1279]:
+                    - img "wds-ic-read"
+            - generic "Toto je zpráva určená k automatickému odstranění."
+        - generic [ref=e1280]: Dnes
+        - generic [ref=e1283]:
+          - 'row "Tomáš Peška | E-shopy apod.: Hele furt mi pada apla 12:55 Toto je zpráva určená k automatickému odstranění." [ref=e1285]':
+            - generic [ref=e1290]:
+              - generic [ref=e1293]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1295]:
+                  - generic [ref=e1296]: Hele furt mi pada apla
+                  - generic [ref=e1300]: 12:55
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Apka 12:55 Toto je zpráva určená k automatickému odstranění." [ref=e1304]:
+            - generic [ref=e1309]:
+              - generic [ref=e1313]:
+                - generic [ref=e1314]: Apka
+                - generic [ref=e1318]: 12:55
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Otevřít obrázek 12:55 Kontextová nabídka zprávy od Tomáš Peška | E-shopy apod. Přeposlat média Přidat reakci Toto je zpráva určená k automatickému odstranění." [ref=e2115]:
+            - generic [ref=e1327]:
+              - generic [ref=e1329]:
+                - generic [ref=e1331]:
+                  - button "Otevřít obrázek" [ref=e1332] [cursor=pointer]
+                  - generic [ref=e1341]: 12:55
+                - button "Kontextová nabídka zprávy od Tomáš Peška | E-shopy apod." [ref=e2116] [cursor=pointer]
+              - generic [ref=e1344]:
+                - button "Přeposlat média" [ref=e1346] [cursor=pointer]
+                - button "Přidat reakci" [ref=e2120] [cursor=pointer]
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: A nvm proc 12:55 Toto je zpráva určená k automatickému odstranění." [ref=e1349]':
+            - generic [ref=e1354]:
+              - generic [ref=e1356]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1358]:
+                  - generic [ref=e1359]: A nvm proc
+                  - generic [ref=e1363]: 12:55
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - generic [ref=e1366]:
+          - 'row "Vy: Pokeccc nedoplatek 700 něco. Mám vše zařízené dostanu co kde a jak najdeme 15:05 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1368]':
+            - generic [ref=e1373]:
+              - generic [ref=e1376]:
+                - generic "Vy:"
+                - generic [ref=e1378]:
+                  - generic [ref=e1379]: Pokeccc nedoplatek 700 něco. Mám vše zařízené dostanu co kde a jak najdeme
+                  - button "15:05 Přečteno" [ref=e1384] [cursor=pointer]:
+                    - generic [ref=e1385]: 15:05
+                    - generic "Přečteno" [ref=e1387]:
+                      - img "wds-ic-read"
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - row "Mají zákaznická zóna a klientská zóna 15:05 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1389]:
+            - generic [ref=e1394]:
+              - generic [ref=e1398]:
+                - generic [ref=e1399]: Mají zákaznická zóna a klientská zóna
+                - button "15:05 Přečteno" [ref=e1404] [cursor=pointer]:
+                  - generic [ref=e1405]: 15:05
+                  - generic "Přečteno" [ref=e1407]:
+                    - img "wds-ic-read"
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Vy: Ahoj, máme něaký Loom pro Peťu Kadlece na feedback nebo je to free? 20:29 Přečteno Toto je zpráva určená k automatickému odstranění." [ref=e1409]':
+            - generic [ref=e1414]:
+              - generic [ref=e1416]:
+                - generic "Vy:"
+                - generic [ref=e1418]:
+                  - generic [ref=e1419]: Ahoj, máme něaký Loom pro Peťu Kadlece na feedback nebo je to free?
+                  - button "20:29 Přečteno" [ref=e1424] [cursor=pointer]:
+                    - generic [ref=e1425]: 20:29
+                    - generic "Přečteno" [ref=e1427]:
+                      - img "wds-ic-read"
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - generic [ref=e1428]:
+          - 'row "Tomáš Peška | E-shopy apod.: předplat to a nech si to proplatiti a posílej to všem klidne 20:30 Toto je zpráva určená k automatickému odstranění." [ref=e1430]':
+            - generic [ref=e1435]:
+              - generic [ref=e1438]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1440]:
+                  - generic [ref=e1441]: předplat to a nech si to proplatiti a posílej to všem klidne
+                  - generic [ref=e1445]: 20:30
+              - generic "Toto je zpráva určená k automatickému odstranění."
+          - 'row "Tomáš Peška | E-shopy apod.: nebo jonáš má 20:30 Toto je zpráva určená k automatickému odstranění." [ref=e1449]':
+            - generic [ref=e1454]:
+              - generic [ref=e1456]:
+                - generic "Tomáš Peška | E-shopy apod.:"
+                - generic [ref=e1458]:
+                  - generic [ref=e1459]: nebo jonáš má
+                  - generic [ref=e1463]: 20:30
+              - generic "Toto je zpráva určená k automatickému odstranění."
+        - 'row "Vy: Čau, koukal jsem na to padání. Server nepadá, zamrzá ti stránka v prohlížeči — máš pár obřích chatů (20–60 MB, hodně screenshotů) a ty ji při načtení zaseknou. Včera ti navíc server párkrát shodil Clauda kvůli paměti. Než to opravím: zavři staré dlouhé taby a radši začínej nové chaty, a nenech Clauda pouštět hromadně další Claudy přes claude -p ve tvém tabu. Opravu, aby hub velké chaty zvládl, teď dělám. 20:41 Čeká na doručení Toto je zpráva určená k automatickému odstranění." [ref=e2124]':
+          - generic [ref=e2129]:
+            - generic [ref=e2132]:
+              - generic "Vy:"
+              - generic [ref=e2134]:
+                - generic [ref=e2135]: "Čau, koukal jsem na to padání. Server nepadá, zamrzá ti stránka v prohlížeči — máš pár obřích chatů (20–60 MB, hodně screenshotů) a ty ji při načtení zaseknou. Včera ti navíc server párkrát shodil Clauda kvůli paměti. Než to opravím: zavři staré dlouhé taby a radši začínej nové chaty, a nenech Clauda pouštět hromadně další Claudy přes claude -p ve tvém tabu. Opravu, aby hub velké chaty zvládl, teď dělám."
+                - generic [ref=e2140]:
+                  - generic [ref=e2141]: 20:41
+                  - generic "Čeká na doručení" [ref=e2143]:
+                    - img "wds-ic-status-pending"
+            - generic "Toto je zpráva určená k automatickému odstranění."
+    - contentinfo [ref=e1466]:
+      - generic [ref=e1472]:
+        - button "Připojit" [ref=e1476] [cursor=pointer]
+        - button "Emoji, GIFy, samolepky" [ref=e1485] [cursor=pointer]
+        - generic [ref=e1490]:
+          - textbox "Napište zprávu do chatu +420 731 666 394" [active] [ref=e1491]:
+            - paragraph [ref=e2144]
+          - generic: Napište zprávu
+        - button "Hlasová zpráva" [ref=e2146] [cursor=pointer]:
+          - button "Hlasová zpráva" [ref=e2150]

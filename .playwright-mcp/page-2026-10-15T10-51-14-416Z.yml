@@ -1,0 +1,21 @@
+- generic [active] [ref=f6e1]:
+  - banner [ref=f6e2]:
+    - button "Projekty a chaty" [ref=f6e3] [cursor=pointer]
+    - generic [ref=f6e6]:
+      - button "Úvodní stránka" [ref=f6e7] [cursor=pointer]
+      - button [ref=f6e10] [cursor=pointer]
+    - generic [ref=f6e11]:
+      - button "Nový chat" [ref=f6e12] [cursor=pointer]
+      - button "Nabídka" [ref=f6e15] [cursor=pointer]
+  - generic [ref=f6e18]:
+    - complementary [ref=f6e19]:
+      - generic [ref=f6e20]:
+        - strong [ref=f6e21]: Paluba
+        - button "Zavřít panel" [ref=f6e22] [cursor=pointer]
+      - navigation [ref=f6e25]:
+        - button "Nový chat" [ref=f6e26] [cursor=pointer]
+        - button [ref=f6e31] [cursor=pointer]
+        - button [ref=f6e35] [cursor=pointer]
+      - generic [ref=f6e39]: Chaty
+      - searchbox "Hledat chat…" [ref=f6e43]
+    - main [ref=f6e46]

@@ -1,0 +1,85 @@
+<!doctype html><html lang=cs><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Přihlášení — Paluba</title>
+<link rel=manifest href="/manifest.webmanifest">
+<link rel=icon href="/favicon.ico" sizes=any>
+<link rel=apple-touch-icon href="/icon-192.png">
+<meta name=theme-color content="#0d1117">
+<meta name=mobile-web-app-capable content=yes>
+<meta name=apple-mobile-web-app-capable content=yes>
+<meta name=apple-mobile-web-app-status-bar-style content=black-translucent>
+<meta name=apple-mobile-web-app-title content="Paluba">
+<style>
+:root{color-scheme:dark}
+*{box-sizing:border-box}
+body{font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;
+min-height:100vh;display:grid;place-items:center;background:#0d1117;color:#e6edf3;padding:24px}
+.card{width:100%;max-width:24rem;background:#1b2129;border:1px solid #30363d;
+border-radius:12px;padding:28px}
+h1{font-size:1.25rem;margin:0 0 4px}
+p.sub{margin:0 0 20px;color:#8b949e;font-size:.9rem}
+label{display:block;margin:14px 0 4px;font-size:.85rem;color:#c9d1d9}
+input{width:100%;padding:10px 12px;border-radius:8px;border:1px solid #30363d;
+background:#0d1117;color:#e6edf3;font-size:1rem}
+input:focus{outline:none;border-color:#4c97f0}
+button{margin-top:20px;width:100%;padding:11px;border:0;border-radius:8px;
+background:#4c97f0;color:#0d1117;font-weight:600;font-size:1rem;cursor:pointer}
+button:hover{background:#6aa9f4}
+.err{margin-top:14px;color:#ff7b72;font-size:.9rem;min-height:1.2em}
+a{color:#4c97f0}
+.card.wide{max-width:30rem}
+.steps{padding-left:1.2rem;margin:10px 0;font-size:.92rem;line-height:1.55;color:#c9d1d9}
+.qr{background:#fff;border-radius:10px;padding:10px;display:flex;justify-content:center;margin:12px 0}
+.qr svg{display:block;width:220px;height:220px}
+.hint{font-size:.85rem;color:#8b949e;margin:10px 0 0;line-height:1.5}
+code{font-family:ui-monospace,monospace;color:#4c97f0;overflow-wrap:anywhere}
+.key{display:block;margin-top:4px;font-size:1rem;letter-spacing:.02em}
+.codes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}
+.codes code{background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:7px;text-align:center;font-size:1rem;color:#e6edf3}
+a.button{display:block;text-align:center;margin-top:20px;padding:11px;border-radius:8px;
+background:#4c97f0;color:#0d1117;font-weight:600;text-decoration:none}
+</style>
+
+<form class=card method=post action="/login">
+<h1>Paluba</h1>
+<p class=sub>Přihlaš se ke svému účtu na serveru.</p>
+<label>E-mail</label>
+<input name=email type=email autocomplete=username autofocus required>
+<label>Heslo</label>
+<input name=password type=password autocomplete=current-password required>
+<button type=submit>Přihlásit se</button>
+<div class=err>Špatné heslo.</div>
+</form>
+<script>
+(() => {
+  if (!window.PublicKeyCredential) return;
+  const form = document.querySelector('form.card');
+  const b64d = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
+  const b64e = (b) => btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const sep = document.createElement('p'); sep.className = 'hint'; sep.style.textAlign = 'center'; sep.textContent = 'nebo';
+  const btn = document.createElement('button'); btn.type = 'button'; btn.id = 'pklogin';
+  btn.style.cssText = 'background:transparent;color:#4c97f0;border:1px solid #4c97f0;margin-top:6px';
+  btn.textContent = 'Přihlásit se passkeyem';
+  const err = document.createElement('div'); err.className = 'err'; err.id = 'pklogerr';
+  form.append(sep, btn, err);
+  const post = (body) => fetch('/login/passkey', {method: 'POST', credentials: 'same-origin',
+    headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)}).then((r) => r.json());
+  btn.onclick = async () => {
+    err.textContent = ''; btn.disabled = true;
+    try {
+      const o = await post({step: 'login-options'});
+      if (o.error) throw new Error(o.error);
+      const c = await navigator.credentials.get({publicKey: {challenge: b64d(o.challenge), rpId: o.rpId,
+        userVerification: 'required', timeout: 60000}});
+      const v = await post({step: 'login-verify', cid: o.cid, id: c.id, clientData: b64e(c.response.clientDataJSON),
+        authData: b64e(c.response.authenticatorData), signature: b64e(c.response.signature)});
+      if (v.error) throw new Error(v.error);
+      location.href = v.redirect || '/';
+    } catch (e) {
+      err.textContent = e && e.name === 'NotAllowedError' ? 'Přihlášení passkeyem bylo zrušené, nebo tu žádný passkey není.'
+                                                          : (e && e.message) || 'Přihlášení nevyšlo.';
+      btn.disabled = false;
+    }
+  };
+})();
+</script></html>

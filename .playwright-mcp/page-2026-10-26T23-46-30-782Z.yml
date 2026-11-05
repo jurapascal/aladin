@@ -1,0 +1,118 @@
+- generic [active] [ref=f7e1]:
+  - banner [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - button [ref=f7e4] [cursor=pointer]:
+        - strong [ref=f7e7]: Aladin
+      - button "Aladin na serveru" [ref=f7e8] [cursor=pointer]: Server
+      - button "Osobní" [ref=f7e9] [cursor=pointer]
+    - generic [ref=f7e14]:
+      - generic [ref=f7e15]:
+        - button "Nahlásit chybu" [ref=f7e16] [cursor=pointer]:
+          - generic [ref=f7e31]: Chyba
+        - button "Podat návrh" [ref=f7e32] [cursor=pointer]:
+          - generic [ref=f7e35]: Návrh
+      - button "Oznámení" [ref=f7e36] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f7e39] [cursor=pointer]
+      - button "Statistiky používání" [ref=f7e42] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f7e45] [cursor=pointer]
+  - generic [ref=f7e48]:
+    - complementary [ref=f7e49]:
+      - navigation [ref=f7e50]:
+        - button "Nový chat" [ref=f7e51] [cursor=pointer]
+        - button [ref=f7e56] [cursor=pointer]
+        - button [ref=f7e60] [cursor=pointer]
+      - generic [ref=f7e64]: Chaty
+      - generic [ref=f7e66]:
+        - searchbox "Hledat chat…" [ref=f7e68]
+        - button "Hledat v textu konverzací" [ref=f7e70] [cursor=pointer]
+        - generic [ref=f7e71]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f7e74]:
+        - button "A Anna Nováková" [ref=f7e75] [cursor=pointer]:
+          - generic [ref=f7e76]: A
+          - generic [ref=f7e77]: Anna Nováková
+        - button "v2.103.7" [ref=f7e78] [cursor=pointer]
+    - main [ref=f7e79]:
+      - generic [ref=f7e81]:
+        - generic [ref=f7e82]: ✻Dobrou noc, Anna.
+        - generic [ref=f7e83]:
+          - textbox "Na čem budeme pracovat?" [ref=f7e84]
+          - button "Odeslat" [ref=f7e87] [cursor=pointer]
+  - generic [ref=f7e91]:
+    - generic [ref=f7e92]:
+      - generic [ref=f7e93]: Nastavení
+      - button "Zavřít" [ref=f7e96] [cursor=pointer]: ×
+    - generic [ref=f7e97]:
+      - navigation [ref=f7e98]:
+        - search [ref=f7e99]:
+          - searchbox "Hledat" [ref=f7e100]
+        - generic [ref=f7e101]: Předvolby
+        - button "Vzhled" [ref=f7e102] [cursor=pointer]
+        - button "AI agenti" [ref=f7e106] [cursor=pointer]
+        - button "Účet" [ref=f7e110] [cursor=pointer]
+        - button "Firmy" [ref=f7e114] [cursor=pointer]
+        - button "Hlas" [ref=f7e118] [cursor=pointer]
+        - generic [ref=f7e122]: Přizpůsobit
+        - button "Panel vlevo" [ref=f7e123] [cursor=pointer]
+        - button "Napojení a pluginy" [ref=f7e127] [cursor=pointer]
+        - generic [ref=f7e131]: Platforma
+        - button "Úložiště" [ref=f7e132] [cursor=pointer]
+        - button "Oznámení" [ref=f7e136] [cursor=pointer]
+        - button "Aktualizace" [ref=f7e140] [cursor=pointer]
+        - button "Ostatní" [ref=f7e144] [cursor=pointer]
+      - generic [ref=f7e149]:
+        - generic [ref=f7e150]: Oznámení
+        - generic [ref=f7e151]: Lidem se oznámení ukáže pod zvonkem v liště. Tlačítko v oznámení otevře nový chat s Claudem a pošle mu zadání — člověk nemusí nic psát. Níž je vidět, kdo co dostal a co s tím udělal.
+        - generic [ref=f7e152]:
+          - generic [ref=f7e153]:
+            - generic [ref=f7e154]: Poslat oznámení
+            - generic [ref=f7e155]:
+              - generic [ref=f7e156] [cursor=pointer]:
+                - checkbox "Všichni" [ref=f7e157]
+                - generic [ref=f7e158]: Všichni
+              - generic "anna@firma.cz" [ref=f7e159] [cursor=pointer]:
+                - checkbox "Anna Nováková" [ref=f7e160]
+                - generic [ref=f7e161]: Anna Nováková
+              - generic "bob@firma.cz" [ref=f7e162] [cursor=pointer]:
+                - checkbox "Bob Dvořák" [ref=f7e163]
+                - generic [ref=f7e164]: Bob Dvořák
+              - generic "cyril@firma.cz" [ref=f7e165] [cursor=pointer]:
+                - checkbox "Cyril" [ref=f7e166]
+                - generic [ref=f7e167]: Cyril
+            - textbox "Nadpis (třeba „V sobotu ráno bude server chvíli stát\")" [ref=f7e168]
+            - textbox "Text pro lidi" [ref=f7e169]
+            - textbox "Zadání pro Clauda (nepovinné) — s ním dostane oznámení tlačítko, které otevře chat a zadání pošle" [ref=f7e170]
+            - textbox "Popisek tlačítka (výchozí „Vyřešit s Claudem\")" [ref=f7e171]
+            - combobox [ref=f7e172] [cursor=pointer]:
+              - option "Informace" [selected]
+              - option "Upozornění"
+              - option "Důležité"
+            - button "Poslat" [ref=f7e174] [cursor=pointer]
+          - generic [ref=f7e175]:
+            - generic [ref=f7e176]:
+              - generic [ref=f7e177]: Kdo co dostal
+              - generic [ref=f7e178]:
+                - button "Vše" [ref=f7e179] [cursor=pointer]
+                - button "Místo na disku" [ref=f7e180] [cursor=pointer]
+                - button "Od adminů" [ref=f7e181] [cursor=pointer]
+            - button "před 3 min Bob Dvořák V sobotu ráno bude server chvíli stát přečteno" [ref=f7e183] [cursor=pointer]:
+              - generic [ref=f7e184]: před 3 min
+              - generic [ref=f7e185]: Bob Dvořák
+              - generic [ref=f7e186]: V sobotu ráno bude server chvíli stát
+              - generic [ref=f7e187]: přečteno
+            - button "před 3 min Anna Nováková V sobotu ráno bude server chvíli stát přečteno" [ref=f7e189] [cursor=pointer]:
+              - generic [ref=f7e190]: před 3 min
+              - generic [ref=f7e191]: Anna Nováková
+              - generic [ref=f7e192]: V sobotu ráno bude server chvíli stát
+              - generic [ref=f7e193]: přečteno
+            - generic [ref=f7e194]:
+              - button "před 3 min Anna Nováková Došlo ti místo na serveru přečteno" [ref=f7e195] [cursor=pointer]:
+                - generic [ref=f7e196]: před 3 min
+                - generic [ref=f7e197]: Anna Nováková
+                - generic [ref=f7e198]: Došlo ti místo na serveru
+                - generic [ref=f7e199]: přečteno
+              - generic [ref=f7e200]:
+                - generic [ref=f7e201]: "Od: Systém · přečteno před 2 min · tehdy zabíral(a) 119 MB, teď 119 MB · text ze šablony"
+                - generic [ref=f7e202]: Tvůj prostor zabírá 119 MB z 82 MB (146 %). Nejvíc místa berou mezipaměti (55 MB) a projekty a složky (43 MB). Bez ztráty čehokoli důležitého jde uvolnit asi 86 MB — hlavně mezipaměti a věci, které se dají znovu stáhnout. Klikni na „Vyřešit s Claudem“ — Claude to projde a před smazáním se tě zeptá.
+                - generic [ref=f7e203]: "Zadání pro Clauda (tlačítko „Vyřešit s Claudem\"):"
+                - generic [ref=f7e204]: "Pomoz mi uvolnit místo v mém prostoru na serveru. Zabírám 119 MB z limitu 82 MB (146 %). Co jde podle rozboru uvolnit bez ztráty (stáhne se nebo nainstaluje znovu, nebo je to kopie): - Mezipaměť ~/.cache/puppeteer — 55 MB, naposledy použitá před 60 dny - node_modules v projektu ~/stary-web — 25 MB, v projektu se nepracovalo 60 dní - 2 stejné kopie souboru ~/Stažené/faktura.pdf — navíc 6 MB Ke zvážení — tohle jen ukaž a zeptej se mě: - Archiv ~/fotky.zip — 11 MB, starý 60 dní Důležité: nejdřív si velikosti ověř (du -sh). Pak mi ukaž seznam, co navrhuješ smazat, s velikostí u každé položky, a počkej na můj souhlas — nic nemaž bez mého výslovného „ano“. Mezipaměti čisti jejich vlastními příkazy, kde to jde (uv cache prune, npm cache clean --force, pnpm store prune). Na Obsidian, chaty Clauda (~/.claude/projects), dokumenty a projekty nesahej, dokud to neodsouhlasím u konkrétní položky. Na konci napiš, kolik místa se uvolnilo."
+    - button "Spustit průvodce znovu" [ref=f7e206] [cursor=pointer]

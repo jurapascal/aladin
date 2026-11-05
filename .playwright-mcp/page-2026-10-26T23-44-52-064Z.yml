@@ -1,0 +1,115 @@
+- generic [ref=f4e1]:
+  - banner [ref=f4e2]:
+    - generic [ref=f4e3]:
+      - button [ref=f4e4] [cursor=pointer]:
+        - strong [ref=f4e7]: Aladin
+      - button "Aladin na serveru" [ref=f4e46] [cursor=pointer]: Server
+      - button "Osobní" [ref=f4e47] [cursor=pointer]
+    - generic [ref=f4e9]:
+      - generic [ref=f4e52]:
+        - button "Nahlásit chybu" [ref=f4e53] [cursor=pointer]:
+          - generic [ref=f4e68]: Chyba
+        - button "Podat návrh" [ref=f4e69] [cursor=pointer]:
+          - generic [ref=f4e72]: Návrh
+      - button "Oznámení" [active] [ref=f4e101] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f4e10] [cursor=pointer]
+      - button "Statistiky používání" [ref=f4e13] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f4e16] [cursor=pointer]
+  - generic [ref=f4e19]:
+    - complementary [ref=f4e20]:
+      - navigation [ref=f4e21]:
+        - button "Nový chat" [ref=f4e22] [cursor=pointer]
+        - button [ref=f4e76] [cursor=pointer]
+        - button [ref=f4e80] [cursor=pointer]
+      - generic [ref=f4e31]: Chaty
+      - generic [ref=f4e33]:
+        - searchbox "Hledat chat…" [ref=f4e35]
+        - button "Hledat v textu konverzací" [ref=f4e85] [cursor=pointer]
+        - generic [ref=f4e86]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f4e37]:
+        - button "A Anna Nováková" [ref=f4e88] [cursor=pointer]:
+          - generic [ref=f4e89]: A
+          - generic [ref=f4e90]: Anna Nováková
+        - button "v2.103.7" [ref=f4e91] [cursor=pointer]
+    - main [ref=f4e38]:
+      - generic [ref=f4e45]:
+        - generic [ref=f4e92]: ✻Dobrou noc, Anna.
+        - generic [ref=f4e93]:
+          - textbox "Na čem budeme pracovat?" [ref=f4e94]
+          - button "Odeslat" [ref=f4e97] [cursor=pointer]
+  - generic [ref=f4e125]:
+    - generic [ref=f4e126]:
+      - generic [ref=f4e127]: Nastavení
+      - button "Zavřít" [ref=f4e130] [cursor=pointer]: ×
+    - generic [ref=f4e131]:
+      - navigation [ref=f4e132]:
+        - search [ref=f4e133]:
+          - searchbox "Hledat" [ref=f4e134]
+        - generic [ref=f4e135]: Předvolby
+        - button "Vzhled" [ref=f4e136] [cursor=pointer]
+        - button "AI agenti" [ref=f4e140] [cursor=pointer]
+        - button "Účet" [ref=f4e144] [cursor=pointer]
+        - button "Firmy" [ref=f4e148] [cursor=pointer]
+        - button "Hlas" [ref=f4e152] [cursor=pointer]
+        - generic [ref=f4e156]: Přizpůsobit
+        - button "Panel vlevo" [ref=f4e157] [cursor=pointer]
+        - button "Napojení a pluginy" [ref=f4e161] [cursor=pointer]
+        - generic [ref=f4e165]: Platforma
+        - button "Úložiště" [ref=f4e166] [cursor=pointer]
+        - button "Oznámení" [ref=f4e170] [cursor=pointer]
+        - button "Aktualizace" [ref=f4e174] [cursor=pointer]
+        - button "Ostatní" [ref=f4e178] [cursor=pointer]
+      - generic [ref=f4e183]:
+        - generic [ref=f4e184]: Vzhled
+        - generic [ref=f4e185]:
+          - generic [ref=f4e186]:
+            - generic [ref=f4e187]:
+              - generic [ref=f4e188]: Motiv
+              - generic [ref=f4e189]: Barvy, písmo a rozložení okna. Další najdeš v Aladin Marketu.
+            - combobox [ref=f4e190] [cursor=pointer]:
+              - option "Výchozí Aladin"
+              - option "Claude" [selected]
+              - option "Kompaktní"
+              - option "Námořní"
+              - option "Papír"
+          - generic [ref=f4e191]:
+            - generic [ref=f4e192]: Režim
+            - generic [ref=f4e194]:
+              - button "Podle systému" [ref=f4e195] [cursor=pointer]
+              - button "Světlý" [ref=f4e198] [cursor=pointer]
+              - button "Tmavý" [ref=f4e201] [cursor=pointer]
+          - generic [ref=f4e204]:
+            - generic [ref=f4e205]:
+              - generic [ref=f4e206]: Písmo odpovědí
+              - generic [ref=f4e207]: Čím se píše text Claudových odpovědí.
+            - combobox [ref=f4e208] [cursor=pointer]:
+              - option "Výchozí (patkové)" [selected]
+              - option "Bezpatkové"
+              - option "Patkové"
+          - generic [ref=f4e209]:
+            - generic [ref=f4e210]: Velikost textu konverzace
+            - combobox [ref=f4e212] [cursor=pointer]:
+              - option "Menší"
+              - option "Střední" [selected]
+              - option "Větší"
+              - option "Největší"
+          - generic [ref=f4e213]:
+            - generic [ref=f4e214]: Šířka konverzace
+            - combobox [ref=f4e216] [cursor=pointer]:
+              - option "Úzká"
+              - option "Výchozí" [selected]
+              - option "Široká"
+          - generic [ref=f4e217]:
+            - generic [ref=f4e218]:
+              - generic [ref=f4e219]: Animace
+              - generic [ref=f4e220]: Skřítci, plynulé přechody a pulzování.
+            - combobox [ref=f4e221] [cursor=pointer]:
+              - option "Podle systému" [selected]
+              - option "Vypnuté"
+              - option "Zapnuté"
+          - generic [ref=f4e222]:
+            - generic [ref=f4e223]:
+              - generic [ref=f4e224]: Stavový řádek nad konverzací
+              - generic [ref=f4e225]: Model, větev, odhad ceny a čas. Jen na tomhle zařízení.
+            - checkbox [checked] [ref=f4e226]
+    - button "Spustit průvodce znovu" [ref=f4e228] [cursor=pointer]

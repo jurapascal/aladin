@@ -1,0 +1,19 @@
+- generic [active] [ref=f5e1]:
+  - banner [ref=f5e2]:
+    - generic [ref=f5e3]:
+      - button [ref=f5e4] [cursor=pointer]:
+        - strong [ref=f5e7]: Aladin
+      - button [ref=f5e8] [cursor=pointer]
+    - generic [ref=f5e9]:
+      - button "Přepnout světlý/tmavý režim" [ref=f5e10] [cursor=pointer]
+      - button "Statistiky používání" [ref=f5e13] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f5e16] [cursor=pointer]
+  - generic [ref=f5e19]:
+    - complementary [ref=f5e20]:
+      - navigation [ref=f5e21]:
+        - button "Nový chat" [ref=f5e22] [cursor=pointer]
+        - button [ref=f5e27] [cursor=pointer]
+      - generic [ref=f5e31]: Chaty
+      - searchbox "Hledat chat…" [ref=f5e35]
+    - main [ref=f5e38]:
+      - button "Nový chat" [ref=f5e40] [cursor=pointer]

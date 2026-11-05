@@ -1,0 +1,6 @@
+- generic [ref=e5]:
+  - generic [ref=e8]: Probíhá načítání chatů (0 %)...
+  - progressbar [ref=e10]
+  - generic [ref=e11]: Opatřeno koncovým šifrováním
+  - button "Odhlásit se" [ref=e15] [cursor=pointer]
+  - generic [ref=e13]: Toto okno nezavírejte. Probíhá stahování zpráv.

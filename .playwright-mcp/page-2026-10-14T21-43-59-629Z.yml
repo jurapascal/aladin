@@ -1,0 +1,37 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]: Paluba
+    - generic [ref=f2e7]: "Prostor: Bára Svobodová · Správa předplatného"
+    - button "← Zpět do svého" [ref=f2e8] [cursor=pointer]:
+      - text: ←
+      - generic [ref=f2e9]: Zpět do svého
+  - main [ref=f2e10]:
+    - heading "Správa předplatného" [level=1] [ref=f2e11]
+    - paragraph [ref=f2e12]: Nastavuješ, na čem jede Claude v prostoru Bára Svobodová. Nic jiného tady nevidíš ani neměníš.
+    - generic [ref=f2e13]:
+      - generic [ref=f2e14]: Claude v prostoru
+      - generic [ref=f2e15]: Firemní přístup
+    - generic [ref=f2e19]:
+      - generic [ref=f2e20]: Připojit vlastní předplatné Claude
+      - list [ref=f2e21]:
+        - listitem [ref=f2e22]:
+          - generic [ref=f2e23]: "1"
+          - generic [ref=f2e24]:
+            - generic [ref=f2e25]: Začni přihlášení
+            - generic [ref=f2e26]: Připraví odkaz na přihlášení k účtu Claude.
+        - listitem [ref=f2e27]:
+          - generic [ref=f2e28]: "2"
+          - generic [ref=f2e29]:
+            - generic [ref=f2e30]: Přihlas se a potvrď
+            - generic [ref=f2e31]: Otevře se stránka Claude — přihlas se účtem s předplatným a potvrď přístup.
+            - link "Otevřít přihlášení Claude ↗" [ref=f2e32] [cursor=pointer]:
+              - /url: https://x
+        - listitem [ref=f2e33]:
+          - generic [ref=f2e34]: "3"
+          - generic [ref=f2e35]:
+            - generic [ref=f2e36]: Vlož kód
+            - generic [ref=f2e37]: Po potvrzení ti Claude ukáže kód — zkopíruj ho sem.
+            - generic [ref=f2e38]:
+              - textbox "Kód ze stránky Claude" [ref=f2e39]
+              - button "Odeslat" [ref=f2e40] [cursor=pointer]
+            - button "Zrušit přihlášení" [ref=f2e41] [cursor=pointer]

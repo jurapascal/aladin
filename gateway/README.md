@@ -314,23 +314,23 @@ s rolí; jeden účet může být ve víc firmách. Dnešní firemní Obsidian j
   jen dokud je firma bez klientů / projektů — plná složka by jinak přestala být
   skrytá. Trezor firmy je `/home/hub/firmy/<zkratka>/Brain`.
 
-- **Role ve firmě:** *kapitán* (všechno: lidi, role, klienti, přístupy, mazání),
+- **Role ve firmě:** *generál* (všechno: lidi, role, klienti, přístupy, mazání),
   *člen* (čte a zapisuje, maže jen s příznakem „smí mazat“), *host* (jen čte).
-  V dnešní firmě se role odvozuje z přístupů výš: admin → kapitán, `write` →
+  V dnešní firmě se role odvozuje z přístupů výš: admin → generál, `write` →
   člen, `read` → host, `none` → není členem.
 - **Kdo co vidí:** obecné věci firmy (všechno mimo `Klienti/`, resp. `Projekty/`)
   každý člen. Klient, podkategorie i projekt jsou ve výchozím stavu skryté:
   přístup ke klientovi = soubory přímo v jeho složce, podkategorie chce i
   přístup ke klientovi; projekt je jedna úroveň.
-  Kapitán vidí všechno. Skrývá se natvrdo jako omezená poznámka (`mask_args`);
+  Generál vidí všechno. Skrývá se natvrdo jako omezená poznámka (`mask_args`);
   přes `Klienti/` a viditelné klienty se členům tmpfs položí vždycky, takže
   klient nebo podkategorie založená za běhu se jim neukáže (ani po restartu
-  bez přístupu). V dnešní firmě to platí, až to kapitán zapne.
+  bez přístupu). V dnešní firmě to platí, až to generál zapne.
 - **Nastavení → Firmy:** založit firmu (admin a účty, kterým to admin povolí —
   `claude-hub-admin firmy zakladatel <e-mail>`), druh firmy, lidi a role, pozvat nového
   člověka (heslo vymyslí brána; do dnešní firmy pak automaticky nepatří),
   klienti a podkategorie (nebo projekty) a tabulka „kdo kam vidí“, smazání
-  firmy (kapitán / admin; složka se odloží do `firmy/_smazana-<zkratka>-<čas>`).
+  firmy (generál / admin; složka se odloží do `firmy/_smazana-<zkratka>-<čas>`).
   Brána `GET/POST /gw/firmy`, změny jen ze stránky hubu (`X-Hub-Account`).
 - **V hubu: prostor okna.** Vedle „Server“ v hlavičce je přepínač *Osobní /
   firmy* (každé okno zvlášť, `sessionStorage`). Podle něj se řídí „Nový chat“
@@ -359,7 +359,7 @@ s rolí; jeden účet může být ve víc firmách. Dnešní firemní Obsidian j
   `firmy/zmeny.jsonl`. Z příkazové řádky: `claude-hub-admin firmy`
   (přehled), `firmy <zkratka>` (lidé a přístupy), `firmy zalozit "Název"
   --kapitan <e-mail> [--druh projekty]`, `firmy kapitan <zkratka> --kapitan
-  <e-mail>` (záchrana firmy bez kapitána), `firmy smazat <zkratka>`.
+  <e-mail>` (záchrana firmy bez generála), `firmy smazat <zkratka>`.
 
 ## Soubory v Obsidianech (PDF, obrázky, tabulky…)
 

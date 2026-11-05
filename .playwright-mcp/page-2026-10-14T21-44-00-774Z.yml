@@ -1,0 +1,11 @@
+- generic [ref=f3e2]:
+  - heading "Paluba" [level=1] [ref=f3e3]
+  - paragraph [ref=f3e4]: Přihlaš se ke svému účtu na serveru.
+  - generic [ref=f3e5]: E-mail
+  - textbox [active] [ref=f3e6]
+  - generic [ref=f3e7]: Heslo
+  - textbox [ref=f3e8]
+  - button "Přihlásit se" [ref=f3e9] [cursor=pointer]
+  - generic [ref=f3e10]: Špatné heslo.
+  - paragraph [ref=f3e11]: nebo
+  - button "Přihlásit se passkeyem" [ref=f3e12] [cursor=pointer]

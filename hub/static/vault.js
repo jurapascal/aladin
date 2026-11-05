@@ -591,7 +591,7 @@
     clearTimeout(saveTimer);
     q('.vault-modes').hidden = !canEdit();
     // Přejmenovat a smazat umí hub jen v osobním trezoru — do společných
-    // zapisuje brána až po potvrzení karty. Ve firmě maže brána: kapitán a člen
+    // zapisuje brána až po potvrzení karty. Ve firmě maže brána: generál a člen
     // s právem mazat (gateway/firmy.py).
     q('.vault-rename').hidden = !canEdit() || proposes();
     q('.vault-del').hidden = !canDelete();

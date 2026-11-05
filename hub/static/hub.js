@@ -714,7 +714,7 @@ function openVault(path, vault, title) {
     readonly: firma && (vault === 'firma' ? !!STATE.firma && STATE.firma.level === 'read'
                                           : !f || f.role === 'host'),
     admin: vault === 'firma' && !!STATE.firma && !!STATE.firma.admin,
-    // Mazat ve firmě: kapitán a člen s právem mazat (gateway/firmy.py).
+    // Mazat ve firmě: generál a člen s právem mazat (gateway/firmy.py).
     mazat: firma && !!f && (f.role === 'kapitan' || !!f.mazat),
     obsidian: !firma && !shared && !onServer() && !!STATE.obsidian,
     openInObsidian: (p) => api('open-path', {kind: 'vault-note', file: p})
@@ -783,7 +783,7 @@ function firmaOf(v) {
   const slug = v === 'firma' ? 'firma' : String(v || '').slice(6);
   return firmyList().find((f) => f.zkratka === slug) || null;
 }
-const ROLE_FIRMY = {kapitan: 'kapitán', clen: 'člen', host: 'host'};
+const ROLE_FIRMY = {kapitan: 'generál', clen: 'člen', host: 'host'};
 /* Firma, která pracuje pro sebe (druh `projekty`): místo Klienti › klient ›
    podkategorie má rovnou Projekty › projekt (gateway/firmy.py DRUHY). */
 function jeProjekty(f) { return !!f && f.druh === 'projekty'; }
@@ -3610,7 +3610,7 @@ function mistoText() {
     const f = prostorFirma();
     const g = STATE.guest;
     const kdo = g ? (g.owner_name || '?') + (f ? ' · ' + f.nazev : '') : f ? f.nazev : 'Osobní';
-    return {ico: 'i-hub', text: 'Server · ' + kdo, druh: f ? 'firma' : g ? 'guest' : 'server',
+    return {ico: 'i-hub', text: kdo, druh: f ? 'firma' : g ? 'guest' : 'server',
             tecka: f ? 'var(--firma)' : g ? 'var(--green)' : 'var(--cloud)',
             title: 'Chat běží na serveru ' + location.host + ' · prostor: ' + kdo +
                    ' — klikni a přepneš prostor, firmu nebo se vrátíš na počítač'};
@@ -3700,7 +3700,7 @@ function vcas(promise, ms, fallback) {
 async function mistoMenu(ev) {
   ev.preventDefault();
   ev.stopPropagation();
-  const b = ev.currentTarget.getBoundingClientRect();
+  const btn = ev.currentTarget;
   const cfg = STATE.config || {};
   const items = [];
   if (onServer()) {
@@ -3709,11 +3709,7 @@ async function mistoMenu(ev) {
     const g = STATE.guest;
     const f = prostorFirma();
     const kdo = g ? (g.owner_name || '?') + (f ? ' · ' + f.nazev : '') : f ? f.nazev : 'Osobní';
-    items.push({info: [
-      {k: 'Výkon', v: 'server ' + location.host, color: 'var(--cloud)'},
-      {k: 'Obsidian a napojení', v: kdo, color: f ? 'var(--firma)' : g ? 'var(--green)' : 'var(--cloud)'},
-    ]});
-    items.push({heading: 'Prostor (Obsidian a napojení)'});
+    items.push({heading: 'Prostor'});
     items.push({icon: 'i-user', label: g ? 'Osobní · ' + (g.owner_name || '?') : 'Osobní',
                 on: !now, color: 'var(--cloud)', run: () => setProstor('')});
     for (const fi of firmyList()) {
@@ -3741,12 +3737,7 @@ async function mistoMenu(ev) {
        některém serveru (každý server je kategorie se svými prostory). */
     const servers = cfg.gw_servers || [];
     const kde = pcProstor();
-    items.push({info: [
-      {k: 'Výkon', v: 'tento počítač', color: 'var(--amber)'},
-      {k: 'Obsidian a napojení', v: kde ? hostOfServer(cfg.gw_server) + ' · ' + kde.jmeno : 'tento počítač',
-       color: kde ? (kde.cizi ? 'var(--green)' : 'var(--cloud)') : 'var(--amber)'},
-    ].concat(servers.length ? [{k: 'Chaty', v: cfg.zrcadlo === false ? 'jen na počítači' : 'na počítači + kopie na serveru'}] : [])});
-    items.push({heading: 'Prostor (Obsidian a napojení)'});
+    items.push({heading: 'Prostor'});
     items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--amber)',
                 run: async () => { if (kde && await napojeniZeServeru(false)) { toast('Obsidian a napojení teď z tohoto počítače.'); renderMistoChips(); } }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
@@ -3789,6 +3780,10 @@ async function mistoMenu(ev) {
                 run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
   }
   items.push({icon: 'i-gear', label: 'Účet a servery…', run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
+  /* Poloha se bere až teď: nabídka se skládá z pomalých dotazů a za tu dobu se
+     pole na psaní na telefonu posunulo (klávesnice, překreslení) — nabídka pak
+     „skákala“ mimo čip. */
+  const b = btn.getBoundingClientRect();
   showMenu(b.left, b.top - 4, items, {above: true});
 }
 
@@ -5108,9 +5103,9 @@ function renderKlienti(f) {
     grid.appendChild(Object.assign(document.createElement('div'), {className: 'pp-empty',
       textContent: projekty
         ? (f.role === 'kapitan' ? 'Zatím tu nejsou žádné projekty — přidáš je ve Spravovat firmu.'
-                                : 'Zatím ti kapitán nezpřístupnil žádný projekt.')
+                                : 'Zatím ti generál nezpřístupnil žádný projekt.')
         : (f.role === 'kapitan' ? 'Zatím tu nejsou žádní klienti — přidáš je ve Spravovat firmu.'
-                                : 'Zatím ti kapitán nezpřístupnil žádného klienta.')}));
+                                : 'Zatím ti generál nezpřístupnil žádného klienta.')}));
   }
   for (const k of klienti) {
     const card = document.createElement('div');

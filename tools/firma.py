@@ -106,7 +106,7 @@ def navrh(args):
                  if isinstance(f, dict) and f.get("zkratka") == (firma or "firma")), "")
     if config().get("company_level") == "read" and not firma or role == "host":
         fail("Tenhle účet má tenhle firemní Obsidian jen ke čtení — zapisovat do něj nejde. "
-             "Řekni uživateli, ať požádá admina nebo kapitána firmy o právo zápisu.")
+             "Řekni uživateli, ať požádá admina nebo generála firmy o právo zápisu.")
     if not confirmed:
         exists = os.path.exists(os.path.join(vault, *rel.split("/")))
         print("Ještě nic nevzniklo — nejdřív se zeptej uživatele. Napiš mu v chatu, co "

@@ -1,0 +1,19 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e3]:
+      - button [ref=e4] [cursor=pointer]:
+        - strong [ref=e7]: Paluba
+      - button [ref=e8] [cursor=pointer]
+    - generic [ref=e9]:
+      - button "Přepnout světlý/tmavý režim" [ref=e10] [cursor=pointer]
+      - button "Statistiky používání" [ref=e13] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=e16] [cursor=pointer]
+  - generic [ref=e19]:
+    - complementary [ref=e20]:
+      - navigation [ref=e21]:
+        - button "Nový chat" [ref=e22] [cursor=pointer]
+        - button [ref=e27] [cursor=pointer]
+      - generic [ref=e31]: Chaty
+      - searchbox "Hledat chat…" [ref=e35]
+    - main [ref=e38]:
+      - button "Nový chat" [ref=e40] [cursor=pointer]

@@ -1328,7 +1328,9 @@
     const lide = new Map();
     function barvaLidi(kdo) {
       const k = String(kdo).toLowerCase();
-      if (!lide.has(k)) lide.set(k, lide.size < KDO_PALETA.length ? KDO_PALETA[lide.size] : kdoBarva(kdo));
+      /* Barva jen podle jména: dřív šla podle pořadí, v jakém se kdo poprvé ozval, a při
+         dokreslování historie nebo po znovuotevření chatu vyšla jiná (nebo žádná). */
+      if (!lide.has(k)) lide.set(k, kdoBarva(String(kdo).trim().toLowerCase()));
       return lide.get(k);
     }
     /* When a message was written / an answer finished — small time under it,
@@ -1359,6 +1361,9 @@
         // Barva podle člověka (jméno z přihlášení), i u mých bublin; jméno se píše vždy.
         row.style.setProperty('--kdo', barvaLidi(kdo));
         row.appendChild(el('div', 'cteni-kdo', kdo));
+      } else if (sd) {
+        // Zpráva ve frontě (čeká na Claude) má barvu autora hned, ne až po zapsání.
+        row.style.setProperty('--kdo', barvaLidi(sd.ja || sd.majitel || ''));
       }
       const bubble = el('div', 'cteni-bubble');
       /* Přiložený obrázek se ukáže jako obrázek, ne jako cesta k souboru —
@@ -2703,6 +2708,13 @@
     dolu.hidden = true;
     dolu.onclick = () => scroll.scrollTo({top: scroll.scrollHeight, behavior: 'smooth'});
     root.append(scroll, dolu);
+    /* Vyjede klávesnice (mobile.js): kdo byl dole, zůstane u nejnovější zprávy,
+       místo aby ji klávesnice zakryla. */
+    const naKlavesnici = () => {
+      if (!scroll.isConnected) { global.removeEventListener('hub-klavesnice', naKlavesnici); return; }
+      if (uDna) scroll.scrollTop = scroll.scrollHeight;
+    };
+    global.addEventListener('hub-klavesnice', naKlavesnici);
     tab.pane.appendChild(root);
     tab.pane.classList.add('cteni-on');
     // Stavový řádek (model, větev, cena, čas) — stavradek.js; bez něj se jede dál.
@@ -3105,6 +3117,12 @@
       uDna = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < U_DNA;
     }, {passive: true});
 
+    const naKlavesnici = () => {
+      if (!scroll.isConnected) { global.removeEventListener('hub-klavesnice', naKlavesnici); return; }
+      if (uDna) scroll.scrollTop = scroll.scrollHeight;
+    };
+    global.addEventListener('hub-klavesnice', naKlavesnici);
+
     const zavrit = () => {
       zivy = false;
       clearInterval(prit);
@@ -3131,7 +3149,7 @@
       q('.cteni-attach').disabled = offline;
       pole.placeholder = offline
         ? `Psát půjde, až ${share.majitel} zapne prostor`
-        : psat ? `Napiš do chatu (uvidí to ${share.majitel} i Claude)…` : '';
+        : psat ? 'Napiš do chatu…' : '';
     }
     psaniPole();
     /* Přílohy a hlas: soubor se přes bránu uloží do prostoru majitele (tam ho
@@ -3204,6 +3222,9 @@
       const zaloha = prilohy.slice();
       pole.value = '';
       pole.style.height = 'auto';
+      uDna = true;
+      scroll.scrollTop = scroll.scrollHeight;
+      if (document.body.classList.contains('is-touch')) pole.blur();   // telefon: klávesnice zajede
       prilohy.length = 0;
       kresliPrilohy();
       const vrat = () => { pole.value = puvodni; prilohy.push(...zaloha); kresliPrilohy(); };

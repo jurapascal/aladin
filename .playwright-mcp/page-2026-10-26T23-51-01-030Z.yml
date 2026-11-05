@@ -1,0 +1,121 @@
+- generic [active] [ref=f11e1]:
+  - banner [ref=f11e2]:
+    - generic [ref=f11e3]:
+      - button [ref=f11e4] [cursor=pointer]:
+        - strong [ref=f11e7]: Aladin
+      - button "Aladin na serveru" [ref=f11e46] [cursor=pointer]: Server
+      - button "Osobní" [ref=f11e47] [cursor=pointer]
+    - generic [ref=f11e9]:
+      - generic [ref=f11e52]:
+        - button "Nahlásit chybu" [ref=f11e53] [cursor=pointer]:
+          - generic [ref=f11e68]: Chyba
+        - button "Podat návrh" [ref=f11e69] [cursor=pointer]:
+          - generic [ref=f11e72]: Návrh
+      - button "Oznámení (1 nepřečtených)" [ref=f11e73] [cursor=pointer]:
+        - generic: "1"
+      - button "Přepnout světlý/tmavý režim" [ref=f11e10] [cursor=pointer]
+      - button "Statistiky používání" [ref=f11e13] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f11e16] [cursor=pointer]
+  - generic [ref=f11e19]:
+    - complementary [ref=f11e20]:
+      - navigation [ref=f11e21]:
+        - button "Nový chat" [ref=f11e22] [cursor=pointer]
+        - button [ref=f11e76] [cursor=pointer]
+        - button [ref=f11e80] [cursor=pointer]
+      - generic [ref=f11e31]: Chaty
+      - generic [ref=f11e33]:
+        - searchbox "Hledat chat…" [ref=f11e35]
+        - button "Hledat v textu konverzací" [ref=f11e85] [cursor=pointer]
+        - generic [ref=f11e86]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f11e37]:
+        - button "B Bob Dvořák" [ref=f11e88] [cursor=pointer]:
+          - generic [ref=f11e89]: B
+          - generic [ref=f11e90]: Bob Dvořák
+        - button "v2.103.7" [ref=f11e91] [cursor=pointer]
+    - main [ref=f11e38]:
+      - generic [ref=f11e45]:
+        - generic [ref=f11e92]: ✻Dobrou noc, Bob.
+        - generic [ref=f11e93]:
+          - textbox "Na čem budeme pracovat?" [ref=f11e94]
+          - button "Odeslat" [ref=f11e97] [cursor=pointer]
+  - generic [ref=f11e102]:
+    - generic [ref=f11e103]:
+      - generic [ref=f11e104]: Nastavení
+      - button "Zavřít" [ref=f11e107] [cursor=pointer]: ×
+    - generic [ref=f11e108]:
+      - navigation [ref=f11e109]:
+        - search [ref=f11e110]:
+          - searchbox "Hledat" [ref=f11e111]
+        - generic [ref=f11e112]: Předvolby
+        - button "Vzhled" [ref=f11e113] [cursor=pointer]
+        - button "AI agenti" [ref=f11e117] [cursor=pointer]
+        - button "Účet" [ref=f11e121] [cursor=pointer]
+        - button "Firmy" [ref=f11e125] [cursor=pointer]
+        - button "Hlas" [ref=f11e129] [cursor=pointer]
+        - generic [ref=f11e133]: Přizpůsobit
+        - button "Panel vlevo" [ref=f11e134] [cursor=pointer]
+        - button "Napojení a pluginy" [ref=f11e138] [cursor=pointer]
+        - generic [ref=f11e142]: Platforma
+        - button "Úložiště" [ref=f11e143] [cursor=pointer]
+        - button "Aktualizace" [ref=f11e147] [cursor=pointer]
+        - button "Ostatní" [ref=f11e151] [cursor=pointer]
+      - generic [ref=f11e156]:
+        - generic [ref=f11e157]: Úložiště
+        - generic [ref=f11e158]: Kolik místa na serveru zabírá tvůj prostor a čím. Počítá se každou noc; „Přepočítat" to spočítá hned. Nic se tu samo nemaže — co jde uvolnit, projdeš s Claudem a on se před smazáním zeptá.
+        - generic [ref=f11e159]:
+          - generic [ref=f11e160]:
+            - generic [ref=f11e161]: Spočítáno před 2 min
+            - button "Přepočítat" [ref=f11e162] [cursor=pointer]
+          - generic [ref=f11e163]:
+            - generic [ref=f11e164]:
+              - img "Chaty Clauda 3 MB, Mezipaměti 0 MB, Projekty a složky 30 MB, Obsidian 8 MB, Stažené 0 MB, Programy a nastavení 1 MB, Ostatní 0 MB" [ref=f11e166]:
+                - 'generic "Chaty Clauda: 3 MB (7 %)" [ref=f11e168]'
+                - 'generic "Projekty a složky: 30 MB (71 %)" [ref=f11e169]'
+                - 'generic "Obsidian: 8 MB (19 %)" [ref=f11e170]'
+                - 'generic "Programy a nastavení: 1 MB (3 %)" [ref=f11e171]'
+                - generic [ref=f11e172]: 42 MB
+                - generic [ref=f11e173]: z 82 MB
+              - generic [ref=f11e174]:
+                - generic [ref=f11e175]:
+                  - generic [ref=f11e177]: Chaty Clauda
+                  - generic [ref=f11e178]: 3 MB
+                  - generic [ref=f11e179]: 7 %
+                - generic [ref=f11e180]:
+                  - generic [ref=f11e182]: Projekty a složky
+                  - generic [ref=f11e183]: 30 MB
+                  - generic [ref=f11e184]: 71 %
+                - generic [ref=f11e185]:
+                  - generic [ref=f11e187]: Obsidian
+                  - generic [ref=f11e188]: 8 MB
+                  - generic [ref=f11e189]: 19 %
+                - generic [ref=f11e190]:
+                  - generic [ref=f11e192]: Programy a nastavení
+                  - generic [ref=f11e193]: 1 MB
+                  - generic [ref=f11e194]: 3 %
+            - generic [ref=f11e196]:
+              - generic [ref=f11e197]: 42 MB z 82 MB
+              - generic [ref=f11e198]: V pořádku · 52 %
+            - generic [ref=f11e201]: Sloučením stejných souborů v mezipaměti s kolegy ušetřeno 3 MB (do limitu se ti počítá jen tvůj díl).
+          - generic [ref=f11e202]:
+            - generic [ref=f11e203]: Co jde uvolnit
+            - generic [ref=f11e204]: Nic velkého, co by šlo uvolnit, jsme nenašli.
+            - button "Uklidit s Claudem" [ref=f11e206] [cursor=pointer]
+          - generic [ref=f11e207]:
+            - generic [ref=f11e208]: Největší složky
+            - generic [ref=f11e209]:
+              - generic [ref=f11e210]:
+                - generic "~/videa · naposledy změněno před 0 dny" [ref=f11e211]: ~/videa
+                - generic [ref=f11e214]: 30 MB
+              - generic [ref=f11e215]:
+                - generic "~/Obsidian · naposledy změněno před 0 dny" [ref=f11e216]: ~/Obsidian
+                - generic [ref=f11e219]: 8 MB
+              - generic [ref=f11e220]:
+                - generic "~/.local · naposledy změněno před 0 dny" [ref=f11e221]: ~/.local
+                - generic [ref=f11e224]: 4 MB
+              - generic [ref=f11e225]:
+                - generic "~/.claude · naposledy změněno před 0 dny" [ref=f11e226]: ~/.claude
+                - generic [ref=f11e229]: 3 MB
+              - generic [ref=f11e230]:
+                - generic "~/projects" [ref=f11e231]
+                - generic [ref=f11e234]: 4 kB
+    - button "Spustit průvodce znovu" [ref=f11e236] [cursor=pointer]

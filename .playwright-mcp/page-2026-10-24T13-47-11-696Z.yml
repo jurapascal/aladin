@@ -1,0 +1,48 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e8]:
+      - link [ref=e9] [cursor=pointer]:
+        - /url: /
+        - img "Claude" [ref=e10]
+      - main [ref=e14]:
+        - generic [ref=e19]:
+          - heading "Question what’s next" [level=1] [ref=e20]
+          - paragraph [ref=e21]: Your thinking partner for big ambitions
+          - generic [ref=e22]:
+            - generic [ref=e24]:
+              - generic [ref=e25]:
+                - generic [ref=e26]:
+                  - button "Continue with Google" [disabled]
+                - status [ref=e27]
+                - button "Continue with Apple" [ref=e28] [cursor=pointer]
+              - paragraph [ref=e37]: or
+              - generic [ref=e39]:
+                - textbox "Email" [ref=e41]:
+                  - /placeholder: Enter your email
+                - generic [ref=e42]:
+                  - button "Continue with email" [ref=e44] [cursor=pointer]
+                  - button [ref=e48] [cursor=pointer]:
+                    - generic [ref=e51]: Continue with SSO
+            - generic [ref=e53]:
+              - text: By continuing, you acknowledge Anthropic’s
+              - link "Privacy Policy" [ref=e54] [cursor=pointer]:
+                - /url: https://www.anthropic.com/legal/archive/baeb68ac-c81c-4931-9539-58f46b6f090c
+              - text: .
+          - button "Download desktop app" [ref=e56] [cursor=pointer]
+    - region [ref=e73]:
+      - generic [ref=e76]:
+        - heading "Cookie settings" [level=3] [ref=e77]
+        - paragraph [ref=e78]:
+          - text: We use cookies to deliver and improve our services, analyze site usage, and if you agree, to customize or personalize your experience and market our services to you. You can read our Cookie Policy
+          - link "here" [ref=e79] [cursor=pointer]:
+            - /url: https://www.anthropic.com/legal/cookies
+          - text: .
+        - generic [ref=e80]:
+          - button "Customize cookie settings" [ref=e81] [cursor=pointer]
+          - button "Reject all cookies" [ref=e86] [cursor=pointer]
+          - button "Accept all cookies" [ref=e91] [cursor=pointer]
+  - generic:
+    - generic:
+      - generic:
+        - status
+        - region "Notifications"

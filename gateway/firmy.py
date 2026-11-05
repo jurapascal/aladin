@@ -16,16 +16,16 @@ Firma je jednoho ze dvou **druhů** (`druh`, volí se při založení):
   (Good Food / Web). Jedna úroveň, přístup po projektech.
 
 Klient, podkategorie i projekt jsou ve výchozím stavu **skryté** — kdo je má
-vidět, nastaví kapitán (`pristupy`). Všechno mimo kořenovou složku (Klienti/,
+vidět, nastaví generál (`pristupy`). Všechno mimo kořenovou složku (Klienti/,
 resp. Projekty/) vidí každý člen. Skrytí je natvrdo, stejně jako omezená
 poznámka (poznamky.mask_args): v sandboxu skrytá složka vůbec není. Nejhlubší
 úroveň (podkategorie, resp. projekt) je zároveň „skupina“ — příjemce sdílených
 napojení a chatů.
 
 Dnešní firemní trezor je firma `firma` (LEGACY) — nic se nestěhuje. Lidé se
-pro ni odvozují z dnešních přístupů (accounts.company_level: admin → kapitán,
+pro ni odvozují z dnešních přístupů (accounts.company_level: admin → generál,
 write → člen, read → host, none → není členem) a `Klienti/` v ní platí, až to
-kapitán zapne (`klienti`) — trezor, kde už složka Klienti je, se tak nikomu
+generál zapne (`klienti`) — trezor, kde už složka Klienti je, se tak nikomu
 nezavře sám od sebe.
 
 Registr leží mimo trezory (FIRMY_DIR/.firmy.json), podle id účtů. Prostor ho
@@ -48,13 +48,13 @@ PROJEKTY = "Projekty"
 # Druh firmy → (kořenová složka, kolik úrovní pod ní se zpřístupňuje).
 DRUHY = {"klienti": (KLIENTI, 2), "projekty": (PROJEKTY, 1)}
 ROLES = ("kapitan", "clen", "host")
-ROLE_LABELS = {"kapitan": "kapitán", "clen": "člen", "host": "host"}
+ROLE_LABELS = {"kapitan": "generál", "clen": "člen", "host": "host"}
 SLUG = re.compile(r"[a-z0-9][a-z0-9-]{0,39}")
 REGISTRY = os.path.join(config.FIRMY_DIR, ".firmy.json")
 LOG = os.path.join(config.FIRMY_DIR, "zmeny.jsonl")
 _LOCK = threading.Lock()
 
-# Výchozí pravidla pro Clauda v nové podkategorii / novém projektu; kapitán je
+# Výchozí pravidla pro Clauda v nové podkategorii / novém projektu; generál je
 # pak upraví jako každou jinou poznámku.
 PODKATEGORIE_CLAUDE_MD = """# {nazev}
 
@@ -196,8 +196,8 @@ def role(user, slug, data=None):
     mine = (entry.get("lide") or {}).get(str(int(user["id"])))
     if slug != LEGACY:
         return mine["role"] if mine and os.path.isdir(vault_dir(slug)) else ""
-    # Dnešní firma: z přístupů (accounts.company_level). Kapitán navíc i ten,
-    # koho tak výslovně nastavil jiný kapitán.
+    # Dnešní firma: z přístupů (accounts.company_level). Generál navíc i ten,
+    # koho tak výslovně nastavil jiný generál.
     from .workspace import company_level
     level = company_level(user)
     if level == "none":
@@ -208,7 +208,7 @@ def role(user, slug, data=None):
 
 
 def mazat(user, slug, data=None):
-    """Smí mazat a přejmenovávat? Kapitán vždycky, člen s příznakem."""
+    """Smí mazat a přejmenovávat? Generál vždycky, člen s příznakem."""
     data = data or _load()
     r = role(user, slug, data)
     if r == "kapitan":
@@ -222,7 +222,7 @@ def zapis(user, slug, data=None):
 
 
 def kapitani(slug, data=None):
-    """Id kapitánů firmy (u dnešní firmy admini a výslovně nastavení)."""
+    """Id generálů firmy (u dnešní firmy admini a výslovně nastavení)."""
     data = data or _load()
     accounts = _accounts()
     if not accounts:
@@ -366,7 +366,7 @@ def maskovane(slug, data=None):
 
 
 def pristupy(slug, data=None):
-    """{cesta klienta/podkategorie/projektu: [id]} — pro kapitána."""
+    """{cesta klienta/podkategorie/projektu: [id]} — pro generála."""
     return dict(((data or _load())["firmy"].get(slug) or {}).get("pristupy") or {})
 
 
@@ -442,11 +442,11 @@ def _need_captain(user, slug, data):
     if not exists(slug):
         raise ValueError("Taková firma tu není.")
     if role(user, slug, data) != "kapitan":
-        raise PermissionError("Tohle může jen kapitán firmy.")
+        raise PermissionError("Tohle může jen generál firmy.")
 
 
 def zalozit(user, name, kapitan=None, druh_firmy="klienti"):
-    """Nová firma. Zakladatel je její kapitán (`kapitan` = jiný účet, jen
+    """Nová firma. Zakladatel je její generál (`kapitan` = jiný účet, jen
     claude-hub-admin — tam se oprávnění zakládat nekontroluje). `druh_firmy`:
     `klienti` (agentura) nebo `projekty` (firma pro sebe), viz DRUHY."""
     name = _name(name, "Název firmy")
@@ -471,9 +471,9 @@ def zalozit(user, name, kapitan=None, druh_firmy="klienti"):
         os.makedirs(os.path.join(vault, "skills"))
         with open(os.path.join(vault, "README.md"), "w", encoding="utf-8") as fh:
             fh.write(f"# {name}\n\nObsidian firmy {name}. Obecné věci firmy vidí každý člen; "
-                     f"{where} a vidí je jen ti, komu je kapitán zpřístupní.\n")
+                     f"{where} a vidí je jen ti, komu je generál zpřístupní.\n")
         with open(os.path.join(vault, "CLAUDE.md"), "w", encoding="utf-8") as fh:
-            fh.write(f"# {name}\n\nPravidla pro Clauda v celé firmě. Kapitán je tu doplní.\n\n"
+            fh.write(f"# {name}\n\nPravidla pro Clauda v celé firmě. Generál je tu doplní.\n\n"
                      "- Hesla, klíče a přihlašovací údaje sem nikdy nepiš — patří do napojení.\n"
                      f"- {work}.\n")
         data["firmy"][slug] = {"nazev": name, "zalozil": int(user["id"]), "druh": druh_firmy,
@@ -498,7 +498,7 @@ def prejmenovat_firmu(user, slug, name):
 
 
 def smazat_firmu(user, slug):
-    """Smaže firmu — kapitán, nebo admin. Nic nemizí natrvalo: celá složka
+    """Smaže firmu — generál, nebo admin. Nic nemizí natrvalo: celá složka
     firmy (trezor, chaty, záznamy) se odloží do FIRMY_DIR/_smazana-<zkratka>-
     <čas>, odkud ji správce vrátí. Dnešní firmu smazat nejde."""
     if slug == LEGACY:
@@ -508,7 +508,7 @@ def smazat_firmu(user, slug):
         if not exists(slug) or slug not in data["firmy"]:
             raise ValueError("Taková firma tu není.")
         if role(user, slug, data) != "kapitan" and (user or {}).get("role") != "admin":
-            raise PermissionError("Firmu smaže jen její kapitán nebo admin.")
+            raise PermissionError("Firmu smaže jen její generál nebo admin.")
         lidi = [m["id"] for m in clenove(slug, data)]
         stamp = time.strftime("%Y%m%d-%H%M%S")
         os.rename(firma_dir(slug), os.path.join(config.FIRMY_DIR, f"_smazana-{slug}-{stamp}"))
@@ -567,10 +567,10 @@ def nastavit_cloveka(user, slug, uid, new_role, smi_mazat=False):
         _need_captain(user, slug, data)
         before = role(target, slug, data)
         if target["id"] == user["id"] and new_role != "kapitan":
-            raise ValueError("Sám sobě kapitána nevezmeš — požádej jiného kapitána.")
+            raise ValueError("Sám sobě generála nevezmeš — požádej jiného generála.")
         if before == "kapitan" and new_role != "kapitan" and not [
                 k for k in kapitani(slug, data) if k != target["id"]]:
-            raise ValueError("Firma musí mít aspoň jednoho kapitána.")
+            raise ValueError("Firma musí mít aspoň jednoho generála.")
         if slug == LEGACY:
             _legacy_role(user, target, new_role, data, smi_mazat)
         else:
@@ -596,7 +596,7 @@ def _legacy_role(user, target, new_role, data, smi_mazat=False):
     lide = entry.setdefault("lide", {})
     if target.get("role") == "admin":
         if new_role != "kapitan":
-            raise ValueError("Admin je v dnešní firmě kapitánem vždycky.")
+            raise ValueError("Admin je v dnešní firmě generálem vždycky.")
         return
     level = {"kapitan": "write", "clen": "write", "host": "read", "": "none"}[new_role or ""]
     admin = {"role": "admin", "email": user.get("email", "")}
@@ -760,7 +760,7 @@ def nastavit_zakladatele(admin, uid, ano):
 
 
 def prehled(user, slug, data=None):
-    """Pro kapitána: lidé, klienti a podkategorie (nebo projekty) a kdo kam vidí."""
+    """Pro generála: lidé, klienti a podkategorie (nebo projekty) a kdo kam vidí."""
     data = data or _load()
     _need_captain(user, slug, data)
     return {"zkratka": slug, "nazev": nazev(slug, data), "klienti_zapnute": klienti_zapnute(slug, data),
@@ -769,10 +769,10 @@ def prehled(user, slug, data=None):
 
 
 def admin_kapitan(slug, uid):
-    """claude-hub-admin: udělá z účtu kapitána firmy bez ohledu na to, kdo je
-    přihlášený — záchrana firmy, jejíž kapitán odešel."""
+    """claude-hub-admin: udělá z účtu generála firmy bez ohledu na to, kdo je
+    přihlášený — záchrana firmy, jejíž generál odešel."""
     if slug == LEGACY:
-        raise ValueError("V dnešní firmě jsou kapitáni admini — claude-hub-admin role <e-mail> admin.")
+        raise ValueError("V dnešní firmě jsou generálové admini — claude-hub-admin role <e-mail> admin.")
     with _locked():
         data = _load()
         if slug not in data["firmy"] or not os.path.isdir(vault_dir(slug)):

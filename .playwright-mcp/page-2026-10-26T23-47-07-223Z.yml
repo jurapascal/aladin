@@ -1,0 +1,194 @@
+- generic [ref=f8e1]:
+  - banner [ref=f8e2]:
+    - generic [ref=f8e3]:
+      - button [ref=f8e4] [cursor=pointer]:
+        - strong [ref=f8e7]: Aladin
+      - button "Aladin na serveru" [ref=f8e8] [cursor=pointer]: Server
+      - button "Osobní" [ref=f8e9] [cursor=pointer]
+      - generic [ref=f8e208]:
+        - generic [ref=f8e209]: Úklid místa
+        - generic [ref=f8e210]: < 1 min
+    - generic [ref=f8e14]:
+      - generic [ref=f8e15]:
+        - button "Nahlásit chybu" [ref=f8e16] [cursor=pointer]:
+          - generic [ref=f8e31]: Chyba
+        - button "Podat návrh" [ref=f8e32] [cursor=pointer]:
+          - generic [ref=f8e35]: Návrh
+      - button "Oznámení" [ref=f8e36] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f8e39] [cursor=pointer]
+      - button "Statistiky používání" [ref=f8e42] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f8e45] [cursor=pointer]
+  - generic [ref=f8e48]:
+    - complementary [ref=f8e49]:
+      - navigation [ref=f8e50]:
+        - button "Nový chat" [ref=f8e51] [cursor=pointer]
+        - button [ref=f8e56] [cursor=pointer]
+        - button [ref=f8e60] [cursor=pointer]
+      - generic [ref=f8e211]:
+        - generic [ref=f8e212]: Otevřené
+        - button "Úklid místa" [ref=f8e308] [cursor=pointer]
+      - generic [ref=f8e64]: Chaty
+      - generic [ref=f8e66]:
+        - searchbox "Hledat chat…" [ref=f8e68]
+        - button "Hledat v textu konverzací" [ref=f8e70] [cursor=pointer]
+        - generic [ref=f8e71]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f8e74]:
+        - button "A Anna Nováková" [ref=f8e218] [cursor=pointer]:
+          - generic [ref=f8e219]: A
+          - generic [ref=f8e220]: Anna Nováková
+        - button "v2.103.7" [ref=f8e221] [cursor=pointer]
+    - main [ref=f8e79]:
+      - generic [ref=f8e80]:
+        - text: ✻
+        - generic [ref=f8e222]:
+          - generic [ref=f8e226]:
+            - textbox "Terminal input" [ref=f8e227]
+            - generic [aria-hidden] [ref=f8e228]:
+              - generic [ref=f8e229]:
+                - generic [ref=f8e310]: ✦
+                - generic [ref=f8e312]: Skills loaded
+                - generic [ref=f8e314]: (0 skills, 0 categories)
+              - generic [ref=f8e231]:
+                - generic [ref=f8e317]: ✦
+                - generic [ref=f8e319]: Memory loaded
+                - generic [ref=f8e321]: (0 notes • 0 learnings, 0 errors)
+              - generic [ref=f8e232]:
+                - generic [ref=f8e324]: ✦
+                - generic [ref=f8e326]: Session state
+                - generic [ref=f8e328]: (no previous session)
+              - generic [ref=f8e233]:
+                - generic [ref=f8e331]: ✦
+                - generic [ref=f8e333]: Git
+                - generic [ref=f8e335]: (not a git repo)
+              - generic [ref=f8e234]:
+                - generic [ref=f8e338]: ✦
+                - generic [ref=f8e340]: Hooks ready
+                - generic [ref=f8e342]: (0 active)
+              - generic [ref=f8e236]: ──────────────────────────────────────
+              - generic [ref=f8e237]:
+                - generic [ref=f8e347]: ✦
+                - generic [ref=f8e349]: ready
+              - generic [ref=f8e239]:
+                - generic [ref=f8e350]: Welcome
+                - generic [ref=f8e352]: to
+                - generic [ref=f8e354]: Claude
+                - generic [ref=f8e356]: Code
+                - generic [ref=f8e358]: v2.1.311
+              - generic [ref=f8e240]: ..........................................................
+              - generic [ref=f8e242]: "* █████▓▓░"
+              - generic [ref=f8e243]: "* ███▓░ ░░"
+              - generic [ref=f8e244]: ░░░░░░ ███▓░
+              - generic [ref=f8e245]: ░░░ ░░░░░░░░░░ ███▓░
+              - generic [ref=f8e246]:
+                - generic [ref=f8e364]: ░░░░░░░░░░░░░░░░░░░
+                - generic [ref=f8e365]: "*"
+                - generic [ref=f8e366]: ██▓░░ ▓
+              - generic [ref=f8e247]: ░▓▓███▓▓░
+              - generic [ref=f8e248]:
+                - generic [ref=f8e368]: "*"
+                - generic [ref=f8e370]: ░░░░
+              - generic [ref=f8e249]: ░░░░░░░░
+              - generic [ref=f8e250]: ░░░░░░░░░░░░░░░░
+              - generic [ref=f8e251]:
+                - generic [ref=f8e378]: █████████
+                - generic [ref=f8e380]: "*"
+              - generic [ref=f8e252]:
+                - generic [ref=f8e382]: ██▄█████▄██
+                - generic [ref=f8e384]: "*"
+              - generic [ref=f8e253]:
+                - generic [ref=f8e386]: █████████
+                - generic [ref=f8e387]: "*"
+              - generic [ref=f8e254]:
+                - generic [ref=f8e388]: .......
+                - generic [ref=f8e389]: █
+                - generic [ref=f8e391]: █
+                - generic [ref=f8e393]: █
+                - generic [ref=f8e395]: █
+                - generic [ref=f8e396]: ..........................................
+              - generic [ref=f8e256]: Let's get started.
+              - generic [ref=f8e258]:
+                - generic [ref=f8e399]: Choose
+                - generic [ref=f8e401]: the
+                - generic [ref=f8e403]: text
+                - generic [ref=f8e405]: style
+                - generic [ref=f8e407]: that
+                - generic [ref=f8e409]: looks
+                - generic [ref=f8e411]: best
+                - generic [ref=f8e413]: with
+                - generic [ref=f8e415]: your
+                - generic [ref=f8e417]: terminal
+              - generic [ref=f8e259]:
+                - generic [ref=f8e419]: To
+                - generic [ref=f8e421]: change
+                - generic [ref=f8e423]: this
+                - generic [ref=f8e425]: later,
+                - generic [ref=f8e427]: run
+                - generic [ref=f8e429]: /theme
+              - generic [ref=f8e261]: Auto (match terminal)
+              - generic [ref=f8e262]:
+                - generic [ref=f8e432]: ❯
+                - generic [ref=f8e434]: ✔
+                - generic [ref=f8e436]: Dark
+                - generic [ref=f8e438]: mode
+              - generic [ref=f8e263]: Light mode
+              - generic [ref=f8e264]: Dark mode (colorblind-friendly)
+              - generic [ref=f8e265]: Light mode (colorblind-friendly)
+              - generic [ref=f8e266]: Dark mode (ANSI colors only)
+              - generic [ref=f8e267]: Light mode (ANSI colors only)
+              - generic [ref=f8e269]: ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+              - generic [ref=f8e270]:
+                - generic [ref=f8e447]: "1"
+                - generic [ref=f8e450]: function
+                - generic [ref=f8e452]: greet
+                - generic [ref=f8e453]: ()
+                - generic [ref=f8e455]: "{"
+              - generic [ref=f8e271]:
+                - generic [ref=f8e457]: 2 -
+                - generic [ref=f8e458]: console.log("Hello,
+                - generic [ref=f8e459]: World
+                - generic [ref=f8e460]: "!\");"
+              - generic [ref=f8e272]:
+                - generic [ref=f8e462]: 2 +
+                - generic [ref=f8e464]: console
+                - generic [ref=f8e465]: .
+                - generic [ref=f8e466]: log
+                - generic [ref=f8e467]: (
+                - generic [ref=f8e468]: "\"Hello,"
+                - generic [ref=f8e469]: Claude
+                - generic [ref=f8e470]: "!\""
+                - generic [ref=f8e471]: );
+              - generic [ref=f8e273]:
+                - generic [ref=f8e473]: "3"
+                - generic [ref=f8e475]: "}"
+              - generic [ref=f8e274]: ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+              - generic [ref=f8e275]:
+                - generic [ref=f8e479]: Syntax
+                - generic [ref=f8e481]: "theme:"
+                - generic [ref=f8e483]: Monokai
+                - generic [ref=f8e485]: Extended
+                - generic [ref=f8e487]: (ctrl+t
+                - generic [ref=f8e489]: to
+                - generic [ref=f8e491]: disable)
+          - generic [ref=f8e277]: Zatím nic — napiš Claudovi dole.
+          - generic [ref=f8e280]:
+            - textbox "Napiš, s čím ti má Claude Code pomoct… (Enter odešle, Shift+Enter nový řádek)" [active] [ref=f8e281]
+            - generic [ref=f8e282]:
+              - generic [ref=f8e283]:
+                - button "Historie" [ref=f8e284] [cursor=pointer]
+                - button "Příloha" [ref=f8e287] [cursor=pointer]
+                - 'button "Režim: Ptát se před změnami ▾" [ref=f8e290] [cursor=pointer]':
+                  - text: "Režim:"
+                  - generic [ref=f8e291]: Ptát se před změnami
+                  - text: ▾
+              - button "Zastavit" [ref=f8e292] [cursor=pointer]
+              - button "Odeslat (Enter)" [ref=f8e293] [cursor=pointer]
+    - complementary [ref=f8e296]:
+      - generic [ref=f8e297]:
+        - generic [ref=f8e298]:
+          - generic [ref=f8e299]: Sdílení
+          - generic [ref=f8e300]: Kolega uvidí tenhle chat živě — i kód, který Claude píše.
+          - button "Sdílet chat…" [ref=f8e301] [cursor=pointer]
+        - generic [ref=f8e302]:
+          - generic [ref=f8e303]: Přenos
+          - generic [ref=f8e304]: Pošli tenhle chat na počítač a pokračuj v něm tam.
+          - button "Pokračovat na počítači" [ref=f8e305] [cursor=pointer]

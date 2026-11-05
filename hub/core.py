@@ -3489,7 +3489,7 @@ FIRMA_TAB_PROMPT_FIRMY = """Jsi ve firemním tabu Aladina pro firmu **{nazev}**
   složkách nad ní až po kořen trezoru firmy, a drž se jich.
 - Práce je v `Klienti/<klient>/<podkategorie>/` (agentura), nebo v
   `Projekty/<projekt>/` (firma pro sebe). Vidíš jen to, k čemu má uživatel
-  přístup; o další přístup se žádá kapitán firmy.
+  přístup; o další přístup se žádá generál firmy.
 - Nové poznámky posílej `python3 {tool} navrh "cesta/nazev.md" - ` (obsah na
   standardní vstup) — v tomhle tabu se nahrají rovnou, bez karty.{host}
 - Nahrávej jen to, o co uživatel v téhle konverzaci požádal. **Nikdy** do firmy
@@ -3505,7 +3505,7 @@ def firma_tab_prompt(vault="firma", path=""):
     host = ("\n- Ve firmě jsi **host** — jen čteš; zápis brána odmítne."
             if f["role"] == "host" else "")
     text = FIRMA_TAB_PROMPT_FIRMY.format(nazev=f["nazev"], zkratka=f["zkratka"], cesta=f["cesta"],
-                                         role={"kapitan": "kapitán", "clen": "člen"}.get(
+                                         role={"kapitan": "generál", "clen": "člen"}.get(
                                              f["role"], f["role"]), tool=tool, host=host)
     klient, podkat = firma_prace(path, f["zkratka"])
     if klient:

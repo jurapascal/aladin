@@ -1459,7 +1459,7 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---- firmy (gateway/firmy.py) ----
     def _gw_firmy(self, method, user):
-        """Nastavení → Firmy: firmy člověka, a kapitánům lidé, klienti,
+        """Nastavení → Firmy: firmy člověka, a generálům lidé, klienti,
         podkategorie a kdo kam vidí. Změny jen ze stránky hubu; kdo co smí,
         rozhoduje firmy.py. Kdo přístup ztratil a zrovna nepracuje, tomu se
         prostor zastaví hned, ostatním se změna projeví po restartu."""

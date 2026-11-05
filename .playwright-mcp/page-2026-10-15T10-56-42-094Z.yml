@@ -1,0 +1,461 @@
+- generic [ref=f7e1]:
+  - banner [ref=f7e2]:
+    - generic [ref=f7e3]:
+      - button [ref=f7e4] [cursor=pointer]:
+        - strong [ref=f7e7]: Paluba
+      - button "Paluba na počítači" [ref=f7e8] [cursor=pointer]: PC
+    - generic [ref=f7e9]:
+      - button "Načíst projekty a paměť znovu (neaktualizuje aplikaci)" [ref=f7e10] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f7e13] [cursor=pointer]
+      - button "Statistiky používání" [ref=f7e16] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f7e19] [cursor=pointer]
+  - generic [ref=f7e22]:
+    - complementary [ref=f7e23]:
+      - navigation [ref=f7e24]:
+        - button "PC" [ref=f7e25] [cursor=pointer]
+        - button [ref=f7e30] [cursor=pointer]
+        - button [ref=f7e34] [cursor=pointer]
+      - generic [ref=f7e38]:
+        - generic [ref=f7e39]: Chaty
+        - generic [ref=f7e116]: "243"
+      - generic [ref=f7e40]:
+        - searchbox "Hledat chat…" [ref=f7e42]
+        - generic [ref=f7e43]:
+          - generic [ref=f7e117]: Dnes
+          - button "Verxee Debug a potvrzování ze serveru claude-code-hub · 12:55" [ref=f7e118] [cursor=pointer]:
+            - generic [ref=f7e119]: Verxee Debug a potvrzování ze serveru
+            - generic [ref=f7e120]: claude-code-hub · 12:55
+          - button "Empty plan.txt file work · 12:53" [ref=f7e121] [cursor=pointer]:
+            - generic [ref=f7e122]: Empty plan.txt file
+            - generic [ref=f7e123]: work · 12:53
+          - button "● Zkouška souhlasu s příkazem touch work · 12:53 · otevřená" [ref=f7e124] [cursor=pointer]:
+            - generic [ref=f7e125]: ● Zkouška souhlasu s příkazem touch
+            - generic [ref=f7e126]: work · 12:53 · otevřená
+          - button "PC MCP pro běžící session claude-code-hub · 12:52" [ref=f7e127] [cursor=pointer]:
+            - generic [ref=f7e128]: PC MCP pro běžící session
+            - generic [ref=f7e129]: claude-code-hub · 12:52
+          - button "Touch hello.txt work · 12:52" [ref=f7e130] [cursor=pointer]:
+            - generic [ref=f7e131]: Touch hello.txt
+            - generic [ref=f7e132]: work · 12:52
+          - button "Create empty plan.txt file work · 12:52" [ref=f7e133] [cursor=pointer]:
+            - generic [ref=f7e134]: Create empty plan.txt file
+            - generic [ref=f7e135]: work · 12:52
+          - button "Zkouška souhlasu s povoleno.txt work · 12:48" [ref=f7e136] [cursor=pointer]:
+            - generic [ref=f7e137]: Zkouška souhlasu s povoleno.txt
+            - generic [ref=f7e138]: work · 12:48
+          - 'button "Parlament: prezence a rozřazení do skupin pascaljura · 12:48" [ref=f7e139] [cursor=pointer]':
+            - generic [ref=f7e140]: "Parlament: prezence a rozřazení do skupin"
+            - generic [ref=f7e141]: pascaljura · 12:48
+          - button "Potvrzování ze serveru v hubu claude-code-hub · 12:46" [ref=f7e142] [cursor=pointer]:
+            - generic [ref=f7e143]: Potvrzování ze serveru v hubu
+            - generic [ref=f7e144]: claude-code-hub · 12:46
+          - button "Potlačení okolního hluku při volání voice-agent · 12:44" [ref=f7e145] [cursor=pointer]:
+            - generic [ref=f7e146]: Potlačení okolního hluku při volání
+            - generic [ref=f7e147]: voice-agent · 12:44
+          - 'button "Parlament: prezence a skupiny pascaljura · 12:41" [ref=f7e148] [cursor=pointer]':
+            - generic [ref=f7e149]: "Parlament: prezence a skupiny"
+            - generic [ref=f7e150]: pascaljura · 12:41
+          - button "Hello.txt creation plan t1 · 12:37" [ref=f7e151] [cursor=pointer]:
+            - generic [ref=f7e152]: Hello.txt creation plan
+            - generic [ref=f7e153]: t1 · 12:37
+          - button "Color preference question work · 12:37" [ref=f7e154] [cursor=pointer]:
+            - generic [ref=f7e155]: Color preference question
+            - generic [ref=f7e156]: work · 12:37
+          - button "Color.txt color selection test t1 · 12:35" [ref=f7e157] [cursor=pointer]:
+            - generic [ref=f7e158]: Color.txt color selection test
+            - generic [ref=f7e159]: t1 · 12:35
+          - button "Přesun z Penusm do dílny pensum · 12:31" [ref=f7e160] [cursor=pointer]:
+            - generic [ref=f7e161]: Přesun z Penusm do dílny
+            - generic [ref=f7e162]: pensum · 12:31
+          - button "Integrace Verxee Debug do hubu claude-code-hub · 12:01" [ref=f7e163] [cursor=pointer]:
+            - generic [ref=f7e164]: Integrace Verxee Debug do hubu
+            - generic [ref=f7e165]: claude-code-hub · 12:01
+          - button "Pull request 3 z GitHubu claude-code-hub · 01:03" [ref=f7e166] [cursor=pointer]:
+            - generic [ref=f7e167]: Pull request 3 z GitHubu
+            - generic [ref=f7e168]: claude-code-hub · 01:03
+          - generic [ref=f7e169]: Včera
+          - button "Název a ikonka aplikace claude-code-hub · 14. 10." [ref=f7e170] [cursor=pointer]:
+            - generic [ref=f7e171]: Název a ikonka aplikace
+            - generic [ref=f7e172]: claude-code-hub · 14. 10.
+          - button "Problém s renderingem na serveru pascaljura · 14. 10." [ref=f7e173] [cursor=pointer]:
+            - generic [ref=f7e174]: Problém s renderingem na serveru
+            - generic [ref=f7e175]: pascaljura · 14. 10.
+          - button "Účet na Claude Code Hub pascaljura · 14. 10." [ref=f7e176] [cursor=pointer]:
+            - generic [ref=f7e177]: Účet na Claude Code Hub
+            - generic [ref=f7e178]: pascaljura · 14. 10.
+          - button "8051 rotující LED moduly pascaljura · 14. 10." [ref=f7e179] [cursor=pointer]:
+            - generic [ref=f7e180]: 8051 rotující LED moduly
+            - generic [ref=f7e181]: pascaljura · 14. 10.
+          - button "Můj login pascaljura · 14. 10." [ref=f7e182] [cursor=pointer]:
+            - generic [ref=f7e183]: Můj login
+            - generic [ref=f7e184]: pascaljura · 14. 10.
+          - button "Problém s Bambu Lab Studio pascaljura · 14. 10." [ref=f7e185] [cursor=pointer]:
+            - generic [ref=f7e186]: Problém s Bambu Lab Studio
+            - generic [ref=f7e187]: pascaljura · 14. 10.
+          - button "Opravy eshopu z WhatsAppu marisnastopu-wp · 14. 10." [ref=f7e188] [cursor=pointer]:
+            - generic [ref=f7e189]: Opravy eshopu z WhatsAppu
+            - generic [ref=f7e190]: marisnastopu-wp · 14. 10.
+          - button "Heslo k administraci Hejlovec pascaljura · 14. 10." [ref=f7e191] [cursor=pointer]:
+            - generic [ref=f7e192]: Heslo k administraci Hejlovec
+            - generic [ref=f7e193]: pascaljura · 14. 10.
+          - button "Edupage kontakty žáků a učitelů parlament · 14. 10." [ref=f7e194] [cursor=pointer]:
+            - generic [ref=f7e195]: Edupage kontakty žáků a učitelů
+            - generic [ref=f7e196]: parlament · 14. 10.
+          - button "Web s čísly pascaljura · 14. 10." [ref=f7e197] [cursor=pointer]:
+            - generic [ref=f7e198]: Web s čísly
+            - generic [ref=f7e199]: pascaljura · 14. 10.
+          - button "Shoptet a Seznam e-maily pascaljura · 14. 10." [ref=f7e200] [cursor=pointer]:
+            - generic [ref=f7e201]: Shoptet a Seznam e-maily
+            - generic [ref=f7e202]: pascaljura · 14. 10.
+          - button "PDF přehled e-mailů eshopů pascaljura · 14. 10." [ref=f7e203] [cursor=pointer]:
+            - generic [ref=f7e204]: PDF přehled e-mailů eshopů
+            - generic [ref=f7e205]: pascaljura · 14. 10.
+          - button "Instalace OneDrive pascaljura · 14. 10." [ref=f7e206] [cursor=pointer]:
+            - generic [ref=f7e207]: Instalace OneDrive
+            - generic [ref=f7e208]: pascaljura · 14. 10.
+          - button "Přihlášení přes Discord a Edupage parlament · 14. 10." [ref=f7e209] [cursor=pointer]:
+            - generic [ref=f7e210]: Přihlášení přes Discord a Edupage
+            - generic [ref=f7e211]: parlament · 14. 10.
+          - generic [ref=f7e212]: Posledních 7 dní
+          - button "Produktové GIFy pro eshop adamtran-wp · 13. 10." [ref=f7e213] [cursor=pointer]:
+            - generic [ref=f7e214]: Produktové GIFy pro eshop
+            - generic [ref=f7e215]: adamtran-wp · 13. 10.
+          - button "Přihlašovací údaje k e-shopům pascaljura · 13. 10." [ref=f7e216] [cursor=pointer]:
+            - generic [ref=f7e217]: Přihlašovací údaje k e-shopům
+            - generic [ref=f7e218]: pascaljura · 13. 10.
+          - button "Repozitář test free z FTP pascaljura · 13. 10." [ref=f7e219] [cursor=pointer]:
+            - generic [ref=f7e220]: Repozitář test free z FTP
+            - generic [ref=f7e221]: pascaljura · 13. 10.
+          - button "AI agent pro zákaznickou podporu pascaljura · 13. 10." [ref=f7e222] [cursor=pointer]:
+            - generic [ref=f7e223]: AI agent pro zákaznickou podporu
+            - generic [ref=f7e224]: pascaljura · 13. 10.
+          - button "Přihlašovací údaje Lukom, Adam, Hejl, Maris pascaljura · 13. 10." [ref=f7e225] [cursor=pointer]:
+            - generic [ref=f7e226]: Přihlašovací údaje Lukom, Adam, Hejl, Maris
+            - generic [ref=f7e227]: pascaljura · 13. 10.
+          - button "PDF od Lumíra Hendycha pascaljura · 13. 10." [ref=f7e228] [cursor=pointer]:
+            - generic [ref=f7e229]: PDF od Lumíra Hendycha
+            - generic [ref=f7e230]: pascaljura · 13. 10.
+          - button "GoPay přístupy u Marise pascaljura · 13. 10." [ref=f7e231] [cursor=pointer]:
+            - generic [ref=f7e232]: GoPay přístupy u Marise
+            - generic [ref=f7e233]: pascaljura · 13. 10.
+          - button "Přesměrování e-mailů na Wedos webmail Spolubydlim · 12. 10." [ref=f7e234] [cursor=pointer]:
+            - generic [ref=f7e235]: Přesměrování e-mailů na Wedos webmail
+            - generic [ref=f7e236]: Spolubydlim · 12. 10.
+          - button "Chyba překladu do češtiny pascaljura · 12. 10." [ref=f7e237] [cursor=pointer]:
+            - generic [ref=f7e238]: Chyba překladu do češtiny
+            - generic [ref=f7e239]: pascaljura · 12. 10.
+          - button "Barva bublin podle přihlášené osoby pascaljura · 12. 10." [ref=f7e240] [cursor=pointer]:
+            - generic [ref=f7e241]: Barva bublin podle přihlášené osoby
+            - generic [ref=f7e242]: pascaljura · 12. 10.
+          - button "Debugování v /debug pascaljura · 12. 10." [ref=f7e243] [cursor=pointer]:
+            - generic [ref=f7e244]: Debugování v /debug
+            - generic [ref=f7e245]: pascaljura · 12. 10.
+          - button "Nahrávání souborů na Google Disk pascaljura · 12. 10." [ref=f7e246] [cursor=pointer]:
+            - generic [ref=f7e247]: Nahrávání souborů na Google Disk
+            - generic [ref=f7e248]: pascaljura · 12. 10.
+          - button "Chybějící expedice v novém rozhraní pascaljura · 12. 10." [ref=f7e249] [cursor=pointer]:
+            - generic [ref=f7e250]: Chybějící expedice v novém rozhraní
+            - generic [ref=f7e251]: pascaljura · 12. 10.
+          - button "Pády aplikace WhatsApp na PC pascaljura · 12. 10." [ref=f7e252] [cursor=pointer]:
+            - generic [ref=f7e253]: Pády aplikace WhatsApp na PC
+            - generic [ref=f7e254]: pascaljura · 12. 10.
+          - button "GitHub napojení v Claude Code hubu pascaljura · 12. 10." [ref=f7e255] [cursor=pointer]:
+            - generic [ref=f7e256]: GitHub napojení v Claude Code hubu
+            - generic [ref=f7e257]: pascaljura · 12. 10.
+          - button "API klíče pro debugy pascaljura · 12. 10." [ref=f7e258] [cursor=pointer]:
+            - generic [ref=f7e259]: API klíče pro debugy
+            - generic [ref=f7e260]: pascaljura · 12. 10.
+          - button "Design faktur v MyInvoice pascaljura · 12. 10." [ref=f7e261] [cursor=pointer]:
+            - generic [ref=f7e262]: Design faktur v MyInvoice
+            - generic [ref=f7e263]: pascaljura · 12. 10.
+          - button "Skript pro automatické přihlášení pascaljura · 12. 10." [ref=f7e264] [cursor=pointer]:
+            - generic [ref=f7e265]: Skript pro automatické přihlášení
+            - generic [ref=f7e266]: pascaljura · 12. 10.
+          - button "Faktura pro Kláru Mičulkovou pascaljura · 12. 10." [ref=f7e267] [cursor=pointer]:
+            - generic [ref=f7e268]: Faktura pro Kláru Mičulkovou
+            - generic [ref=f7e269]: pascaljura · 12. 10.
+          - button "Mobilní administrace spolubydlimweb pascaljura · 11. 10." [ref=f7e270] [cursor=pointer]:
+            - generic [ref=f7e271]: Mobilní administrace spolubydlimweb
+            - generic [ref=f7e272]: pascaljura · 11. 10.
+          - button "Hlasový zákaznický agent pro WooCommerce pascaljura · 11. 10." [ref=f7e273] [cursor=pointer]:
+            - generic [ref=f7e274]: Hlasový zákaznický agent pro WooCommerce
+            - generic [ref=f7e275]: pascaljura · 11. 10.
+          - button "Chat s Tomášem na WhatsAppu pascaljura · 10. 10." [ref=f7e276] [cursor=pointer]:
+            - generic [ref=f7e277]: Chat s Tomášem na WhatsAppu
+            - generic [ref=f7e278]: pascaljura · 10. 10.
+          - generic [ref=f7e279]: Posledních 30 dní
+          - button "Hesla v Merch Zone tabulkách pascaljura · 7. 10." [ref=f7e280] [cursor=pointer]:
+            - generic [ref=f7e281]: Hesla v Merch Zone tabulkách
+            - generic [ref=f7e282]: pascaljura · 7. 10.
+          - button "/login pascaljura · 7. 10." [ref=f7e283] [cursor=pointer]:
+            - generic [ref=f7e284]: /login
+            - generic [ref=f7e285]: pascaljura · 7. 10.
+          - button "Chat sdílení - intuitivnější UX pascaljura · 7. 10." [ref=f7e286] [cursor=pointer]:
+            - generic [ref=f7e287]: Chat sdílení - intuitivnější UX
+            - generic [ref=f7e288]: pascaljura · 7. 10.
+          - button "WhatsApp skupina feedback na aplikaci pascaljura · 6. 10." [ref=f7e289] [cursor=pointer]:
+            - generic [ref=f7e290]: WhatsApp skupina feedback na aplikaci
+            - generic [ref=f7e291]: pascaljura · 6. 10.
+          - button "Freelo úkoly pascaljura · 6. 10." [ref=f7e292] [cursor=pointer]:
+            - generic [ref=f7e293]: Freelo úkoly
+            - generic [ref=f7e294]: pascaljura · 6. 10.
+          - button "Hub images klaramiculkova.com · 6. 10." [ref=f7e295] [cursor=pointer]:
+            - generic [ref=f7e296]: Hub images
+            - generic [ref=f7e297]: klaramiculkova.com · 6. 10.
+          - button "Magda MCP napojení pascaljura · 6. 10." [ref=f7e298] [cursor=pointer]:
+            - generic [ref=f7e299]: Magda MCP napojení
+            - generic [ref=f7e300]: pascaljura · 6. 10.
+          - button "Zobrazit další (183)" [ref=f7e301] [cursor=pointer]
+      - generic [ref=f7e46]:
+        - button "P pascaljura" [ref=f7e47] [cursor=pointer]:
+          - generic [ref=f7e48]: P
+          - generic [ref=f7e49]: pascaljura
+        - button "v2.84.0" [ref=f7e50] [cursor=pointer]
+    - main [ref=f7e51]:
+      - generic [ref=f7e52]:
+        - button "Zkouška souhlasu" [ref=f7e302] [cursor=pointer]:
+          - generic "Zavřít tab" [ref=f7e305]
+        - button "PC" [ref=f7e53] [cursor=pointer]
+        - button "Terminál" [ref=f7e57] [cursor=pointer]
+      - generic [ref=f7e308]:
+        - generic [ref=f7e312]:
+          - textbox "Terminal input" [ref=f7e313]
+          - generic [aria-hidden] [ref=f7e314]:
+            - generic [ref=f7e316]:
+              - generic [ref=f7e317]: ▐
+              - generic [ref=f7e318]: ▛███▛█
+              - generic [ref=f7e320]: Claude Code
+              - generic [ref=f7e322]: v2.1.300
+            - generic [ref=f7e323]:
+              - generic [ref=f7e324]: ▝▜
+              - generic [ref=f7e325]: █████
+              - generic [ref=f7e326]: █▀
+              - generic [ref=f7e328]: Opus 5.5 with high effort · Claude Max
+            - generic [ref=f7e329]:
+              - generic [ref=f7e330]: ▝▝ ▝▝
+              - generic [ref=f7e332]: /…/429dab64-7026-4309-a51d-b8b1529aa78c/scratchpad/t3/work
+            - generic [ref=f7e335]:
+              - generic [ref=f7e336]: ❯
+              - generic [ref=f7e337]: Claude v prostoru na serveru test.alba-rosa.cz ti nechal úkol pro tenhle počítač (zadáno 15. 10.
+            - generic [ref=f7e339]: 2026 12:45). Konverzaci ze serveru nevidíš — řiď se zadáním níž.
+            - generic [ref=f7e345]: Zkouška souhlasu
+            - generic [ref=f7e351]: "Spusť v bashi příkaz: touch povoleno.txt — a teprve až doběhne, se mě nástrojem AskUserQuestion"
+            - generic [ref=f7e355]: zeptej, jakou barvu mám rád (možnosti Modrá, Červená, Zelená). Nakonec odpověz jen tou barvou.
+            - generic [ref=f7e359]: Nic dalšího nedělej.
+            - generic [ref=f7e365]: Než začneš, v pár větách shrň, co uděláš. Když zadání nesedí na to, co tady najdeš, nebo by šlo o
+            - generic [ref=f7e369]: mazání či přepsání něčeho, co zadání výslovně nezmiňuje, zeptej se uživatele.
+            - generic [ref=f7e374]:
+              - generic [ref=f7e375]: ●
+              - generic [ref=f7e376]: Vytvořím v pracovní složce prázdný soubor
+              - generic [ref=f7e377]: povoleno.txt
+              - generic [ref=f7e378]: příkazem
+              - generic [ref=f7e379]: touch
+              - generic [ref=f7e380]: . Až doběhne, zeptám se tě,
+            - generic [ref=f7e381]: jakou barvu máš rád (Modrá, Červená, Zelená). Pak odpovím jen tou barvou.
+            - generic [ref=f7e384]:
+              - generic [ref=f7e386]: Ran
+              - generic [ref=f7e387]: "1"
+              - generic [ref=f7e388]: shell command
+            - generic [ref=f7e389]:
+              - generic [ref=f7e391]: ⎿
+              - generic [ref=f7e392]: Allowed by
+              - generic [ref=f7e393]: PermissionRequest
+              - generic [ref=f7e394]: hook
+            - generic [ref=f7e396]:
+              - generic [ref=f7e397]: ●
+              - generic [ref=f7e398]: "User answered Claude's questions:"
+            - generic [ref=f7e399]:
+              - generic [ref=f7e401]: ⎿
+              - generic [ref=f7e402]: · Jakou barvu máš rád? → Zelená
+            - generic [ref=f7e403]:
+              - generic [ref=f7e405]: ⎿
+              - generic [ref=f7e406]: Allowed by
+              - generic [ref=f7e407]: PermissionRequest
+              - generic [ref=f7e408]: hook
+            - generic [ref=f7e410]:
+              - generic [ref=f7e411]: ●
+              - generic [ref=f7e412]: Zelená
+            - generic [ref=f7e414]:
+              - generic [ref=f7e415]: ✻
+              - generic [ref=f7e417]: Cogitated for 16s · done 12:49
+            - generic [ref=f7e419]:
+              - generic [ref=f7e420]: ❯
+              - generic [ref=f7e421]: "Spusť v bashi příkaz: touch lokalne.txt (nic dalšího)"
+            - generic [ref=f7e424]:
+              - generic [ref=f7e426]: Ran
+              - generic [ref=f7e427]: "1"
+              - generic [ref=f7e428]: shell command
+            - generic [ref=f7e430]:
+              - generic [ref=f7e431]: ●
+              - generic [ref=f7e432]: Příkaz
+              - generic [ref=f7e433]: touch lokalne.txt
+              - generic [ref=f7e434]: doběhl bez chyby a soubor je v pracovní složce.
+            - generic [ref=f7e436]:
+              - generic [ref=f7e437]: ✻
+              - generic [ref=f7e439]: Cooked for 13s · done 12:50
+            - generic [ref=f7e441]:
+              - generic [ref=f7e442]: ※
+              - generic [ref=f7e444]: "recap:"
+              - generic [ref=f7e445]: "Šlo o zkoušku souhlasu ze serveru: vytvořil jsem soubory povoleno.txt a lokalne.txt a na"
+            - generic [ref=f7e446]: otázku o barvě jsi vybral Zelenou. Všechno je hotové, teď jen čekám na další zadání. (disable
+            - generic [ref=f7e449]: recaps in /config)
+            - generic [ref=f7e453]: ────────────────────────────────────────────────────────────────────────────────────────────────────
+            - generic [ref=f7e455]: ❯
+            - generic [ref=f7e458]: ────────────────────────────────────────────────────────────────────────────────────────────────────
+            - generic [ref=f7e460]:
+              - generic [ref=f7e462]: ⏸
+              - generic [ref=f7e463]: manual mode on · ? for shortcuts · ← 1 agent
+        - generic [ref=f7e464]:
+          - generic [ref=f7e466]:
+            - generic [ref=f7e467]: "Claude v prostoru na serveru test.alba-rosa.cz ti nechal úkol pro tenhle počítač (zadáno 15. 10. 2026 12:45). Konverzaci ze serveru nevidíš — řiď se zadáním níž. # Zkouška souhlasu Spusť v bashi příkaz: touch povoleno.txt — a teprve až doběhne, se mě nástrojem AskUserQuestion zeptej, jakou barvu mám rád (možnosti Modrá, Červená, Zelená). Nakonec odpověz jen tou barvou. Nic dalšího nedělej. Než začneš, v pár větách shrň, co uděláš. Když zadání nesedí na to, co tady najdeš, nebo by šlo o mazání či přepsání něčeho, co zadání výslovně nezmiňuje, zeptej se uživatele."
+            - generic [ref=f7e470]:
+              - paragraph [ref=f7e471]:
+                - text: Vytvořím v pracovní složce prázdný soubor
+                - code [ref=f7e472]: povoleno.txt
+                - text: příkazem
+                - code [ref=f7e473]: touch
+                - text: . Až doběhne, zeptám se tě, jakou barvu máš rád (Modrá, Červená, Zelená). Pak odpovím jen tou barvou.
+              - button "Přečíst nahlas" [ref=f7e474] [cursor=pointer]
+            - button "▸ ⏵ Create empty file povoleno.txt 1 ř." [ref=f7e478] [cursor=pointer]:
+              - generic [ref=f7e479]: ▸
+              - generic [ref=f7e480]: ⏵
+              - generic [ref=f7e481]: Create empty file povoleno.txt
+              - generic [ref=f7e482]: 1 ř.
+            - button "▸ ? zeptal se 1 ř." [ref=f7e484] [cursor=pointer]:
+              - generic [ref=f7e485]: ▸
+              - generic [ref=f7e486]: "?"
+              - generic [ref=f7e487]: zeptal se
+              - generic [ref=f7e488]: 1 ř.
+            - generic [ref=f7e489]:
+              - paragraph [ref=f7e490]: Zelená
+              - button "Přečíst nahlas" [ref=f7e491] [cursor=pointer]
+            - generic [ref=f7e494]: "Spusť v bashi příkaz: touch lokalne.txt (nic dalšího)"
+            - button "▸ ⏵ Create empty file lokalne.txt 1 ř." [ref=f7e498] [cursor=pointer]:
+              - generic [ref=f7e499]: ▸
+              - generic [ref=f7e500]: ⏵
+              - generic [ref=f7e501]: Create empty file lokalne.txt
+              - generic [ref=f7e502]: 1 ř.
+            - generic [ref=f7e503]:
+              - paragraph [ref=f7e504]:
+                - text: Příkaz
+                - code [ref=f7e505]: touch lokalne.txt
+                - text: doběhl bez chyby a soubor je v pracovní složce.
+              - button "Přečíst nahlas" [ref=f7e506] [cursor=pointer]
+            - generic [ref=f7e509]:
+              - generic [ref=f7e510]: ✻
+              - generic [ref=f7e511]: Doing…
+              - generic [ref=f7e512]: · 0 s
+            - generic [ref=f7e514]:
+              - generic [ref=f7e515]: "Spusť v bashi příkaz: touch zamitnuto.txt (nic dalšího, když to nepůjde, jen řekni proč)"
+              - generic [ref=f7e517]: Odesílá se…
+          - generic [aria-hidden]:
+            - generic: 💭
+        - generic [ref=f7e518]:
+          - textbox "Napiš, s čím ti má Claude Code pomoct… (Enter odešle, Shift+Enter nový řádek)" [active] [ref=f7e519]
+          - generic [ref=f7e520]:
+            - generic [ref=f7e521]:
+              - button "Claude Code ▾" [ref=f7e522] [cursor=pointer]:
+                - generic [ref=f7e524]: Claude Code
+                - text: ▾
+              - 'button "Model: Auto · Opus 5.5 · high ▾" [ref=f7e525] [cursor=pointer]':
+                - text: "Model:"
+                - generic [ref=f7e526]: Auto · Opus 5.5 · high
+                - text: ▾
+              - button "/ příkazy" [ref=f7e527] [cursor=pointer]
+              - button "Historie" [ref=f7e528] [cursor=pointer]
+              - button "Příloha" [ref=f7e531] [cursor=pointer]
+              - 'button "Režim: Normální ▾" [ref=f7e534] [cursor=pointer]':
+                - text: "Režim:"
+                - generic [ref=f7e535]: Normální
+                - text: ▾
+            - button "Zastavit" [ref=f7e536] [cursor=pointer]
+            - button "Diktovat česky — klikni, mluv, klikni znovu" [ref=f7e537] [cursor=pointer]
+            - button "Odeslat (Enter)" [ref=f7e540] [cursor=pointer]
+    - complementary [ref=f7e543]:
+      - generic [ref=f7e544]:
+        - generic [ref=f7e545]:
+          - generic [ref=f7e546]: Úkol
+          - 'button "Spusť v bashi příkaz: touch lokalne.txt (nic dalšího)" [ref=f7e547] [cursor=pointer]'
+        - generic [ref=f7e550]:
+          - generic [ref=f7e551]:
+            - text: Poznámky
+            - button "Přidat vlastní poznámku" [ref=f7e552] [cursor=pointer]
+          - generic [ref=f7e555]: Klikni pravým tlačítkem na zprávu v konverzaci, vyber barvu — a je tady.
+        - generic [ref=f7e556]:
+          - generic [ref=f7e557]: Přenos
+          - generic [ref=f7e558]: Pošli tenhle chat na server a pokračuj v něm tam.
+          - button "Pokračovat na serveru" [ref=f7e559] [cursor=pointer]
+        - generic [ref=f7e560]:
+          - generic [ref=f7e561]: Kroky
+          - generic "Create empty file lokalne.txt" [ref=f7e562]
+      - generic [ref=f7e565]: Rychlé akce
+      - generic [ref=f7e566]:
+        - button "Deploy" [ref=f7e567] [cursor=pointer]
+        - button "Push na GitHub" [ref=f7e571] [cursor=pointer]
+        - button "Přehled projektů" [ref=f7e575] [cursor=pointer]
+        - button "Snímek webu…" [ref=f7e579] [cursor=pointer]
+      - generic [ref=f7e583]: Stopky
+      - generic [ref=f7e584]:
+        - combobox [ref=f7e585] [cursor=pointer]:
+          - option "Vyber projekt…" [selected]
+          - option "Agro"
+          - option "algoHeuristiQ"
+          - option "american liberator"
+          - option "Argentswarm"
+          - option "Army Častolovice"
+          - option "Autoservis_HeřmanBinder"
+          - option "BMV - strategy"
+          - option "BoxArena"
+          - option "Bukovka"
+          - option "Chateau - Orlice"
+          - option "Chilli maga"
+          - option "Chilli Maga"
+          - option "Claude App"
+          - option "Corposan"
+          - option "Deponie Smíchov"
+          - option "dofec"
+          - option "Elegants dog Barber"
+          - option "F4F"
+          - option "FAJTY"
+          - option "Floria"
+          - option "Food Day Festival"
+          - option "Garland - Scheppach | Riwall | Canopisa"
+          - option "Glamping Pytlík"
+          - option "Hospic bílá holubice"
+          - option "Hvězdy nad Vltavou"
+          - option "Inequity"
+          - option "Jiří Bartoš"
+          - option "Jiří Váhala"
+          - option "Kafíííčko"
+          - option "Kopacka"
+          - option "Kopacka_projects"
+          - option "Kratochvíle"
+          - option "Krekrrr"
+          - option "Kumoumbrella"
+          - option "Květinářství pytlík"
+          - option "LaCassa"
+          - option "litomysl 79 Krejsová"
+          - option "Mamacita/MeatUp"
+          - option "Megazahrada"
+          - option "nachuť"
+          - option "Naklizeno"
+          - option "Natur house"
+          - option "Naďa Seidlová"
+          - option "Off the wall"
+          - option "P&S foodtruck"
+          - option "PEKO - GDS"
+          - option "Pralinková teta"
+          - option "REWA"
+          - option "Sabina Blažková"
+          - option "Sanela"
+          - option "spolubydlim"
+          - option "Stavby Doubek"
+          - option "The good food s.r.o."
+          - option "Threee"
+          - option "Ticket live - Holý"
+          - option "Továrna_na_sushi"
+          - option "wallachiamont"
+          - option "ZZZ sleep"
+          - option "Španělské slunce"
+        - textbox "na čem děláš (nepovinné)" [ref=f7e586]
+        - button "▶ Spustit" [ref=f7e587] [cursor=pointer]

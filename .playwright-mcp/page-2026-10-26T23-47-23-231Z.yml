@@ -1,0 +1,172 @@
+- generic [ref=f8e1]:
+  - banner [ref=f8e2]:
+    - button "Projekty a chaty" [ref=f8e492] [cursor=pointer]
+    - generic [ref=f8e3]:
+      - button "Osobní" [ref=f8e9] [cursor=pointer]
+      - generic [ref=f8e208]: Úklid místa
+    - generic [ref=f8e14]:
+      - button "Oznámení" [ref=f8e36] [cursor=pointer]
+      - button "Nabídka" [ref=f8e495] [cursor=pointer]
+  - generic [ref=f8e48]:
+    - complementary [ref=f8e49]:
+      - generic [ref=f8e498]:
+        - button [ref=f8e499] [cursor=pointer]:
+          - strong [ref=f8e500]: Aladin
+        - generic [ref=f8e501]:
+          - button "Hledat chat" [ref=f8e502] [cursor=pointer]
+          - button "Nastavení" [ref=f8e505] [cursor=pointer]
+          - button "Další" [ref=f8e508] [cursor=pointer]
+      - navigation [ref=f8e50]:
+        - button "Nový chat" [ref=f8e51] [cursor=pointer]
+        - button [ref=f8e60] [cursor=pointer]
+      - generic [ref=f8e211]:
+        - generic [ref=f8e212]: Otevřené
+        - generic [ref=f8e511]:
+          - button "Úklid místa" [ref=f8e513] [cursor=pointer]
+          - button "Zavřít chat" [ref=f8e514] [cursor=pointer]
+      - generic [ref=f8e64]: Chaty
+      - generic [ref=f8e66]:
+        - button "Hledat v textu konverzací" [ref=f8e70] [cursor=pointer]
+        - generic [ref=f8e71]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - complementary [ref=f8e296]:
+        - generic [ref=f8e297]:
+          - generic [ref=f8e298]:
+            - generic [ref=f8e299]: Sdílení
+            - generic [ref=f8e300]: Kolega uvidí tenhle chat živě — i kód, který Claude píše.
+            - button "Sdílet chat…" [ref=f8e301] [cursor=pointer]
+          - generic [ref=f8e302]:
+            - generic [ref=f8e303]: Přenos
+            - generic [ref=f8e304]: Pošli tenhle chat na počítač a pokračuj v něm tam.
+            - button "Pokračovat na počítači" [ref=f8e305] [cursor=pointer]
+      - generic [ref=f8e74]:
+        - button "A Anna Nováková" [ref=f8e218] [cursor=pointer]:
+          - generic [ref=f8e219]: A
+          - generic [ref=f8e220]: Anna Nováková
+        - button "v2.103.7" [ref=f8e221] [cursor=pointer]
+    - main [ref=f8e79]:
+      - generic [ref=f8e80]:
+        - text: ✻
+        - generic [ref=f8e222]:
+          - generic [ref=f8e226]:
+            - textbox "Terminal input" [active] [ref=f8e227]
+            - generic [aria-hidden] [ref=f8e228]:
+              - generic [ref=f8e229]: ░▓
+              - generic [ref=f8e231]: ▓███▓▓░
+              - generic [ref=f8e232]:
+                - generic [ref=f8e520]: "*"
+                - generic [ref=f8e522]: ░░░░
+              - generic [ref=f8e233]: ░░░░░░░░
+              - generic [ref=f8e234]: ░░░░░░░░░░░░░░░░
+              - generic [ref=f8e235]: █████████
+              - generic [ref=f8e236]: "*"
+              - generic [ref=f8e237]:
+                - generic [ref=f8e534]: ██▄█████▄██
+                - generic [ref=f8e536]: "*"
+              - generic [ref=f8e238]:
+                - generic [ref=f8e538]: █████████
+                - generic [ref=f8e539]: "*"
+              - generic [ref=f8e239]:
+                - generic [ref=f8e540]: .......
+                - generic [ref=f8e541]: █
+                - generic [ref=f8e543]: █
+                - generic [ref=f8e545]: █
+                - generic [ref=f8e547]: █
+                - generic [ref=f8e548]: ...............................
+              - generic [ref=f8e240]: ...........
+              - generic [ref=f8e242]: Let's get started.
+              - generic [ref=f8e244]:
+                - generic [ref=f8e552]: Choose
+                - generic [ref=f8e554]: the
+                - generic [ref=f8e556]: text
+                - generic [ref=f8e558]: style
+                - generic [ref=f8e560]: that
+                - generic [ref=f8e562]: looks
+                - generic [ref=f8e564]: best
+                - generic [ref=f8e566]: with
+                - generic [ref=f8e568]: you
+              - generic [ref=f8e245]:
+                - generic [ref=f8e569]: r
+                - generic [ref=f8e571]: terminal
+              - generic [ref=f8e572]:
+                - generic [ref=f8e574]: To
+                - generic [ref=f8e576]: change
+                - generic [ref=f8e578]: this
+                - generic [ref=f8e580]: later,
+                - generic [ref=f8e582]: run
+                - generic [ref=f8e584]: /theme
+              - generic [ref=f8e586]: Auto (match terminal)
+              - generic [ref=f8e588]:
+                - generic [ref=f8e590]: ❯
+                - generic [ref=f8e592]: ✔
+                - generic [ref=f8e594]: Dark
+                - generic [ref=f8e596]: mode
+              - generic [ref=f8e597]: Light mode
+              - generic [ref=f8e599]: Dark mode (colorblind-friendly)
+              - generic [ref=f8e601]: Light mode (colorblind-friendly)
+              - generic [ref=f8e603]: Dark mode (ANSI colors only)
+              - generic [ref=f8e605]: Light mode (ANSI colors only)
+              - generic [ref=f8e608]: ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+              - generic [ref=f8e611]: ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+              - generic [ref=f8e613]:
+                - generic [ref=f8e615]: "1"
+                - generic [ref=f8e618]: function
+                - generic [ref=f8e620]: greet
+                - generic [ref=f8e621]: ()
+                - generic [ref=f8e623]: "{"
+              - generic [ref=f8e624]:
+                - generic [ref=f8e626]: 2 -
+                - generic [ref=f8e627]: console.log("Hello,
+                - generic [ref=f8e628]: World
+                - generic [ref=f8e629]: "!\");"
+              - generic [ref=f8e632]:
+                - generic [ref=f8e634]: 2 +
+                - generic [ref=f8e636]: console
+                - generic [ref=f8e637]: .
+                - generic [ref=f8e638]: log
+                - generic [ref=f8e639]: (
+                - generic [ref=f8e640]: "\"Hello,"
+                - generic [ref=f8e641]: Claude
+                - generic [ref=f8e642]: "!\""
+                - generic [ref=f8e643]: );
+              - generic [ref=f8e646]:
+                - generic [ref=f8e648]: "3"
+                - generic [ref=f8e650]: "}"
+              - generic [ref=f8e651]: ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+              - generic [ref=f8e654]: ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+              - generic [ref=f8e656]:
+                - generic [ref=f8e658]: Syntax
+                - generic [ref=f8e660]: "theme:"
+                - generic [ref=f8e662]: Monokai
+                - generic [ref=f8e664]: Extended
+                - generic [ref=f8e666]: (ctrl+t
+                - generic [ref=f8e668]: to
+                - generic [ref=f8e670]: dis
+              - generic [ref=f8e671]: able)
+              - generic [ref=f8e674]: "[ session ukončena — tab zůstává jako shell, cl"
+              - generic [ref=f8e676]: aude + Enter ho spustí znovu ]
+              - generic [ref=f8e678]: To run a command as administrator (user "root")
+              - generic [ref=f8e680]: ", use \"sudo <command>\"."
+              - generic [ref=f8e682]: See "man sudo_root" for details.
+              - generic [ref=f8e685]: pascaljura@pascaljura-ThinkPad-T570:~$
+          - button "Psát v bublině" [ref=f8e688] [cursor=pointer]
+  - generic [ref=f8e692]:
+    - button "Nahlásit chybu" [ref=f8e693] [cursor=pointer]
+    - button "Podat návrh" [ref=f8e708] [cursor=pointer]
+  - dialog "Oznámení" [ref=f8e711]:
+    - generic [ref=f8e712]:
+      - strong [ref=f8e713]: Oznámení
+      - button "Zavřít panel" [ref=f8e714] [cursor=pointer]: ×
+    - generic [ref=f8e715]:
+      - generic [ref=f8e716]:
+        - generic [ref=f8e717]: V sobotu ráno bude server chvíli stát
+        - generic [ref=f8e720]: Správce serveru · před 3 min
+        - generic [ref=f8e721]: Mezi 7 a 8 se server aktualizuje. Rozdělanou práci si ulož.
+        - button "Zavřít" [ref=f8e723] [cursor=pointer]
+      - generic [ref=f8e724]:
+        - generic [ref=f8e725]: Došlo ti místo na serveru
+        - generic [ref=f8e728]: Systém · před 3 min
+        - generic [ref=f8e729]: Tvůj prostor zabírá 119 MB z 82 MB (146 %). Nejvíc místa berou mezipaměti (55 MB) a projekty a složky (43 MB). Bez ztráty čehokoli důležitého jde uvolnit asi 86 MB — hlavně mezipaměti a věci, které se dají znovu stáhnout. Klikni na „Vyřešit s Claudem“ — Claude to projde a před smazáním se tě zeptá.
+        - generic [ref=f8e730]:
+          - button "Vyřešit s Claudem" [ref=f8e731] [cursor=pointer]
+          - generic [ref=f8e732]: chat už běží
+          - button "Zavřít" [ref=f8e733] [cursor=pointer]

@@ -94,10 +94,10 @@ def _novy_ucet(accounts, form, role="user", company=None):
 
 
 def pozvat_do_firmy(accounts, captain, slug, form):
-    """Kapitán pozve nového člověka rovnou do své firmy (Nastavení → Firmy).
+    """Generál pozve nového člověka rovnou do své firmy (Nastavení → Firmy).
     Účet dostane roli `user`; do dnešní firmy patří, jen když se zve do ní."""
     if not firmy.exists(slug) or firmy.role(captain, slug) != "kapitan":
-        raise PermissionError("Zvát do firmy může jen její kapitán.")
+        raise PermissionError("Zvát do firmy může jen její generál.")
     new_role = str(form.get("role") or "clen")
     if new_role not in firmy.ROLES:
         raise ValueError("Neznámá role.")

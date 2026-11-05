@@ -427,13 +427,13 @@ def ulozeny(user, sid):
 
 
 def smazat_ulozeny(user, sid):
-    """Smaže uložený chat — jeho autor, nebo kapitán firmy."""
+    """Smaže uložený chat — jeho autor, nebo generál firmy."""
     sid = str(sid or "")
     for s, slug, info in _ulozene_vse():
         if s != sid:
             continue
         if info.get("owner") != int(user["id"]) and firmy.role(user, slug) != "kapitan":
-            raise ValueError("Uložený chat smaže jen ten, kdo ho uložil, nebo kapitán firmy.")
+            raise ValueError("Uložený chat smaže jen ten, kdo ho uložil, nebo generál firmy.")
         for ext in (".zip", ".json"):
             try:
                 os.remove(os.path.join(_chaty_dir(slug), sid + ext))

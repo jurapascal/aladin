@@ -1,0 +1,227 @@
+- generic [active] [ref=f4e1]:
+  - banner [ref=f4e2]:
+    - generic [ref=f4e3]:
+      - button [ref=f4e4] [cursor=pointer]:
+        - strong [ref=f4e7]: Aladin
+      - button "Aladin na serveru" [ref=f4e46] [cursor=pointer]: Server
+      - button "Osobní" [ref=f4e47] [cursor=pointer]
+    - generic [ref=f4e9]:
+      - generic [ref=f4e52]:
+        - button "Nahlásit chybu" [ref=f4e53] [cursor=pointer]:
+          - generic [ref=f4e68]: Chyba
+        - button "Podat návrh" [ref=f4e69] [cursor=pointer]:
+          - generic [ref=f4e72]: Návrh
+      - button "Oznámení" [ref=f4e101] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f4e10] [cursor=pointer]
+      - button "Statistiky používání" [ref=f4e13] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f4e16] [cursor=pointer]
+  - generic [ref=f4e19]:
+    - complementary [ref=f4e20]:
+      - navigation [ref=f4e21]:
+        - button "Nový chat" [ref=f4e22] [cursor=pointer]
+        - button [ref=f4e76] [cursor=pointer]
+        - button [ref=f4e80] [cursor=pointer]
+      - generic [ref=f4e31]: Chaty
+      - generic [ref=f4e33]:
+        - searchbox "Hledat chat…" [ref=f4e35]
+        - button "Hledat v textu konverzací" [ref=f4e85] [cursor=pointer]
+        - generic [ref=f4e86]: Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.
+      - generic [ref=f4e37]:
+        - button "A Anna Nováková" [ref=f4e88] [cursor=pointer]:
+          - generic [ref=f4e89]: A
+          - generic [ref=f4e90]: Anna Nováková
+        - button "v2.103.7" [ref=f4e91] [cursor=pointer]
+    - main [ref=f4e38]:
+      - generic [ref=f4e45]:
+        - generic [ref=f4e92]: ✻Dobrou noc, Anna.
+        - generic [ref=f4e93]:
+          - textbox "Na čem budeme pracovat?" [ref=f4e94]
+          - button "Odeslat" [ref=f4e97] [cursor=pointer]
+  - generic [ref=f4e125]:
+    - generic [ref=f4e126]:
+      - generic [ref=f4e127]: Nastavení
+      - button "Zavřít" [ref=f4e130] [cursor=pointer]: ×
+    - generic [ref=f4e131]:
+      - navigation [ref=f4e132]:
+        - search [ref=f4e230]:
+          - searchbox "Hledat" [ref=f4e231]
+        - generic [ref=f4e232]: Předvolby
+        - button "Vzhled" [ref=f4e233] [cursor=pointer]
+        - button "AI agenti" [ref=f4e237] [cursor=pointer]
+        - button "Účet" [ref=f4e241] [cursor=pointer]
+        - button "Firmy" [ref=f4e245] [cursor=pointer]
+        - button "Hlas" [ref=f4e249] [cursor=pointer]
+        - generic [ref=f4e253]: Přizpůsobit
+        - button "Panel vlevo" [ref=f4e254] [cursor=pointer]
+        - button "Napojení a pluginy" [ref=f4e258] [cursor=pointer]
+        - generic [ref=f4e262]: Platforma
+        - button "Úložiště" [ref=f4e263] [cursor=pointer]
+        - button "Oznámení" [ref=f4e267] [cursor=pointer]
+        - button "Aktualizace" [ref=f4e271] [cursor=pointer]
+        - button "Ostatní" [ref=f4e275] [cursor=pointer]
+      - generic [ref=f4e279]:
+        - generic [ref=f4e280]: Úložiště
+        - generic [ref=f4e281]: Kolik místa na serveru zabírá tvůj prostor a čím. Počítá se každou noc; „Přepočítat" to spočítá hned. Nic se tu samo nemaže — co jde uvolnit, projdeš s Claudem a on se před smazáním zeptá.
+        - generic [ref=f4e282]:
+          - generic [ref=f4e283]:
+            - generic [ref=f4e284]: Spočítáno právě teď
+            - button "Přepočítat" [ref=f4e285] [cursor=pointer]
+          - generic [ref=f4e286]:
+            - generic [ref=f4e287]:
+              - img "Chaty Clauda 3 MB, Mezipaměti 55 MB, Projekty a složky 43 MB, Obsidian 4 kB, Stažené 6 MB, Programy a nastavení 1 MB, Ostatní 11 MB" [ref=f4e289]:
+                - 'generic "Chaty Clauda: 3 MB (3 %)" [ref=f4e291]'
+                - 'generic "Mezipaměti: 55 MB (46 %)" [ref=f4e292]'
+                - 'generic "Projekty a složky: 43 MB (36 %)" [ref=f4e293]'
+                - 'generic "Obsidian: 4 kB (0 %)" [ref=f4e294]'
+                - 'generic "Stažené: 6 MB (5 %)" [ref=f4e295]'
+                - 'generic "Programy a nastavení: 1 MB (1 %)" [ref=f4e296]'
+                - 'generic "Ostatní: 11 MB (9 %)" [ref=f4e297]'
+                - generic [ref=f4e298]: 119 MB
+                - generic [ref=f4e299]: z 82 MB
+              - generic [ref=f4e300]:
+                - generic [ref=f4e301]:
+                  - generic [ref=f4e303]: Chaty Clauda
+                  - generic [ref=f4e304]: 3 MB
+                  - generic [ref=f4e305]: 3 %
+                - generic [ref=f4e306]:
+                  - generic [ref=f4e308]: Mezipaměti
+                  - generic [ref=f4e309]: 55 MB
+                  - generic [ref=f4e310]: 46 %
+                - generic [ref=f4e311]:
+                  - generic [ref=f4e313]: Projekty a složky
+                  - generic [ref=f4e314]: 43 MB
+                  - generic [ref=f4e315]: 36 %
+                - generic [ref=f4e316]:
+                  - generic [ref=f4e318]: Obsidian
+                  - generic [ref=f4e319]: 4 kB
+                  - generic [ref=f4e320]: <1 %
+                - generic [ref=f4e321]:
+                  - generic [ref=f4e323]: Stažené
+                  - generic [ref=f4e324]: 6 MB
+                  - generic [ref=f4e325]: 5 %
+                - generic [ref=f4e326]:
+                  - generic [ref=f4e328]: Programy a nastavení
+                  - generic [ref=f4e329]: 1 MB
+                  - generic [ref=f4e330]: 1 %
+                - generic [ref=f4e331]:
+                  - generic [ref=f4e333]: Ostatní
+                  - generic [ref=f4e334]: 11 MB
+                  - generic [ref=f4e335]: 9 %
+            - generic [ref=f4e337]:
+              - generic [ref=f4e338]: 119 MB z 82 MB
+              - generic [ref=f4e339]: Nad limitem · 146 %
+            - generic [ref=f4e342]: Sloučením stejných souborů v mezipaměti s kolegy ušetřeno 3 MB (do limitu se ti počítá jen tvůj díl).
+          - generic [ref=f4e343]:
+            - generic [ref=f4e344]: Co jde uvolnit
+            - generic [ref=f4e345]: Bez ztráty čehokoli důležitého jde uvolnit asi 86 MB — mezipaměti, věci, které se dají znovu nainstalovat, a stejné kopie.
+            - generic [ref=f4e346]:
+              - generic [ref=f4e347]:
+                - generic [ref=f4e348]: jde uvolnit
+                - generic [ref=f4e349]: Mezipaměť ~/.cache/puppeteer — 55 MB, naposledy použitá před 60 dny
+              - generic [ref=f4e350]:
+                - generic [ref=f4e351]: jde uvolnit
+                - generic [ref=f4e352]: node_modules v projektu ~/stary-web — 25 MB, v projektu se nepracovalo 60 dní
+              - generic [ref=f4e353]:
+                - generic [ref=f4e354]: jde uvolnit
+                - generic [ref=f4e355]: 2 stejné kopie souboru ~/Stažené/faktura.pdf — navíc 6 MB
+              - generic [ref=f4e356]:
+                - generic [ref=f4e357]: ke zvážení
+                - generic [ref=f4e358]: Archiv ~/fotky.zip — 11 MB, starý 60 dní
+            - button "Uklidit s Claudem" [ref=f4e360] [cursor=pointer]
+          - generic [ref=f4e361]:
+            - generic [ref=f4e362]: Největší složky
+            - generic [ref=f4e363]:
+              - generic [ref=f4e364]:
+                - generic "~/.cache · naposledy změněno před 60 dny" [ref=f4e365]: ~/.cache
+                - generic [ref=f4e368]: 55 MB
+              - generic [ref=f4e369]:
+                - generic "~/stary-web · naposledy změněno před 60 dny" [ref=f4e370]: ~/stary-web
+                - generic [ref=f4e373]: 25 MB
+              - generic [ref=f4e374]:
+                - generic "~/novy-web" [ref=f4e375]
+                - generic [ref=f4e378]: 12 MB
+              - generic [ref=f4e379]:
+                - generic "~/projects · naposledy změněno před 0 dny" [ref=f4e380]: ~/projects
+                - generic [ref=f4e383]: 6 MB
+              - generic [ref=f4e384]:
+                - generic "~/Stažené · naposledy změněno před 0 dny" [ref=f4e385]: ~/Stažené
+                - generic [ref=f4e388]: 6 MB
+              - generic [ref=f4e389]:
+                - generic "~/.local · naposledy změněno před 0 dny" [ref=f4e390]: ~/.local
+                - generic [ref=f4e393]: 4 MB
+              - generic [ref=f4e394]:
+                - generic "~/.claude · naposledy změněno před 0 dny" [ref=f4e395]: ~/.claude
+                - generic [ref=f4e398]: 3 MB
+              - generic [ref=f4e399]:
+                - generic "~/Obsidian · naposledy změněno před 0 dny" [ref=f4e400]: ~/Obsidian
+                - generic [ref=f4e403]: 24 kB
+          - generic [ref=f4e404]:
+            - generic [ref=f4e405]: Celý server
+            - generic [ref=f4e406]:
+              - img "Anna Nováková 119 MB, Bob Dvořák 42 MB, Cyril 4 MB, Společné Obsidiany a smazané účty 4 kB, Systém, programy a zálohy 322,2 GB" [ref=f4e408]:
+                - 'generic "Anna Nováková: 119 MB (0 %)" [ref=f4e410] [cursor=pointer]'
+                - 'generic "Bob Dvořák: 42 MB (0 %)" [ref=f4e411] [cursor=pointer]'
+                - 'generic "Cyril: 4 MB (0 %)" [ref=f4e412] [cursor=pointer]'
+                - 'generic "Společné Obsidiany a smazané účty: 4 kB (0 %)" [ref=f4e413]'
+                - 'generic "Systém, programy a zálohy: 322,2 GB (69 %)" [ref=f4e414]'
+                - generic [ref=f4e415]: 322,3 GB
+                - generic [ref=f4e416]: z 467,9 GB
+              - generic [ref=f4e417]:
+                - generic [ref=f4e418] [cursor=pointer]:
+                  - generic [ref=f4e420]: Anna Nováková
+                  - generic [ref=f4e421]: 119 MB
+                  - generic [ref=f4e422]: <1 %
+                - generic [ref=f4e423] [cursor=pointer]:
+                  - generic [ref=f4e425]: Bob Dvořák
+                  - generic [ref=f4e426]: 42 MB
+                  - generic [ref=f4e427]: <1 %
+                - generic [ref=f4e428] [cursor=pointer]:
+                  - generic [ref=f4e430]: Cyril
+                  - generic [ref=f4e431]: 4 MB
+                  - generic [ref=f4e432]: <1 %
+                - generic [ref=f4e433]:
+                  - generic [ref=f4e435]: Společné Obsidiany a smazané účty
+                  - generic [ref=f4e436]: 4 kB
+                  - generic [ref=f4e437]: <1 %
+                - generic [ref=f4e438]:
+                  - generic [ref=f4e440]: Systém, programy a zálohy
+                  - generic [ref=f4e441]: 322,2 GB
+                  - generic [ref=f4e442]: 69 %
+                - generic [ref=f4e443]:
+                  - generic [ref=f4e445]: Volné místo
+                  - generic [ref=f4e446]: 121,7 GB
+                  - generic [ref=f4e447]: 26 %
+            - generic [ref=f4e448]: "Poslední sloučení mezipamětí právě teď: 2 souborů, ušetřeno 8 MB. Oznámení o místě naposledy právě teď: posláno 1. Každou noc se mezipaměti sloučí, místo přepočítá a komu dochází, dostane oznámení."
+            - generic [ref=f4e449]:
+              - button "Přepočítat všechny" [ref=f4e450] [cursor=pointer]
+              - button "Sloučit mezipaměti" [ref=f4e451] [cursor=pointer]
+              - button "Poslat oznámení teď" [ref=f4e452] [cursor=pointer]
+            - generic [ref=f4e453]: Lidé
+            - generic [ref=f4e454]: Limit nic nevypíná — od 80 % dostane člověk oznámení. Výchozí limit 82 MB; prázdné pole = výchozí, 0 = bez limitu. Klikni na člověka pro jeho koláč.
+            - generic [ref=f4e455]:
+              - generic [ref=f4e456]:
+                - generic [ref=f4e457]:
+                  - button "Anna Nováková" [ref=f4e458] [cursor=pointer]
+                  - generic [ref=f4e461]: 119 MB / 82 MB
+                  - generic [ref=f4e462]: Nad limitem
+                  - textbox "Limit v GB — prázdné = výchozí, 0 = bez limitu" [ref=f4e463]:
+                    - /placeholder: GB
+                - generic [ref=f4e464]: jde uvolnit 86 MB · sloučením ušetřeno 3 MB · oznámení právě teď — přečtené
+              - generic [ref=f4e465]:
+                - generic [ref=f4e466]:
+                  - button "Bob Dvořák" [ref=f4e467] [cursor=pointer]
+                  - generic [ref=f4e470]: 42 MB / 205 MB
+                  - generic [ref=f4e471]: V pořádku
+                  - textbox "Limit v GB — prázdné = výchozí, 0 = bez limitu" [ref=f4e472]:
+                    - /placeholder: GB
+                    - text: 0,2
+                - generic [ref=f4e473]: sloučením ušetřeno 3 MB
+              - generic [ref=f4e474]:
+                - generic [ref=f4e475]:
+                  - button "Cyril" [ref=f4e476] [cursor=pointer]
+                  - generic [ref=f4e479]: 4 MB / 82 MB
+                  - generic [ref=f4e480]: V pořádku
+                  - textbox "Limit v GB — prázdné = výchozí, 0 = bez limitu" [ref=f4e481]:
+                    - /placeholder: GB
+                - generic [ref=f4e482]: sloučením ušetřeno 3 MB
+    - button "Spustit průvodce znovu" [ref=f4e228] [cursor=pointer]

@@ -1262,7 +1262,7 @@ def publish_company(user, pid, overwrite=False):
     return result
 
 
-_NO_WRITE = "Do firemního Obsidianu nemáš právo zapisovat — požádej admina nebo kapitána firmy."
+_NO_WRITE = "Do firemního Obsidianu nemáš právo zapisovat — požádej admina nebo generála firmy."
 
 
 def _firma(slug):
@@ -1348,14 +1348,14 @@ def upload_company(user, rel, raw, overwrite=False, firma=firmy.LEGACY):
 
 
 def delete_company(user, rel, firma=firmy.LEGACY):
-    """Smaže poznámku nebo soubor z trezoru firmy — kapitán, nebo člen s právem
+    """Smaže poznámku nebo soubor z trezoru firmy — generál, nebo člen s právem
     mazat (firmy.mazat). Nic nemizí natrvalo: soubor se odloží do složky firmy
     mimo trezor (`smazano/`), odkud ho správce vrátí. Mazání klientů
     a podkategorií je v Nastavení → Firmy (firmy.smazat_slozku)."""
     from . import soubory
     firma = _firma(firma)
     if not firmy.mazat(user, firma):
-        raise ValueError("Mazat ve firmě smí kapitán a ti, komu to kapitán povolí.")
+        raise ValueError("Mazat ve firmě smí generál a ti, komu to generál povolí.")
     rel = soubory.clean_rel(rel)
     if firma == firmy.LEGACY and slozky.special(rel):
         raise ValueError("Osobní a sdílené složky se tady nemažou.")
@@ -1481,7 +1481,7 @@ Tenhle uživatel je členem firem — každá má vlastní Obsidian (jen ke čte
 pro klienty v `{firmy.KLIENTI}/<klient>/<podkategorie>/` (třeba `{firmy.KLIENTI}/Pytlík/Web/`),
 firma, která pracuje pro sebe, v `{firmy.PROJEKTY}/<projekt>/` (u každé firmy výš).
 Vidíš jen to, k čemu má uživatel přístup — co nevidíš, neexistuje pro tebe;
-o přístup se žádá kapitána firmy.
+o přístup se žádá generála firmy.
 
 **Pravidla složek.** Než do složky firmy cokoli zapíšeš, přečti si `CLAUDE.md`
 v ní a ve všech složkách nad ní až po kořen trezoru firmy, a drž se jich.

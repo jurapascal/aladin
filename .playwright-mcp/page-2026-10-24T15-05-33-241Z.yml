@@ -1,0 +1,12 @@
+- generic [ref=e2]:
+  - heading "Aladin" [level=1] [ref=e3]
+  - paragraph [ref=e4]: Přihlaš se ke svému účtu na serveru.
+  - generic [ref=e5]: E-mail
+  - textbox [active] [ref=e6]
+  - generic [ref=e7]: Heslo
+  - textbox [ref=e8]
+  - button "Přihlásit se" [ref=e9] [cursor=pointer]
+  - group [ref=e10]:
+    - generic "Jak se přihlásit?" [ref=e11] [cursor=pointer]
+  - paragraph [ref=e12]: nebo
+  - button "Přihlásit se passkeyem" [ref=e13] [cursor=pointer]

@@ -1,0 +1,17 @@
+- generic [active] [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - button "Projekty a chaty" [ref=f2e3] [cursor=pointer]
+    - button [ref=f2e7] [cursor=pointer]
+    - button "Nabídka" [ref=f2e9] [cursor=pointer]
+  - generic [ref=f2e12]:
+    - complementary [ref=f2e13]:
+      - generic [ref=f2e14]:
+        - strong [ref=f2e15]: Aladin
+        - button "Zavřít panel" [ref=f2e16] [cursor=pointer]
+      - navigation [ref=f2e19]:
+        - button "Nový chat" [ref=f2e20] [cursor=pointer]
+        - button [ref=f2e25] [cursor=pointer]
+        - button [ref=f2e29] [cursor=pointer]
+      - generic [ref=f2e33]: Chaty
+      - searchbox "Hledat chat…" [ref=f2e37]
+    - main [ref=f2e40]

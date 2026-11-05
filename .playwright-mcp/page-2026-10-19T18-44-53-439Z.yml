@@ -1,0 +1,258 @@
+- generic [ref=f2e1]:
+  - banner [ref=f2e2]:
+    - generic [ref=f2e3]:
+      - button [ref=f2e4] [cursor=pointer]:
+        - strong [ref=f2e7]: Paluba
+      - button "Paluba na počítači" [ref=f2e8] [cursor=pointer]: PC
+    - generic [ref=f2e9]:
+      - button "Nahlásit chybu nebo podat návrh (Alt+Shift+B)" [ref=f2e10] [cursor=pointer]
+      - button "Načíst projekty a paměť znovu (neaktualizuje aplikaci)" [ref=f2e13] [cursor=pointer]
+      - button "Přepnout světlý/tmavý režim" [ref=f2e16] [cursor=pointer]
+      - button "Statistiky používání" [ref=f2e19] [cursor=pointer]
+      - button "Nastavení a aktualizace" [ref=f2e22] [cursor=pointer]
+  - generic [ref=f2e25]:
+    - complementary [ref=f2e26]:
+      - navigation [ref=f2e27]:
+        - button "PC" [ref=f2e28] [cursor=pointer]
+        - button [ref=f2e33] [cursor=pointer]
+        - button [ref=f2e37] [cursor=pointer]
+      - generic [ref=f2e41]:
+        - generic [ref=f2e42]: Chaty
+        - generic [ref=f2e43]: "220"
+      - generic [ref=f2e44]:
+        - searchbox "Hledat chat…" [ref=f2e46]
+        - generic [ref=f2e47]:
+          - generic [ref=f2e48]: Dnes
+          - button "Pád aplikace Palbuba claude-code-hub · 20:44" [ref=f2e49] [cursor=pointer]:
+            - generic [ref=f2e50]: Pád aplikace Palbuba
+            - generic [ref=f2e51]: claude-code-hub · 20:44
+          - button "Ahrefs pro spolubuildera z WhatsAppu pascaljura · 20:44" [ref=f2e52] [cursor=pointer]:
+            - generic [ref=f2e53]: Ahrefs pro spolubuildera z WhatsAppu
+            - generic [ref=f2e54]: pascaljura · 20:44
+          - button "Přejmenování penusm na Pendulum pascaljura · 20:44" [ref=f2e55] [cursor=pointer]:
+            - generic [ref=f2e56]: Přejmenování penusm na Pendulum
+            - generic [ref=f2e57]: pascaljura · 20:44
+          - button "WhatsApp šablona a token pro hlasového agenta voice-agent · 20:43" [ref=f2e58] [cursor=pointer]:
+            - generic [ref=f2e59]: WhatsApp šablona a token pro hlasového agenta
+            - generic [ref=f2e60]: voice-agent · 20:43
+          - button "Freelo úkoly a Clockify čas pascaljura · 20:33" [ref=f2e61] [cursor=pointer]:
+            - generic [ref=f2e62]: Freelo úkoly a Clockify čas
+            - generic [ref=f2e63]: pascaljura · 20:33
+          - generic [ref=f2e64]: Posledních 7 dní
+          - button "WhatsApp Business Cloud API údaje pascaljura · 16. 10." [ref=f2e65] [cursor=pointer]:
+            - generic [ref=f2e66]: WhatsApp Business Cloud API údaje
+            - generic [ref=f2e67]: pascaljura · 16. 10.
+          - button "Voice-agent privátní repo na GitHubu voice-agent · 16. 10." [ref=f2e68] [cursor=pointer]:
+            - generic [ref=f2e69]: Voice-agent privátní repo na GitHubu
+            - generic [ref=f2e70]: voice-agent · 16. 10.
+          - 'button "Hlasový agent: WhatsApp údaje a deploy voice-agent · 16. 10." [ref=f2e71] [cursor=pointer]':
+            - generic [ref=f2e72]: "Hlasový agent: WhatsApp údaje a deploy"
+            - generic [ref=f2e73]: voice-agent · 16. 10.
+          - button "Palrmanet detail akce bez sidebaru pascaljura · 16. 10." [ref=f2e74] [cursor=pointer]:
+            - generic [ref=f2e75]: Palrmanet detail akce bez sidebaru
+            - generic [ref=f2e76]: pascaljura · 16. 10.
+          - button "Potlačení okolního hluku při volání voice-agent · 16. 10." [ref=f2e77] [cursor=pointer]:
+            - generic [ref=f2e78]: Potlačení okolního hluku při volání
+            - generic [ref=f2e79]: voice-agent · 16. 10.
+          - button "Přesun z Penusm do dílny pensum · 16. 10." [ref=f2e80] [cursor=pointer]:
+            - generic [ref=f2e81]: Přesun z Penusm do dílny
+            - generic [ref=f2e82]: pensum · 16. 10.
+          - button "Integrace Verxee Debug do hubu pascaljura · 16. 10." [ref=f2e83] [cursor=pointer]:
+            - generic [ref=f2e84]: Integrace Verxee Debug do hubu
+            - generic [ref=f2e85]: pascaljura · 16. 10.
+          - 'button "Parlament: prezence a skupiny pascaljura · 15. 10." [ref=f2e86] [cursor=pointer]':
+            - generic [ref=f2e87]: "Parlament: prezence a skupiny"
+            - generic [ref=f2e88]: pascaljura · 15. 10.
+          - button "Účet Petra Hnáta v Dílně pascaljura · 15. 10." [ref=f2e89] [cursor=pointer]:
+            - generic [ref=f2e90]: Účet Petra Hnáta v Dílně
+            - generic [ref=f2e91]: pascaljura · 15. 10.
+          - button "Integrace Verxee Debug do hubu claude-code-hub · 15. 10." [ref=f2e92] [cursor=pointer]:
+            - generic [ref=f2e93]: Integrace Verxee Debug do hubu
+            - generic [ref=f2e94]: claude-code-hub · 15. 10.
+          - button "Verxee Debug a potvrzování ze serveru claude-code-hub · 15. 10." [ref=f2e95] [cursor=pointer]:
+            - generic [ref=f2e96]: Verxee Debug a potvrzování ze serveru
+            - generic [ref=f2e97]: claude-code-hub · 15. 10.
+          - button "PC MCP pro běžící session claude-code-hub · 15. 10." [ref=f2e98] [cursor=pointer]:
+            - generic [ref=f2e99]: PC MCP pro běžící session
+            - generic [ref=f2e100]: claude-code-hub · 15. 10.
+          - button "Potvrzování ze serveru v hubu claude-code-hub · 15. 10." [ref=f2e101] [cursor=pointer]:
+            - generic [ref=f2e102]: Potvrzování ze serveru v hubu
+            - generic [ref=f2e103]: claude-code-hub · 15. 10.
+          - 'button "Parlament: prezence a rozřazení do skupin pascaljura · 15. 10." [ref=f2e104] [cursor=pointer]':
+            - generic [ref=f2e105]: "Parlament: prezence a rozřazení do skupin"
+            - generic [ref=f2e106]: pascaljura · 15. 10.
+          - button "Hello.txt creation plan t1 · 15. 10." [ref=f2e107] [cursor=pointer]:
+            - generic [ref=f2e108]: Hello.txt creation plan
+            - generic [ref=f2e109]: t1 · 15. 10.
+          - button "Color.txt color selection test t1 · 15. 10." [ref=f2e110] [cursor=pointer]:
+            - generic [ref=f2e111]: Color.txt color selection test
+            - generic [ref=f2e112]: t1 · 15. 10.
+          - button "Pull request 3 z GitHubu claude-code-hub · 15. 10." [ref=f2e113] [cursor=pointer]:
+            - generic [ref=f2e114]: Pull request 3 z GitHubu
+            - generic [ref=f2e115]: claude-code-hub · 15. 10.
+          - button "Název a ikonka aplikace claude-code-hub · 14. 10." [ref=f2e116] [cursor=pointer]:
+            - generic [ref=f2e117]: Název a ikonka aplikace
+            - generic [ref=f2e118]: claude-code-hub · 14. 10.
+          - button "Problém s renderingem na serveru pascaljura · 14. 10." [ref=f2e119] [cursor=pointer]:
+            - generic [ref=f2e120]: Problém s renderingem na serveru
+            - generic [ref=f2e121]: pascaljura · 14. 10.
+          - button "Účet na Claude Code Hub pascaljura · 14. 10." [ref=f2e122] [cursor=pointer]:
+            - generic [ref=f2e123]: Účet na Claude Code Hub
+            - generic [ref=f2e124]: pascaljura · 14. 10.
+          - button "8051 rotující LED moduly pascaljura · 14. 10." [ref=f2e125] [cursor=pointer]:
+            - generic [ref=f2e126]: 8051 rotující LED moduly
+            - generic [ref=f2e127]: pascaljura · 14. 10.
+          - button "Můj login pascaljura · 14. 10." [ref=f2e128] [cursor=pointer]:
+            - generic [ref=f2e129]: Můj login
+            - generic [ref=f2e130]: pascaljura · 14. 10.
+          - button "Problém s Bambu Lab Studio pascaljura · 14. 10." [ref=f2e131] [cursor=pointer]:
+            - generic [ref=f2e132]: Problém s Bambu Lab Studio
+            - generic [ref=f2e133]: pascaljura · 14. 10.
+          - button "Opravy eshopu z WhatsAppu marisnastopu-wp · 14. 10." [ref=f2e134] [cursor=pointer]:
+            - generic [ref=f2e135]: Opravy eshopu z WhatsAppu
+            - generic [ref=f2e136]: marisnastopu-wp · 14. 10.
+          - button "Heslo k administraci Hejlovec pascaljura · 14. 10." [ref=f2e137] [cursor=pointer]:
+            - generic [ref=f2e138]: Heslo k administraci Hejlovec
+            - generic [ref=f2e139]: pascaljura · 14. 10.
+          - button "Edupage kontakty žáků a učitelů parlament · 14. 10." [ref=f2e140] [cursor=pointer]:
+            - generic [ref=f2e141]: Edupage kontakty žáků a učitelů
+            - generic [ref=f2e142]: parlament · 14. 10.
+          - button "Web s čísly pascaljura · 14. 10." [ref=f2e143] [cursor=pointer]:
+            - generic [ref=f2e144]: Web s čísly
+            - generic [ref=f2e145]: pascaljura · 14. 10.
+          - button "Shoptet a Seznam e-maily pascaljura · 14. 10." [ref=f2e146] [cursor=pointer]:
+            - generic [ref=f2e147]: Shoptet a Seznam e-maily
+            - generic [ref=f2e148]: pascaljura · 14. 10.
+          - button "PDF přehled e-mailů eshopů pascaljura · 14. 10." [ref=f2e149] [cursor=pointer]:
+            - generic [ref=f2e150]: PDF přehled e-mailů eshopů
+            - generic [ref=f2e151]: pascaljura · 14. 10.
+          - button "Instalace OneDrive pascaljura · 14. 10." [ref=f2e152] [cursor=pointer]:
+            - generic [ref=f2e153]: Instalace OneDrive
+            - generic [ref=f2e154]: pascaljura · 14. 10.
+          - button "Přihlášení přes Discord a Edupage parlament · 14. 10." [ref=f2e155] [cursor=pointer]:
+            - generic [ref=f2e156]: Přihlášení přes Discord a Edupage
+            - generic [ref=f2e157]: parlament · 14. 10.
+          - button "Produktové GIFy pro eshop adamtran-wp · 13. 10." [ref=f2e158] [cursor=pointer]:
+            - generic [ref=f2e159]: Produktové GIFy pro eshop
+            - generic [ref=f2e160]: adamtran-wp · 13. 10.
+          - button "Přihlašovací údaje k e-shopům pascaljura · 13. 10." [ref=f2e161] [cursor=pointer]:
+            - generic [ref=f2e162]: Přihlašovací údaje k e-shopům
+            - generic [ref=f2e163]: pascaljura · 13. 10.
+          - button "Repozitář test free z FTP pascaljura · 13. 10." [ref=f2e164] [cursor=pointer]:
+            - generic [ref=f2e165]: Repozitář test free z FTP
+            - generic [ref=f2e166]: pascaljura · 13. 10.
+          - button "AI agent pro zákaznickou podporu pascaljura · 13. 10." [ref=f2e167] [cursor=pointer]:
+            - generic [ref=f2e168]: AI agent pro zákaznickou podporu
+            - generic [ref=f2e169]: pascaljura · 13. 10.
+          - button "Přihlašovací údaje Lukom, Adam, Hejl, Maris pascaljura · 13. 10." [ref=f2e170] [cursor=pointer]:
+            - generic [ref=f2e171]: Přihlašovací údaje Lukom, Adam, Hejl, Maris
+            - generic [ref=f2e172]: pascaljura · 13. 10.
+          - button "PDF od Lumíra Hendycha pascaljura · 13. 10." [ref=f2e173] [cursor=pointer]:
+            - generic [ref=f2e174]: PDF od Lumíra Hendycha
+            - generic [ref=f2e175]: pascaljura · 13. 10.
+          - button "GoPay přístupy u Marise pascaljura · 13. 10." [ref=f2e176] [cursor=pointer]:
+            - generic [ref=f2e177]: GoPay přístupy u Marise
+            - generic [ref=f2e178]: pascaljura · 13. 10.
+          - generic [ref=f2e179]: Posledních 30 dní
+          - button "Přesměrování e-mailů na Wedos webmail Spolubydlim · 12. 10." [ref=f2e180] [cursor=pointer]:
+            - generic [ref=f2e181]: Přesměrování e-mailů na Wedos webmail
+            - generic [ref=f2e182]: Spolubydlim · 12. 10.
+          - button "Chyba překladu do češtiny pascaljura · 12. 10." [ref=f2e183] [cursor=pointer]:
+            - generic [ref=f2e184]: Chyba překladu do češtiny
+            - generic [ref=f2e185]: pascaljura · 12. 10.
+          - button "Barva bublin podle přihlášené osoby pascaljura · 12. 10." [ref=f2e186] [cursor=pointer]:
+            - generic [ref=f2e187]: Barva bublin podle přihlášené osoby
+            - generic [ref=f2e188]: pascaljura · 12. 10.
+          - button "Debugování v /debug pascaljura · 12. 10." [ref=f2e189] [cursor=pointer]:
+            - generic [ref=f2e190]: Debugování v /debug
+            - generic [ref=f2e191]: pascaljura · 12. 10.
+          - button "Nahrávání souborů na Google Disk pascaljura · 12. 10." [ref=f2e192] [cursor=pointer]:
+            - generic [ref=f2e193]: Nahrávání souborů na Google Disk
+            - generic [ref=f2e194]: pascaljura · 12. 10.
+          - button "Chybějící expedice v novém rozhraní pascaljura · 12. 10." [ref=f2e195] [cursor=pointer]:
+            - generic [ref=f2e196]: Chybějící expedice v novém rozhraní
+            - generic [ref=f2e197]: pascaljura · 12. 10.
+          - button "Pády aplikace WhatsApp na PC pascaljura · 12. 10." [ref=f2e198] [cursor=pointer]:
+            - generic [ref=f2e199]: Pády aplikace WhatsApp na PC
+            - generic [ref=f2e200]: pascaljura · 12. 10.
+          - button "GitHub napojení v Claude Code hubu pascaljura · 12. 10." [ref=f2e201] [cursor=pointer]:
+            - generic [ref=f2e202]: GitHub napojení v Claude Code hubu
+            - generic [ref=f2e203]: pascaljura · 12. 10.
+          - button "API klíče pro debugy pascaljura · 12. 10." [ref=f2e204] [cursor=pointer]:
+            - generic [ref=f2e205]: API klíče pro debugy
+            - generic [ref=f2e206]: pascaljura · 12. 10.
+          - button "Design faktur v MyInvoice pascaljura · 12. 10." [ref=f2e207] [cursor=pointer]:
+            - generic [ref=f2e208]: Design faktur v MyInvoice
+            - generic [ref=f2e209]: pascaljura · 12. 10.
+          - button "Skript pro automatické přihlášení pascaljura · 12. 10." [ref=f2e210] [cursor=pointer]:
+            - generic [ref=f2e211]: Skript pro automatické přihlášení
+            - generic [ref=f2e212]: pascaljura · 12. 10.
+          - button "Faktura pro Kláru Mičulkovou pascaljura · 12. 10." [ref=f2e213] [cursor=pointer]:
+            - generic [ref=f2e214]: Faktura pro Kláru Mičulkovou
+            - generic [ref=f2e215]: pascaljura · 12. 10.
+          - button "Mobilní administrace spolubydlimweb pascaljura · 11. 10." [ref=f2e216] [cursor=pointer]:
+            - generic [ref=f2e217]: Mobilní administrace spolubydlimweb
+            - generic [ref=f2e218]: pascaljura · 11. 10.
+          - button "Hlasový zákaznický agent pro WooCommerce pascaljura · 11. 10." [ref=f2e219] [cursor=pointer]:
+            - generic [ref=f2e220]: Hlasový zákaznický agent pro WooCommerce
+            - generic [ref=f2e221]: pascaljura · 11. 10.
+          - button "Chat s Tomášem na WhatsAppu pascaljura · 10. 10." [ref=f2e222] [cursor=pointer]:
+            - generic [ref=f2e223]: Chat s Tomášem na WhatsAppu
+            - generic [ref=f2e224]: pascaljura · 10. 10.
+          - button "Hesla v Merch Zone tabulkách pascaljura · 7. 10." [ref=f2e225] [cursor=pointer]:
+            - generic [ref=f2e226]: Hesla v Merch Zone tabulkách
+            - generic [ref=f2e227]: pascaljura · 7. 10.
+          - button "/login pascaljura · 7. 10." [ref=f2e228] [cursor=pointer]:
+            - generic [ref=f2e229]: /login
+            - generic [ref=f2e230]: pascaljura · 7. 10.
+          - button "Zobrazit další (160)" [ref=f2e231] [cursor=pointer]
+      - generic [ref=f2e233]:
+        - button "P pascaljura" [ref=f2e234] [cursor=pointer]:
+          - generic [ref=f2e235]: P
+          - generic [ref=f2e236]: pascaljura
+        - button "v2.87.6" [ref=f2e237] [cursor=pointer]
+    - main [ref=f2e238]:
+      - generic [ref=f2e239]:
+        - button "PC" [ref=f2e240] [cursor=pointer]
+        - button "Terminál" [ref=f2e244] [cursor=pointer]
+      - generic [ref=f2e249]:
+        - generic [ref=f2e258]: Dobrý večer, pascaljura.
+        - generic [ref=f2e259]:
+          - button "PC" [ref=f2e260] [cursor=pointer]
+          - button "Otevřít terminál" [ref=f2e264] [cursor=pointer]
+          - button "Nastavení" [ref=f2e268] [cursor=pointer]
+        - generic [ref=f2e272]:
+          - generic [ref=f2e273]:
+            - generic [ref=f2e274]: Naposledy
+            - button "voice-agent dnes" [ref=f2e275] [cursor=pointer]:
+              - generic [ref=f2e276]: voice-agent
+              - generic [ref=f2e277]: dnes
+            - button "claude-code-hub dnes" [ref=f2e278] [cursor=pointer]:
+              - generic [ref=f2e279]: claude-code-hub
+              - generic [ref=f2e280]: dnes
+            - button "corposan včera" [ref=f2e281] [cursor=pointer]:
+              - generic [ref=f2e282]: corposan
+              - generic [ref=f2e283]: včera
+            - button "kumo před 2 dny" [ref=f2e284] [cursor=pointer]:
+              - generic [ref=f2e285]: kumo
+              - generic [ref=f2e286]: před 2 dny
+          - generic [ref=f2e287]:
+            - generic [ref=f2e288]: Rozdělané
+            - button "claude-code-hub 49 změn" [ref=f2e289] [cursor=pointer]:
+              - generic [ref=f2e290]: claude-code-hub
+              - generic [ref=f2e291]: 49 změn
+            - button "pensum 13 změn" [ref=f2e292] [cursor=pointer]:
+              - generic [ref=f2e293]: pensum
+              - generic [ref=f2e294]: 13 změn
+            - button "corposan 5 změn" [ref=f2e295] [cursor=pointer]:
+              - generic [ref=f2e296]: corposan
+              - generic [ref=f2e297]: 5 změn
+            - button "klaramiculkova.com 3 změn" [ref=f2e298] [cursor=pointer]:
+              - generic [ref=f2e299]: klaramiculkova.com
+              - generic [ref=f2e300]: 3 změn
+        - generic [ref=f2e301]: 338 poznámek v paměti · ukládá se sama · verze 2.87.6
+  - generic [ref=f2e302]:
+    - button "Nahlásit chybu" [ref=f2e303] [cursor=pointer]:
+      - generic: Chyba
+    - button "Podat návrh" [ref=f2e313] [cursor=pointer]:
+      - generic: Návrh

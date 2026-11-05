@@ -302,7 +302,10 @@ function Konec {
 }
 Add-Type -AssemblyName System.Web
 $ni = New-Object System.Windows.Forms.NotifyIcon
-$bmp = [System.Drawing.Bitmap]::FromFile($env:HUB_TRAY_ICON)
+# Bitmap.FromFile drží soubor zamčený celou dobu běhu ikonky — a pak na Windows padala aktualizace
+# (Remove-Item: icon-256.png drží jiný proces). Obrázek se proto čte do paměti.
+$ms = New-Object IO.MemoryStream(,[IO.File]::ReadAllBytes($env:HUB_TRAY_ICON))
+$bmp = New-Object System.Drawing.Bitmap($ms)
 $ni.Icon = [System.Drawing.Icon]::FromHandle($bmp.GetHicon())
 $ni.Text = $env:HUB_TRAY_NAME
 $m = New-Object System.Windows.Forms.ContextMenuStrip

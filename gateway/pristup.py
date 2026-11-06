@@ -85,7 +85,7 @@ POMOCNIK_DENY = {
     "config", "account", "connect", "mcp", "predplatne", "remote", "restart",
     "update", "quit", "bypass", "setup", "okno-otevrit", "log-clear",
     "vault-delete", "vault", "hlas-install", "hlas-eleven", "jev", "clockify",
-    "claude-ucet", "chat-delete",
+    "claude-ucet", "chat-delete", "chat-domu",
 }
 # … a tohle jen ke čtení (POST mění nastavení).
 POMOCNIK_READ_ONLY = {"app-vzhled", "pluginy", "pocitac", "agents", "auto-model-keep", "gemini"}

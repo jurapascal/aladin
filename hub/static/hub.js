@@ -1332,8 +1332,9 @@ function peopleDialog({title, note, withName, chosen, ok, withWrite, chosenWrite
       cb.checked = picked.has(p.email);
       let wcb = null;
       cb.onchange = () => {
-        if (cb.checked) picked.add(p.email); else { picked.delete(p.email); writers.delete(p.email); }
-        if (wcb) { wcb.disabled = !cb.checked; if (!cb.checked) wcb.checked = false; }
+        // „Smí psát“ je zapnuté samo — kdo nemá psát, odklikne ho (Jura, 6. 11. 2026).
+        if (cb.checked) { picked.add(p.email); if (wcb) writers.add(p.email); } else { picked.delete(p.email); writers.delete(p.email); }
+        if (wcb) { wcb.disabled = !cb.checked; wcb.checked = cb.checked ? writers.has(p.email) : true; }
       };
       const who = document.createElement('div');
       who.className = 'acc-who';
@@ -1351,7 +1352,7 @@ function peopleDialog({title, note, withName, chosen, ok, withWrite, chosenWrite
         wl.title = 'Smí psát do chatu — jeho zprávy dostane tvůj Claude a pracuje na nich s tvými právy';
         wcb = document.createElement('input');
         wcb.type = 'checkbox';
-        wcb.checked = writers.has(p.email);
+        wcb.checked = cb.checked ? writers.has(p.email) : true;
         wcb.disabled = !cb.checked;
         wcb.onchange = () => (wcb.checked ? writers.add(p.email) : writers.delete(p.email));
         wl.append(wcb, document.createTextNode(' smí psát'));
@@ -1377,8 +1378,9 @@ function peopleDialog({title, note, withName, chosen, ok, withWrite, chosenWrite
       cb.checked = gPicked.has(g.id);
       let wcb = null;
       cb.onchange = () => {
-        if (cb.checked) gPicked.add(g.id); else { gPicked.delete(g.id); gWriters.delete(g.id); }
-        if (wcb) { wcb.disabled = !cb.checked; if (!cb.checked) wcb.checked = false; }
+        // „Smí psát“ je zapnuté samo — kdo nemá psát, odklikne ho (Jura, 6. 11. 2026).
+        if (cb.checked) { gPicked.add(g.id); if (wcb) gWriters.add(g.id); } else { gPicked.delete(g.id); gWriters.delete(g.id); }
+        if (wcb) { wcb.disabled = !cb.checked; wcb.checked = cb.checked ? gWriters.has(g.id) : true; }
       };
       const who = document.createElement('div');
       who.className = 'acc-who';
@@ -1392,7 +1394,7 @@ function peopleDialog({title, note, withName, chosen, ok, withWrite, chosenWrite
         wl.title = 'Psát smí každý z podkategorie — jeho zprávy dostane tvůj Claude a pracuje na nich s tvými právy';
         wcb = document.createElement('input');
         wcb.type = 'checkbox';
-        wcb.checked = gWriters.has(g.id);
+        wcb.checked = cb.checked ? gWriters.has(g.id) : true;
         wcb.disabled = !cb.checked;
         wcb.onchange = () => (wcb.checked ? gWriters.add(g.id) : gWriters.delete(g.id));
         wl.append(wcb, document.createTextNode(' smí psát'));
@@ -1791,7 +1793,9 @@ async function nactiZrcadla() {
 
 /* Místní chaty doplněné o chaty ze serveru (jen na počítači). */
 function slucZrcadlo(chats) {
-  if (onServer() || !ZRCADLO || !ZRCADLO.zapnuto) return chats;
+  // Chaty ze serveru se ukazují vždycky, když je počítač přihlášený — i s vypnutou
+  // kopií chatů na server (Adam Uher, 6. 11. 2026: přešel ze serveru na appku a nic neviděl).
+  if (onServer() || !ZRCADLO || !(ZRCADLO.zapnuto || ZRCADLO.pripojeno)) return chats;
   const drziServer = new Set(ZRCADLO.server || []);
   const out = chats.map((c) => (drziServer.has(c.id) ? {...c, server: true} : c));
   const mistni = new Map(out.map((c) => [c.id, c]));
@@ -1799,6 +1803,9 @@ function slucZrcadlo(chats) {
   for (const s of ZRCADLO.chaty || []) {
     const m = mistni.get(s.id);
     if (m) {
+      // Druh chatu podle serveru: sdílený tam / firemní tam (barva v seznamu).
+      if (s.sdileny) m.sdileny = true;
+      if (s.firma && !m.firma) m.firma = s.firma;
       // Kopie našeho chatu, nebo náš chat, ve kterém server pokračoval.
       if (s.drzi === 'server' && (drziServer.has(s.id) || s.updated > m.updated + 5)) {
         Object.assign(m, {server: true, title: s.title, posledni: s.posledni,
@@ -1814,7 +1821,7 @@ function slucZrcadlo(chats) {
     }
     out.push({id: s.id, title: s.title, prompt: s.prompt, posledni: s.posledni,
               posledni_kdo: s.posledni_kdo, updated: s.updated, cwd: '', project: '',
-              exists: true, server: true});
+              exists: true, server: true, firma: s.firma || '', sdileny: !!s.sdileny});
   }
   return out.filter((c) => !skryt.has(c.id));
 }
@@ -1874,9 +1881,11 @@ async function prevzitZPocitace(c) {
 const DRUH_IKONA = {osobni: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal'};
 
 function druhChatu(c) {
-  // Firemní chat zůstane fialový, i když ho sdílím — jména lidí jsou pod názvem.
-  if (prostorCesty(c.cwd)) return 'firma';
+  // Sdílený chat je zelený vždycky — i když vznikl jako firemní a sdílel se až potom
+  // (Jura, 6. 11. 2026). Dřív zůstal fialový a sdílení nebylo na první pohled vidět.
   if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
+  if (!onServer() && c.sdileny) return 'sdileny';     // na počítači: sdílený na serveru
+  if (prostorCesty(c.cwd) || (!onServer() && c.firma)) return 'firma';
   return 'osobni';
 }
 
@@ -2363,6 +2372,21 @@ function psanoPoNasemZavreni(c) {
 /* Pokračovat v konverzaci: tohle už je nový tab s Claude Code. `prompt` je
    zpráva napsaná v okně se čtením — Claude na ní začne dělat hned po startu. */
 async function resumeChat(c, prompt, preneseny) {
+  if (!c.exists && !onServer() && c.cwd && !c.server) {
+    /* Šedý chat na počítači: jeho složka tu není (přišel ze serveru, složka se
+       přejmenovala nebo smazala). Dřív klepnutí ukázalo jen hlášku a „nic se nedělo“
+       (Adam Uher, 6. 11. 2026) — teď se chat přestěhuje do domovské složky a otevře. */
+    const ok = await HubDialog.confirm(
+      `Složka téhle konverzace na počítači není:\n${c.cwd}\n\n` +
+      'Otevřít ji v domovské složce? Konverzace pokračuje, jen v jiné složce.',
+      {title: 'Složka chatu chybí', ok: 'Otevřít'});
+    if (!ok) return;
+    try {
+      const r = await api('chat-domu', {id: c.id});
+      c = {...c, cwd: r.cwd, exists: true};
+    } catch (err) { toast(err.message); return; }
+    setTimeout(loadChats, 1500);
+  }
   if (!c.exists) {
     toast(c.cwd ? 'Složka téhle konverzace už není: ' + c.cwd
                 : 'Tuhle konverzaci jsi poslal na počítač — pokračuj v ní tam.');

@@ -293,6 +293,43 @@ def delete_chat(chat_id):
     return moved
 
 
+def do_domova(chat_id):
+    """Chat, jehož složka na tomhle počítači není (přišel ze serveru, složka se
+    smazala nebo přejmenovala): přepis se přestěhuje pod domovskou složku a `cwd`
+    v něm se přepíše, ať v něm Claude může pokračovat. Původní soubor jde do koše
+    (hub-kos/chaty), takže v seznamu nezůstane dvakrát. → nová pracovní složka."""
+    from . import prenos
+    if not core.SESSION_ID.fullmatch(str(chat_id or "")):
+        raise ValueError("Neplatná konverzace.")
+    src, sub = prenos.najdi(core.CLAUDE_DIR, chat_id)
+    if not src:
+        raise ValueError("Konverzace už neexistuje.")
+    cwd = core.HOME
+    folder = os.path.join(_root(), prenos.slug(cwd))
+    cil = os.path.join(folder, chat_id + ".jsonl")
+    if os.path.realpath(os.path.dirname(src)) == os.path.realpath(folder):
+        return cwd                                   # už je doma
+    os.makedirs(folder, exist_ok=True)
+    tmp = cil + ".domu-tmp"
+    with open(src, "rb") as fh, open(tmp, "wb") as out:
+        for kus in prenos._prepis_cwd(fh, cwd):
+            out.write(kus)
+    os.replace(tmp, cil)
+    if sub:
+        import shutil
+        try:
+            shutil.copytree(os.path.dirname(sub), os.path.join(folder, chat_id), dirs_exist_ok=True)
+        except OSError:
+            pass
+    kos = os.path.join(core.CLAUDE_DIR, "hub-kos", "chaty", os.path.basename(os.path.dirname(src)))
+    os.makedirs(kos, exist_ok=True)
+    os.replace(src, os.path.join(kos, time.strftime("%Y%m%d-%H%M%S-") + chat_id + ".jsonl"))
+    with _LOCK:
+        _CACHE.pop(src, None)
+    core.log(f"chat {chat_id[:8]} přestěhován do domovské složky (původní složka chybí)")
+    return cwd
+
+
 def title_for(path):
     """Název konverzace podle přepisu (ai-title / custom-title / první zadání),
     nebo ''. Ze stejné mezipaměti jako seznam chatů — čte se jen při změně."""

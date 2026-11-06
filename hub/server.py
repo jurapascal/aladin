@@ -1397,6 +1397,16 @@ class Handler(BaseHTTPRequestHandler):
             if guest:
                 return self._json({"error": "Historii konverzací smí číst jen vlastník prostoru."}, 403)
             return self._hledani(name, query, payload)
+        if name == "chat-domu":
+            # Chat bez složky (šedý v seznamu): přestěhovat pod domovskou složku a pokračovat.
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            if guest:
+                return self._json({"error": "Jen vlastník prostoru."}, 403)
+            try:
+                return self._json({"ok": True, "cwd": chats.do_domova(payload.get("id"))})
+            except (OSError, ValueError) as exc:
+                return self._json({"error": str(exc)}, 400)
         if name == "chat-delete":
             # Smazání konverzace z panelu Chaty (do koše, hub/chats.py). Jen
             # vlastník prostoru — host cizí historii nemaže. Běžící v tabu ne:

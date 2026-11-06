@@ -30,7 +30,7 @@ from . import account, core, prenos
 
 STAV = os.path.join(core.CLAUDE_DIR, "hub-zrcadlo.json")
 KAZDYCH = 10              # s mezi kopírováním
-PRVNI_DNI = 3             # při prvním zapnutí se kopírují chaty z posledních dnů
+PRVNI_DNI = 60            # kopírují se chaty z posledních dnů (jako seznam na bráně, SEZNAM_DNI)
 DAVKA = 5 * 1024 * 1024   # bajtů řádků v jednom požadavku
 SEZNAM_TTL = 30           # s — seznam chatů na serveru pro panel
 SESSION_ID = prenos.SESSION_ID
@@ -43,11 +43,16 @@ HUB = None                # server.HUB — taby (chat_tabs, close, broadcast)
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def zapnuto():
-    """Kopírovat? Jen hub na počítači přihlášený k bráně, ne zkušební."""
+def pripojeno():
+    """Počítač přihlášený k bráně (ne zkušební hub): chaty ze serveru se ukazují
+    v seznamu a dají se převzít — i když se chaty z počítače na server nekopírují."""
     return (not core.on_gateway() and not core.TEST_MODE
-            and bool(core.CONFIG.get("gw_token")) and bool(account._base())
-            and core.CONFIG.get("zrcadlo", True) is not False)
+            and bool(core.CONFIG.get("gw_token")) and bool(account._base()))
+
+
+def zapnuto():
+    """Kopírovat chaty z počítače na server? Přihlášený počítač a zapnutá kopie."""
+    return pripojeno() and core.CONFIG.get("zrcadlo", True) is not False
 
 
 # ── stav na disku ────────────────────────────────────────────────────────────
@@ -61,6 +66,11 @@ def _nacti():
         data = {}
     data.setdefault("chaty", {})
     data.setdefault("od", time.time() - PRVNI_DNI * 86400)
+    # Do 2.130 se kopírovaly jen chaty z posledních 3 dnů od zapnutí — na serveru pak
+    # chyběla starší historie. Jednou se hranice posune na PRVNI_DNI zpátky.
+    if not data.get("od_v2"):
+        data["od"] = min(float(data["od"]), time.time() - PRVNI_DNI * 86400)
+        data["od_v2"] = 1
     data.setdefault("server", [])          # chaty, které teď drží server
     data.setdefault("smazat", [])          # smazané chaty, které server ještě nemá odepsané
     return data
@@ -379,11 +389,14 @@ def _titulek(path):
 
 # ── pro stránku na počítači ─────────────────────────────────────────────────
 def prehled(obnovit=False):
-    """Stav kopírování a chaty na serveru (pro panel a Nastavení → Účet)."""
+    """Stav kopírování a chaty na serveru (pro panel a Nastavení → Účet).
+    Seznam chatů na serveru jde i s vypnutou kopií: co člověk dělal na serveru,
+    má vidět i v appce na počítači (Adam Uher, 6. 11. 2026)."""
     zap = zapnuto()
-    data = _nacti() if zap else {"server": [], "chaty": {}}
+    pripojen = pripojeno()
+    data = _nacti() if pripojen else {"server": [], "chaty": {}}
     seznam = None
-    if zap:
+    if pripojen:
         with _LOCK:
             cerstvy = time.time() - _BEH["seznam_cas"] < SEZNAM_TTL and not obnovit
             seznam = _BEH["seznam"] if cerstvy else None
@@ -399,7 +412,7 @@ def prehled(obnovit=False):
                     seznam = _BEH["seznam"]
     with _LOCK:
         beh = {"posledni": int(_BEH["posledni"]), "chyba": _BEH["chyba"], "pocet": _BEH["pocet"]}
-    return {"zapnuto": zap, "nastaveno": core.CONFIG.get("zrcadlo", True) is not False,
+    return {"zapnuto": zap, "pripojeno": pripojen, "nastaveno": core.CONFIG.get("zrcadlo", True) is not False,
             **beh, "server": data["server"], "chaty": seznam or []}
 
 
@@ -409,7 +422,7 @@ def prevzit(chat):
     chat = str(chat or "")
     if not SESSION_ID.fullmatch(chat):
         raise ValueError("Neplatný chat.")
-    if not zapnuto():
+    if not pripojeno():
         raise ValueError("Appka není přihlášená k serveru.")
     token = core.CONFIG.get("gw_token", "")
     from . import pocitac

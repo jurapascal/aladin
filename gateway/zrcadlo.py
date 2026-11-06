@@ -239,6 +239,14 @@ def seznam(user):
     hranice = time.time() - SEZNAM_DNI * 86400
     with _zamek(user):
         data = _nacti(user)
+    # Druh chatu pro barvu na počítači: firemní (běží v ~/firmy/<zkratka>/…) a
+    # sdílený (relace, kterou jsem založil) — počítač to z cesty na serveru nepozná.
+    firmy_base = os.path.join(workspace.home_for(user), "firmy") + os.sep
+    try:
+        from . import relace
+        sdilim = {r.get("chat") for r in relace.seznam(user).get("moje") or []}
+    except Exception:                       # bez relací jen bez zelené
+        sdilim = set()
     out = []
     try:
         slozky = [e for e in os.scandir(root) if e.is_dir(follow_symlinks=False)]
@@ -271,7 +279,10 @@ def seznam(user):
                         "posledni": info.get("posledni", ""), "posledni_kdo": info.get("posledni_kdo", ""),
                         "parents": info.get("parents", []), "updated": int(st.st_mtime),
                         "drzi": e.get("drzi") or "server", "pocitac": e.get("pocitac", ""),
-                        "cwd_pc": e.get("cwd_pc", "")})
+                        "cwd_pc": e.get("cwd_pc", ""),
+                        "firma": (info.get("cwd") or "")[len(firmy_base):].split(os.sep)[0]
+                                 if (info.get("cwd") or "").startswith(firmy_base) else "",
+                        "sdileny": info["id"] in sdilim})
     # Obnovená konverzace nahradí tu, ze které vznikla (stejně jako hub/chats.py).
     kdy = {c["id"]: c["updated"] for c in out}
     kryte = {p for c in out for p in c["parents"] if p in kdy and kdy[p] <= c["updated"]}

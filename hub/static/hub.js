@@ -1856,7 +1856,9 @@ function zrcadloZnak(c) {
 }
 
 async function prevzitZeServeru(c) {
-  toast(`Beru si chat „${c.title}“ ze serveru…`);
+  // Chat se zrcadlí: co napíšeš tady, jde i na server, a co se napíše na serveru
+  // (telefon), stáhne se sem při dalším otevření (Jura, 6. 11. 2026).
+  toast(`Zrcadlím chat „${c.title}“ ze serveru…`);
   try {
     const r = await api('zrcadlo-prevzit', {chat: c.id});
     await resumeChat({...c, id: r.chat, cwd: r.cwd, title: r.title || c.title, exists: true, server: false},
@@ -2112,8 +2114,8 @@ function renderChats() {
       item.querySelector('.chat-av').appendChild(b);
       const z = ZRCADLA[c.id];
       item.querySelector('.chat-cas').title = znak === 'server'
-        ? 'Chat je teď na serveru — klepnutím si ho vezmeš sem.'
-        : `Chat běží na počítači ${(z && z.jmeno) || ''} — klepnutím ho převezmeš sem.`;
+        ? 'Chat je na serveru — klepnutím ho zrcadlím sem; co napíšeš, jde i na server.'
+        : `Chat běží na počítači ${(z && z.jmeno) || ''} — klepnutím ho zrcadlím sem.`;
     }
     const kde = vse ? prostorCesty(c.cwd) : ted;
     if (kde !== ted) {
@@ -6032,8 +6034,8 @@ function handle(msg) {
     }
   } else if (msg.t === 'zrcadlo-odchod') {
     // Chat si vzalo druhé místo (telefon ↔ počítač): tab se tady zavřel.
-    toast(msg.kam === 'pc' ? `Chat „${msg.title}“ si vzal počítač — pokračuj v něm tam.`
-                           : `Chat „${msg.title}“ si vzal telefon — pokračuj v něm tam.`);
+    toast(msg.kam === 'pc' ? `Chat „${msg.title}“ teď pokračuje na počítači — zrcadlí se, otevřeš ho klepnutím v seznamu.`
+                           : `Chat „${msg.title}“ teď pokračuje na telefonu — zrcadlí se, otevřeš ho klepnutím v seznamu.`);
     const pryc = TABS.find((t) => t.id === msg.tab);
     if (pryc) closeTab(pryc, {remote: true});
     setTimeout(loadChats, 1500);

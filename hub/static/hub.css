@@ -5716,3 +5716,10 @@ html .ctxmenu button:hover span { color: var(--kontrast-na) !important; }
 /* Zastavit a další tlačítka v bublině bez výplně */
 html .composer-chip.ghost:hover { color: var(--kontrast-na); background: var(--kontrast); border-color: var(--kontrast); }
 html .composer-chip.ghost:active { color: var(--kontrast-na); background: var(--kontrast); border-color: var(--kontrast); }
+/* Táhla levého a pravého panelu, aktivní tab a fokus klávesnicí (Tab) — taky
+   kontrastně, ne v barvě prostředí (Jura, 6. 11. 2026). */
+html .tahlo:hover::after, html .tahlo.aktivni::after { background: var(--kontrast); }
+html .tab.active { box-shadow: inset 0 2px 0 var(--kontrast); }
+html .chat-item:focus-visible, html .card:focus-visible, html .pp-card:focus-visible,
+html .eleven-voice:focus-visible, html .trh-karta:focus-visible, html .mtv-karta:focus-visible,
+html .tab:focus-visible { outline: 2px solid var(--kontrast); outline-offset: 1px; }

@@ -2164,7 +2164,7 @@ function renderChats() {
   };
   for (const t of tabRadky) {
     const shell = t.kind === 'shell';
-    const row = chatRadek({druh: shell ? 'terminal' : (prostorFirma() ? 'firma' : 'osobni'), titulek: t.title || (shell ? 'Terminál' : 'Nový chat'),
+    const row = chatRadek({druh: druhTabu(t), titulek: t.title || (shell ? 'Terminál' : 'Nový chat'),
       cas: 0, nahled: shell ? 'Příkazový řádek' : 'Nový chat — ještě bez zprávy', bezHvezdy: true});
     row.querySelector('.chat-cas').textContent = '';
     row.classList.add('tab-radek');
@@ -3814,7 +3814,7 @@ async function mistoTabu(m) {
     const r = await api('tab-misto', {id: t.id, misto: m});
     t.misto = r.misto || m;
   } catch (e) { toast(e.message); }
-  renderMistoChips();
+  prekresliMisto(t);
 }
 
 function vcas(promise, ms, fallback) {
@@ -5035,7 +5035,29 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
    u výchozího agenta by jinak barva neřekla nic, co už není vidět. */
 function dotColor(tab, a) {
   if (tab && isFirmaVault(tab.vault)) return 'var(--firma)';
-  return (a && a.id !== (STATE.default_agent || 'claude')) ? a.color : 'var(--accent)';
+  if (a && a.id !== (STATE.default_agent || 'claude')) return a.color;
+  // Na počítači podle místa chatu (hub/misto.py): server modře, firma fialově.
+  const m = !onServer() && tab && tab.misto;
+  if (m && m.kde === 'server') return m.firma ? 'var(--firma)' : 'var(--cloud)';
+  return 'var(--accent)';
+}
+
+/* Druh řádku otevřeného tabu bez zprávy (nový chat) — podle místa, které
+   je u něj zvolené, ne až po první zprávě (Jura, 6. 11. 2026). */
+function druhTabu(t) {
+  if (t.kind === 'shell') return 'terminal';
+  const m = !onServer() && t.misto;
+  if (m) return m.kde === 'server' ? (m.firma ? 'firma' : 'server') : 'osobni';
+  return prostorFirma() ? 'firma' : 'osobni';
+}
+
+/* Místo tabu se změnilo: tečka tabu, řádek v seznamu i čip hned. */
+function prekresliMisto(tab) {
+  if (!tab) return;
+  try { paintAgent(tab); } catch (_) { /* tab ještě nemá lištu */ }
+  chatsSig = '';
+  renderChatsSoon();
+  if (tab === ACTIVE) renderMistoChips();
 }
 
 /* Claude Code si svou oranžovou píše napevno (truecolor 215;119;87), takže na
@@ -6088,7 +6110,7 @@ function handle(msg) {
       tab.chat = msg.chat || tab.chat || '';
       tab.misto = msg.misto || null;
       tab.mistoPevne = !!msg.misto_pevne;
-      if (tab === ACTIVE) renderMistoChips();
+      prekresliMisto(tab);
       if (msg.guest) markGuest(tab, msg.guest);
       // Server mohl model doplnit sám (Ollama bez modelu nespustíš), tak se
       // tím, co doopravdy běží, přepíše i to, s čím se tab zakládal.
@@ -6147,7 +6169,7 @@ function handle(msg) {
     if (tab) {
       tab.misto = msg.misto || null;
       tab.mistoPevne = !!msg.pevne;
-      if (tab === ACTIVE) renderMistoChips();
+      prekresliMisto(tab);
     }
   } else if (msg.t === 'tab-closed') {
     const tab = TABS.find(t => t.id === msg.id);
@@ -6295,6 +6317,7 @@ function restore(list) {
     tab.chat = info.chat || tab.chat || '';
     tab.misto = info.misto || null;
     tab.mistoPevne = !!info.misto_pevne;
+    prekresliMisto(tab);
     // Číslo konverzace je známé teprve teď — koncept a zprávy z fronty se
     // hledají až s ním (po reloadu nebo restartu serveru).
     obnovKoncept(tab);

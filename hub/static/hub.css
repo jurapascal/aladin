@@ -5797,3 +5797,10 @@ html .ss-steps span.done { color: var(--kontrast); }
   .drawer-head .pc-v-panelu { display: inline-flex; border: 2px solid var(--red); box-shadow: none; border-radius: 50%; }
   .drawer-head .pc-v-panelu.pripojeno { border-color: var(--green); }
 }
+/* Chat (ikonky nástrojů — terminál, soubory, agenti, průběh —, odkazy a tlačítka
+   v něm) bez barvy prostředí: bílá v tmavém, černá ve světlém režimu (Jura,
+   6. 11. 2026). Firemní chat (.pane.firma) zůstává fialový — silnější pravidlo. */
+html .pane { --accent: var(--kontrast); }
+html .pane.firma { --accent: var(--firma); }
+/* Ikona Aladina u pozdravu na úvodu jako logo v liště. */
+html .welcome-greet .greet-ico { color: var(--kontrast); }

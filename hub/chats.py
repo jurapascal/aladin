@@ -258,7 +258,10 @@ def list_chats(limit=1000):
     updated = {c["id"]: c["updated"] for c in out}
     kryte = {p for c in out for p in c.get("parents", ())
              if p in updated and updated[p] <= c["updated"]}
-    out = [{k: v for k, v in c.items() if k != "parents"}
+    # `predci` = konverzace, ze kterých tahle vznikla (obnovení) — sdílení se
+    # zakládalo nad starším id a seznam podle nich pozná, že je to tentýž chat.
+    out = [dict({k: v for k, v in c.items() if k != "parents"},
+                **({"predci": list(c["parents"])} if c.get("parents") else {}))
            for c in out if c["id"] not in kryte]
     out.sort(key=lambda c: c["updated"], reverse=True)
     return out[:limit]

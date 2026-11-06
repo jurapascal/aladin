@@ -1905,7 +1905,7 @@ const DRUH_IKONA = {osobni: 'i-user', server: 'i-user', firma: 'i-firma', sdilen
 function druhChatu(c) {
   // Sdílený chat je zelený vždycky — i když vznikl jako firemní a sdílel se až potom
   // (Jura, 6. 11. 2026). Dřív zůstal fialový a sdílení nebylo na první pohled vidět.
-  if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
+  if (onServer() && mojeRelace(c)) return 'sdileny';
   if (!onServer() && c.sdileny) return 'sdileny';     // na počítači: sdílený na serveru
   // Místo chatu (hub/misto.py): chat z počítače s místem na serveru je modrý / fialový.
   if (!onServer() && c.misto && c.misto.kde === 'server') return c.misto.firma ? 'firma' : 'server';
@@ -1955,9 +1955,16 @@ function pozadiText(t) {
 }
 
 /* Chat, který sdílím já: komu (štítek „s Tomáš Peška, …"). */
+/* Moje sdílení tohoto chatu — i když konverzace mezitím pokračovala pod novým
+   id (obnovení): sdílení zná id z doby, kdy vzniklo (`predci`, hub/chats.py). */
+function mojeRelace(c) {
+  const predci = c.predci || [];
+  return (RELACE.moje || []).find((x) => x.chat === c.id || predci.includes(x.chat)) || null;
+}
+
 function komuSdilim(c) {
   if (!onServer()) return '';
-  const r = (RELACE.moje || []).find((x) => x.chat === c.id);
+  const r = mojeRelace(c);
   if (!r) return '';
   const lide = [...(r.clenove || []).map((m) => m.name || m.email), ...(r.skupiny || []).map((g) => g.nazev)];
   return lide.join(', ');
@@ -2052,10 +2059,16 @@ function renderChats() {
     })
     : scope;
   // Sdílené = chaty, které sdílím já (štítek „s …“), a cizí sdílené níž.
-  const list0 = filtr === 'sdilene' ? list00.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c)) : list00;
+  // Sdílené: moje sdílené chaty ze všech prostorů (firemní i osobní) — dřív je
+  // filtr prostoru okna schoval a vidět bylo jen to, co sdílí ostatní (Jura, 6. 11. 2026).
+  const sdileneZ = (filtr === 'sdilene' && filtrovat) ? (words.length ? CHATS.filter((c) => {
+    const hay = foldText([c.title, c.prompt, c.project, c.posledni].join(' '));
+    return words.every((w) => hay.includes(w));
+  }) : CHATS) : list00;
+  const list0 = filtr === 'sdilene' ? sdileneZ.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c)) : list00;
   // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
   // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
-  const extra = relaceRadky().filter((r) => (filtr !== 'moje' || !r.sdileny) &&
+  const extra = relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
     (!words.length || words.every((w) => foldText(r.text).includes(w))));
   const list = list0.concat(extra).sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
@@ -2865,7 +2878,7 @@ async function zrusitSdileni(rel) {
    chat, který sis zavřel. Klepnutí otevře (nebo přepne na) tab. */
 /* Sdílené a uložené chaty jsou v seznamu Chaty mezi ostatními, podle času
    (renderChats). Samostatná sekce v panelu už není. */
-function relaceRadky() {
+function relaceRadky(vsechnyProstory) {
   if (!onServer()) {
     return RELACE_PC.map((x) => {
       const kdy = x.aktivita || x.vytvoreno;
@@ -2882,7 +2895,7 @@ function relaceRadky() {
   }
   const out = [];
   // Uložené a podkategorii sdílené chaty jen v prostoru své firmy.
-  for (const u of (RELACE.ulozene || []).filter((u) => !u.firma || u.firma === prostor())) {
+  for (const u of (RELACE.ulozene || []).filter((u) => vsechnyProstory || !u.firma || u.firma === prostor())) {
     out.push({updated: u.vytvoreno, text: u.titulek, build: () => {
       const row = chatRadek({druh: 'firma', titulek: u.titulek, cas: u.vytvoreno, bezHvezdy: true,
         nahled: 'Uloženo v ' + u.skupina + ' · ' + (u.moje ? 'ty' : u.autor) + ' · klepni a pokračuj u sebe'});
@@ -2891,7 +2904,7 @@ function relaceRadky() {
       return row;
     }});
   }
-  for (const s of RELACE.semnou.filter(sdilenyVProstoru)) {
+  for (const s of RELACE.semnou.filter((x) => vsechnyProstory || sdilenyVProstoru(x))) {
     // Čas a náhled poslední zprávy dává brána z přepisu majitele (relace._nahled);
     // starší brána je nemá — pak čas sdílení a co smím.
     const kdy = s.aktivita || s.vytvoreno;

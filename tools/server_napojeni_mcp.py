@@ -24,22 +24,29 @@ UA = "claude-code-hub-mcp-pc"
 
 
 def _config():
+    """(server, token, prostor, firma, napojení ze serveru zapnutá) — čte se u každé
+    zprávy, takže přepnutí místa v appce platí hned, i v běžícím chatu."""
     try:
         with open(CONFIG, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
         data = {}
     return (str(data.get("gw_server") or "").rstrip("/"), str(data.get("gw_token") or ""),
-            int(data.get("gw_space") or 0), str(data.get("gw_firma") or ""))
+            int(data.get("gw_space") or 0), str(data.get("gw_firma") or ""),
+            data.get("server_napojeni", True) is not False)
 
 
-def gateway(body):
+POCITAC = ("V Aladinu je teď vybraný Počítač — napojení a Obsidian ze serveru jsou vypnuté. "
+           "Použij to, co je na tomhle počítači.")
+
+
+def _odpoved(msg, result):
+    return {"ok": True, "zpravy": [{"jsonrpc": "2.0", "id": msg.get("id"), "result": result}]}
+
+
+def _posli(body, base, token, space, firma):
     """Tatáž zpráva jako v prostoru, jen na bránu přes https s tokenem zařízení."""
     import ssl
-    base, token, space, firma = _config()
-    if not base or not token:
-        return {"ok": False, "error": "Appka Aladin na tomhle počítači není přihlášená k serveru "
-                                      "(Nastavení → Účet)."}
     data = json.dumps({"jmeno": body["slug"], "relace": body["relace"],
                        "zprava": body["zprava"], "prostor": space,
                        "firma": "" if space else firma}).encode("utf-8")
@@ -60,6 +67,70 @@ def gateway(body):
         return {"ok": False, "error": f"Server není k dosažení: {exc}"}
 
 
+def gateway(body):
+    """Zpráva od Clauda → brána. S vybraným „Počítač“ most nástroje nenabízí a volání
+    odmítne; po přepnutí místa řekne Claudovi, ať si nástroje načte znovu
+    (`notifications/tools/list_changed`, viz _hlidej_misto) — jako /mcp reconnect,
+    jen na pozadí a bez nového načtení chatu (Jura, 6. 11. 2026)."""
+    msg = body["zprava"] if isinstance(body.get("zprava"), dict) else {}
+    method = msg.get("method")
+    base, token, space, firma, zapnuto = _config()
+    if not base or not token:
+        if method == "tools/list":
+            return _odpoved(msg, {"tools": []})
+        return {"ok": False, "error": "Appka Aladin na tomhle počítači není přihlášená k serveru "
+                                      "(Nastavení → Účet)."}
+    if not zapnuto and method == "tools/list":
+        return _odpoved(msg, {"tools": []})
+    if not zapnuto and method == "tools/call":
+        return {"ok": False, "error": POCITAC}
+    res = _posli(body, base, token, space, firma)
+    if method == "initialize":
+        if res.get("ok"):
+            # Claude Code si po list_changed nástroje načte znovu — musí vědět, že to most umí.
+            for z in res.get("zpravy") or []:
+                vysledek = z.get("result") if isinstance(z, dict) else None
+                if isinstance(vysledek, dict):
+                    caps = vysledek.setdefault("capabilities", {})
+                    if isinstance(caps, dict):
+                        nastroje = caps.get("tools") if isinstance(caps.get("tools"), dict) else {}
+                        caps["tools"] = {**nastroje, "listChanged": True}
+        elif not zapnuto:
+            # Server teď nejde a místo je Počítač: most se přesto rozběhne (bez nástrojů),
+            # ať po přepnutí na server naskočí i v tomhle chatu.
+            params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
+            return _odpoved(msg, {"protocolVersion": params.get("protocolVersion") or "2025-06-18",
+                                  "capabilities": {"tools": {"listChanged": True}},
+                                  "serverInfo": {"name": "aladin-" + str(body.get("slug") or ""),
+                                                 "version": "1"}})
+    return res
+
+
+def _hlidej_misto():
+    """Přepnutí místa (Počítač ↔ prostor na serveru, jiný prostor, firma): Claudovi
+    se pošle `notifications/tools/list_changed` a on si nástroje vyžádá znovu."""
+    import threading
+    import time
+
+    def klic():
+        base, _token, space, firma, zapnuto = _config()
+        return (base, space, firma, zapnuto)
+
+    def smycka():
+        posledni = klic()
+        while True:
+            time.sleep(2)
+            try:
+                ted = klic()
+            except Exception:
+                continue
+            if ted != posledni:
+                posledni = ted
+                sdilene_mcp.emit({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
+    threading.Thread(target=smycka, daemon=True, name="misto").start()
+
+
 if __name__ == "__main__":
     sdilene_mcp.gateway = gateway
+    _hlidej_misto()
     sdilene_mcp.main(sys.argv)

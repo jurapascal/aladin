@@ -1808,11 +1808,10 @@ async function nactiZrcadla() {
 
 /* Místní chaty doplněné o chaty ze serveru (jen na počítači). */
 function slucZrcadlo(chats) {
-  // Chaty ze serveru se ukazují, když je v přepínači místa vybraný prostor na serveru
-  // (Adam Uher, 6. 11. 2026: přešel ze serveru na appku a nic neviděl) — i s vypnutou
-  // kopií. S volbou „Počítač“ jsou v seznamu jen chaty z tohohle počítače.
-  const naServeru = ZRCADLO && (ZRCADLO.na_serveru !== undefined ? ZRCADLO.na_serveru : !!pcProstor());
-  if (onServer() || !ZRCADLO || !(ZRCADLO.zapnuto || (ZRCADLO.pripojeno && naServeru))) return chats;
+  // Chaty ze serveru se ukazují vždycky, když je počítač přihlášený — i s volbou
+  // „Počítač“ a s vypnutou kopií (Adam Uher a Jura, 6. 11. 2026: „osobní chaty na
+  // serveru chci vidět i lokálně, modře“). Volba místa mění jen, kam se ukládají nové.
+  if (onServer() || !ZRCADLO || !(ZRCADLO.zapnuto || ZRCADLO.pripojeno)) return chats;
   const drziServer = new Set(ZRCADLO.server || []);
   const out = chats.map((c) => (drziServer.has(c.id) ? {...c, server: true} : c));
   const mistni = new Map(out.map((c) => [c.id, c]));
@@ -1895,7 +1894,7 @@ async function prevzitZPocitace(c) {
    Kulatá ikonka v barvě druhu chatu (osobní modrá, firemní fialová, sdílený
    zelená), název a čas poslední zprávy, pod tím začátek poslední odpovědi.
    Stejný řádek mají i chaty, které mi někdo sdílí (renderRelace). */
-const DRUH_IKONA = {osobni: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal'};
+const DRUH_IKONA = {osobni: 'i-user', server: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal'};
 
 function druhChatu(c) {
   // Sdílený chat je zelený vždycky — i když vznikl jako firemní a sdílel se až potom
@@ -1903,6 +1902,8 @@ function druhChatu(c) {
   if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
   if (!onServer() && c.sdileny) return 'sdileny';     // na počítači: sdílený na serveru
   if (prostorCesty(c.cwd) || (!onServer() && c.firma)) return 'firma';
+  // Na počítači: osobní chat ze serveru modře, chat z tohohle počítače oranžově.
+  if (!onServer() && c.server) return 'server';
   return 'osobni';
 }
 
@@ -3711,37 +3712,23 @@ async function napojeniZeServeru(zapnout) {
   } catch (e) { toast(e.message); return false; }
 }
 
-/* Napojení (MCP) a Obsidian si Claude načte při startu chatu. Po přepnutí místa
-   (počítač ↔ server, jiný prostor) proto běžící chat dál vidí to staré a „nebere
-   data ze serveru“ (Jura, 5. 11. 2026). Hub na pozadí srovná mosty a pak nabídne
-   chat načíst znovu — konverzace pokračuje, jen s novým napojením. */
+/* Po přepnutí místa (Počítač ↔ server, jiný prostor, firma) se mosty k serveru
+   srovnají na pozadí a otevřeným chatům samy řeknou, ať si nástroje načtou znovu
+   (tools/server_napojeni_mcp.py, list_changed) — jako /mcp reconnect, jen bez
+   ptaní. Dřív tu vyskočil dialog „Načíst chat znovu“ (Jura, 6. 11. 2026: „toto
+   nechci, ať se to děje na pozadí, i Obsidian“). */
 let novyStartCeka = false;
 async function nabidniNovyStart() {
   if (novyStartCeka) return;
   novyStartCeka = true;
   try {
-    // Mosty se srovnávají na pozadí (claude mcp add/remove) — počkat, až doběhnou.
     for (let i = 0; i < 40; i++) {
       await new Promise((r) => setTimeout(r, 1500));
       let st = null;
       try { st = await api('mcp-pc'); } catch (_) { break; }
       if (!st.bezi) break;
     }
-    const t = ACTIVE;
-    const chat = t && (t.chat || t.resume);
-    if (!t || t.exited || t.kind === 'shell' || !chat || (t.agent && t.agent !== 'claude')) {
-      toast('Napojení a Obsidian jsou přepnuté. Platí v nově otevřených chatech.');
-      return;
-    }
-    const ok = await HubDialog.confirm(
-      'Napojení a Obsidian se přepnuly. Tenhle chat je ještě vidí po starém.\n\n' +
-      'Načíst ho znovu? Konverzace pokračuje, jen s novým napojením. Pokud Claude právě pracuje, ' +
-      'rozdělaná odpověď se přeruší.',
-      {title: 'Načíst chat znovu', ok: 'Načíst znovu', zrusit: 'Až později'});
-    if (!ok) return;
-    const path = t.path, title = t.title, vault = t.vault || '';
-    closeTab(t);
-    setTimeout(() => openTab({kind: 'project', path, title, agent: 'claude', resume: chat, vault}), 700);
+    toast('Přepnuto — napojení a Obsidian platí hned, i v otevřených chatech.');
   } finally { novyStartCeka = false; }
 }
 
@@ -3768,11 +3755,7 @@ window.HubMisto = {render: renderMistoChips};
 /* Prostor na kterémkoli uloženém serveru: nejdřív přepnout server (když není
    aktivní), pak prostor. Výkon i chaty zůstávají na počítači. */
 async function vyberPcProstor(sv, sp) {
-  const bylPc = STATE.config.server_napojeni === false;
   if (!(await napojeniZeServeru(true))) return;
-  if (bylPc && sv.active && !sp.id && !STATE.config.gw_space) {
-    toast('Obsidian a napojení teď ze serveru ' + sv.host + ' (můj prostor). V běžících chatech po jejich novém startu.');
-  }
   if (!sv.active) {
     await vyberServerPc(sv);
     if (!STATE.config.gw_logged_in || STATE.config.gw_server !== sv.server) return;
@@ -3833,10 +3816,7 @@ async function mistoMenu(ev) {
     const kde = pcProstor();
     items.push({icon: 'i-laptop', label: 'Počítač', on: !kde, color: 'var(--pc)',
                 run: async () => {
-                  if (kde && await napojeniZeServeru(false)) {
-                    toast('Počítač: Obsidian, napojení i chaty jen tady.');
-                    renderMistoChips();
-                  }
+                  if (kde && await napojeniZeServeru(false)) renderMistoChips();
                 }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
       ? vcas(api('account', {action: 'spaces', server: sv.server}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'})

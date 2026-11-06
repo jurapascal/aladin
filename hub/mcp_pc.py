@@ -12,7 +12,11 @@ nic nekopíruje.
 * Napojení, které na serveru zmizelo, hub z Claude Code zase odebere (jen ta,
   která sám přidal — seznam v hub-config `server_napojeni_moje`).
 * Bez spojení se serverem se nic neodebírá; zkusí se to příště.
-* Vypnout: Nastavení → Účet → Napojení ze serveru (`server_napojeni`: false).
+* Přepínač místa „Počítač“ (`server_napojeni`: false) mosty neodebírá: most
+  v tu chvíli nenabízí žádné nástroje a po přepnutí na server Claudovi řekne,
+  ať si je načte znovu (tools/server_napojeni_mcp.py, list_changed). Přepnutí
+  tak platí hned i v otevřených chatech, bez nového načtení (Jura, 6. 11. 2026).
+  Odebírají se až po odhlášení od serveru.
 """
 import hashlib
 import os
@@ -31,10 +35,15 @@ _LOCK = threading.Lock()
 _STARTED = False
 
 
-def zapnuto():
+def prihlaseno():
+    """Hub na počítači přihlášený k serveru — mosty jsou zaregistrované."""
     return (not core.on_gateway() and not core.TEST_MODE
-            and bool(core.CONFIG.get("gw_token")) and bool(account._base())
-            and core.CONFIG.get("server_napojeni", True) is not False)
+            and bool(core.CONFIG.get("gw_token")) and bool(account._base()))
+
+
+def zapnuto():
+    """Napojení ze serveru teď platí (v přepínači místa je vybraný prostor na serveru)."""
+    return prihlaseno() and core.CONFIG.get("server_napojeni", True) is not False
 
 
 def jmeno_mostu(jmeno):
@@ -82,8 +91,8 @@ def sync():
     """Srovná mosty v Claude Code s tím, co je na serveru. → prehled()."""
     moje = set(core.CONFIG.get("server_napojeni_moje") or [])
     local = core._claude_json().get("mcpServers") or {}
-    if not zapnuto():
-        # Vypnuto nebo odhlášeno: co jsme přidali, pryč.
+    if not prihlaseno():
+        # Odhlášeno: co jsme přidali, pryč. („Počítač“ mosty nechává, jen mlčí.)
         if moje and not core.TEST_MODE and not core.on_gateway():
             for name in moje:
                 if name in local:

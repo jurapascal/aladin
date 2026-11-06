@@ -3989,6 +3989,10 @@ function dayScene(part) {
 function greetName() {
   const u = STATE.config && STATE.config.gateway_user;
   if (u) return String(u.name || '').trim().split(/\s+/)[0] || '';
+  // Na počítači jméno, které si člověk nastavil (Nastavení → Účet → Tvoje jméno),
+  // ne systémový účet (Jura, 6. 11. 2026).
+  const vlastni = String((STATE.config && STATE.config.muj_jmeno) || '').trim();
+  if (vlastni) return vlastni;
   return (STATE.user || '').split(/[\s.]/)[0];
 }
 

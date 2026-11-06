@@ -1594,6 +1594,7 @@
         await io.api('config', {muj_jmeno: inp.value});
         if (state && state.config) state.config.muj_jmeno = inp.value.trim();
         await io.refreshState();
+        if (typeof global.renderGreeting === 'function') global.renderGreeting();   // pozdrav na úvodu hned
         io.toast(inp.value.trim() ? 'Jméno uloženo.' : 'Jméno ze systému.');
       } catch (err) { io.toast(err.message); }
       ok.disabled = false;

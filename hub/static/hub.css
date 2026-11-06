@@ -5755,3 +5755,38 @@ html .set-modal { --accent: var(--kontrast); }
   body.has-tab .pane .cteni-scroll { padding-top: calc(58px + env(safe-area-inset-top)); }
   body.has-tab .pane .termbox { margin-top: calc(58px + env(safe-area-inset-top)); }
 }
+
+/* Načítání (úvodní obrazovka s kontrolou aktualizace) kontrastně — bílá v tmavém,
+   černá ve světlém režimu, ne v barvě prostředí (Jura, 6. 11. 2026). */
+html .ss-ring { color: var(--kontrast); }
+html .ss-ring::before { border-top-color: var(--kontrast); }
+html .ss-steps span.on { background: var(--kontrast); color: var(--kontrast-na); }
+html .ss-steps span.done { color: var(--kontrast); }
+
+/* Kostra (skeleton) při načítání: seznam chatů (hub.js chatsKostra) a konverzace
+   (cteni.js) — šedé tvary zprávy a řádků, přes které přejíždí světlejší pruh. */
+.cteni-kostra { display: flex; flex-direction: column; gap: 18px; padding: 20px 16px; width: 100%; max-width: 760px; margin: 0 auto; }
+.cteni.nacteno .cteni-kostra, .cteni-flow:not(:empty) ~ .cteni-kostra { display: none; }
+.kostra-ja { align-self: flex-end; width: 46%; height: 40px; border-radius: 18px; }
+.kostra-ja.kratka { width: 30%; }
+.kostra-on { display: flex; flex-direction: column; gap: 9px; }
+.kostra-on span { display: block; height: 12px; border-radius: 6px; width: 92%; }
+.kostra-on span.kratka { width: 56%; }
+.chats-kostra { display: flex; flex-direction: column; padding: 2px 0; }
+.k-radek { display: flex; align-items: center; gap: 10px; padding: 8px 14px; }
+.k-av { width: 34px; height: 34px; border-radius: 50%; flex: none; }
+.k-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 7px; }
+.k-r { display: block; height: 10px; border-radius: 5px; width: 78%; }
+.k-r.kratka { width: 48%; }
+.kostra-ja, .kostra-on span, .k-av, .k-r {
+  background: linear-gradient(90deg,
+    color-mix(in srgb, var(--kontrast) 6%, transparent) 25%,
+    color-mix(in srgb, var(--kontrast) 15%, transparent) 50%,
+    color-mix(in srgb, var(--kontrast) 6%, transparent) 75%);
+  background-size: 200% 100%;
+  animation: kostra-pruh 1.4s ease-in-out infinite;
+}
+@keyframes kostra-pruh { 0% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .kostra-ja, .kostra-on span, .k-av, .k-r { animation: none; }
+}

@@ -14,7 +14,7 @@ const OFFLINE = `<!doctype html><meta charset=utf-8>
 <title>Aladin</title>
 <style>body{font:16px/1.6 system-ui,sans-serif;margin:0;min-height:100vh;
 display:grid;place-items:center;background:#0d1117;color:#e8e3d3;padding:24px}
-div{max-width:24rem;text-align:center}b{color:#e0843c}small{color:#8b949e}
+div{max-width:24rem;text-align:center}b{color:#fff}small{color:#8b949e}
 button{margin-top:18px;padding:10px 18px;border-radius:9px;border:1px solid #3a3f47;
 background:#1b2129;color:#e8e3d3;font:inherit;cursor:pointer}
 code{font-size:12px;background:#1b2129;padding:6px 8px;border-radius:6px;display:block;margin-top:6px;word-break:break-all;user-select:all}</style>

@@ -2728,9 +2728,18 @@
     const scroll = el('div', 'cteni-scroll');
     const mount = el('div', 'cteni-flow');
     const prazdno = el('div', 'cteni-empty', 'Zatím nic — napiš Claudovi dole.');
+    prazdno.hidden = true;           // dokud nepřijde první odpověď, je vidět kostra
+    // Kostra (skeleton) místo prázdna, než se konverzace načte (Jura, 6. 11. 2026).
+    // Zmizí sama, jakmile je v proudu první zpráva, nebo když server řekne „nic tu není“.
+    const kostra = el('div', 'cteni-kostra');
+    kostra.setAttribute('aria-hidden', 'true');
+    kostra.innerHTML = '<div class="kostra-ja"></div>' +
+      '<div class="kostra-on"><span></span><span></span><span class="kratka"></span></div>' +
+      '<div class="kostra-ja kratka"></div>' +
+      '<div class="kostra-on"><span></span><span class="kratka"></span></div>';
     // Přepínač na terminál tu není: čtení je výchozí a terminál se ukáže sám,
     // když se Claude na něco zeptá (karta dotazu má i vlastní „Terminál").
-    scroll.append(mount, prazdno);
+    scroll.append(mount, prazdno, kostra);
     // Šipka dolů, když je člověk odrolovaný nahoru — jako v appce Claude.
     const dolu = el('button', 'dolu');
     dolu.title = 'Dolů na konec';
@@ -2840,6 +2849,7 @@
       try {
         const {blocks, konec} = await data.dalsi();
         if (!zivy) return;
+        if (blocks.length || konec) root.classList.add('nacteno');      // kostra pryč
         if (blocks.length) {
           const agentu = proud.agentu();
           proud.add(blocks);

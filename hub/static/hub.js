@@ -2446,7 +2446,17 @@ async function resumeChat(c, prompt, preneseny) {
   setTimeout(loadChats, 4000);
 }
 
+/* Kostra seznamu chatů, než přijde první seznam (renderChats ji přepíše). */
+function chatsKostra() {
+  const box = $('chats');
+  if (!box || box.childElementCount) return;
+  const radek = '<div class="k-radek"><span class="k-av"></span><span class="k-txt">' +
+                '<span class="k-r"></span><span class="k-r kratka"></span></span></div>';
+  box.innerHTML = '<div class="chats-kostra" aria-hidden="true">' + radek.repeat(7) + '</div>';
+}
+
 function initChats() {
+  chatsKostra();
   // Claude se v chatu rozběhl nebo dopsal: „píše…“ v seznamu hned, ne až za 20 s.
   document.addEventListener('hub-prace', () => { if (!$('chats-view').hidden) renderChatsSoon(); });
   for (const b of document.querySelectorAll('.side-tab')) b.onclick = () => sidebarView(b.dataset.view);

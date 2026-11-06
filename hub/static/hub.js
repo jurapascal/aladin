@@ -1669,6 +1669,8 @@ function showFirmaCard(p, total) {
 let CHATS = [];
 let chatsTimer = null;
 let chatsOtisk = '';       // otisk seznamu, který okno už má (server pak pošle jen „beze změny")
+let chatsMistni = [];      // poslední seznam chatů z tohohle hubu (bez chatů ze serveru)
+let zrcadloOtisk = '';     // otisk chatů ze serveru, se kterým se seznam naposled skládal
 const CHATS_PAGE = 10;
 let chatsShown = CHATS_PAGE;
 
@@ -1708,8 +1710,16 @@ async function loadChats() {
     return;
   }
   chatsOtisk = res.h || '';
-  if (res.same) return;                              // seznam se nezměnil — nic se nepřekresluje
-  CHATS = slucZrcadlo(res.chats || []);
+  /* Místní seznam se nezměnil, ale chaty ze serveru ano (nový chat na telefonu, přepnutí
+     Počítač ↔ server) — složit znovu ze zapamatovaného místního seznamu. Dřív se pak
+     nepřekreslilo nic, dokud se nezměnil místní seznam. */
+  const zo = JSON.stringify(ZRCADLO ? [ZRCADLO.zapnuto, ZRCADLO.pripojeno, ZRCADLO.na_serveru, ZRCADLO.server,
+    (ZRCADLO.chaty || []).map((c) => [c.id, c.updated, c.drzi, c.title, c.firma, c.sdileny])] : null);
+  if (res.same && zo === zrcadloOtisk) return;       // nic se nezměnilo — nic se nepřekresluje
+  zrcadloOtisk = zo;
+  if (!res.same) chatsMistni = res.chats || [];
+  // Kopie: slucZrcadlo mění položky (druh, název ze serveru) a místní seznam se skládá znovu.
+  CHATS = slucZrcadlo(chatsMistni.map((c) => ({...c})));
   /* Seznam se načítá každých 20 s. Překreslit ho celý pokaždé znamená, že
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
      „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
@@ -1798,9 +1808,11 @@ async function nactiZrcadla() {
 
 /* Místní chaty doplněné o chaty ze serveru (jen na počítači). */
 function slucZrcadlo(chats) {
-  // Chaty ze serveru se ukazují vždycky, když je počítač přihlášený — i s vypnutou
-  // kopií chatů na server (Adam Uher, 6. 11. 2026: přešel ze serveru na appku a nic neviděl).
-  if (onServer() || !ZRCADLO || !(ZRCADLO.zapnuto || ZRCADLO.pripojeno)) return chats;
+  // Chaty ze serveru se ukazují, když je v přepínači místa vybraný prostor na serveru
+  // (Adam Uher, 6. 11. 2026: přešel ze serveru na appku a nic neviděl) — i s vypnutou
+  // kopií. S volbou „Počítač“ jsou v seznamu jen chaty z tohohle počítače.
+  const naServeru = ZRCADLO && (ZRCADLO.na_serveru !== undefined ? ZRCADLO.na_serveru : !!pcProstor());
+  if (onServer() || !ZRCADLO || !(ZRCADLO.zapnuto || (ZRCADLO.pripojeno && naServeru))) return chats;
   const drziServer = new Set(ZRCADLO.server || []);
   const out = chats.map((c) => (drziServer.has(c.id) ? {...c, server: true} : c));
   const mistni = new Map(out.map((c) => [c.id, c]));
@@ -3662,11 +3674,11 @@ function mistoText() {
   }
   const kde = pcProstor();
   if (!kde) {
-    return {ico: 'i-laptop', text: 'Tento počítač', druh: 'pc', tecka: 'var(--amber)',
-            title: 'Výkon, Obsidian i napojení z tohoto počítače — klikni a vybereš prostor na serveru'};
+    return {ico: 'i-laptop', text: 'Počítač', druh: 'pc', tecka: 'var(--pc)',
+            title: 'Obsidian, napojení i chaty jen na tomhle počítači — klikni a vybereš prostor na serveru'};
   }
   const jenPc = cfg.zrcadlo === false;
-  // Barvy jako v nabídce: tento počítač oranžově, server modře, firma fialově.
+  // Barvy jako v nabídce: počítač oranžově, server modře, firma fialově.
   return {ico: 'i-hub', text: zkratkaServeru(cfg.gw_server) + ' · ' + kde.jmeno,
           druh: kde.firma ? 'pc-firma' : 'pc-server',
           tecka: kde.firma ? 'var(--firma)' : 'var(--cloud)',
@@ -3681,7 +3693,7 @@ function pcProstor() {
   const cfg = (STATE && STATE.config) || {};
   if (!(cfg.gw_server && cfg.gw_logged_in) || cfg.server_napojeni === false) return null;
   const firma = !cfg.gw_space && cfg.gw_firma ? cfg.gw_firma : '';
-  return {jmeno: cfg.gw_space ? (cfg.gw_space_name || '?') : firma ? (cfg.gw_firma_name || firma) : 'Můj prostor',
+  return {jmeno: cfg.gw_space ? (cfg.gw_space_name || '?') : firma ? (cfg.gw_firma_name || firma) : 'Osobní',
           cizi: !!cfg.gw_space, firma};
 }
 
@@ -3692,6 +3704,8 @@ async function napojeniZeServeru(zapnout) {
   try {
     await api('mcp-pc-nastav', {zapnout: !!zapnout});
     STATE.config.server_napojeni = !!zapnout;
+    // Seznam chatů: Počítač = jen místní, server = i chaty ze serveru.
+    setTimeout(() => { chatsSig = ''; loadChats(); }, 200);
     nabidniNovyStart();
     return true;
   } catch (e) { toast(e.message); return false; }
@@ -3751,16 +3765,6 @@ function renderMistoChips() {
 }
 window.HubMisto = {render: renderMistoChips};
 
-async function nastavZrcadlo(zapnout) {
-  try {
-    await api('zrcadlo-nastav', {zapnout: !!zapnout});
-    STATE.config.zrcadlo = !!zapnout;
-    toast(zapnout ? 'Chaty se budou kopírovat i na server (uvidíš je z telefonu, jde je sdílet).'
-                  : 'Chaty zůstanou jen na tomto počítači.');
-    renderMistoChips();
-  } catch (e) { toast(e.message); }
-}
-
 /* Prostor na kterémkoli uloženém serveru: nejdřív přepnout server (když není
    aktivní), pak prostor. Výkon i chaty zůstávají na počítači. */
 async function vyberPcProstor(sv, sp) {
@@ -3775,6 +3779,8 @@ async function vyberPcProstor(sv, sp) {
   }
   if (sp.id || STATE.config.gw_space || (sp.firma || '') !== (STATE.config.gw_firma || '')) await vyberProstorPc(sp);
   renderMistoChips();
+  chatsSig = '';
+  loadChats();
 }
 
 function vcas(promise, ms, fallback) {
@@ -3816,23 +3822,29 @@ async function mistoMenu(ev) {
                   color: 'var(--amber)', run: () => HubServer.backTo('local')});
     }
   } else {
-    /* Na počítači: výkon je vždycky tenhle počítač. Vybírá se jen prostor,
-       odkud má Claude Obsidian a napojení — tento počítač, nebo prostor na
-       některém serveru (každý server je kategorie se svými prostory). */
+    /* Na počítači: výkon je vždycky tenhle počítač. Vybírá se jen, odkud má Claude
+       Obsidian a napojení — a podle toho i kam se ukládají chaty (Jura, 6. 11. 2026,
+       „nechme to nejjednodušší“):
+         Počítač (oranžově)          → vše jen na počítači,
+         server · Osobní (modře)     → Obsidian a napojení ze serveru, chaty i na server,
+         server · firma (fialově)    → totéž, výchozí Obsidian firemní.
+       Žádné nadpisy, žádná zvláštní volba chatů, žádné „Jinak“. */
     const servers = cfg.gw_servers || [];
     const kde = pcProstor();
-    /* Barvy (Jura, 6. 11. 2026): tento počítač oranžově, prostory na serverech modře,
-       firmy na serverech fialově — v Prostoru i v Chatech. */
-    items.push({heading: 'Prostor'});
-    items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--amber)',
-                run: async () => { if (kde && await napojeniZeServeru(false)) { toast('Obsidian a napojení teď z tohoto počítače.'); renderMistoChips(); } }});
+    items.push({icon: 'i-laptop', label: 'Počítač', on: !kde, color: 'var(--pc)',
+                run: async () => {
+                  if (kde && await napojeniZeServeru(false)) {
+                    toast('Počítač: Obsidian, napojení i chaty jen tady.');
+                    renderMistoChips();
+                  }
+                }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
       ? vcas(api('account', {action: 'spaces', server: sv.server}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'})
       : Promise.resolve({error: 'nepřihlášený'})));
     servers.forEach((sv, i) => {
-      items.push({heading: sv.host});
+      const jmeno = zkratkaServeru(sv.server);
       if (!sv.logged_in) {
-        items.push({icon: 'i-user', label: 'Přihlásit se…', run: () => vyberServerPc(sv)});
+        items.push({icon: 'i-user', label: jmeno + ' · Přihlásit se…', color: 'var(--cloud)', run: () => vyberServerPc(sv)});
         return;
       }
       const res = prostory[i] || {};
@@ -3842,36 +3854,11 @@ async function mistoMenu(ev) {
                     (sp.firma || '') === (sp.id ? '' : (cfg.gw_firma || ''));
         items.push({icon: sp.firma ? 'i-folder' : sp.id ? 'i-lock' : 'i-user', on: zde,
                     color: sp.firma ? 'var(--firma)' : 'var(--cloud)',
-                    label: sp.firma ? sp.name + ' · ' + sp.label : sp.id ? sp.name + ' · ' + sp.label : 'Osobní',
+                    label: jmeno + ' · ' + (sp.firma || sp.id ? sp.name : 'Osobní'),
                     run: async () => { if (!zde) { await vyberPcProstor(sv, sp); renderMistoChips(); } }});
       }
     });
-    if (servers.length) {
-      const kopie = cfg.zrcadlo !== false;
-      // Kam se chaty ukládají: výběr, ne popis. Kopie jde na aktivní server (telefon, sdílení).
-      const host = hostOfServer(cfg.gw_server) || 'serveru';
-      items.push({heading: 'Chaty — kam se ukládají'});
-      items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kopie, color: 'var(--amber)',
-                  run: () => { if (kopie) nastavZrcadlo(false); }});
-      // Počítač oranžově + server v barvě prostoru (firma fialově, jinak modře).
-      const srvBarva = kde && kde.firma ? 'var(--firma)' : 'var(--cloud)';
-      items.push({icon: 'i-laptop', label: 'Tento počítač + server ' + host, on: kopie, color: 'var(--amber)',
-                  casti: [{text: 'Tento počítač', color: 'var(--amber)'}, {text: ' + ', cls: 'ctx-cast-dim'},
-                          {text: 'server ' + host, color: srvBarva}],
-                  run: () => { if (!kopie) nastavZrcadlo(true); }});
-      /* Přepínač mění jen ZDROJ Obsidianu a napojení — okno, chaty a výkon zůstávají. Dřív tu byla
-         i položka „Otevřít server“, která celé okno přepnula na rozhraní serveru; Tomáš ji bral
-         za výběr serveru (5. 11. 2026). Práce přímo na serveru je v Nastavení → Účet. */
-    }
   }
-  items.push({heading: 'Jinak'});
-  const brain = $('btn-brain');
-  if (brain && !brain.hidden) items.push({icon: 'i-book', label: 'Otevřít Obsidian', run: () => brain.click()});
-  if (!onServer()) {
-    items.push({icon: 'i-plus', label: (cfg.gw_servers || []).length ? 'Přidat další server…' : 'Připojit server…',
-                run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
-  }
-  items.push({icon: 'i-gear', label: 'Účet a servery…', run: () => HubSettings.open({...hubIO(), state: STATE, tab: 'ucet'})});
   /* Poloha se bere až teď: nabídka se skládá z pomalých dotazů a za tu dobu se
      pole na psaní na telefonu posunulo (klávesnice, překreslení) — nabídka pak
      „skákala“ mimo čip. */

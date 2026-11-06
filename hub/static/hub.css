@@ -12,6 +12,7 @@
   --sun: var(--amber);
   --cloud: #4c97f0;
   --firma: #a371f7;
+  --pc: var(--amber);      /* počítač v přepínači místa: oranžově (Jura, 6. 11. 2026) */
   --bg: #0d1117;
   --bg-sidebar: #161b22;
   --bg-card: #1b2129;
@@ -5668,9 +5669,9 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
   .mcp-menu-pata .btn { flex: 1; min-height: 40px; }
 }
 
-/* Čip „kde pracuju“ na počítači (Jura, 6. 11. 2026): tento počítač oranžově,
+/* Čip „kde pracuju“ na počítači (Jura, 6. 11. 2026): počítač oranžově,
    prostor na serveru modře, firma na serveru fialově — stejně jako v nabídce. */
-.composer-chip.composer-misto[data-druh="pc"] { color: var(--amber); }
+.composer-chip.composer-misto[data-druh="pc"] { color: var(--pc); }
 .composer-chip.composer-misto[data-druh="pc-server"] { color: var(--cloud); }
 .composer-chip.composer-misto[data-druh="pc-firma"] { color: var(--firma); }
 /* Položka nabídky složená z barevných kousků („Tento počítač + server …“). */

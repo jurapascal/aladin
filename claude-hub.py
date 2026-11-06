@@ -44,6 +44,73 @@ if sys.platform == "win32":
         except (AttributeError, ValueError, OSError):
             pass
 
+
+BEZ_OKNA = "HUB_BEZ_OKNA_KONZOLE"
+
+
+def _bez_okna_konzole():
+    """Windows: hub má běžet v konzoli bez okna. Vrací návratový kód (tenhle
+    proces jen počkal na hub), nebo None — pokračuje se tady.
+
+    pywinpty si v procesu bez konzole (pythonw.exe ze zástupce, odpojený proces
+    po restartu) u každého nového terminálu sám založí konzoli (`AllocConsole`)
+    a teprve pak ji schová (winpty-rs, src/pty/conpty/pty_impl.rs). Na Windows 10
+    to problikne černým oknem, na Windows 11 s Windows Terminal jako výchozím
+    terminálem zůstane okno otevřené — a kdo ho zavře, zavře s ním i hub. Appka
+    pak hub pouští znovu a okna Aladina se otevírají víckrát (Tomáš Peška 5. 11.,
+    Adam Uher 6. 11. 2026). Totéž okno ukáže Windows Terminal u hubu, kterého
+    pustila appka (desktop/, python.exe se skrytým oknem — skrytí Terminal neumí).
+
+    Proto: hub poběží jako python.exe s CREATE_NO_WINDOW — konzoli má, jen bez
+    okna, takže pywinpty žádnou zakládat nemusí. Tenhle proces se konzole pustí
+    a počká, až hub skončí (appka podle něj pozná, že hub běží)."""
+    if sys.platform != "win32":
+        return None
+    if os.environ.pop(BEZ_OKNA, "") == "1":
+        return None                              # už běžíme v konzoli bez okna
+    args = sys.argv[1:]
+    exe = sys.executable or ""
+    pythonw = os.path.basename(exe).lower() == "pythonw.exe"
+    # Jen spuštění bez člověka u konzole: zástupce (pythonw), appka (--vlastni-okno),
+    # restart starší verze (--bez-okna). Ruční `python claude-hub.py` v terminálu ne.
+    if not (pythonw or "--vlastni-okno" in args or "--bez-okna" in args) or "--doctor" in args:
+        return None
+    python = os.path.join(os.path.dirname(exe), "python.exe")
+    if not os.path.isfile(python):
+        return None
+    import subprocess
+
+    def proud(stream):
+        try:
+            if stream is not None and stream.fileno() >= 0:
+                stream.flush()
+                return stream
+        except (OSError, ValueError, AttributeError):
+            pass
+        return subprocess.DEVNULL
+    try:
+        hub = subprocess.Popen([python, os.path.abspath(__file__), *args], cwd=os.getcwd(),
+                               env={**os.environ, BEZ_OKNA: "1"}, stdin=subprocess.DEVNULL,
+                               stdout=proud(sys.stdout), stderr=proud(sys.stderr),
+                               creationflags=0x08000000 | 0x00000200)  # NO_WINDOW | NEW_PROCESS_GROUP
+    except OSError:
+        return None                              # nejde — hub poběží tady jako dřív
+    try:
+        import ctypes
+        ctypes.windll.kernel32.FreeConsole()     # viditelná konzole (appka + Terminal) se zavře
+    except Exception:
+        pass
+    try:
+        return hub.wait()
+    except KeyboardInterrupt:
+        return 0
+
+
+if __name__ == "__main__":
+    _kod = _bez_okna_konzole()
+    if _kod is not None:
+        sys.exit(_kod)
+
 from hub import account, core, pocitac, pozadi, predplatne, pty_backend, server, window  # noqa: E402
 
 
@@ -203,6 +270,13 @@ def wait_for_page(proc=None, grace=10, startup=60):
                 continue
             core.log("okno zavřeno — končím")
             return
+
+
+def _nekde_pracuje():
+    """Pracuje Claude v některém tabu téhle instance? (hlídač jediné appky)"""
+    from hub import zrcadlo
+    return any(not getattr(s, "exited", False) and zrcadlo._pracuje(s)
+               for s in list(server.HUB.sessions.values()))
 
 
 def otevri_okno(target, prefer, appka_ok, vlastni_server=True):
@@ -369,6 +443,10 @@ def main():
 
     httpd, url = server.start()
     pozadi.zapis(url)
+    if "--no-browser" not in args:
+        # Kdyby se přece jen rozběhly dvě appky, zbytečná sama skončí (pozadi.py).
+        threading.Thread(target=pozadi.hlidej_jedinou, args=(server.HUB, url, _nekde_pracuje),
+                         daemon=True, name="jedina-appka").start()
     if "--no-browser" not in args and not restart:
         # Instance, které tu zůstaly z dřívějška (závod při spuštění, stará
         # verze bez zámku), se řádně ukončí — jinak hlásí bráně stejný počítač.

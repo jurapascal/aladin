@@ -796,6 +796,7 @@ class Hub:
 
 
 HUB = Hub()
+_OKNO_OTEVRIT = {"cas": 0.0}      # poslední klik na ikonku v liště (okno-otevrit)
 
 
 # ── HTTP ─────────────────────────────────────────────────────────────────────
@@ -2326,6 +2327,10 @@ class Handler(BaseHTTPRequestHandler):
             # tak se otevřené okno zavře a otevře znovu — taby běží dál tady.
             if core.on_gateway() or self.command != "POST":
                 return self._json({"error": "Jen v appce na počítači."}, 400)
+            # Dvojklik na ikonku = dvě kliknutí = dvě okna. Druhé do pár vteřin nic nedělá.
+            if time.time() - _OKNO_OTEVRIT["cas"] < 8:
+                return self._json({"ok": True, "uz": True})
+            _OKNO_OTEVRIT["cas"] = time.time()
 
             def otevri():
                 from . import restart

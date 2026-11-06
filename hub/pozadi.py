@@ -191,6 +191,67 @@ def uklid_dalsi_instance():
     return hotovo
 
 
+def _zaznam():
+    """(pid, url) z `hub-bezi.json` — instance, ke které se mají připojovat okna."""
+    try:
+        with open(soubor(), encoding="utf-8") as fh:
+            d = json.load(fh)
+        return int(d.get("pid") or 0), str(d.get("url") or "")
+    except (OSError, ValueError, TypeError):
+        return 0, ""
+
+
+HLIDAC_KAZDYCH = 30        # s
+HLIDAC_NAVIC = 2           # tolik kol po sobě bez okna a bez práce = končím
+
+
+def hlidej_jedinou(hub, url, pracuje=None):
+    """Jen jedna appka na počítači, i když se dvě přece jen rozběhly (appka
+    pustila hub během restartu, stará instance se při ukončení zasekla).
+    Platí ta, kterou zná `hub-bezi.json` (spustila se poslední a odpovídá);
+    každá jiná přepne svá okna na ni, a jakmile nemá okno ani rozdělanou práci
+    Clauda, skončí. Dřív zůstávaly obě a obě otevíraly okna (Adam Uher,
+    6. 11. 2026: na bránu chodily dvě řady dotazů z jednoho počítače)."""
+    if core.TEST_MODE or core.on_gateway():
+        return
+    navic = 0
+    while True:
+        time.sleep(HLIDAC_KAZDYCH)
+        try:
+            if _ZAMEK["fh"] is None:
+                zamek()                           # stará instance mezitím skončila?
+            pid, jeho = _zaznam()
+            if pid == os.getpid():
+                navic = 0
+                continue
+            if not pid or not _pid_zije(pid):
+                zapis(url)                        # značka chybí / patří mrtvé instanci
+                navic = 0
+                continue
+            if not bezici_url():
+                navic = 0                         # ta druhá neodpovídá — zůstat
+                continue
+            if hub.clients > 0:
+                hub.broadcast({"t": "okno-jdi", "url": jeho})
+                core.log(f"jediná appka: okna přecházejí na instanci {pid}", "warn")
+                navic = 0
+                continue
+            if pracuje and pracuje():
+                navic = 0                         # Claude tu dopisuje — počkat
+                continue
+            navic += 1
+            if navic < HLIDAC_NAVIC:
+                continue
+            core.log(f"jediná appka: běží i instance {pid} — tahle končí", "warn")
+            konec = threading.Thread(target=lambda: hub.shutdown(keep=False), daemon=True)
+            konec.start()
+            konec.join(10)
+            smaz()
+            os._exit(0)
+        except Exception as exc:                   # hlídač nesmí umřít
+            core.log_error("jediná appka", exc)
+
+
 def bezici_url():
     """Adresa už běžící instance (jen když opravdu odpovídá), nebo ''."""
     try:

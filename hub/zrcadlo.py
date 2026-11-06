@@ -50,9 +50,16 @@ def pripojeno():
             and bool(core.CONFIG.get("gw_token")) and bool(account._base()))
 
 
+def na_serveru():
+    """V přepínači místa je vybraný prostor na serveru (ne „Počítač“)."""
+    return core.CONFIG.get("server_napojeni", True) is not False
+
+
 def zapnuto():
-    """Kopírovat chaty z počítače na server? Přihlášený počítač a zapnutá kopie."""
-    return pripojeno() and core.CONFIG.get("zrcadlo", True) is not False
+    """Kopírovat chaty z počítače na server? Přihlášený počítač, vybraný prostor na
+    serveru (přepínač místa) a nevypnutá kopie. „Počítač“ = chaty jen tady
+    (Jura, 6. 11. 2026) — dřív to byla zvláštní volba v nabídce."""
+    return pripojeno() and na_serveru() and core.CONFIG.get("zrcadlo", True) is not False
 
 
 # ── stav na disku ────────────────────────────────────────────────────────────
@@ -397,8 +404,11 @@ def prehled(obnovit=False):
     data = _nacti() if pripojen else {"server": [], "chaty": {}}
     seznam = None
     if pripojen:
+        base = account._base()
         with _LOCK:
-            cerstvy = time.time() - _BEH["seznam_cas"] < SEZNAM_TTL and not obnovit
+            # Seznam patří serveru, ze kterého přišel — po přepnutí serveru hned nový.
+            cerstvy = (time.time() - _BEH["seznam_cas"] < SEZNAM_TTL and not obnovit
+                       and _BEH.get("seznam_server") == base)
             seznam = _BEH["seznam"] if cerstvy else None
         if seznam is None:
             res, err, _kind = account._call("/gw/zrcadlo/seznam", token=core.CONFIG.get("gw_token", ""),
@@ -406,13 +416,14 @@ def prehled(obnovit=False):
             seznam = (res or {}).get("chaty") if res else None
             with _LOCK:
                 if seznam is not None:
-                    _BEH["seznam"], _BEH["seznam_cas"] = seznam, time.time()
+                    _BEH["seznam"], _BEH["seznam_cas"], _BEH["seznam_server"] = seznam, time.time(), base
                 else:
                     _BEH["chyba"] = err
-                    seznam = _BEH["seznam"]
+                    seznam = _BEH["seznam"] if _BEH.get("seznam_server") == base else []
     with _LOCK:
         beh = {"posledni": int(_BEH["posledni"]), "chyba": _BEH["chyba"], "pocet": _BEH["pocet"]}
-    return {"zapnuto": zap, "pripojeno": pripojen, "nastaveno": core.CONFIG.get("zrcadlo", True) is not False,
+    return {"zapnuto": zap, "pripojeno": pripojen, "na_serveru": na_serveru(),
+            "nastaveno": core.CONFIG.get("zrcadlo", True) is not False,
             **beh, "server": data["server"], "chaty": seznam or []}
 
 

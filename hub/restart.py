@@ -321,12 +321,26 @@ def _spawn(*extra):
     argv = [sys.executable, launcher, *extra]
     kwargs = {"cwd": core.HOME, "close_fds": True}
     if os.name == "nt":
-        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP — ať nové okno nezmizí
-        # s tímhle procesem.
-        kwargs["creationflags"] = 0x00000008 | 0x00000200
+        # Konzole bez okna (CREATE_NO_WINDOW), ne odpojený proces: v procesu bez
+        # konzole si pywinpty u každého terminálu založí vlastní a na Windows 11
+        # z ní zůstane okno terminálu (claude-hub.py, _bez_okna_konzole). Vlastní
+        # skupina procesů — ať nová instance nezmizí s touhle.
+        python = os.path.join(os.path.dirname(sys.executable or ""), "python.exe")
+        if os.path.isfile(python):
+            argv[0] = python
+        kwargs["creationflags"] = 0x08000000 | 0x00000200
+        kwargs["env"] = {**os.environ, "HUB_BEZ_OKNA_KONZOLE": "1"}
+        kwargs.update(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         kwargs["start_new_session"] = True
     subprocess.Popen(argv, **kwargs)
+
+
+def _zavri_taby(hub):
+    try:
+        hub.shutdown(keep=False)
+    except Exception:
+        pass
 
 
 def relaunch(hub, delay=0.6):
@@ -364,11 +378,14 @@ def relaunch(hub, delay=0.6):
         # se zavře.
         nova = ""
         try:
-            for _ in range(60):
+            # Na Windows start trvá i přes 10 s (antivir kontroluje Python) —
+            # po 6 s se dřív okno zavřelo a nová instance pak otevřela další.
+            konec_cekani = time.time() + 25
+            while time.time() < konec_cekani:
                 nova = pozadi.bezici_url()
                 if nova:
                     break
-                time.sleep(0.1)
+                time.sleep(0.2)
         except Exception:
             nova = ""
         try:
@@ -393,11 +410,12 @@ def relaunch(hub, delay=0.6):
             except Exception:
                 pass
         # Terminály stejně umírají s procesem; tohle je pošle spát řízeně,
-        # ať po sobě Claude Code stihne zavřít přepisy.
-        try:
-            hub.shutdown(keep=False)
-        except Exception:
-            pass
+        # ať po sobě Claude Code stihne zavřít přepisy. Nejvýš 10 s: zavírání
+        # terminálu se na Windows umí zaseknout a stará instance pak běžela dál
+        # vedle nové (dvě instance, dvakrát okna — Adam Uher, 6. 11. 2026).
+        konec = threading.Thread(target=lambda: _zavri_taby(hub), daemon=True)
+        konec.start()
+        konec.join(10)
         # os._exit, protože okno drží hlavní smyčku a obyčejný sys.exit by
         # z tohohle vlákna proces neukončil.
         sys.stdout.flush()

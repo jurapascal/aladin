@@ -165,7 +165,16 @@ function spustHub() {
   hubSam = umi;
   const args = [...py.args, launcher, umi ? '--vlastni-okno' : '--no-browser',
     ...(process.env.HUB_ARGS || '').split(/\s+/).filter(Boolean)];
-  const proc = spawn(py.cmd, args, {
+  // Windows: pythonw.exe, ne python.exe. Konzolový proces se zděděným výstupem do
+  // souboru dostane okno konzole a Windows Terminal (výchozí terminál na Windows 11)
+  // ho neumí skrýt — vedle appky pak viselo okno terminálu, a kdo ho zavřel,
+  // zavřel i hub. Hub si konzoli bez okna založí sám (claude-hub.py).
+  let cmd = py.cmd;
+  if (IS_WIN && umi && /python\.exe$/i.test(cmd)) {
+    const w = cmd.replace(/python\.exe$/i, 'pythonw.exe');
+    if (fs.existsSync(w)) cmd = w;
+  }
+  const proc = spawn(cmd, args, {
     cwd: os.homedir(), detached: !IS_WIN, windowsHide: true,
     stdio: ['ignore', fd, fd], env: process.env,
   });
@@ -487,8 +496,33 @@ if (!app.commandLine.hasSwitch('user-data-dir')) {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  // Druhé spuštění (Nové okno z hubu, zástupce) = další okno téže appky.
-  app.on('second-instance', (_e, argv) => { otevriOkno(adresaZArgv(argv)); });
+  /* Druhé spuštění (zástupce, ikonka v liště, hub po restartu) ukáže okno, které
+     už je otevřené — dřív pokaždé přibylo další a okna Aladina se množila
+     (Adam Uher, 6. 11. 2026). Nové okno je v menu Soubor → Nové okno. Když okno
+     ukazuje hub, který už neodpovídá (restart), přejde na adresu z příkazu. */
+  app.on('second-instance', async (_e, argv) => {
+    const url = adresaZArgv(argv);
+    const okna = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
+    const ukaz = (win) => { if (win.isMinimized()) win.restore(); win.show(); win.focus(); };
+    if (!okna.length || argv.includes('--nove-okno')) { otevriOkno(url); return; }
+    if (!url) { ukaz(BrowserWindow.getFocusedWindow() || okna[okna.length - 1]); return; }
+    // Okno už ukazuje tenhle hub (port i token jsou od 2.120 stálé) → jen ukázat.
+    const tenhle = okna.find((w) => klic(w.webContents.getURL()) === klic(url));
+    if (tenhle) { ukaz(tenhle); return; }
+    // Okno na hubu, který už neodpovídá (restart) → přejde na nový.
+    for (const w of okna) {
+      const u = w.webContents.getURL();
+      if (HUB_URL.test(u) && !(await dotaz(u, 1500)) && !w.isDestroyed()) {
+        hubUrl = url;
+        await w.webContents.executeJavaScript('window.HUB_LEAVING = true').catch(() => {});
+        w.loadURL(url);
+        ukaz(w);
+        return;
+      }
+    }
+    // Okna jsou jinde (prostor na serveru, jiný běžící hub) → nové okno jako dřív.
+    otevriOkno(url);
+  });
   app.setAppUserModelId('com.github.jurapascal.claude-code-hub.desktop');
 
   app.whenReady().then(async () => {

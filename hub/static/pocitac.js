@@ -870,15 +870,28 @@
   function chip(io) {
     const host = document.querySelector('.topbar-actions');
     if (!host || host.querySelector('.topbar-pcbtn')) return;
-    const b = el('button', 'iconbtn topbar-pcbtn odpojeno');
-    b.type = 'button';
-    b.setAttribute('aria-label', 'Počítač');
-    b.title = 'Počítač — zjišťuji…';
-    b.appendChild(icon('i-laptop'));
-    host.insertBefore(b, host.firstChild);
+    const nove = () => {
+      const b = el('button', 'iconbtn topbar-pcbtn odpojeno');
+      b.type = 'button';
+      b.setAttribute('aria-label', 'Počítač');
+      b.title = 'Počítač — zjišťuji…';
+      b.appendChild(icon('i-laptop'));
+      b.onclick = (ev) => { ev.stopPropagation(); detail(ev.currentTarget); };
+      return b;
+    };
+    // Na počítači v liště, na telefonu v hlavičce panelu vedle Nastavení (Jura, 6. 11. 2026).
+    const tlacitka = [nove()];
+    host.insertBefore(tlacitka[0], host.firstChild);
+    const nastaveni = document.getElementById('btn-drawer-nastaveni');
+    if (nastaveni && nastaveni.parentNode) {
+      const vPanelu = nove();
+      vPanelu.classList.add('pc-v-panelu');
+      nastaveni.parentNode.insertBefore(vPanelu, nastaveni);
+      tlacitka.push(vPanelu);
+    }
     let data = {computers: []};
 
-    function detail() {
+    function detail(b) {
       const vsechny = (data.computers || []).slice()
         .sort((x, y) => Number(!!(y.online && y.access)) - Number(!!(x.online && x.access)));
       const items = [{heading: vsechny.length > 1 ? 'Počítače' : 'Počítač'}];
@@ -895,9 +908,8 @@
                     run: () => {}});
       }
       const r = b.getBoundingClientRect();
-      if (typeof global.showMenu === 'function') global.showMenu(Math.max(8, r.right - 300), r.bottom + 4, items);
+      if (typeof global.showMenu === 'function') global.showMenu(Math.max(8, Math.min(r.left, innerWidth - 308)), r.bottom + 4, items);
     }
-    b.onclick = (ev) => { ev.stopPropagation(); detail(); };
 
     let timer = null;
     async function tick() {
@@ -909,20 +921,21 @@
         ukolyNotice(io, data.ukoly);
         serverApprovals(io, list);
         if (list.some((c) => (c.pending || []).length)) wait = 2000;
-        b.classList.toggle('pripojeno', list.length > 0);
-        b.classList.toggle('odpojeno', !list.length);
-        b.title = list.length
+        const titulek = list.length
           ? list.map((c) => 'Připojený počítač ' + c.name + ' (' + c.access_label + ')').join('\n')
           : 'Žádný počítač není připojený';
-        if (list.length) {
-          // Zvýraznit, když Claude na počítači právě něco dělá; mezitím se
-          // ptát častěji, ať ikona nezaostává.
-          const newest = Math.min(...list.map((c) => (c.last ? c.last.ago : 1e9)));
+        // Zvýraznit, když Claude na počítači právě něco dělá; mezitím se
+        // ptát častěji, ať ikona nezaostává.
+        const newest = list.length ? Math.min(...list.map((c) => (c.last ? c.last.ago : 1e9))) : 1e9;
+        for (const b of tlacitka) {
+          b.classList.toggle('pripojeno', list.length > 0);
+          b.classList.toggle('odpojeno', !list.length);
           b.classList.toggle('busy', newest < 10);
-          if (wait > 5000) wait = newest < 60 ? 5000 : 15000;
+          b.title = titulek;
         }
+        if (list.length && wait > 5000) wait = newest < 60 ? 5000 : 15000;
       } catch (_) {
-        b.hidden = true;
+        for (const b of tlacitka) b.hidden = true;
         wait = 5 * 60 * 1000;                 // starší brána most nezná
       }
       timer = setTimeout(tick, wait);

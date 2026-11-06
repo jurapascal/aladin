@@ -5790,3 +5790,10 @@ html .ss-steps span.done { color: var(--kontrast); }
 @media (prefers-reduced-motion: reduce) {
   .kostra-ja, .kostra-on span, .k-av, .k-r { animation: none; }
 }
+/* Počítač na telefonu: v hlavičce panelu vedle Nastavení, ne v horní liště. */
+.pc-v-panelu { display: none; }
+@media (max-width: 820px) {
+  .topbar .topbar-pcbtn { display: none !important; }
+  .drawer-head .pc-v-panelu { display: inline-flex; border: 2px solid var(--red); box-shadow: none; border-radius: 50%; }
+  .drawer-head .pc-v-panelu.pripojeno { border-color: var(--green); }
+}

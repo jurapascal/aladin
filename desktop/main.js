@@ -321,11 +321,17 @@ function noveOkno(url) {
     clearTimeout(t);
     t = setTimeout(() => {
       if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return;
-      try { fs.writeFileSync(boundsFile(), JSON.stringify(win.getBounds())); } catch (_) { /* nevadí */ }
+      try { fs.writeFileSync(boundsFile(), JSON.stringify({ ...win.getBounds(), max: false })); } catch (_) { /* nevadí */ }
     }, 400);
   };
   win.on('resize', uloz);
   win.on('move', uloz);
+  // Přes celou obrazovku (maximalizované) je výchozí — Jura, 6. 11. 2026. Kdo okno
+  // zmenší, tomu se to pamatuje (max: false) a příště se otevře v jeho velikosti.
+  win.on('maximize', () => {
+    try { fs.writeFileSync(boundsFile(), JSON.stringify({ ...(readJson(boundsFile()) || {}), max: true })); } catch (_) { /* nevadí */ }
+  });
+  if (!focus && saved.max !== false) win.maximize();
   win.loadURL(url);
   return win;
 }

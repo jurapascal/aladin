@@ -512,7 +512,12 @@ def main():
         # vyřeší a pak přejde na server sám (server.js, go).
         if core.CONFIG.get("server_mode") and core.CONFIG.get("pocitac_asked") \
                 and not predplatne.should_offer():
-            target = server_start_url(url) or url
+            # Appka (desktop/) bere jen adresu hubu na počítači; do prostoru na serveru
+            # ji převede stránka sama (HubServer.gate). Dřív se server otevřel
+            # v prohlížeči — „při startu se někdy otevře prohlížeč“ (Jura, 6. 11. 2026).
+            from hub import appka
+            if not (appka_ok and appka.zapnuta() and appka.spustitelny()):
+                target = server_start_url(url) or url
         if "--bez-okna" in args:
             # Restart po aktualizaci: stávající okno se přepne samo. Kdyby se do
             # 12 s nepřipojilo (zavřeli jsme ho, nemá spojení), otevře se nové.

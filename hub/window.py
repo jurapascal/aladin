@@ -106,6 +106,7 @@ def _open_chromium(browser, url):
         # Okno hubu je jediná stránka, kterou tenhle profil kdy otevře.
         "--disable-infobars",
         "--window-size=1360,860",
+        "--start-maximized",          # přes celou obrazovku jako appka (desktop/)
     ]
     if not core.IS_WINDOWS and not core.IS_MAC:
         argv += ["--class=aladin", "--ozone-platform=x11"]  # matches StartupWMClass in the .desktop

@@ -6,20 +6,23 @@
  * obsah, při přepnutí na tab a jednou při startu; nejvýš jednou za MIN_MEZERA.
  * Čas běhu se dopočítává v prohlížeči (bez dotazu), jednou za půl minuty.
  *
- * Zapnutí je v Nastavení → Vzhled (jen na tomhle zařízení, výchozí zapnuto).
+ * Zapnutí je v Nastavení → Vzhled (jen na tomhle zařízení). Výchozí je vypnuto:
+ * model, tokeny, cena a čas u názvu chatu na telefonu ani nad konverzací na
+ * počítači nikdo nechce (Jura, 6. 11. 2026) — kdo ano, zapne si ho.
  */
 'use strict';
 
 (function (global) {
 
-  const KLIC = 'hub-stavradek';
+  // Nový klíč: dřív bylo výchozí zapnuto a starý klíč by ho u všech nechal svítit.
+  const KLIC = 'hub-stavradek-zap';
   const MIN_MEZERA = 5000;        // ms — nejčastější dotaz na server
   const CAS_KAZDYCH = 30000;      // ms — jak často se přepíše čas běhu
   const DOPOCET_KAZDYCH = 1500;   // ms — když server ještě dopočítává velký přepis
   const DOPOCET_MAX = 40;
 
   function zapnuto() {
-    try { return localStorage.getItem(KLIC) !== '0'; } catch (_) { return true; }
+    try { return localStorage.getItem(KLIC) === '1'; } catch (_) { return false; }
   }
   function nastav(on) {
     try { localStorage.setItem(KLIC, on ? '1' : '0'); } catch (_) { /* soukromé okno */ }
@@ -76,6 +79,9 @@
     function vykresli() {
       if (!data || !data.ok || !zapnuto()) {
         if (!rad.hidden) rad.hidden = true;
+        // Vypnutý řádek nesmí nechat text ani vedle názvu chatu v liště (telefon).
+        const h = document.getElementById('topbar-stav');
+        if (h && h.textContent && (!io.aktivni || io.aktivni())) h.textContent = '';
         return;
       }
       nastavText(eModel, data.label || data.model || '', data.model || '');

@@ -114,9 +114,13 @@ const prace = async (okno) => {
     e.preventDefault(); e.returnValue = '';
   }));
 };
-// Menu v proužku nahoře (hub.js, appMenu) — na Macu je menu v systému.
+// Menu v proužku nahoře (hub.js, appMenu) — na Macu je menu v systému. Proužek je
+// od 2.130 ve výchozím stavu schovaný (Nastavení → Přizpůsobit → Menu aplikace),
+// pak se položka klikne v menu appky.
 const noveOknoZMenu = async (app, okno) => {
-  if (process.platform === 'darwin') return klikniMenu(app, 'Nové okno');
+  if (process.platform === 'darwin' || await okno.evaluate(() => document.getElementById('appmenu').hidden)) {
+    return klikniMenu(app, 'Nové okno');
+  }
   await okno.click('#appmenu .appmenu-btn >> text=Soubor');
   await okno.click('.appmenu-drop .appmenu-item >> text=Nové okno');
 };
@@ -159,9 +163,16 @@ const klikniMenu = (app, label) => app.evaluate(({ Menu }, label) => {
     if (!mac) {
       // Nativní menu má na Linuxu a Windows rozbalené položky velké jako pro
       // prst — hub ho kreslí sám jako proužek nahoře a nativní lišta se schová.
-      await okno1.waitForFunction(() => !document.getElementById('appmenu').hidden, null, { timeout: 15000 });
+      // Od 2.130 je proužek ve výchozím stavu schovaný — totéž menu je v Nastavení →
+      // Přizpůsobit → Menu aplikace, kde se proužek dá zapnout (HubAppMenu.nastav).
+      await okno1.waitForFunction(() => !!window.HubAppMenu, null, { timeout: 15000 });
       await pauza(4500);                       // pojistka pro starší hub čeká 4 s
-      ok('menu je proužek nahoře v hubu, nativní lišta schovaná',
+      ok('proužek s menu je ve výchozím stavu schovaný a nativní lišta taky',
+        !(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMenuBarVisible()))
+        && (await okno1.evaluate(() => document.getElementById('appmenu').hidden)));
+      await okno1.evaluate(() => window.HubAppMenu.nastav(true));
+      await okno1.waitForFunction(() => !document.getElementById('appmenu').hidden, null, { timeout: 5000 });
+      ok('zapnuté menu je proužek nahoře v hubu, nativní lišta schovaná',
         !(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMenuBarVisible()))
         && (await okno1.evaluate(() => document.getElementById('appmenu').getBoundingClientRect().top)) === 0);
       await okno1.click('#appmenu .appmenu-btn >> text=Soubor');
@@ -172,6 +183,7 @@ const klikniMenu = (app, label) => app.evaluate(({ Menu }, label) => {
       ok('rozbalené položky stejně vysoké jako tlačítko Soubor', vysky.pol.length > 0
         && vysky.pol.every((h) => Math.abs(h - vysky.btn) < 0.5), `${vysky.btn} px / ${vysky.pol.join(', ')} px`);
       await okno1.keyboard.press('Escape');
+      await okno1.evaluate(() => window.HubAppMenu.nastav(false));
     }
 
     // Odkazy ještě bez tabu: běžící tab hub drží beforeunload a přechod na cizí
@@ -400,7 +412,7 @@ async function oknoNaNove(okno, claude, staryPid) {
     ok('přechod na novou instanci se při práci neptal „Opravdu odejít?"',
       !(await app.evaluate(() => global.hubDesktop.hlasky())).some((h) => /pracuje/.test(h)));
     if (process.platform !== 'darwin') {
-      await okno1.waitForFunction(() => !document.getElementById('appmenu').hidden, null, { timeout: 15000 });
+      await okno1.waitForFunction(() => !!window.HubAppMenu, null, { timeout: 15000 });
     }
     await noveOknoZMenu(app, okno1);
     for (let i = 0; i < 40 && app.windows().length < 2; i++) await pauza(250);

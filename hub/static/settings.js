@@ -784,7 +784,7 @@
       cb.type = 'checkbox';
       cb.checked = HubStav.zapnuto();
       cb.onchange = () => HubStav.nastav(cb.checked);
-      const r = radek('Stavový řádek nad konverzací', 'Model, větev, odhad ceny a čas. Jen na tomhle zařízení.', cb);
+      const r = radek('Stavový řádek nad konverzací', 'Model, větev, odhad ceny a čas (na telefonu vedle názvu chatu). Výchozí je vypnuto. Jen na tomhle zařízení.', cb);
       rows.appendChild(r);
     }
     box.appendChild(rows);

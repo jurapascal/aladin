@@ -215,6 +215,7 @@ def hlidej_jedinou(hub, url, pracuje=None):
     if core.TEST_MODE or core.on_gateway():
         return
     navic = 0
+    start, uklizeno = time.time(), False
     while True:
         time.sleep(HLIDAC_KAZDYCH)
         try:
@@ -223,6 +224,12 @@ def hlidej_jedinou(hub, url, pracuje=None):
             pid, jeho = _zaznam()
             if pid == os.getpid():
                 navic = 0
+                # Jednou po startu (i po restartu, kdy se jinak neuklízí): instance,
+                # které zůstaly z dřívějška — i starší verze bez tohohle hlídače —
+                # se ukončí. Za 40 s už ta, která restart spustila, sama skončila.
+                if not uklizeno and time.time() - start > 40:
+                    uklizeno = True
+                    uklid_dalsi_instance()
                 continue
             if not pid or not _pid_zije(pid):
                 zapis(url)                        # značka chybí / patří mrtvé instanci

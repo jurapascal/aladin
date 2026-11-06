@@ -152,7 +152,9 @@ def nainstaluj(ver):
     os.makedirs(DIR, exist_ok=True)
     nazev = "v" + "".join(c for c in ver if c.isalnum() or c in ".-_")
     cil = os.path.join(DIR, nazev)
-    rozbalovani = cil + ".nova"
+    # Vlastní složka na rozbalení: při restartu stahuje stará i nová instance
+    # naráz a společná „.nova“ končila WinError 183 (zkouška appky na Windows).
+    rozbalovani = f"{cil}.nova-{os.getpid()}"
     shutil.rmtree(rozbalovani, ignore_errors=True)
     os.makedirs(rozbalovani)
     try:
@@ -161,7 +163,11 @@ def nainstaluj(ver):
             _stahni(jmeno, archiv)
             _rozbal(archiv, rozbalovani)
         shutil.rmtree(cil, ignore_errors=True)
-        os.rename(rozbalovani, cil)
+        try:
+            os.rename(rozbalovani, cil)
+        except OSError:
+            if not os.path.isdir(cil):        # druhá instance to nestihla dřív — skutečná chyba
+                raise
     finally:
         shutil.rmtree(rozbalovani, ignore_errors=True)
     # Přepnutí je jediný zápis souboru — rozbitá napůl stažená verze se tak
@@ -172,7 +178,7 @@ def nainstaluj(ver):
     os.replace(tmp, os.path.join(DIR, "verze.json"))
     # Starší verze pryč; ta, ze které appka zrovna běží, zůstane do příště.
     for n in os.listdir(DIR):
-        if n.startswith("v") and n != nazev and os.path.isdir(os.path.join(DIR, n)):
+        if n.startswith("v") and n != nazev and ".nova" not in n and os.path.isdir(os.path.join(DIR, n)):
             shutil.rmtree(os.path.join(DIR, n), ignore_errors=True)
 
 

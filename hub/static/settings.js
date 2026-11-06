@@ -596,7 +596,38 @@
   /* Panel a lišta + pole na psaní v jedné záložce. */
   function panelAPole() {
     const box = el('div');
-    box.append(panelVlevo(), poleNaPsani());
+    box.append(panelVlevo(), menuAplikace(), poleNaPsani());
+    return box;
+  }
+
+  /* Menu samostatné appky (Soubor, Úpravy, Zobrazení, Okno, Nápověda): lišta nahoře
+     je ve výchozím stavu schovaná, všechno z ní jde odsud. Jen v appce na počítači. */
+  function menuAplikace() {
+    const M = global.HubAppMenu;
+    const box = section('Menu aplikace',
+      'Soubor, Úpravy, Zobrazení, Okno a Nápověda. Lišta nahoře je schovaná, všechno z ní otevřeš tady.');
+    if (!M || !(M.menus || []).length) { box.hidden = true; return box; }
+    const lbl = el('label', 'set-panel-v');
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = M.zapnuto();
+    cb.onchange = () => M.nastav(cb.checked);
+    lbl.append(cb, el('span', null, 'Zobrazit'));
+    const rows = el('div', 'set-rows');
+    rows.appendChild(radek('Lišta nahoře', 'Menu v řádku úplně nahoře okna. Alt ji ukáže i když je vypnutá.', lbl));
+    for (const m of M.menus) {
+      const ovl = el('div', 'set-panel-ovl');
+      for (const p of m.polozky || []) {
+        if (p.oddelovac) continue;
+        const b = el('button', 'btn ghost', p.label + (p.zkratka ? ' (' + p.zkratka + ')' : ''));
+        b.type = 'button';
+        b.disabled = p.povoleno === false;
+        b.onclick = () => { close(); M.akce(p.id); };
+        ovl.appendChild(b);
+      }
+      rows.appendChild(radek(m.label, '', ovl));
+    }
+    box.appendChild(rows);
     return box;
   }
 

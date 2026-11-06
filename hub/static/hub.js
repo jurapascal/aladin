@@ -3633,12 +3633,12 @@ function mistoText() {
   }
   const kde = pcProstor();
   if (!kde) {
-    return {ico: 'i-laptop', text: 'Tento počítač', druh: 'pc', tecka: '',
+    return {ico: 'i-laptop', text: 'Tento počítač', druh: 'pc', tecka: 'var(--cloud)',
             title: 'Výkon, Obsidian i napojení z tohoto počítače — klikni a vybereš prostor na serveru'};
   }
   const jenPc = cfg.zrcadlo === false;
   return {ico: 'i-laptop', text: zkratkaServeru(cfg.gw_server) + ' · ' + kde.jmeno, druh: 'pc',
-          tecka: kde.cizi ? 'var(--green)' : 'var(--cloud)',
+          tecka: 'var(--cloud)',
           title: 'Výkon: tento počítač. Obsidian a napojení: ' + hostOfServer(cfg.gw_server) + ' · ' + kde.jmeno +
                  '. Chaty ' + (jenPc ? 'jen na počítači' : 'na počítači i v kopii na serveru') +
                  ' — klikni a přepneš prostor'};
@@ -3789,7 +3789,7 @@ async function mistoMenu(ev) {
     const servers = cfg.gw_servers || [];
     const kde = pcProstor();
     items.push({heading: 'Prostor'});
-    items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--amber)',
+    items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--cloud)',
                 run: async () => { if (kde && await napojeniZeServeru(false)) { toast('Obsidian a napojení teď z tohoto počítače.'); renderMistoChips(); } }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
       ? vcas(api('account', {action: 'spaces', server: sv.server}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'})
@@ -3805,7 +3805,7 @@ async function mistoMenu(ev) {
       for (const sp of seznam) {
         const zde = !!kde && !!sv.active && sp.id === Number(cfg.gw_space || 0);
         items.push({icon: sp.id ? 'i-lock' : 'i-user', on: zde,
-                    color: sp.id ? 'var(--green)' : 'var(--cloud)',
+                    color: 'var(--cloud)',
                     label: sp.id ? sp.name + ' · ' + sp.label : 'Můj prostor',
                     run: async () => { if (!zde) { await vyberPcProstor(sv, sp); renderMistoChips(); } }});
       }
@@ -3815,9 +3815,9 @@ async function mistoMenu(ev) {
       // Kam se chaty ukládají: výběr, ne popis. Kopie jde na aktivní server (telefon, sdílení).
       const host = hostOfServer(cfg.gw_server) || 'serveru';
       items.push({heading: 'Chaty — kam se ukládají'});
-      items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kopie, color: 'var(--amber)',
+      items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kopie, color: 'var(--cloud)',
                   run: () => { if (kopie) nastavZrcadlo(false); }});
-      items.push({icon: 'i-hub', label: 'Tento počítač + server ' + host, on: kopie,
+      items.push({icon: 'i-hub', label: 'Tento počítač + server ' + host, on: kopie, color: 'var(--cloud)',
                   run: () => { if (!kopie) nastavZrcadlo(true); }});
       /* Přepínač mění jen ZDROJ Obsidianu a napojení — okno, chaty a výkon zůstávají. Dřív tu byla
          i položka „Otevřít server“, která celé okno přepnula na rozhraní serveru; Tomáš ji bral
@@ -6527,8 +6527,21 @@ async function appMenu() {
   document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && open) { ev.stopPropagation(); close(); } }, true);
   addEventListener('blur', close);
   addEventListener('resize', close);
-  nav.hidden = false;
-  api.menuVListe(true);
+  /* Lišta nahoře je ve výchozím stavu schovaná: totéž menu (Soubor, Úpravy, Zobrazení,
+     Okno, Nápověda) je v Nastavení → Přizpůsobit → Menu aplikace. Kdo ji chce nahoře,
+     zapne ji tam (Jura, 6. 11. 2026). Alt ji přesto ukáže jako nativní. */
+  const zobraz = (ano) => {
+    nav.hidden = !ano;
+    if (!ano) close();
+    api.menuVListe(true);
+  };
+  window.HubAppMenu = {
+    menus,
+    zapnuto: () => { try { return localStorage.getItem('hub-appmenu-liste') === '1'; } catch (_) { return false; } },
+    nastav: (ano) => { try { localStorage.setItem('hub-appmenu-liste', ano ? '1' : '0'); } catch (_) { /* bez paměti */ } zobraz(!!ano); },
+    akce: (id) => api.akce(id),
+  };
+  zobraz(window.HubAppMenu.zapnuto());
 }
 
 async function main() {

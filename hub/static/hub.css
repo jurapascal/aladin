@@ -5667,3 +5667,10 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
   .mcp-menu-akce .btn { min-height: 36px; }
   .mcp-menu-pata .btn { flex: 1; min-height: 40px; }
 }
+
+/* Čip „kde pracuju“ na počítači: ikona i tečka jsou vždy modré, ať je tento
+   počítač nebo prostor na serveru (Jura, 6. 11. 2026). */
+.composer-chip.composer-misto[data-druh="pc"] svg.ico { color: var(--cloud); }
+
+/* Menu aplikace v Nastavení: tlačítka se zalamují do řádků. */
+.set-row:has(.set-panel-ovl .btn) .set-panel-ovl { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }

@@ -174,7 +174,7 @@ const CSS_VARS = {
   AMBER: '--amber', BG: '--bg', BG_SIDEBAR: '--bg-sidebar', BG_CARD: '--bg-card',
   FG: '--fg', FG_BRIGHT: '--fg-bright', DIM: '--dim', GREEN: '--green',
   RED: '--red', CARD_HOVER: '--card-hover', BORDER: '--border', SECTION: '--section',
-  CLOUD: '--cloud', FIRMA: '--firma', CHART: '--chart',
+  CLOUD: '--cloud', FIRMA: '--firma', CHART: '--chart', PINK: '--pink',
 };
 
 /* Paleta okna: výchozí z hubu (core.DARK / LIGHT), přes ni barvy zapnutého
@@ -222,7 +222,7 @@ function applyMotiv(m) {
 function accentHex(tab) {
   const p = palette();
   if (tab && isFirmaVault(tab.vault)) return p.FIRMA;
-  return onServer() ? p.CLOUD : p.AMBER;
+  return onServer() ? p.CLOUD : (p.PINK || p.AMBER);
 }
 
 function rgbOf(hex) {
@@ -251,7 +251,11 @@ function applyTheme() {
   // Sloupce ve statistikách jdou s prostředím jako zbytek okna. Vlastní krok
   // mají proto, že samotná barva prostředí je na graf málo kontrastní.
   document.documentElement.style.setProperty(
-    '--chart', onServer() ? p.CHART_CLOUD : p.CHART);
+    '--chart', onServer() ? p.CHART_CLOUD : (p.PINK || p.CHART));
+  // Logo vlevo nahoře a tlačítko odeslat: bílé v tmavém režimu, černé ve světlém
+  // (a ikona v tlačítku naopak) — Jura, 6. 11. 2026.
+  document.documentElement.style.setProperty('--kontrast', DARK ? '#ffffff' : '#000000');
+  document.documentElement.style.setProperty('--kontrast-na', DARK ? '#000000' : '#ffffff');
   $('btn-theme').firstElementChild.firstElementChild
     .setAttribute('href', DARK ? '#i-moon' : '#i-sun');
   // Rozbalené <select>, posuvníky a další ovládací prvky kreslí prohlížeč sám —
@@ -3802,7 +3806,7 @@ async function mistoMenu(ev) {
     if (!g && window.HubServer && HubServer.localBack()) {
       items.push({heading: 'Výkon'});
       items.push({icon: 'i-laptop', label: 'Zpět na počítač (výkon počítače, tenhle prostor zůstane)',
-                  color: 'var(--amber)', run: () => HubServer.backTo('local')});
+                  color: 'var(--pc)', run: () => HubServer.backTo('local')});
     }
   } else {
     /* Na počítači: výkon je vždycky tenhle počítač. Vybírá se jen, odkud má Claude

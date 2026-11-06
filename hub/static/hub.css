@@ -3,16 +3,19 @@
    these custom properties, so Python stays the single source of truth. */
 
 :root {
-  /* Jantarová je barva počítače a zároveň slunce na uvítací obrazovce.
-     `--accent` je „barva prostředí, ve kterém právě jsem": na počítači
-     jantarová, v prostoru na serveru modrá jako cloud. Kdo přidává styl,
-     sahá po `--accent`, ne po `--amber`. */
+  /* Růžová je barva počítače a zároveň slunce na uvítací obrazovce (do 6. 11. 2026
+     jantarová). `--accent` je „barva prostředí, ve kterém právě jsem": na počítači
+     růžová, v prostoru na serveru modrá jako cloud. Kdo přidává styl, sahá po
+     `--accent`; `--amber` zůstává jen na varování. */
   --amber: #e0843c;
-  --accent: var(--amber);
-  --sun: var(--amber);
+  --pink: #e0356b;
+  --accent: var(--pink);
+  --sun: var(--pink);
+  --kontrast: #ffffff;     /* logo a tlačítko odeslat (hub.js applyTheme: černá ve světlém) */
+  --kontrast-na: #000000;
   --cloud: #4c97f0;
   --firma: #a371f7;
-  --pc: var(--amber);      /* počítač v přepínači místa: oranžově (Jura, 6. 11. 2026) */
+  --pc: var(--pink);       /* počítač v přepínači místa: růžově (Jura, 6. 11. 2026) */
   --bg: #0d1117;
   --bg-sidebar: #161b22;
   --bg-card: #1b2129;
@@ -102,7 +105,7 @@ body { display: flex; flex-direction: column; }
 .appmenu-item:hover:not(:disabled) { background: var(--card-hover); }
 .appmenu-item:disabled { opacity: .45; }
 .appmenu-item kbd { font: inherit; font-size: 11.5px; color: var(--dim); }
-.brand-ico { color: var(--accent); font-size: 19px; }
+.brand-ico { color: var(--kontrast); font-size: 19px; }
 /* Odznak prostředí je zároveň přepínač: jedno kliknutí sem přehodí počítač
    a prostor na serveru. Dřív se na to muselo přes nastavení. */
 .topbar-badge {
@@ -812,7 +815,7 @@ body { display: flex; flex-direction: column; }
 .composer-send {
   display: inline-flex; align-items: center; justify-content: center;
   width: 28px; height: 28px; flex: none; border-radius: 8px; cursor: pointer;
-  background: var(--accent); border: none; color: #fff; font-size: 14px;
+  background: var(--kontrast); border: none; color: var(--kontrast-na); font-size: 14px;
   opacity: .45; transition: opacity .12s ease;
 }
 /* Jediná barevná plocha v bublině — ať svítí, jen když je co odeslat. */
@@ -2929,7 +2932,7 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-input:focus { outline: none; border-color: var(--accent); }
 .cteni-send {
   flex: none; width: 34px; height: 34px; border-radius: 9px;
-  background: var(--accent); border: none; color: #fff;
+  background: var(--kontrast); border: none; color: var(--kontrast-na);
   font-size: 15px; cursor: pointer;
 }
 .cteni-send:hover { filter: brightness(1.08); }
@@ -4853,7 +4856,7 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 
 
 /* Džin Aladina jako vektor v barvě prostředí (--accent: na počítači jantarová, na serveru modrá). */
-.brand-ico { color: var(--accent); width: 40px; height: 40px; font-size: 40px; margin: -6px -4px -6px -6px; }
+.brand-ico { color: var(--kontrast); width: 40px; height: 40px; font-size: 40px; margin: -6px -4px -6px -6px; }
 .ss-ring .ico { width: 54px; height: 54px; }
 .onb-mark { color: var(--accent); }
 

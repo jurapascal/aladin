@@ -430,6 +430,6 @@ html, body { font-family: var(--font-sans); }
   .composer-mic { width: 40px; height: 40px; border-radius: 50%; font-size: 19px; flex: none; }
   .composer-send {
     width: 40px; height: 40px; border-radius: 50%; font-size: 18px; flex: none;
-    background: var(--claude-akcent, var(--accent)); color: #fff;
+    background: var(--kontrast); color: var(--kontrast-na);
   }
 }

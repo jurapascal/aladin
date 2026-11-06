@@ -634,6 +634,9 @@ def _has_obsidian():
 # reads the same values as its terminal theme.
 DARK = {
     "AMBER": "#e0843c", "BG": "#0d1117", "BG_SIDEBAR": "#161b22",
+    # Barva počítače (Jura, 6. 11. 2026: místo oranžové růžová). Motivy ji
+    # nepřepisují — počítač je růžový v každém motivu.
+    "PINK": "#e0356b",
     "BG_CARD": "#1b2129", "FG": "#d0d0d0", "FG_BRIGHT": "#e6edf3",
     "DIM": "#8b949e", "GREEN": "#3fb950", "RED": "#f85149",
     "CARD_HOVER": "#242b35", "BORDER": "#30363d", "SECTION": "#6e7681",
@@ -654,6 +657,7 @@ DARK = {
 }
 LIGHT = {
     "AMBER": "#bc5c1c", "BG": "#ffffff", "BG_SIDEBAR": "#f6f8fa",
+    "PINK": "#b8255a",
     "BG_CARD": "#ffffff", "FG": "#24292f", "FG_BRIGHT": "#1f2328",
     "DIM": "#656d76", "GREEN": "#1a7f37", "RED": "#cf222e",
     "CARD_HOVER": "#eef1f4", "BORDER": "#d0d7de", "SECTION": "#8c959f",

@@ -36,8 +36,19 @@ import urllib.request
 CESTY = lambda: {}         # nastaví hub: id tabu → složka (osiřelé karty se přiřadí podle ní)
 CHATY = lambda: {}         # nastaví hub: id tabu → id konverzace (přednost před složkou)
 INSTANCE = ""              # nastaví hub (core.INSTANCE) — podle ní pozná své taby v HUB_TAB
-# Zápis do logu: hub nastaví core.log; v mostu (tools/playwright_bridge.py) jde na stderr.
-LOG = lambda text: print(text, file=sys.stderr)
+def _log_do_souboru(text):
+    """Zápis do ~/.claude/hub.log i z mostu (tools/playwright_bridge.py) — tam hub
+    neběží a stderr mostu končí v logu Claude Code, kam se nikdo nedívá."""
+    print(text, file=sys.stderr)
+    try:
+        with open(os.path.join(claude_dir(), "hub.log"), "a", encoding="utf-8") as fh:
+            fh.write(time.strftime("%Y-%m-%d %H:%M:%S") + "  WARN  " + str(text).replace("\n", " ") + "\n")
+    except OSError:
+        pass
+
+
+# Zápis do logu: hub nastaví core.log; v mostu se píše rovnou do hub.log.
+LOG = _log_do_souboru
 IS_WINDOWS = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
 HOST = "127.0.0.1"
@@ -181,8 +192,10 @@ def _cizi_nad_profilem_windows():
     if not IS_WINDOWS:
         return []
     prof = os.path.normcase(os.path.abspath(profile_dir())).replace("/", "\\").rstrip("\\")
-    ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' OR Name='msedge.exe' OR "
-          "Name='chromium.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress")
+    ps = ("$v = Get-CimInstance Win32_Process; $v | Where-Object { $_.Name -in 'chrome.exe','msedge.exe',"
+          "'chromium.exe' } | ForEach-Object { $r = $_.ParentProcessId; $o = $v | Where-Object ProcessId -eq $r "
+          "| Select-Object -First 1; [pscustomobject]@{ProcessId=$_.ProcessId; CommandLine=$_.CommandLine; "
+          "Rodic=('' + $o.Name + ' ' + $o.CommandLine)} } | ConvertTo-Json -Compress")
     try:
         out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
                              capture_output=True, text=True, timeout=20,
@@ -200,7 +213,7 @@ def _cizi_nad_profilem_windows():
         norm = os.path.normcase(cmd).replace("/", "\\")
         if prof + "\\" in norm + "\\" or prof + '"' in norm or prof + " " in norm or norm.endswith(prof):
             try:
-                vysledek.append((int(p.get("ProcessId")), cmd))
+                vysledek.append((int(p.get("ProcessId")), cmd + "  ⟵ " + str(p.get("Rodic") or "?")[:300]))
             except (TypeError, ValueError):
                 pass
     return vysledek
@@ -215,8 +228,10 @@ def _uvolni_cizi_windows():
             subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=15,
                            creationflags=0x08000000)
             n += 1
+            # Celý příkaz i s tím, kdo ho spustil — podle toho se pozná, odkud se
+            # viditelné okno bere (Adam Uher, 6. 11. 2026: „vyskočí a zase zmizí“).
             LOG(f"prohlížeč: ukončen jiný prohlížeč nad profilem (pid {pid}"
-                f"{', viditelný' if '--headless' not in cmd else ''})")
+                f"{', VIDITELNÝ' if '--headless' not in cmd.split('  ⟵ ')[0] else ''}): {cmd[:700]}")
         except Exception:
             pass
     if n:

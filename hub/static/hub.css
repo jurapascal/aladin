@@ -5804,3 +5804,8 @@ html .pane { --accent: var(--kontrast); }
 html .pane.firma { --accent: var(--firma); }
 /* Ikona Aladina u pozdravu na úvodu jako logo v liště. */
 html .welcome-greet .greet-ico { color: var(--kontrast); }
+
+/* Statistiky bez barvy prostředí: zvýraznění bílé v tmavém, černé ve světlém režimu
+   (sloupce jsou v --chart, to nastavuje hub.js applyTheme). */
+html .st-box { --accent: var(--kontrast); }
+html .wst-tile:hover { border-color: var(--kontrast); }

@@ -250,8 +250,9 @@ function applyTheme() {
   }
   // Sloupce ve statistikách jdou s prostředím jako zbytek okna. Vlastní krok
   // mají proto, že samotná barva prostředí je na graf málo kontrastní.
-  document.documentElement.style.setProperty(
-    '--chart', onServer() ? p.CHART_CLOUD : (p.PINK || p.CHART));
+  // Grafy (Statistiky, úvod) kontrastně — bílé v tmavém, černé ve světlém režimu
+  // (Jura, 6. 11. 2026), ne v barvě prostředí.
+  document.documentElement.style.setProperty('--chart', DARK ? '#ffffff' : '#000000');
   // Logo vlevo nahoře a tlačítko odeslat: bílé v tmavém režimu, černé ve světlém
   // (a ikona v tlačítku naopak) — Jura, 6. 11. 2026.
   document.documentElement.style.setProperty('--kontrast', DARK ? '#ffffff' : '#000000');

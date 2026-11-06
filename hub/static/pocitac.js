@@ -864,38 +864,59 @@
     return box;
   }
 
-  /* Štítek v hlavičce: viditelný jen s připojeným počítačem. */
+  /* Počítač v liště (prostor na serveru): kulatá ikona mezi ostatními, okraj zelený,
+     když je některý počítač připojený, červený, když ne. Klik ukáže, které počítače
+     to jsou (Jura, 6. 11. 2026 — dřív štítek se jménem vedle názvu chatu). */
   function chip(io) {
-    const host = document.querySelector('.topbar-title');
-    if (!host || host.querySelector('.topbar-pc')) return;
-    const b = el('span', 'topbar-pc plain');
-    b.hidden = true;
+    const host = document.querySelector('.topbar-actions');
+    if (!host || host.querySelector('.topbar-pcbtn')) return;
+    const b = el('button', 'iconbtn topbar-pcbtn odpojeno');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Počítač');
+    b.title = 'Počítač — zjišťuji…';
     b.appendChild(icon('i-laptop'));
-    const label = el('span');
-    b.appendChild(label);
-    /* Cedulka, ne tlačítko: říká, na který počítač Claude z prostoru
-       dosáhne. Klikalo se tu do nastavení, což s tím jménem nesouvisí —
-       podrobnosti jsou v popisku, který se ukáže po najetí. */
-    host.appendChild(b);
+    host.insertBefore(b, host.firstChild);
+    let data = {computers: []};
+
+    function detail() {
+      const vsechny = (data.computers || []).slice()
+        .sort((x, y) => Number(!!(y.online && y.access)) - Number(!!(x.online && x.access)));
+      const items = [{heading: vsechny.length > 1 ? 'Počítače' : 'Počítač'}];
+      if (!vsechny.length) {
+        items.push({icon: 'i-laptop', label: 'Žádný počítač — v appce na PC zapni Nastavení → Počítač',
+                    color: 'var(--red)', run: () => {}});
+      }
+      for (const c of vsechny) {
+        const ok = !!(c.online && c.access);
+        const stav = ok ? 'připojený · ' + (c.access_label || '')
+          : c.online ? 'připojený, přístup vypnutý' : 'nepřipojený' + (c.seen_ago ? ' · naposledy ' + ago(c.seen_ago) : '');
+        items.push({icon: 'i-laptop', color: ok ? 'var(--green)' : 'var(--red)',
+                    label: (c.name || 'Počítač') + ' — ' + stav + (ok && c.last ? ' · ' + lastText(c) : ''),
+                    run: () => {}});
+      }
+      const r = b.getBoundingClientRect();
+      if (typeof global.showMenu === 'function') global.showMenu(Math.max(8, r.right - 300), r.bottom + 4, items);
+    }
+    b.onclick = (ev) => { ev.stopPropagation(); detail(); };
 
     let timer = null;
     async function tick() {
       clearTimeout(timer);
       let wait = 15000;
       try {
-        const data = await gwState();
+        data = await gwState();
         const list = (data.computers || []).filter((c) => c.online && c.access);
         ukolyNotice(io, data.ukoly);
         serverApprovals(io, list);
         if (list.some((c) => (c.pending || []).length)) wait = 2000;
-        b.hidden = !list.length;
+        b.classList.toggle('pripojeno', list.length > 0);
+        b.classList.toggle('odpojeno', !list.length);
+        b.title = list.length
+          ? list.map((c) => 'Připojený počítač ' + c.name + ' (' + c.access_label + ')').join('\n')
+          : 'Žádný počítač není připojený';
         if (list.length) {
-          label.textContent = list.length === 1 ? list[0].name : list.length + ' počítače';
-          b.title = list.map((c) => 'Claude v prostoru dosáhne na počítač ' + c.name +
-            ' (' + c.access_label + ').' + (c.last ? ' Naposledy ' + lastText(c) + '.' : ''))
-            .join('\n');
           // Zvýraznit, když Claude na počítači právě něco dělá; mezitím se
-          // ptát častěji, ať štítek nezaostává.
+          // ptát častěji, ať ikona nezaostává.
           const newest = Math.min(...list.map((c) => (c.last ? c.last.ago : 1e9)));
           b.classList.toggle('busy', newest < 10);
           if (wait > 5000) wait = newest < 60 ? 5000 : 15000;

@@ -3996,6 +3996,51 @@ function greetName() {
   return (STATE.user || '').split(/[\s.]/)[0];
 }
 
+/* Oslovení v 5. pádě („Dobrý večer, Adame“) — Jura, 6. 11. 2026. Podle koncovky
+   křestního jména, nepravidelná jména zvlášť. Žensky zakončená na souhlásku
+   (Ester, Dagmar) zůstávají, jak jsou. */
+const OSLOVENI_VYJIMKY = {
+  petr: 'Petře', alexandr: 'Alexandře', pavel: 'Pavle', karel: 'Karle', marek: 'Marku',
+  radek: 'Radku', zdeněk: 'Zdeňku', zdenek: 'Zdenku', hynek: 'Hynku', mirek: 'Mirku', jarek: 'Jarku',
+  vašek: 'Vašku', vasek: 'Vasku', přemek: 'Přemku', ester: 'Ester', dagmar: 'Dagmar', miriam: 'Miriam',
+  ingrid: 'Ingrid', karin: 'Karin', nikol: 'Nikol', carmen: 'Carmen', ruth: 'Ruth', noemi: 'Noemi',
+};
+function osloveni(jmeno) {
+  const w = String(jmeno || '').trim().split(/\s+/)[0] || '';
+  if (w.length < 2) return w;
+  const vyj = OSLOVENI_VYJIMKY[w.toLocaleLowerCase('cs-CZ')];
+  if (vyj) return vyj;
+  const malo = w.toLocaleLowerCase('cs-CZ');
+  const bez = (n) => w.slice(0, -n);
+  if (/[eiyouíéýůó]$/.test(malo)) return w;                 // Marie, Lucie, Jiří, Hugo
+  if (malo.endsWith('a')) return bez(1) + 'o';               // Marta → Marto, Jura → Juro
+  if (malo.endsWith('ěk')) return bez(2) + 'ňku';           // Zdeněk → Zdeňku
+  if (/[^aeiouáéíóúůy]ek$/.test(malo)) return bez(2) + 'ku'; // Marek → Marku
+  if (/[khg]$/.test(malo)) return w + 'u';                   // Dominik → Dominiku, Oldřich → Oldřichu
+  if (/el$/.test(malo)) return w + 'i';                      // Daniel → Danieli, Marcel → Marceli
+  if (/[šžčřcjďťňsxz]$/.test(malo)) return w + 'i';         // Tomáš → Tomáši, Ondřej → Ondřeji
+  if (/[bcdfghjklmnpqrstvwxzřš]r$/.test(malo)) return bez(1) + 'ře';
+  return w + 'e';                                            // Adam → Adame, Jakub → Jakube, Martin → Martine
+}
+
+/* Věta pod pozdravem — náhodná, mění se s denní dobou a novým načtením. */
+const UVOD_VETY = {
+  vse: ['Co pro vás mohu udělat?', 'Co dnes navaříme?', 'Do čeho se pustíme?', 'Na čem dnes zapracujeme?',
+        'S čím vám pomůžu?', 'Co dnes vymyslíme?', 'Čím začneme?', 'Jaký je plán?'],
+  rano: ['Co nás dnes čeká?', 'Kávu máte? Tak jdeme na to.'],
+  den: ['Co dotáhneme do večera?'],
+  vecer: ['Co ještě dnes dotáhneme?', 'Ještě něco, než skončíme?'],
+  noc: ['Ještě něco před spaním?', 'Noční směna? Do čeho se pustíme?'],
+};
+let uvodVeta = {part: '', text: ''};
+function vetaUvodu(part) {
+  if (uvodVeta.part !== part) {
+    const moznosti = [...UVOD_VETY.vse, ...(UVOD_VETY[part] || [])];
+    uvodVeta = {part, text: moznosti[Math.floor(Math.random() * moznosti.length)]};
+  }
+  return uvodVeta.text;
+}
+
 /* Pozdrav a scéna podle denní doby. Kreslí se znovu i během dne: okno bývá
    otevřené od rána do noci, a „Dobrou noc" v pět odpoledne je pozdrav, který
    se naposledy vykreslil v noci a od té doby nikdo nepřepsal. */
@@ -4012,8 +4057,16 @@ function renderGreeting() {
   ikona.setAttribute('aria-hidden', 'true');
   ikona.innerHTML = '<use href="#i-aladin"/>';
   const text = document.createElement('span');
-  text.textContent = pozdrav + (who ? ', ' + who : '') + '.';
+  text.textContent = pozdrav + (who ? ', ' + osloveni(who) : '') + '.';
   g.append(ikona, text);
+  let veta = $('welcome-veta');
+  if (!veta) {
+    veta = document.createElement('div');
+    veta.id = 'welcome-veta';
+    veta.className = 'welcome-veta';
+    g.after(veta);
+  }
+  veta.textContent = vetaUvodu(part);
   if (part === greetPart) return;
   greetPart = part;
   const scene = $('welcome-scene');

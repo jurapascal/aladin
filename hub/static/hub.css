@@ -5688,3 +5688,31 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
 /* Místo chatu je od první zprávy pevné (hub/misto.py): čip jen ukazuje, kde chat je. */
 .composer-chip.composer-misto.pevne .misto-caret { display: none; }
 .composer-chip.composer-misto.pevne { cursor: default; }
+
+/* ── Kontrastní ovládání (Jura, 6. 11. 2026) ─────────────────────────────────
+   Vybraná a najetá místa v ovládání nejsou v barvě prostředí (růžová / modrá),
+   ale bílá v tmavém režimu a černá ve světlém; text a ikona na nich naopak
+   (--kontrast / --kontrast-na z hub.js applyTheme). `html` vpředu = přebije
+   i motivy, které se načítají po hub.css. */
+/* Filtr Vše / Moje / Sdílené */
+html .chats-filtr button:hover { color: var(--kontrast-na); background: var(--kontrast); border-color: var(--kontrast); }
+html .chats-filtr button.on { color: var(--kontrast-na); background: var(--kontrast); border-color: var(--kontrast); }
+/* Počet chatů a fajfka pro výběr */
+html .section-count { color: var(--kontrast); }
+html .chats-vyber-btn { color: var(--kontrast); }
+html .chats-vyber-btn:hover { background: var(--kontrast); color: var(--kontrast-na); }
+html .chats-vyber-btn.on { background: var(--kontrast); color: var(--kontrast-na); }
+/* Výběr chatů */
+html .chat-item.vybran .chat-chk { background: var(--kontrast); border-color: var(--kontrast); color: var(--kontrast-na); }
+html .chat-item.vybran { background: color-mix(in srgb, var(--kontrast) 12%, transparent); }
+html .chats-vyber button.chats-vyber-hotovo { color: var(--kontrast); }
+html .chats-vyber button:hover:not(:disabled):not(.danger) { border-color: var(--kontrast); color: var(--kontrast-na); background: var(--kontrast); }
+/* Nabídky (režim Bez ptaní, model, …): ikony a vybraná volba */
+html .ctxmenu .ico { color: var(--kontrast); }
+html .ctxmenu button.on { color: var(--kontrast); }
+html .ctxmenu button:hover { background: var(--kontrast); color: var(--kontrast-na); }
+html .ctxmenu button:hover .ico { color: var(--kontrast-na) !important; }
+html .ctxmenu button:hover span { color: var(--kontrast-na) !important; }
+/* Zastavit a další tlačítka v bublině bez výplně */
+html .composer-chip.ghost:hover { color: var(--kontrast-na); background: var(--kontrast); border-color: var(--kontrast); }
+html .composer-chip.ghost:active { color: var(--kontrast-na); background: var(--kontrast); border-color: var(--kontrast); }

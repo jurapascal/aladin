@@ -166,8 +166,49 @@ def _nahled(entry):
     return {"aktivita": int(hit[0]), "posledni": hit[2], "posledni_kdo": hit[3]}
 
 
+def _prepis_existuje(owner, chat):
+    """Je přepis chatu v domově majitele? True / False, None = nejde zjistit
+    (domov nečitelný) — pak se nic neruší."""
+    from hub import cteni
+    from . import workspace
+    if not owner or not cteni.je_id(chat):
+        return False
+    root = os.path.join(workspace.home_for(owner), ".claude", "projects")
+    try:
+        folders = os.listdir(root)
+    except OSError:
+        return None
+    return any(os.path.isfile(os.path.join(root, f, chat + ".jsonl")) for f in folders)
+
+
+UKLID_KAZDYCH = 600           # s — nejvýš tak často se hledají sdílení smazaných chatů
+_UKLID = {"cas": 0.0}
+
+
+def uklid_smazanych():
+    """Sdílení chatu, který majitel smazal (přepis je v koši), se zruší — členům
+    by v seznamu visel chat, který nejde otevřít (Jura, 6. 11. 2026). → počet."""
+    _UKLID["cas"] = time.time()
+    pryc = []
+    with _locked():
+        rel = _load()
+        for rid, e in list(rel.items()):
+            owner = _account(e.get("owner"))
+            if owner and _prepis_existuje(owner, e.get("chat")) is False:
+                pryc.append((owner, rid, e.get("chat", "")))
+                del rel[rid]
+        if pryc:
+            _save(rel)
+    for owner, rid, chat in pryc:
+        _log(owner, "zruseno-smazany-chat", rid, chat=chat)
+    return len(pryc)
+
+
 def seznam(user):
     """{moje: relace, kterou jsem založil, semnou: relace, kde jsem člen}."""
+    if time.time() - _UKLID["cas"] > UKLID_KAZDYCH:
+        _UKLID["cas"] = time.time()
+        threading.Thread(target=_uklid_tise, daemon=True, name="relace-uklid").start()
     uid = int(user["id"])
     rel = _load()
     moje, semnou = [], []
@@ -182,6 +223,13 @@ def seznam(user):
                 pass
             semnou.append(pub)
     return {"moje": moje, "semnou": semnou, "ulozene": ulozene(user)}
+
+
+def _uklid_tise():
+    try:
+        uklid_smazanych()
+    except Exception:
+        pass                        # úklid je navíc, seznam na něm nestojí
 
 
 def _skupiny(user, raw):

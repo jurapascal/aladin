@@ -1674,6 +1674,8 @@ class Handler(BaseHTTPRequestHandler):
                            "gw_servers": account.servers(),
                            "gw_space": int(core.CONFIG.get("gw_space") or 0),
                            "gw_space_name": core.CONFIG.get("gw_space_name") or "",
+                           "gw_firma": core.CONFIG.get("gw_firma") or "",
+                           "gw_firma_name": core.CONFIG.get("gw_firma_name") or "",
                            "server_mode": bool(core.CONFIG.get("server_mode")),
                            # Claude ze serveru na tomhle počítači (hub/pocitac.py).
                            "pocitac_access": pocitac.access_level(),
@@ -1958,7 +1960,7 @@ class Handler(BaseHTTPRequestHandler):
             if action == "spaces":
                 return self._json(account.spaces(payload.get("server") or ""))
             if action == "space":
-                res = account.set_space(payload.get("space"))
+                res = account.set_space(payload.get("space"), payload.get("firma") or "")
                 if not res.get("error"):
                     from . import mcp_pc
                     mcp_pc.sync_na_pozadi()

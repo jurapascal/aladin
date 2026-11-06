@@ -2812,7 +2812,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             # Prostory, kam smí počítač (hosté jen jako Pomocník / Plný přístup).
             kam = [k for k in pristup.kam_only(self.accounts, user)["kam"]
                    if k.get("role") in mcp_pc.HOST_ROLE]
-            return self._json({"ok": True, "kam": kam})
+            return self._json({"ok": True, "kam": kam, "firmy": mcp_pc.firmy_pc(user)})
         if route == "/gw/mcp-pc":
             query = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
             try:
@@ -2824,7 +2824,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             return self._json({"error": "Jen POST."}, 405)
         try:
             out = mcp_pc.volani(self, user, form.get("jmeno"), form.get("relace"), form.get("zprava"),
-                                form.get("prostor"))
+                                form.get("prostor"), form.get("firma"))
         except PermissionError as exc:
             return self._json({"ok": False, "error": str(exc), "gone": True})
         except (ValueError, RuntimeError) as exc:

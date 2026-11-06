@@ -970,7 +970,7 @@ function renderProstorBtnPc(b) {
   b.classList.remove('firma');
   b.classList.toggle('guest', !!cfg.gw_space);
   const name = b.querySelector('.prostor-name');
-  if (name) name.textContent = cfg.gw_space ? (cfg.gw_space_name || '?') : 'Můj prostor';
+  if (name) name.textContent = cfg.gw_space ? (cfg.gw_space_name || '?') : cfg.gw_firma ? (cfg.gw_firma_name || cfg.gw_firma) : 'Můj prostor';
   b.title = 'Prostor pro napojení a Obsidian (' + (hostOfServer(cfg.gw_server) || 'server') +
     '). Výpočty zůstávají na počítači — klikni a přepneš prostor nebo server.';
   renderMistoChips();
@@ -990,7 +990,8 @@ async function prostorMenuPc(ev) {
     items.push({heading: 'Prostory na ' + hostOfServer(STATE.config.gw_server)});
     for (const sp of res.spaces) {
       items.push({icon: sp.id ? 'i-lock' : 'i-user', on: sp.active,
-                  label: sp.id ? sp.name + ' · ' + sp.label : 'Můj prostor',
+                  label: sp.id || sp.firma ? sp.name + ' · ' + sp.label : 'Můj prostor',
+                  color: sp.firma ? 'var(--firma)' : undefined,
                   run: () => { if (!sp.active) vyberProstorPc(sp); }});
     }
   }
@@ -1011,12 +1012,14 @@ async function prostorMenuPc(ev) {
 
 async function vyberProstorPc(sp) {
   try {
-    const res = await api('account', {action: 'space', space: sp.id});
+    const res = await api('account', {action: 'space', space: sp.id, firma: sp.firma || ''});
     if (res.error) return toast(res.error);
     STATE.config.gw_space = res.active;
     STATE.config.gw_space_name = sp.id ? sp.name : '';
+    STATE.config.gw_firma = sp.id ? '' : (sp.firma || '');
+    STATE.config.gw_firma_name = STATE.config.gw_firma ? sp.name : '';
     renderProstorBtn();
-    toast('Prostor: ' + (sp.id ? sp.name : 'můj') + '. Napojení a Obsidian se přepínají…');
+    toast('Prostor: ' + (sp.id || sp.firma ? sp.name : 'můj') + '. Napojení a Obsidian se přepínají…');
     nabidniNovyStart();
   } catch (e) { toast(e.message); }
 }
@@ -1030,6 +1033,8 @@ async function vyberServerPc(sv) {
     STATE.config.gw_logged_in = !!st.logged_in;
     STATE.config.gw_space = 0;
     STATE.config.gw_space_name = '';
+    STATE.config.gw_firma = '';
+    STATE.config.gw_firma_name = '';
     renderProstorBtn();
     if (!st.logged_in) {
       toast('Přihlášení k ' + sv.host + ' vypršelo, přihlas se znovu.');
@@ -3657,12 +3662,14 @@ function mistoText() {
   }
   const kde = pcProstor();
   if (!kde) {
-    return {ico: 'i-laptop', text: 'Tento počítač', druh: 'pc', tecka: 'var(--cloud)',
+    return {ico: 'i-laptop', text: 'Tento počítač', druh: 'pc', tecka: 'var(--amber)',
             title: 'Výkon, Obsidian i napojení z tohoto počítače — klikni a vybereš prostor na serveru'};
   }
   const jenPc = cfg.zrcadlo === false;
-  return {ico: 'i-laptop', text: zkratkaServeru(cfg.gw_server) + ' · ' + kde.jmeno, druh: 'pc',
-          tecka: 'var(--cloud)',
+  // Barvy jako v nabídce: tento počítač oranžově, server modře, firma fialově.
+  return {ico: 'i-hub', text: zkratkaServeru(cfg.gw_server) + ' · ' + kde.jmeno,
+          druh: kde.firma ? 'pc-firma' : 'pc-server',
+          tecka: kde.firma ? 'var(--firma)' : 'var(--cloud)',
           title: 'Výkon: tento počítač. Obsidian a napojení: ' + hostOfServer(cfg.gw_server) + ' · ' + kde.jmeno +
                  '. Chaty ' + (jenPc ? 'jen na počítači' : 'na počítači i v kopii na serveru') +
                  ' — klikni a přepneš prostor'};
@@ -3673,7 +3680,9 @@ function mistoText() {
 function pcProstor() {
   const cfg = (STATE && STATE.config) || {};
   if (!(cfg.gw_server && cfg.gw_logged_in) || cfg.server_napojeni === false) return null;
-  return {jmeno: cfg.gw_space ? (cfg.gw_space_name || '?') : 'Můj prostor', cizi: !!cfg.gw_space};
+  const firma = !cfg.gw_space && cfg.gw_firma ? cfg.gw_firma : '';
+  return {jmeno: cfg.gw_space ? (cfg.gw_space_name || '?') : firma ? (cfg.gw_firma_name || firma) : 'Můj prostor',
+          cizi: !!cfg.gw_space, firma};
 }
 
 /* Napojení (MCP) a Obsidian ze serveru v Claudovi na počítači zapnout /
@@ -3764,7 +3773,7 @@ async function vyberPcProstor(sv, sp) {
     await vyberServerPc(sv);
     if (!STATE.config.gw_logged_in || STATE.config.gw_server !== sv.server) return;
   }
-  if (sp.id || STATE.config.gw_space) await vyberProstorPc(sp);
+  if (sp.id || STATE.config.gw_space || (sp.firma || '') !== (STATE.config.gw_firma || '')) await vyberProstorPc(sp);
   renderMistoChips();
 }
 
@@ -3812,8 +3821,10 @@ async function mistoMenu(ev) {
        některém serveru (každý server je kategorie se svými prostory). */
     const servers = cfg.gw_servers || [];
     const kde = pcProstor();
+    /* Barvy (Jura, 6. 11. 2026): tento počítač oranžově, prostory na serverech modře,
+       firmy na serverech fialově — v Prostoru i v Chatech. */
     items.push({heading: 'Prostor'});
-    items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--cloud)',
+    items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kde, color: 'var(--amber)',
                 run: async () => { if (kde && await napojeniZeServeru(false)) { toast('Obsidian a napojení teď z tohoto počítače.'); renderMistoChips(); } }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
       ? vcas(api('account', {action: 'spaces', server: sv.server}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'})
@@ -3827,10 +3838,11 @@ async function mistoMenu(ev) {
       const res = prostory[i] || {};
       const seznam = (res.spaces && res.spaces.length) ? res.spaces : [{id: 0, name: '', label: ''}];
       for (const sp of seznam) {
-        const zde = !!kde && !!sv.active && sp.id === Number(cfg.gw_space || 0);
-        items.push({icon: sp.id ? 'i-lock' : 'i-user', on: zde,
-                    color: 'var(--cloud)',
-                    label: sp.id ? sp.name + ' · ' + sp.label : 'Můj prostor',
+        const zde = !!kde && !!sv.active && sp.id === Number(cfg.gw_space || 0) &&
+                    (sp.firma || '') === (sp.id ? '' : (cfg.gw_firma || ''));
+        items.push({icon: sp.firma ? 'i-folder' : sp.id ? 'i-lock' : 'i-user', on: zde,
+                    color: sp.firma ? 'var(--firma)' : 'var(--cloud)',
+                    label: sp.firma ? sp.name + ' · ' + sp.label : sp.id ? sp.name + ' · ' + sp.label : 'Osobní',
                     run: async () => { if (!zde) { await vyberPcProstor(sv, sp); renderMistoChips(); } }});
       }
     });
@@ -3839,9 +3851,13 @@ async function mistoMenu(ev) {
       // Kam se chaty ukládají: výběr, ne popis. Kopie jde na aktivní server (telefon, sdílení).
       const host = hostOfServer(cfg.gw_server) || 'serveru';
       items.push({heading: 'Chaty — kam se ukládají'});
-      items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kopie, color: 'var(--cloud)',
+      items.push({icon: 'i-laptop', label: 'Tento počítač', on: !kopie, color: 'var(--amber)',
                   run: () => { if (kopie) nastavZrcadlo(false); }});
-      items.push({icon: 'i-hub', label: 'Tento počítač + server ' + host, on: kopie, color: 'var(--cloud)',
+      // Počítač oranžově + server v barvě prostoru (firma fialově, jinak modře).
+      const srvBarva = kde && kde.firma ? 'var(--firma)' : 'var(--cloud)';
+      items.push({icon: 'i-laptop', label: 'Tento počítač + server ' + host, on: kopie, color: 'var(--amber)',
+                  casti: [{text: 'Tento počítač', color: 'var(--amber)'}, {text: ' + ', cls: 'ctx-cast-dim'},
+                          {text: 'server ' + host, color: srvBarva}],
                   run: () => { if (!kopie) nastavZrcadlo(true); }});
       /* Přepínač mění jen ZDROJ Obsidianu a napojení — okno, chaty a výkon zůstávají. Dřív tu byla
          i položka „Otevřít server“, která celé okno přepnula na rozhraní serveru; Tomáš ji bral
@@ -5700,6 +5716,18 @@ function showMenu(x, y, items, opts) {
     el.innerHTML = icon(item.on ? 'i-check' : item.icon) + '<span></span>';
     if (item.on) el.classList.add('on');
     el.querySelector('span').textContent = item.label;
+    if (item.casti) {
+      // Popisek z barevných kousků (každý kousek své barvy).
+      const sp = el.querySelector('span');
+      sp.textContent = '';
+      for (const c of item.casti) {
+        const k = document.createElement('span');
+        k.textContent = c.text;
+        if (c.cls) k.className = c.cls;
+        if (c.color) k.style.color = c.color;
+        sp.appendChild(k);
+      }
+    }
     /* Vlastní barva položky — v prostoru je osobní modrý a firemní fialový,
        stejně jako tlačítka v liště a tečka na tabu. V nabídce to musí být
        poznat taky, jinak se do firemního trezoru klikne omylem. */

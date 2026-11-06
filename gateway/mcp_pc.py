@@ -24,7 +24,7 @@ a Gemini dávají smysl jen tam, kde běží — ty se nenabízejí.
 import json
 import re
 
-from . import mcp, mcp_sdilene, safefs, workspace
+from . import firmy, mcp, mcp_sdilene, safefs, workspace
 
 JMENO = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,60}")
 RELACE = re.compile(r"[A-Za-z0-9_-]{8,40}")
@@ -133,7 +133,45 @@ def seznam(user, owner=None, role=""):
     return out
 
 
-def volani(h, user, jmeno, relace, msg, kam=None):
+def firmy_pc(user):
+    """Firmy, které počítač nabídne v přepínači prostoru: [{zkratka, nazev, role}]."""
+    out = []
+    for f in firmy.firmy_for(user):
+        slug = f["zkratka"]
+        out.append({"zkratka": slug, "nazev": f.get("nazev") or slug,
+                    "role": firmy.ROLE_LABELS.get(f.get("role"), "")})
+    return out
+
+
+def _vault_firmy(user, slug):
+    """Obsidian firmy pro nástroje Aladina ('firma' / 'firma:<zkratka>'), nebo '' bez přístupu."""
+    slug = str(slug or "")
+    if not slug or not firmy.SLUG.fullmatch(slug):
+        return ""
+    if slug == firmy.LEGACY:
+        return "firma"
+    return "firma:" + slug if firmy.exists(slug) and firmy.role(user, slug) else ""
+
+
+def _aladin_firma(h, user, vault, msg):
+    """Aladin, když počítač pracuje pro firmu: Obsidian bez výslovné volby je
+    firemní a Claude se to dozví v pokynech serveru."""
+    method = msg.get("method")
+    params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
+    if method == "tools/call" and str(params.get("name") or "").startswith("obsidian_"):
+        args = params.get("arguments") if isinstance(params.get("arguments"), dict) else {}
+        if not args.get("obsidian"):
+            msg = {**msg, "params": {**params, "arguments": {**args, "obsidian": vault}}}
+    reply = mcp._handle(h, {**user, "client_id": "pocitac"}, msg)
+    if method == "initialize" and isinstance(reply, dict) and isinstance(reply.get("result"), dict):
+        res = reply["result"]
+        res["instructions"] = (str(res.get("instructions") or "") +
+                               f" Pracuješ pro firmu — výchozí Obsidian je `{vault}` (bez parametru "
+                               "`obsidian` se použije ten). Osobní je `osobni`.").strip()
+    return reply
+
+
+def volani(h, user, jmeno, relace, msg, kam=None, firma=""):
     """Jedna zpráva JSON-RPC z mostu na počítači → zprávy pro Claude Code."""
     jmeno, relace = str(jmeno or ""), str(relace or "")
     if not RELACE.fullmatch(relace):
@@ -155,7 +193,9 @@ def volani(h, user, jmeno, relace, msg, kam=None):
         except (OSError, ValueError) as exc:
             raise RuntimeError(f"Služba není k dosažení: {exc}") from None
     if jmeno == ALADIN:
-        odpoved = mcp._handle(h, {**user, "client_id": "pocitac"}, msg)
+        vault = _vault_firmy(user, firma)
+        odpoved = (_aladin_firma(h, user, vault, msg) if vault
+                   else mcp._handle(h, {**user, "client_id": "pocitac"}, msg))
         return [odpoved] if odpoved else []
     if jmeno.startswith("sdilene-"):
         return mcp_sdilene.call(user, jmeno[len("sdilene-"):], "pc-" + relace, msg)

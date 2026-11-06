@@ -5668,9 +5668,13 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
   .mcp-menu-pata .btn { flex: 1; min-height: 40px; }
 }
 
-/* Čip „kde pracuju“ na počítači: ikona i tečka jsou vždy modré, ať je tento
-   počítač nebo prostor na serveru (Jura, 6. 11. 2026). */
-.composer-chip.composer-misto[data-druh="pc"] svg.ico { color: var(--cloud); }
+/* Čip „kde pracuju“ na počítači (Jura, 6. 11. 2026): tento počítač oranžově,
+   prostor na serveru modře, firma na serveru fialově — stejně jako v nabídce. */
+.composer-chip.composer-misto[data-druh="pc"] { color: var(--amber); }
+.composer-chip.composer-misto[data-druh="pc-server"] { color: var(--cloud); }
+.composer-chip.composer-misto[data-druh="pc-firma"] { color: var(--firma); }
+/* Položka nabídky složená z barevných kousků („Tento počítač + server …“). */
+#ctxmenu .ctx-cast-dim { color: var(--dim); }
 
 /* Menu aplikace v Nastavení: tlačítka se zalamují do řádků. */
 .set-row:has(.set-panel-ovl .btn) .set-panel-ovl { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }

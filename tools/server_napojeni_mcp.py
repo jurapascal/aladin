@@ -30,18 +30,19 @@ def _config():
     except (OSError, ValueError):
         data = {}
     return (str(data.get("gw_server") or "").rstrip("/"), str(data.get("gw_token") or ""),
-            int(data.get("gw_space") or 0))
+            int(data.get("gw_space") or 0), str(data.get("gw_firma") or ""))
 
 
 def gateway(body):
     """Tatáž zpráva jako v prostoru, jen na bránu přes https s tokenem zařízení."""
     import ssl
-    base, token, space = _config()
+    base, token, space, firma = _config()
     if not base or not token:
         return {"ok": False, "error": "Appka Aladin na tomhle počítači není přihlášená k serveru "
                                       "(Nastavení → Účet)."}
     data = json.dumps({"jmeno": body["slug"], "relace": body["relace"],
-                       "zprava": body["zprava"], "prostor": space}).encode("utf-8")
+                       "zprava": body["zprava"], "prostor": space,
+                       "firma": "" if space else firma}).encode("utf-8")
     req = sdilene_mcp.urllib.request.Request(base + "/gw/mcp-pc/volani", data=data, method="POST", headers={
         "Content-Type": "application/json", "Authorization": "Bearer " + token, "User-Agent": UA})
     try:

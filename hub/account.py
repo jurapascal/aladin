@@ -441,7 +441,7 @@ def _activate(base, token, user, extra=None):
     same = base == _base()
     core.save_config({"gw_server": base, "gw_token": token, "gw_user": user,
                       "gw_servers": keep,
-                      **({} if same else {"gw_space": 0, "gw_space_name": ""}),
+                      **({} if same else {"gw_space": 0, "gw_space_name": "", "gw_firma": "", "gw_firma_name": ""}),
                       **(extra or {})})
 
 
@@ -491,15 +491,23 @@ def spaces(server=""):
     if not data or not data.get("ok"):
         return {"error": err or "Server prostory nevrátil — aktualizuj ho.", "server": base}
     cur = int(core.CONFIG.get("gw_space") or 0) if aktivni else -1
+    firma_ted = str(core.CONFIG.get("gw_firma") or "") if aktivni and cur == 0 else ""
     out = [{"id": 0, "name": me.get("name") or me.get("email") or "Můj prostor",
-            "label": "Můj prostor", "active": cur == 0}]
+            "label": "Můj prostor", "active": cur == 0 and not firma_ted}]
+    # Firmy ve vlastním prostoru (fialově): Claude na počítači má pak výchozí
+    # Obsidian ze serveru firemní. Starší brána firmy neposílá.
+    for f in data.get("firmy") or []:
+        slug = str(f.get("zkratka") or "")
+        if slug:
+            out.append({"id": 0, "firma": slug, "name": f.get("nazev") or slug,
+                        "label": f.get("role") or "Firma", "active": cur == 0 and firma_ted == slug})
     for k in data.get("kam") or []:
         out.append({"id": int(k["id"]), "name": k.get("name") or k.get("email") or "?",
                     "label": k.get("label") or "", "active": cur == int(k["id"])})
     return {"spaces": out, "active": cur, "server": base}
 
 
-def set_space(space_id):
+def set_space(space_id, firma=""):
     """Přepne prostor, ve kterém počítač pracuje. Zůstává se na počítači —
     mění se jen to, čí napojení a Obsidian má Claude k dispozici."""
     try:
@@ -509,10 +517,12 @@ def set_space(space_id):
     res = spaces()
     if res.get("error"):
         return res
-    hit = next((s for s in res["spaces"] if s["id"] == want), None)
+    firma = str(firma or "") if want == 0 else ""
+    hit = next((s for s in res["spaces"] if s["id"] == want and str(s.get("firma") or "") == firma), None)
     if not hit:
         return {"error": "Do tohohle prostoru přístup nemáš."}
-    core.save_config({"gw_space": want, "gw_space_name": "" if want == 0 else hit["name"]})
+    core.save_config({"gw_space": want, "gw_space_name": "" if want == 0 else hit["name"],
+                      "gw_firma": firma, "gw_firma_name": hit["name"] if firma else ""})
     return spaces()
 
 

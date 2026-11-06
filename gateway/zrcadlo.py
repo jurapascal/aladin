@@ -283,6 +283,8 @@ def seznam(user):
                         "firma": (info.get("cwd") or "")[len(firmy_base):].split(os.sep)[0]
                                  if (info.get("cwd") or "").startswith(firmy_base) else "",
                         "sdileny": info["id"] in sdilim})
+            if out[-1]["firma"]:
+                out[-1]["firma_nazev"] = _nazev_firmy(out[-1]["firma"])
     # Obnovená konverzace nahradí tu, ze které vznikla (stejně jako hub/chats.py).
     kdy = {c["id"]: c["updated"] for c in out}
     kryte = {p for c in out for p in c["parents"] if p in kdy and kdy[p] <= c["updated"]}
@@ -290,6 +292,14 @@ def seznam(user):
     out = [c for c in out if c["id"] not in kryte]
     out.sort(key=lambda c: -c["updated"])
     return out[:400]
+
+
+def _nazev_firmy(slug):
+    try:
+        from . import firmy
+        return firmy.nazev(slug) or slug
+    except Exception:
+        return slug
 
 
 def stav(user):

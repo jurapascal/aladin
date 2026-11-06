@@ -23,16 +23,50 @@ CONFIG = os.path.join(os.path.expanduser("~"), ".claude", "hub-config.json")
 UA = "claude-code-hub-mcp-pc"
 
 
+def _misto_tabu():
+    """Místo chatu, ve kterém most běží (hub/misto.py: ~/.claude/hub-misto/<HUB_TAB>.json),
+    nebo None — most pustil Claude mimo tab hubu."""
+    import re
+    tag = os.environ.get("HUB_TAB", "")
+    if not tag:
+        return None
+    cesta = os.path.join(os.path.dirname(CONFIG), "hub-misto",
+                         re.sub(r"[^A-Za-z0-9_.-]", "-", tag) + ".json")
+    try:
+        with open(cesta, encoding="utf-8") as fh:
+            m = json.load(fh)
+        return m if isinstance(m, dict) else None
+    except (OSError, ValueError):
+        return None
+
+
 def _config():
     """(server, token, prostor, firma, napojení ze serveru zapnutá) — čte se u každé
-    zprávy, takže přepnutí místa v appce platí hned, i v běžícím chatu."""
+    zprávy. Platí místo chatu (každý chat má svoje, Jura 6. 11. 2026); bez něj
+    výchozí místo z hub-config."""
     try:
         with open(CONFIG, encoding="utf-8") as fh:
             data = json.load(fh)
     except (OSError, ValueError):
         data = {}
-    return (str(data.get("gw_server") or "").rstrip("/"), str(data.get("gw_token") or ""),
-            int(data.get("gw_space") or 0), str(data.get("gw_firma") or ""),
+    base = str(data.get("gw_server") or "").rstrip("/")
+    token = str(data.get("gw_token") or "")
+    m = _misto_tabu()
+    if m is not None:
+        if m.get("kde") != "server":
+            return base, token, 0, "", False
+        server = str(m.get("server") or "").rstrip("/")
+        if server and server != base:
+            # Chat na jiném uloženém serveru než aktivním: jeho token.
+            hit = next((e for e in data.get("gw_servers") or []
+                        if isinstance(e, dict) and str(e.get("server") or "").rstrip("/") == server), None)
+            base, token = server, str((hit or {}).get("token") or "")
+        try:
+            prostor = int(m.get("prostor") or 0)
+        except (TypeError, ValueError):
+            prostor = 0
+        return base, token, prostor, "" if prostor else str(m.get("firma") or ""), True
+    return (base, token, int(data.get("gw_space") or 0), str(data.get("gw_firma") or ""),
             data.get("server_napojeni", True) is not False)
 
 

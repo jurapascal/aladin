@@ -5684,3 +5684,7 @@ html:has(#appmenu:not([hidden])) .modal { top: 29px; }
 
 /* Menu aplikace v Nastavení: tlačítka se zalamují do řádků. */
 .set-row:has(.set-panel-ovl .btn) .set-panel-ovl { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+/* Místo chatu je od první zprávy pevné (hub/misto.py): čip jen ukazuje, kde chat je. */
+.composer-chip.composer-misto.pevne .misto-caret { display: none; }
+.composer-chip.composer-misto.pevne { cursor: default; }

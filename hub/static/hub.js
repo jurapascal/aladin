@@ -1728,7 +1728,7 @@ async function loadChats() {
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
      „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
   const sig = JSON.stringify([ACTIVE ? ACTIVE.id : 0, CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd, c.posledni || '',
-                                              c.server ? 1 : 0, zrcadloZnak(c), komuSdilim(c)])]);
+                                              c.server ? 1 : 0, zrcadloZnak(c), komuSdilim(c), druhChatu(c)])]);
   if (sig === chatsSig) return;
   chatsSig = sig;
   renderChatsSoon();
@@ -1905,6 +1905,8 @@ function druhChatu(c) {
   // (Jura, 6. 11. 2026). Dřív zůstal fialový a sdílení nebylo na první pohled vidět.
   if (onServer() && (RELACE.moje || []).some((r) => r.chat === c.id)) return 'sdileny';
   if (!onServer() && c.sdileny) return 'sdileny';     // na počítači: sdílený na serveru
+  // Místo chatu (hub/misto.py): chat z počítače s místem na serveru je modrý / fialový.
+  if (!onServer() && c.misto && c.misto.kde === 'server') return c.misto.firma ? 'firma' : 'server';
   if (prostorCesty(c.cwd) || (!onServer() && c.firma)) return 'firma';
   // Na počítači: osobní chat ze serveru modře, chat z tohohle počítače oranžově.
   if (!onServer() && c.server) return 'server';
@@ -3677,10 +3679,28 @@ function mistoText() {
             title: 'Chat běží na serveru ' + location.host + ' · prostor: ' + kdo +
                    ' — klikni a přepneš prostor, firmu nebo se vrátíš na počítač'};
   }
+  // Otevřený chat má své místo (hub/misto.py): vybírá se u nového chatu, od první
+  // zprávy je pevné — čip pak jen ukazuje, kde chat je (Jura, 6. 11. 2026).
+  const t = ACTIVE;
+  const tm = t && t.misto;
+  if (tm) {
+    const pevne = !!t.mistoPevne;
+    const pozn = pevne ? ' — místo chatu je pevné, jinde založ nový chat'
+                       : ' — klikni a vyber, kde chat poběží (jen do první zprávy)';
+    if (tm.kde !== 'server') {
+      return {ico: 'i-laptop', text: 'Počítač', druh: 'pc', tecka: 'var(--pc)', pevne,
+              title: 'Chat jen na tomhle počítači: Obsidian, napojení i konverzace' + pozn};
+    }
+    const jm = zkratkaServeru(tm.server) + ' · ' + (tm.firma || tm.prostor
+      ? (tm.nazev || (tm.firma === 'firma' ? 'Firma' : tm.firma) || '?') : 'Osobní');
+    return {ico: 'i-hub', text: jm, druh: tm.firma ? 'pc-firma' : 'pc-server', pevne,
+            tecka: tm.firma ? 'var(--firma)' : 'var(--cloud)',
+            title: 'Chat s Obsidianem a napojeními ze serveru ' + hostOfServer(tm.server) + ' (' + jm + ')' + pozn};
+  }
   const kde = pcProstor();
   if (!kde) {
     return {ico: 'i-laptop', text: 'Počítač', druh: 'pc', tecka: 'var(--pc)',
-            title: 'Obsidian, napojení i chaty jen na tomhle počítači — klikni a vybereš prostor na serveru'};
+            title: 'Nové chaty jen na tomhle počítači — klikni a vybereš prostor na serveru'};
   }
   const jenPc = cfg.zrcadlo === false;
   // Barvy jako v nabídce: počítač oranžově, server modře, firma fialově.
@@ -3732,7 +3752,10 @@ async function nabidniNovyStart() {
       try { st = await api('mcp-pc'); } catch (_) { break; }
       if (!st.bezi) break;
     }
-    toast('Přepnuto — napojení a Obsidian platí hned, i v otevřených chatech.');
+    // Každý chat má své místo (hub/misto.py): přepínač mění jen nový chat, nebo
+    // výchozí místo pro další chaty — rozjeté chaty zůstávají, kde byly.
+    toast(ACTIVE && ACTIVE.misto ? 'Tenhle chat: ' + mistoText().text + '.'
+                                 : 'Nové chaty: ' + mistoText().text + '. Otevřené chaty zůstávají, kde jsou.');
   } finally { novyStartCeka = false; }
 }
 
@@ -3747,6 +3770,7 @@ function renderMistoChips() {
     if (m.tecka) btn.querySelector('.misto-tecka').style.background = m.tecka;
     btn.title = m.title;
     btn.dataset.druh = m.druh;
+    btn.classList.toggle('pevne', !!m.pevne);
     btn.onclick = mistoMenu;
   }
   // Pole na úvodu je jen v některých motivech; kde je, cedulky nahoře zmizí.
@@ -3768,6 +3792,17 @@ async function vyberPcProstor(sv, sp) {
   renderMistoChips();
   chatsSig = '';
   loadChats();
+}
+
+/* Místo nového chatu (před první zprávou) — hub/misto.py, /api/tab-misto. */
+async function mistoTabu(m) {
+  const t = ACTIVE;
+  if (onServer() || !t || !t.misto || t.mistoPevne || !t.id) return;
+  try {
+    const r = await api('tab-misto', {id: t.id, misto: m});
+    t.misto = r.misto || m;
+  } catch (e) { toast(e.message); }
+  renderMistoChips();
 }
 
 function vcas(promise, ms, fallback) {
@@ -3818,9 +3853,18 @@ async function mistoMenu(ev) {
        Žádné nadpisy, žádná zvláštní volba chatů, žádné „Jinak“. */
     const servers = cfg.gw_servers || [];
     const kde = pcProstor();
-    items.push({icon: 'i-laptop', label: 'Počítač', on: !kde, color: 'var(--pc)',
+    const t = ACTIVE && ACTIVE.misto ? ACTIVE : null;
+    if (t && t.mistoPevne) {
+      toast('Místo chatu je pevné: ' + mistoText().text + '. Chat jinde založíš tlačítkem Nový chat.');
+      return;
+    }
+    // Co je teď vybrané: místo nového chatu, jinak výchozí místo pro nové chaty.
+    const ted = t ? t.misto : (kde ? {kde: 'server', server: cfg.gw_server, prostor: Number(cfg.gw_space || 0),
+                                       firma: cfg.gw_space ? '' : (cfg.gw_firma || '')} : {kde: 'pc'});
+    items.push({icon: 'i-laptop', label: 'Počítač', on: ted.kde !== 'server', color: 'var(--pc)',
                 run: async () => {
                   if (kde && await napojeniZeServeru(false)) renderMistoChips();
+                  await mistoTabu({kde: 'pc'});
                 }});
     const prostory = await Promise.all(servers.map((sv) => sv.logged_in
       ? vcas(api('account', {action: 'spaces', server: sv.server}).catch((e) => ({error: e.message})), 3000, {error: 'pomalé'})
@@ -3834,12 +3878,19 @@ async function mistoMenu(ev) {
       const res = prostory[i] || {};
       const seznam = (res.spaces && res.spaces.length) ? res.spaces : [{id: 0, name: '', label: ''}];
       for (const sp of seznam) {
-        const zde = !!kde && !!sv.active && sp.id === Number(cfg.gw_space || 0) &&
-                    (sp.firma || '') === (sp.id ? '' : (cfg.gw_firma || ''));
+        const zde = ted.kde === 'server' && hostOfServer(ted.server) === hostOfServer(sv.server) &&
+                    Number(ted.prostor || 0) === Number(sp.id || 0) && (ted.firma || '') === (sp.id ? '' : (sp.firma || ''));
+        const vyber = {kde: 'server', server: sv.server, prostor: Number(sp.id || 0), firma: sp.id ? '' : (sp.firma || ''),
+                       nazev: sp.firma || sp.id ? sp.name : ''};
         items.push({icon: sp.firma ? 'i-folder' : sp.id ? 'i-lock' : 'i-user', on: zde,
                     color: sp.firma ? 'var(--firma)' : 'var(--cloud)',
                     label: jmeno + ' · ' + (sp.firma || sp.id ? sp.name : 'Osobní'),
-                    run: async () => { if (!zde) { await vyberPcProstor(sv, sp); renderMistoChips(); } }});
+                    run: async () => {
+                      if (zde) return;
+                      await vyberPcProstor(sv, sp);      // výchozí místo + mosty pro tenhle server
+                      await mistoTabu(vyber);
+                      renderMistoChips();
+                    }});
       }
     });
   }
@@ -4999,6 +5050,7 @@ function activate(tab) {
   }
   for (const o of SDILENE_TABY.values()) { o.el.classList.remove('active'); o.pane.classList.remove('active'); }
   syncShareBtn();
+  renderMistoChips();          // čip ukazuje místo otevřeného chatu
   // Bez tabu (activate(null)) je vidět úvod — i když jsou taby otevřené:
   // domů se dá kdykoli (logo v liště, Domů v šuplíku) a taby běží dál.
   $('welcome').hidden = !!tab;
@@ -5965,6 +6017,9 @@ function handle(msg) {
       if (tab === ACTIVE) document.dispatchEvent(new CustomEvent('hub-tab', {detail: {id: tab.id, title: tab.title, path: tab.path || ''}}));
       tab.bypass = !!msg.bypass;
       tab.chat = msg.chat || tab.chat || '';
+      tab.misto = msg.misto || null;
+      tab.mistoPevne = !!msg.misto_pevne;
+      if (tab === ACTIVE) renderMistoChips();
       if (msg.guest) markGuest(tab, msg.guest);
       // Server mohl model doplnit sám (Ollama bez modelu nespustíš), tak se
       // tím, co doopravdy běží, přepíše i to, s čím se tab zakládal.
@@ -6010,10 +6065,20 @@ function handle(msg) {
                            id: msg.id, agent: msg.agent, model: msg.model,
                            bypass: msg.bypass, resume: msg.resume,
                            vault: msg.vault, background: true}));
+      const novy = TABS.find(t => t.id === msg.id);
+      if (novy) { novy.misto = msg.misto || null; novy.mistoPevne = !!msg.misto_pevne; }
       if (msg.guest) {
         markGuest(TABS.find(t => t.id === msg.id), msg.guest);
         if (!STATE.guest) toast(`${msg.guest} otevřel(a) ve tvém prostoru tab „${msg.title}“.`);
       }
+    }
+  } else if (msg.t === 'tab-misto') {
+    // Místo chatu se změnilo (před první zprávou) nebo je od teď pevné (hub/misto.py).
+    const tab = TABS.find(t => t.id === msg.id);
+    if (tab) {
+      tab.misto = msg.misto || null;
+      tab.mistoPevne = !!msg.pevne;
+      if (tab === ACTIVE) renderMistoChips();
     }
   } else if (msg.t === 'tab-closed') {
     const tab = TABS.find(t => t.id === msg.id);
@@ -6159,6 +6224,8 @@ function restore(list) {
     }
     tab.bypass = !!info.bypass;
     tab.chat = info.chat || tab.chat || '';
+    tab.misto = info.misto || null;
+    tab.mistoPevne = !!info.misto_pevne;
     // Číslo konverzace je známé teprve teď — koncept a zprávy z fronty se
     // hledají až s ním (po reloadu nebo restartu serveru).
     obnovKoncept(tab);

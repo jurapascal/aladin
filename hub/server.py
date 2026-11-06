@@ -37,7 +37,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import (account, automodel, chats, hledani, clockify, connect, core, cteni, jev, motivy, pocitac, predplatne,
                fronta, pozadi, prenos, prenos_hub, prohlizec, pty_backend, qr, remote, restart, setup, stats, stazene,
-               stavradek, uspavani, vzhled, rewind, soubory_hledani, kontext, vetev)
+               stavradek, uspavani, vzhled, rewind, soubory_hledani, kontext, vetev, misto)
 
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -569,6 +569,7 @@ class Session:
                 "resume": self.resume, "vault": self.vault,
                 "chat": getattr(self, "chat_id", "") or self.resume or "",
                 "uspany": self.uspany,
+                "misto": getattr(self, "misto", None), "misto_pevne": bool(getattr(self, "misto_pevne", False)),
                 "guest": (self.guest or {}).get("name") or (self.guest or {}).get("email") or ""}
 
 
@@ -593,7 +594,7 @@ class Hub:
         """Tab s Claudem dostane název konverzace (Claude Code ho sám vymyslí
         z obsahu — `ai-title`), ať se v tabech dá vyznat i bez přejmenovávání."""
         for s in list(self.sessions.values()):
-            if s.exited or s.vlastni_nazev:
+            if s.exited:
                 continue
             if not (s.kind == "project" or s.kind.startswith("slash:")):
                 continue
@@ -601,12 +602,30 @@ class Hub:
                 continue
             try:
                 cesta = core.transcript_for(s)
+            except Exception:
+                continue
+            if cesta and getattr(s, "misto", None):
+                # Konverzace vznikla (první zpráva) → místo je pevné a patří k ní.
+                cid = os.path.basename(cesta)[:-6]
+                if getattr(s, "misto_chat", "") != cid:
+                    s.misto_chat = cid
+                    misto.uloz_chat(cid, s.misto)
+                self.zamkni_misto(s)
+            if s.vlastni_nazev:
+                continue
+            try:
                 nazev = " ".join(chats.title_for(cesta).split())[:60] if cesta else ""
             except Exception:
                 continue
             if nazev and nazev != s.title:
                 s.title = nazev
                 self.broadcast({"t": "tab-renamed", "id": s.id, "title": nazev})
+
+    def zamkni_misto(self, s):
+        """Místo chatu je od první zprávy pevné — okna to hned vědí (čip v bublině)."""
+        if getattr(s, "misto", None) and not getattr(s, "misto_pevne", False):
+            s.misto_pevne = True
+            self.broadcast({"t": "tab-misto", "id": s.id, "misto": s.misto, "pevne": True})
 
     def hlidej_nazvy(self, every=15):
         while True:
@@ -641,7 +660,7 @@ class Hub:
         return running
 
     def open(self, kind, path, title, cols, rows, agent="", model="", resume="", fork=False,
-             vault="", prompt="", ukol="", spici=False):
+             vault="", prompt="", ukol="", spici=False, chce_misto=None):
         # Tab s úkolem ze serveru (hub/pocitac.py): otevřený kvůli úkolu, nebo
         # pokračování jeho konverzace. Dostane hook, přes který žádosti
         # o souhlas jdou i na server; ručně otevřený tab nic z toho nemá.
@@ -659,6 +678,11 @@ class Hub:
         # Podle téhle značky Stop hook pozná, ve kterém tabu session běží,
         # a zavření tabu pak uloží do paměti právě ji.
         env = {**env, "HUB_TAB": core.tab_tag(sid)}
+        # Místo chatu (hub/misto.py): napojení a Obsidian ze serveru, nebo jen z počítače.
+        # Pokračování konverzace má místo dané; nový chat to, co člověk vybral.
+        m = None
+        if (kind == "project" or kind.startswith("slash:")) and not core.on_gateway():
+            m = misto.zapis_tab(core.tab_tag(sid), misto.pro_otevreni(resume, chce_misto))
         # Uspaný start jen tam, kde je co probudit: Claude nad uloženou
         # konverzací, bez úvodní zprávy (ta by čekala, až ho někdo otevře).
         spici = (resume if spici and resume and not prompt and not fork and not launch
@@ -668,6 +692,10 @@ class Hub:
                           cols, rows, agent=agent, model=model, env=env, vault=vault,
                           spici=spici)
         self.sessions[sid] = session
+        session.misto = m
+        session.misto_pevne = bool(resume) and not fork
+        if m and getattr(session, "chat_id", "") and not resume:
+            misto.uloz_chat(session.chat_id, m)
         if launch:
             pocitac.bind_tab(launch, session, meta)
         return session
@@ -767,6 +795,8 @@ class Hub:
         session = self.sessions.pop(sid, None)
         if session:
             session.close()
+            if getattr(session, "misto", None):
+                misto.smaz_tab(core.tab_tag(sid))
             if autosave:
                 core.autosave_tabs_closed([sid])
 
@@ -1385,7 +1415,10 @@ class Handler(BaseHTTPRequestHandler):
             # Seznam konverzací jako v oficiální appce (hub/chats.py) a které
             # z nich právě běží v tabu — ty se neotevírají podruhé.
             running = HUB.chat_tabs()
-            seznam = [dict(c, tab=running.get(c["id"])) for c in chats.list_chats()]
+            # Místo chatu (hub/misto.py) — barva v seznamu a čip po otevření.
+            mista = {} if core.on_gateway() else misto.vsechny_chaty()
+            seznam = [dict(c, tab=running.get(c["id"]), **({"misto": mista[c["id"]]} if c["id"] in mista else {}))
+                      for c in chats.list_chats()]
             # Seznam má stovky kB a mění se zřídka: okno pošle otisk toho, co
             # už má, a když sedí, dostane jen „beze změny".
             import hashlib
@@ -1399,6 +1432,25 @@ class Handler(BaseHTTPRequestHandler):
             if guest:
                 return self._json({"error": "Historii konverzací smí číst jen vlastník prostoru."}, 403)
             return self._hledani(name, query, payload)
+        if name == "tab-misto":
+            # Místo nového chatu (Počítač / prostor na serveru), dokud v něm nepadla
+            # první zpráva — pak je pevné (hub/misto.py).
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            try:
+                s = HUB.sessions.get(int(payload.get("id") or 0))
+            except (TypeError, ValueError):
+                s = None
+            if not s or not getattr(s, "misto", None):
+                return self._json({"error": "Tab nenašel."}, 404)
+            if getattr(s, "misto_pevne", False):
+                return self._json({"error": "Místo chatu je už pevné — nový chat si založ jinde.",
+                                   "misto": s.misto, "pevne": True}, 409)
+            s.misto = misto.zapis_tab(core.tab_tag(s.id), payload.get("misto"))
+            if getattr(s, "chat_id", ""):
+                misto.uloz_chat(s.chat_id, s.misto)
+            HUB.broadcast({"t": "tab-misto", "id": s.id, "misto": s.misto, "pevne": False})
+            return self._json({"ok": True, "misto": s.misto})
         if name == "chat-domu":
             # Chat bez složky (šedý v seznamu): přestěhovat pod domovskou složku a pokračovat.
             if self.command != "POST":
@@ -2681,7 +2733,8 @@ class Handler(BaseHTTPRequestHandler):
                                    prompt=str(msg.get("prompt", "") or "")[:20000],
                                    # Obnova po restartu: tab mimo zrak se
                                    # založí uspaný (Session, `spici`).
-                                   spici=msg.get("spici") is True)
+                                   spici=msg.get("spici") is True,
+                                   chce_misto=msg.get("misto") if isinstance(msg.get("misto"), dict) else None)
             except (pty_backend.PtyUnavailable, core.BashMissing) as exc:
                 core.log_error("tab se nepodařilo otevřít", exc)
                 conn.send_json({"t": "error", "ref": msg.get("ref"), "d": str(exc)})
@@ -2709,7 +2762,10 @@ class Handler(BaseHTTPRequestHandler):
             session.attach(conn)
         elif kind == "in" and session:
             session.drive(conn)
-            session.write(msg.get("d", "").encode("utf-8"))
+            data = msg.get("d", "")
+            session.write(data.encode("utf-8"))
+            if "\r" in data and not getattr(session, "misto_pevne", True):
+                HUB.zamkni_misto(session)            # odeslaná zpráva = chat začal
         elif kind == "focus" and session:
             session.drive(conn)
             if session.uspany:
@@ -2900,6 +2956,10 @@ def start():
     except Exception as exc:
         core.log_error("prostor: zápis webu selhal", exc)
     token = _stabilni_token()
+    try:
+        misto.uklid([])                  # místa tabů po pádu nebo starší instanci
+    except Exception:
+        pass
     httpd = _otevrit_server(token)
     port = httpd.server_address[1]
     httpd.origins = {f"http://127.0.0.1:{port}", f"http://localhost:{port}"}

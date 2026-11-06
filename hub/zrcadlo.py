@@ -56,10 +56,21 @@ def na_serveru():
 
 
 def zapnuto():
-    """Kopírovat chaty z počítače na server? Přihlášený počítač, vybraný prostor na
-    serveru (přepínač místa) a nevypnutá kopie. „Počítač“ = chaty jen tady
-    (Jura, 6. 11. 2026) — dřív to byla zvláštní volba v nabídce."""
-    return pripojeno() and na_serveru() and core.CONFIG.get("zrcadlo", True) is not False
+    """Kopírovat chaty z počítače na server? Přihlášený počítač a nevypnutá kopie.
+    Které chaty, rozhoduje jejich místo (hub/misto.py, _kandidati): chat
+    s místem „Počítač“ zůstává jen tady (Jura, 6. 11. 2026)."""
+    return pripojeno() and core.CONFIG.get("zrcadlo", True) is not False
+
+
+def byl_na_serveru(chat):
+    """Starší chat bez uloženého místa, který se už kopíroval na server (nebo ho
+    server drží): jeho místo je osobní prostor na serveru. Jinak None."""
+    if not pripojeno():
+        return None
+    data = _nacti()
+    if chat in data["chaty"] or chat in data["server"]:
+        return {"kde": "server", "server": account._base(), "prostor": 0}
+    return None
 
 
 # ── stav na disku ────────────────────────────────────────────────────────────
@@ -139,6 +150,9 @@ def _kandidati(data):
     except OSError:
         return out
     server = set(data["server"])
+    from . import misto
+    mista = misto.vsechny_chaty()
+    base = account._base()
     for slozka in slozky:
         try:
             soubory = list(os.scandir(slozka.path))
@@ -150,6 +164,13 @@ def _kandidati(data):
                 continue
             st = f.stat(follow_symlinks=False)
             known = data["chaty"].get(cid)
+            # Místo chatu: na server jen chaty s místem na tomhle serveru; starší chat
+            # bez místa jen když se kopíroval už dřív.
+            m = mista.get(cid)
+            if m is not None and (m.get("kde") != "server" or account.normalize(m.get("server") or "") != base):
+                continue
+            if m is None and not known:
+                continue
             if not known and st.st_mtime < data["od"]:
                 continue
             if known and known.get("velikost") == st.st_size:
@@ -478,6 +499,15 @@ def prevzit(chat):
     data["server"] = [c for c in data["server"] if c != chat]
     data["chaty"][chat] = {"radky": len(radky), "ofset": size, "velikost": size}
     _uloz(data)
+    # Místo chatu: zůstává na serveru (osobní, nebo firma podle cesty na serveru).
+    try:
+        from . import misto
+        with _LOCK:
+            hit = next((c for c in (_BEH["seznam"] or []) if c.get("id") == chat), {})
+        misto.uloz_chat(chat, {"kde": "server", "server": account._base(), "prostor": 0,
+                               "firma": hit.get("firma") or "", "nazev": hit.get("firma_nazev") or ""})
+    except Exception as exc:
+        core.log_error("místo převzatého chatu", exc)
     with _LOCK:
         _BEH["seznam_cas"] = 0.0
     core.log(f"zrcadlo: chat {chat[:8]} převzat ze serveru ({len(radky)} řádků)")

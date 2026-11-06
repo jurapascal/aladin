@@ -24,6 +24,7 @@ import os
 import posixpath
 import re
 import secrets
+import socket
 import socketserver
 import string
 import subprocess
@@ -2763,7 +2764,13 @@ _NAHLED_TYPY = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg"
 
 class HubHTTPServer(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = True
+    # Na Windows SO_REUSEADDR dovolí obsadit port, na kterém už jiný proces
+    # poslouchá: druhá instance hubu (restart, dvojí spuštění) pak seděla na
+    # stejném portu se stejným tokenem jako první a okna i dotazy padaly náhodně
+    # na jednu nebo druhou — odtud „Aladin se otevírá dvakrát“ (Tomáš 5. 11.,
+    # Adam 6. 11. 2026). Tam se port zabírá výhradně (server_bind) a obsazený
+    # znamená náhodný jiný, jako na Linuxu.
+    allow_reuse_address = sys.platform != "win32"
     # Prohlížeč (a přes bránu i reverzní proxy) otevře najednou spoustu spojení
     # na assety. Výchozí backlog 5 některé odmítne (RemoteDisconnected) — proto
     # větší fronta příchozích spojení.
@@ -2789,6 +2796,8 @@ class HubHTTPServer(ThreadingHTTPServer):
         # jméno počítače. Na některých sítích (VPN, macOS v CI) trvá desítky
         # sekund a o tolik se zdrží každý start hubu, i restart po aktualizaci.
         # Jméno serveru hub k ničemu nepotřebuje, stačí adresa.
+        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         socketserver.TCPServer.server_bind(self)
         host, port = self.server_address[:2]
         self.server_name = host

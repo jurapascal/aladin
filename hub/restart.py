@@ -329,10 +329,12 @@ def _spawn(*extra):
         if os.path.isfile(python):
             argv[0] = python
         kwargs["creationflags"] = 0x08000000 | 0x00000200
-        kwargs["env"] = {**os.environ, "HUB_BEZ_OKNA_KONZOLE": "1"}
+        kwargs["env"] = {**os.environ, "HUB_BEZ_OKNA_KONZOLE": "1", "HUB_RESTART": "1"}
         kwargs.update(stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     else:
         kwargs["start_new_session"] = True
+        # Nová instance pozná, že jde o restart (claude-hub.py), ne o druhé spuštění.
+        kwargs["env"] = {**os.environ, "HUB_RESTART": "1"}
     subprocess.Popen(argv, **kwargs)
 
 

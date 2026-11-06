@@ -86,10 +86,28 @@ function pidZije(pid) {
 
 /* Už běžící hub (spuštěný z jiného okna, nebo z minula) — jen se k němu
  * připojíme: druhá instance nad týmiž chaty by si přepisovala konverzace. */
-async function bezici() {
+async function bezici(trpelive = false) {
   const d = readJson(path.join(claudeDir(), 'hub-bezi.json'));
   if (!d || !d.url || !HUB_URL.test(d.url) || !pidZije(Number(d.pid))) return '';
-  return (await dotaz(d.url)) ? d.url : '';
+  // Hub, který zrovna startuje (Windows, antivir), neodpoví do 2 s — proces ale
+  // žije. Dřív se pak spustil druhý hub a otevřela se dvě okna (Adam, 6. 11. 2026).
+  const konec = Date.now() + (trpelive ? 20000 : 0);
+  do {
+    if (await dotaz(d.url)) return d.url;
+    if (!pidZije(Number(d.pid))) return '';
+    if (Date.now() < konec) await new Promise((r) => setTimeout(r, 500));
+  } while (Date.now() < konec);
+  return '';
+}
+
+/* Adresa od hubu (--hub-url): hub běží, jen může chvíli neodpovídat. */
+async function pockejNa(url, ms = 20000) {
+  const konec = Date.now() + ms;
+  do {
+    if (await dotaz(url)) return true;
+    if (Date.now() < konec) await new Promise((r) => setTimeout(r, 500));
+  } while (Date.now() < konec);
+  return false;
 }
 
 /* Starší hub (před 2.57.23) značku hub-bezi.json nepíše. Běží-li z téže
@@ -214,7 +232,7 @@ function zajistiHub() {
     for (const u of [...okna, hubUrl].filter(Boolean)) {
       if (await dotaz(u)) return (hubUrl = u);
     }
-    const url = await bezici();
+    const url = await bezici(true);
     if (url) return (hubUrl = url);
     return (hubUrl = await spustHub());
   })().finally(() => { starting = null; });
@@ -314,7 +332,7 @@ function noveOkno(url) {
 
 async function otevriOkno(primo = '') {
   try {
-    if (primo && (await dotaz(primo))) return noveOkno((hubUrl = primo));
+    if (primo && (await pockejNa(primo))) return noveOkno((hubUrl = primo));
     return noveOkno(await zajistiHub());
   } catch (e) {
     if (!/není nainstalovaný|chybí Python|bez značky/.test(String(e.message))) {

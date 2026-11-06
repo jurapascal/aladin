@@ -291,10 +291,16 @@ def otevri_okno(target, prefer, appka_ok, vlastni_server=True):
         # Server je náš → spolehlivý signál je stránka, která se připojí.
         # Appka, která hned skončí s chybou, nenaběhne — na to se nečeká.
         # Nula je v pořádku: druhé spuštění běžící appky okno předá a skončí.
-        konec = time.time() + 30
+        konec = time.time() + 60
         while time.time() < konec and server.HUB.clients == 0 and proc.poll() in (None, 0):
             time.sleep(0.25)
-        ok = server.HUB.clients > 0
+        # Náhradní okno v prohlížeči jen když appka opravdu spadla (skončila chybou).
+        # Pomalá appka (první start po aktualizaci, antivir) dřív po 30 s dostala
+        # k sobě ještě okno v prohlížeči — Aladin se otevřel dvakrát.
+        ok = server.HUB.clients > 0 or proc.poll() in (None, 0)
+        if not server.HUB.clients:
+            core.log("appka: okno se zatím nepřipojilo — náhradní okno neotevírám"
+                     if ok else "appka: skončila chybou", "warn")
     else:
         # Okno k hubu, který běží v jiném procesu — vidíme jen appku samu.
         # Druhé spuštění běžící appky okno předá a hned skončí s nulou.
@@ -415,6 +421,22 @@ def main():
     # Appka už běží na pozadí (zavřené okno) → jen se k ní otevře nové okno.
     # Druhá instance nad stejnými chaty by si přepisovala konverzace.
     restart = "--bez-okna" in args or "--vlastni-okno" in args
+    # Skutečný restart (hub/restart.py) — ne appka (desktop/), která hub pustila
+    # jen proto, že ten běžící nestihl odpovědět.
+    po_restartu = os.environ.pop("HUB_RESTART", "") == "1"
+    if "--vlastni-okno" in args and not po_restartu and not core.TEST_MODE and not pozadi.zamek():
+        # Appka pustila hub, i když jeden běží: první po startu na Windows nestihl
+        # odpovědět do 2 s. Dřív se tu rozjel druhý server a otevřela se dvě okna
+        # (Adam Uher, 6. 11. 2026). Teď appka dostane adresu toho běžícího.
+        bezi = pozadi.pockej_na_bezici(15.0)
+        if bezi:
+            core.log("appka pustila hub, ale jeden už běží — okno jde k němu")
+            print(bezi, flush=True)
+            time.sleep(5)            # appka si adresu přečte, než tenhle proces skončí
+            return 0
+        # Nikdo neodpovídá: buď restart ze starší verze (stará instance právě končí),
+        # nebo zaseknutá appka. Chvíli počkat na zámek, pak jako dřív.
+        pozadi.zamek(cekat=30.0)
     if "--no-browser" not in args and not core.TEST_MODE:
         if restart:
             # Restart po aktualizaci: stará instance zámek pustí, až se okno

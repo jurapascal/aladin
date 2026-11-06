@@ -904,7 +904,8 @@
         const stav = ok ? 'připojený · ' + (c.access_label || '')
           : c.online ? 'připojený, přístup vypnutý' : 'nepřipojený' + (c.seen_ago ? ' · naposledy ' + ago(c.seen_ago) : '');
         items.push({icon: 'i-laptop', color: ok ? 'var(--green)' : 'var(--red)',
-                    label: (c.name || 'Počítač') + ' — ' + stav + (ok && c.last ? ' · ' + lastText(c) : ''),
+                    label: (c.name || 'Počítač') + (c.version ? ' · v' + c.version : '') + ' — ' + stav +
+                           (ok && c.last ? ' · ' + lastText(c) : ''),
                     run: () => {}});
       }
       const r = b.getBoundingClientRect();

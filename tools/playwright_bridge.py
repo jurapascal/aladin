@@ -159,7 +159,9 @@ def main():
         # Záloha bez sdíleného Chromia: Claude bez prohlížeče nezůstane, ale
         # neviditelně. Bez --headless vyskočilo při startu appky (sdílený prohlížeč
         # ještě neběžel) viditelné okno Chrome for Testing (Adam Uher, 6. 11. 2026).
-        args = [npx, PW_MCP, "--browser", "chromium", "--user-data-dir", profile, "--headless"]
+        # Vlastní profil: záloha nesmí zamknout profil sdíleného prohlížeče — jinak by
+        # každé jeho další spuštění jen předalo kartu záloze a skončilo.
+        args = [npx, PW_MCP, "--browser", "chromium", "--user-data-dir", profile + "-zaloha", "--headless"]
     if os.name == "nt":
         return subprocess.call(args)
     os.execvp(args[0], args)

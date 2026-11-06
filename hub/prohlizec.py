@@ -36,6 +36,8 @@ import urllib.request
 CESTY = lambda: {}         # nastaví hub: id tabu → složka (osiřelé karty se přiřadí podle ní)
 CHATY = lambda: {}         # nastaví hub: id tabu → id konverzace (přednost před složkou)
 INSTANCE = ""              # nastaví hub (core.INSTANCE) — podle ní pozná své taby v HUB_TAB
+# Zápis do logu: hub nastaví core.log; v mostu (tools/playwright_bridge.py) jde na stderr.
+LOG = lambda text: print(text, file=sys.stderr)
 IS_WINDOWS = sys.platform == "win32"
 IS_MAC = sys.platform == "darwin"
 HOST = "127.0.0.1"
@@ -170,11 +172,65 @@ def _zamek_pid():
     return int(pid)
 
 
+def _cizi_nad_profilem_windows():
+    """Windows: hlavní procesy Chrome / Edge / Chromium, které běží nad profilem
+    hubu → [(pid, příkazová řádka)]. SingletonLock (_zamek_pid) tam není, takže
+    se nepozná, že profil drží jiný prohlížeč — každé další spuštění pak jen předalo
+    „otevři kartu“ tomu, co běží, a skončilo. Když to byl viditelný Chrome (stará
+    záloha Playwrightu), uživateli naskakovaly nové karty (Adam Uher, 6. 11. 2026)."""
+    if not IS_WINDOWS:
+        return []
+    prof = os.path.normcase(os.path.abspath(profile_dir())).replace("/", "\\").rstrip("\\")
+    ps = ("Get-CimInstance Win32_Process -Filter \"Name='chrome.exe' OR Name='msedge.exe' OR "
+          "Name='chromium.exe'\" | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress")
+    try:
+        out = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", ps],
+                             capture_output=True, text=True, timeout=20,
+                             creationflags=0x08000000).stdout          # CREATE_NO_WINDOW
+        data = json.loads(out or "[]")
+    except Exception:
+        return []
+    if isinstance(data, dict):
+        data = [data]
+    vysledek = []
+    for p in data if isinstance(data, list) else []:
+        cmd = str((p or {}).get("CommandLine") or "")
+        if "--type=" in cmd:
+            continue                                  # pomocný proces (stránka, GPU)
+        norm = os.path.normcase(cmd).replace("/", "\\")
+        if prof + "\\" in norm + "\\" or prof + '"' in norm or prof + " " in norm or norm.endswith(prof):
+            try:
+                vysledek.append((int(p.get("ProcessId")), cmd))
+            except (TypeError, ValueError):
+                pass
+    return vysledek
+
+
+def _uvolni_cizi_windows():
+    """Windows: ukončí prohlížeče nad profilem hubu, které neodpovídají na ladicím
+    portu (zaseknuté nebo cizí — viditelná záloha Playwrightu). Vrací počet."""
+    n = 0
+    for pid, cmd in _cizi_nad_profilem_windows():
+        try:
+            subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=15,
+                           creationflags=0x08000000)
+            n += 1
+            LOG(f"prohlížeč: ukončen jiný prohlížeč nad profilem (pid {pid}"
+                f"{', viditelný' if '--headless' not in cmd else ''})")
+        except Exception:
+            pass
+    if n:
+        time.sleep(1.0)                               # ať Chrome pustí zámek profilu
+    return n
+
+
 def _uvolni_zaseknuty():
     """Chromium drží profil, ale ladicí port neodpovídá ani po chvíli —
     zaseknutý. Ukončit ho, ať jde pustit znovu (jinak by nový hned skončil)."""
+    if IS_WINDOWS:
+        return _uvolni_cizi_windows() > 0
     pid = _zamek_pid()
-    if not pid or IS_WINDOWS:
+    if not pid:
         return False
     import signal
     for sig, cekat in ((signal.SIGTERM, 5), (signal.SIGKILL, 3)):
@@ -694,6 +750,12 @@ def _ensure(wait, _znovu=False):
             if alive_jiste():
                 return True, ""
             _uvolni_zaseknuty()
+        elif IS_WINDOWS and _cizi_nad_profilem_windows():
+            # Windows: profil drží jiný prohlížeč (ladicí port neodpovídá) — pryč s ním,
+            # jinak by si nový jen předal kartu a skončil.
+            if alive_jiste():
+                return True, ""
+            _uvolni_cizi_windows()
         _priprav_profil()
         # Bez --remote-allow-origins: webová stránka (ta pošle Origin vždycky)
         # se k ladicímu portu nepřipojí; Playwright ani hub Origin neposílají.
@@ -760,7 +822,7 @@ def _ensure(wait, _znovu=False):
                     return True, ""
                 # Profil drží Chromium, který neodpovídá — zaseknutý. Jednou ho
                 # ukončit a pustit znovu, místo aby prohlížeč zůstal mrtvý.
-                if not _znovu and _zamek_pid() and _uvolni_zaseknuty():
+                if not _znovu and (_zamek_pid() or IS_WINDOWS) and _uvolni_zaseknuty():
                     return _ensure(wait, _znovu=True)
                 return False, "Prohlížeč hned skončil — nad profilem nejspíš běží jiný Chrome."
             time.sleep(0.25)

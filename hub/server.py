@@ -2967,6 +2967,7 @@ def start():
                      daemon=True).start()
     threading.Thread(target=watch_autosave, daemon=True).start()
     prohlizec.INSTANCE = core.INSTANCE
+    prohlizec.LOG = core.log
     prohlizec.CESTY = lambda: {sid: (s.path or "") for sid, s in HUB.sessions.items()
                                if not getattr(s, "exited", False)}
     prohlizec.CHATY = lambda: {sid: (getattr(s, "chat_id", "") or "") for sid, s in HUB.sessions.items()

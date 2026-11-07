@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Sdílený chat · Aladin</title>
+<style>
+  :root {
+    --bg: #0d1117; --card: #161b22; --fg: #e6edf3; --dim: #8b949e; --border: #30363d;
+    --kontrast: #ffffff; --kontrast-na: #000000; --me: #1f2630; --red: #f85149;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #ffffff; --card: #f6f8fa; --fg: #1f2328; --dim: #656d76; --border: #d0d7de;
+            --kontrast: #000000; --kontrast-na: #ffffff; --me: #eef1f4; --red: #cf222e; }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+         display: flex; flex-direction: column; }
+  header { padding: calc(12px + env(safe-area-inset-top)) 16px 10px; border-bottom: 1px solid var(--border);
+           display: flex; align-items: center; gap: 10px; }
+  header .t { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  header .k { color: var(--dim); font-size: 13px; white-space: nowrap; }
+  main { flex: 1; overflow-y: auto; padding: 16px; }
+  .flow { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .me { align-self: flex-end; max-width: 85%; background: var(--me); border-radius: 16px; padding: 9px 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .me .kdo { display: block; font-size: 12px; font-weight: 600; color: var(--dim); margin-bottom: 2px; }
+  .say { overflow-wrap: anywhere; }
+  .say p { margin: 0 0 8px; } .say p:last-child { margin-bottom: 0; }
+  .say pre { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 10px; overflow-x: auto; font-size: 13px; }
+  .say code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .92em; background: var(--card); padding: 1px 4px; border-radius: 4px; }
+  .say pre code { background: none; padding: 0; }
+  .tool { color: var(--dim); font-size: 12.5px; }
+  .pracuje { color: var(--dim); font-size: 13px; }
+  .info { max-width: 760px; margin: 30vh auto 0; text-align: center; color: var(--dim); }
+  footer { border-top: 1px solid var(--border); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .pole { max-width: 760px; margin: 0 auto; display: flex; gap: 8px; align-items: flex-end; }
+  textarea, input { flex: 1; font: inherit; font-size: 16px; color: var(--fg); background: var(--card); border: 1px solid var(--border);
+                    border-radius: 12px; padding: 9px 12px; resize: none; max-height: 160px; outline: none; }
+  textarea:focus, input:focus { border-color: var(--kontrast); }
+  button { font: inherit; border: none; cursor: pointer; border-radius: 12px; padding: 9px 14px;
+           background: var(--kontrast); color: var(--kontrast-na); font-weight: 600; }
+  button:disabled { opacity: .45; cursor: default; }
+  .jako { max-width: 760px; margin: 0 auto 6px; font-size: 12.5px; color: var(--dim); }
+  .jako a { color: var(--fg); cursor: pointer; text-decoration: underline; }
+  .chyba { max-width: 760px; margin: 0 auto 6px; color: var(--red); font-size: 13px; }
+  .jmeno { max-width: 420px; margin: 22vh auto 0; display: flex; flex-direction: column; gap: 12px; padding: 0 16px; }
+  .jmeno p { margin: 0; color: var(--dim); }
+</style>
+</head>
+<body>
+<header><span class="t" id="titulek">Sdílený chat</span><span class="k" id="kdo"></span></header>
+<main id="main"><div class="flow" id="flow"></div></main>
+<footer id="pata" hidden>
+  <div class="chyba" id="chyba" hidden></div>
+  <div class="jako" id="jako"></div>
+  <div class="pole"><textarea id="text" rows="1" placeholder="Napiš zprávu… (Enter odešle)"></textarea><button id="poslat">Odeslat</button></div>
+</footer>
+<script>
+'use strict';
+/* Veřejný odkaz na sdílený chat (gateway/relace.py, odkaz). Jméno si prohlížeč
+   pamatuje v localStorage; zprávy jdou Claudovi toho, kdo chat sdílí. */
+const TOKEN = location.pathname.split('/').filter(Boolean)[1] || '';
+const KLIC = 'aladin-odkaz-jmeno';
+const $ = (id) => document.getElementById(id);
+let odkud = 0, psat = false, bezi = true, poslednich = 0, cekaPracuje = null;
+
+function jmeno() { try { return localStorage.getItem(KLIC) || ''; } catch (_) { return ''; } }
+function ulozJmeno(v) { try { localStorage.setItem(KLIC, v); } catch (_) { /* soukromé okno */ } }
+
+function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c])); }
+function md(text) {
+  const kusy = String(text || '').split(/```/);
+  return kusy.map((k, i) => {
+    if (i % 2) return '<pre><code>' + esc(k.replace(/^[a-z0-9_-]*\n/i, '')) + '</code></pre>';
+    return esc(k).split(/\n{2,}/).map((p) => '<p>' + p
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+      .replace(/\n/g, '<br>') + '</p>').join('');
+  }).join('');
+}
+
+function pridej(blocks) {
+  const flow = $('flow');
+  const dole = $('main').scrollHeight - $('main').scrollTop - $('main').clientHeight < 80;
+  for (const b of blocks) {
+    const el = document.createElement('div');
+    if (b.kind === 'me') {
+      el.className = 'me';
+      const m = /^\[([^\]]{1,60})\]\s*/.exec(b.text || '');
+      if (m) {
+        const k = document.createElement('span');
+        k.className = 'kdo'; k.textContent = m[1];
+        el.appendChild(k);
+        el.appendChild(document.createTextNode(b.text.slice(m[0].length)));
+      } else el.textContent = b.text;
+    } else if (b.kind === 'say') {
+      el.className = 'say'; el.innerHTML = md(b.text);
+    } else if (b.kind === 'tool') {
+      el.className = 'tool'; el.textContent = '⚙ ' + (b.name || 'nástroj');
+    } else continue;
+    flow.appendChild(el);
+  }
+  if (dole || !poslednich) $('main').scrollTop = $('main').scrollHeight;
+  poslednich += blocks.length;
+}
+
+function pracujeUkaz(on) {
+  if (on && !cekaPracuje) {
+    cekaPracuje = document.createElement('div');
+    cekaPracuje.className = 'pracuje'; cekaPracuje.textContent = 'Claude pracuje…';
+  }
+  if (cekaPracuje) {
+    if (on) $('flow').appendChild(cekaPracuje); else cekaPracuje.remove();
+  }
+}
+
+async function nacti() {
+  try {
+    const r = await fetch('/gw/verejne/cteni?t=' + encodeURIComponent(TOKEN) + '&from=' + odkud, {cache: 'no-store'});
+    const d = await r.json();
+    if (d.neplati) { konec(d.error || 'Odkaz neplatí.'); return; }
+    if (d.titulek) { $('titulek').textContent = d.titulek; document.title = d.titulek + ' · Aladin'; }
+    if (d.majitel) $('kdo').textContent = 'sdílí ' + d.majitel;
+    psat = !!d.psat;
+    if (d.blocks) { pracujeUkaz(false); pridej(d.blocks); }
+    if (typeof d.next === 'number') odkud = d.next;
+    pracujeUkaz(!!d.pracuje);
+    ukazPole();
+  } catch (_) { /* síť chvilku nejde — příště */ }
+  if (bezi) setTimeout(nacti, document.hidden ? 8000 : 2500);
+}
+
+function konec(text) {
+  bezi = false;
+  $('flow').innerHTML = '';
+  const p = document.createElement('div');
+  p.className = 'info'; p.textContent = text;
+  $('main').appendChild(p);
+  $('pata').hidden = true;
+}
+
+function ukazPole() {
+  $('pata').hidden = !psat;
+  if (!psat) return;
+  $('jako').innerHTML = 'Píšeš jako <b></b> · <a id="zmenit">změnit</a>';
+  $('jako').querySelector('b').textContent = jmeno();
+  $('zmenit').onclick = zeptejSeNaJmeno;
+}
+
+function zeptejSeNaJmeno() {
+  const box = document.createElement('div');
+  box.className = 'jmeno';
+  box.innerHTML = '<h2 style="margin:0">Jak ti říkat?</h2><p>Tvoje jméno uvidí ostatní u tvých zpráv. Prohlížeč si ho zapamatuje.</p>' +
+    '<input id="jm" maxlength="40" autocomplete="name" placeholder="Tvoje jméno"><button id="jmok">Pokračovat</button>';
+  document.body.innerHTML = '';
+  document.body.appendChild(box);
+  const inp = box.querySelector('#jm');
+  inp.value = jmeno();
+  inp.focus();
+  const ok = () => {
+    const v = inp.value.replace(/[\[\]<>\r\n]/g, ' ').trim().slice(0, 40);
+    if (!v) { inp.focus(); return; }
+    ulozJmeno(v);
+    location.reload();
+  };
+  box.querySelector('#jmok').onclick = ok;
+  inp.onkeydown = (e) => { if (e.key === 'Enter') ok(); };
+}
+
+async function odeslat() {
+  const t = $('text').value.trim();
+  if (!t) return;
+  $('poslat').disabled = true;
+  $('chyba').hidden = true;
+  try {
+    const r = await fetch('/gw/verejne/poslat', {method: 'POST', headers: {'Content-Type': 'application/json', 'X-Aladin-Odkaz': '1'},
+      body: JSON.stringify({t: TOKEN, jmeno: jmeno(), text: t})});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || d.error) throw new Error(d.error || 'Zprávu se nepodařilo odeslat.');
+    $('text').value = '';
+    pracujeUkaz(true);
+  } catch (e) {
+    $('chyba').textContent = e.message;
+    $('chyba').hidden = false;
+  }
+  $('poslat').disabled = false;
+  $('text').focus();
+}
+
+$('poslat').onclick = odeslat;
+$('text').addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); odeslat(); } });
+$('text').addEventListener('input', () => { const t = $('text'); t.style.height = 'auto'; t.style.height = Math.min(160, t.scrollHeight) + 'px'; });
+
+if (!TOKEN) konec('Odkaz je neúplný.');
+else if (!jmeno()) zeptejSeNaJmeno();
+else nacti();
+</script>
+</body>
+</html>

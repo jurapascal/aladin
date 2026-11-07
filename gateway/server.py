@@ -1135,6 +1135,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._spotreba_pocitac(method)
             if route == "/gw/spotreba/stopka":
                 return self._spotreba_stopka()
+            # Veřejný odkaz na sdílený chat (gateway/relace.py, odkaz): bez přihlášení.
+            if route.startswith("/s/"):
+                return self._verejny_chat_stranka(method)
+            if route in ("/gw/verejne/cteni", "/gw/verejne/poslat"):
+                return self._verejny_chat(route, method)
 
             user = self._user()
 
@@ -2010,6 +2015,12 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                     result = relace.smazat_ulozeny(user, str(form.get("id") or ""))
                 elif akce == "zrusit":
                     result = relace.zrusit(user, str(form.get("id") or ""))
+                elif akce == "odkaz":
+                    result = relace.odkaz(user, form.get("chat"), form.get("titulek"),
+                                          form.get("psat") is not False, bool(form.get("novy")))
+                    result["url"] = "https://" + (self.headers.get("Host") or "") + "/s/" + result["token"]
+                elif akce == "odkaz-zrusit":
+                    result = relace.odkaz_zrusit(user, str(form.get("id") or ""))
                 elif akce == "odejit":
                     result = relace.odejit(user, str(form.get("id") or ""))
                 elif akce == "oznameno":
@@ -2163,6 +2174,104 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         finally:
             conn.close()
         return None
+
+    # ── Veřejný odkaz na sdílený chat ──────────────────────────────────────────
+    def _verejny_chat_stranka(self, method):
+        if method not in ("GET", "HEAD"):
+            return self._json({"error": "Jen GET."}, 405)
+        try:
+            with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "verejny_chat.html"),
+                      encoding="utf-8") as fh:
+                body = fh.read()
+        except OSError:
+            return self._fail(404, "Stránka není.")
+        return self._send(200, body, "text/html; charset=utf-8", {
+            "X-Robots-Tag": "noindex, nofollow", "Referrer-Policy": "no-referrer",
+            "Content-Security-Policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+                                       "connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'"})
+
+    @staticmethod
+    def _verejne_bloky(blocks):
+        """Co z chatu uvidí host přes odkaz: zprávy lidí a Clauda, u nástrojů jen
+        název. Výstupy nástrojů (soubory, příkazy, hesla v nich) ne."""
+        out = []
+        for b in blocks or []:
+            k = b.get("kind")
+            if k == "me":
+                out.append({"kind": "me", "text": str(b.get("text") or "")[:20000], "ts": b.get("ts", "")})
+            elif k == "say":
+                out.append({"kind": "say", "text": str(b.get("text") or "")[:60000], "ts": b.get("ts", "")})
+            elif k == "tool":
+                out.append({"kind": "tool", "name": str(b.get("name") or "")[:60]})
+        return out
+
+    def _verejny_chat(self, route, method):
+        query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        if route == "/gw/verejne/poslat":
+            if method != "POST" or self.headers.get("X-Aladin-Odkaz") != "1":
+                return self._json({"error": "Jen ze stránky odkazu."}, 403)
+            form = self._read_form()
+            token = str(form.get("t") or "")
+        else:
+            token = str((query.get("t") or [""])[0])
+        rid, entry = relace.podle_odkazu(token)
+        if not entry:
+            return self._json({"error": "Odkaz neplatí — majitel ho zrušil nebo vyměnil.", "neplati": True}, 404)
+        odkaz = entry.get("odkaz") or {}
+        owner = shared.ACCOUNTS.by_id(entry.get("owner")) if shared.ACCOUNTS else None
+        if not owner:
+            return self._json({"error": "Majitel už tu účet nemá.", "neplati": True}, 404)
+        proc = self.hubs.procs.get(entry.get("owner")) if self.hubs else None
+        info = {"titulek": entry.get("titulek") or "Chat", "majitel": owner.get("name") or owner["email"].split("@")[0],
+                "psat": bool(odkaz.get("psat"))}
+        if route == "/gw/verejne/cteni":
+            if method != "GET":
+                return self._json({"error": "Jen GET."}, 405)
+            try:
+                start = max(0, int((query.get("from") or ["0"])[0]))
+            except (TypeError, ValueError):
+                start = 0
+            if proc and proc.alive():
+                try:
+                    res = mcp._hub_call(self, owner, "sdilet_cteni", {"chat": entry["chat"], "from": start}, timeout=20)
+                except mcp.ToolError as exc:
+                    return self._json({"error": str(exc), **info}, 502)
+            else:
+                path = relace.prepis_offline(owner, entry.get("chat"))
+                if not path:
+                    return self._json({"error": "Chat už neexistuje.", "neplati": True}, 404)
+                from hub import cteni as _cteni
+                res = _cteni.read(path, start, tail=not start)
+                res["pracuje"] = False
+            return self._json({**info, "blocks": self._verejne_bloky(res.get("blocks")), "next": res.get("next", 0),
+                               "ready": res.get("ready", True), "pracuje": bool(res.get("pracuje"))})
+        # poslat
+        if not odkaz.get("psat"):
+            return self._json({"error": "Majitel dovolil přes odkaz jen čtení."}, 403)
+        jmeno = re.sub(r"[\r\n\[\]<>]", " ", str(form.get("jmeno") or "")).strip()[:40]
+        text = str(form.get("text") or "").strip()
+        if not jmeno:
+            return self._json({"error": "Napiš svoje jméno."}, 400)
+        if not text:
+            return self._json({"error": "Zpráva je prázdná."}, 400)
+        if not relace.host_smi_poslat(token, self._client_ip()):
+            return self._json({"error": "Píšeš moc rychle, chvilku počkej."}, 429)
+        args = {"chat": entry["chat"], "text": text[:20000], "kdo": jmeno + " · odkaz"}
+        try:
+            result = mcp._hub_call(self, owner, "sdilet_poslat", args, timeout=30)
+        except mcp.ToolError as exc:
+            if "zavřený" not in str(exc):
+                return self._json({"error": str(exc)}, 502)
+            # Majitel chat zavřel (nebo mu prostor spal): otevřít a poslat znovu.
+            try:
+                mcp._hub_call(self, owner, "sdilet_otevrit", {"chat": entry["chat"],
+                                                              "title": entry.get("titulek") or ""}, timeout=90)
+                time.sleep(4)
+                result = mcp._hub_call(self, owner, "sdilet_poslat", args, timeout=30)
+            except mcp.ToolError as exc2:
+                return self._json({"error": str(exc2)}, 502)
+        relace._log(owner, "odkaz-zprava", rid, jmeno=jmeno, ip=self._client_ip())
+        return self._json({"ok": True, **(result if isinstance(result, dict) else {})})
 
     def _relace_zapnout(self, method, user):
         """Zapnout sdílený chat znovu: spustí majiteli prostor, když spal, a otevře

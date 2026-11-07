@@ -138,7 +138,10 @@ def _public(rid, entry, user):
                         else entry.get("vytvoreno", 0) < OZNAMENI_OD,
             "skupiny": [{"id": g, "nazev": firmy.skupina_nazev(g),
                          "pise": g in (entry.get("skupiny_psat") or [])}
-                        for g in entry.get("skupiny") or []]}
+                        for g in entry.get("skupiny") or []],
+            # Veřejný odkaz vidí jen majitel (token = přístup do chatu).
+            **({"odkaz": {"token": entry["odkaz"].get("token", ""), "psat": bool(entry["odkaz"].get("psat"))}}
+               if uid == entry.get("owner") and isinstance(entry.get("odkaz"), dict) else {})}
 
 
 _NAHLEDY = {}                 # cesta k přepisu → (mtime, velikost, posledni, kdo)
@@ -287,6 +290,79 @@ def zalozit(user, chat, titulek, emails, psat_emails=(), skupiny=(), skupiny_psa
     if neznami:
         zprava += " Neznámé adresy: " + ", ".join(neznami) + "."
     return {"ok": True, "id": rid, "message": zprava}
+
+
+# ── Veřejný odkaz (Jura, 7. 11. 2026) ───────────────────────────────────────
+# Kdo má odkaz /s/<token>, chat vidí bez přihlášení a — když to majitel dovolí —
+# píše do něj pod jménem, které si sám zadá. Zprávy zpracuje Claude majitele
+# (jeho předplatné, jeho práva), proto je token dlouhý a náhodný a majitel ho
+# může kdykoli zrušit nebo vyměnit.
+
+def odkaz(user, chat, titulek, psat=True, novy=False):
+    """Založí / upraví veřejný odkaz na chat majitele. → {ok, id, token, psat}."""
+    chat = _chat_id(chat)
+    uid = int(user["id"])
+    with _locked():
+        rel = _load()
+        rid = next((r for r, e in rel.items() if e.get("owner") == uid and e.get("chat") == chat), None)
+        if rid is None:
+            rid = secrets.token_urlsafe(9)
+            rel[rid] = {"owner": uid, "chat": chat, "vytvoreno": int(time.time()), "oznameno": [],
+                        "members": [], "psat": [], "skupiny": [], "skupiny_psat": []}
+        if titulek:
+            rel[rid]["titulek"] = str(titulek)[:120]
+        stary = rel[rid].get("odkaz") if isinstance(rel[rid].get("odkaz"), dict) else {}
+        token = (not novy and stary.get("token")) or secrets.token_urlsafe(24)
+        rel[rid]["odkaz"] = {"token": token, "psat": bool(psat),
+                             "vytvoreno": stary.get("vytvoreno") if stary.get("token") == token else int(time.time())}
+        _save(rel)
+    _log(user, "odkaz", rid, psat=bool(psat), novy=bool(novy))
+    return {"ok": True, "id": rid, "token": token, "psat": bool(psat)}
+
+
+def odkaz_zrusit(user, rid):
+    uid = int(user["id"])
+    with _locked():
+        rel = _load()
+        entry = rel.get(rid)
+        if not entry or (entry.get("owner") != uid and not _je_spravce(user)):
+            raise ValueError("Tenhle odkaz už neexistuje.")
+        entry.pop("odkaz", None)
+        if not entry.get("members") and not entry.get("skupiny"):
+            del rel[rid]                         # sdílené bylo jen odkazem
+        _save(rel)
+    _log(user, "odkaz-zrusen", rid)
+    return {"ok": True, "message": "Odkaz je zrušený — kdo ho má, už se do chatu nedostane."}
+
+
+def podle_odkazu(token):
+    """(id relace, záznam) podle tokenu z odkazu, nebo (None, None)."""
+    token = str(token or "")
+    if len(token) < 20 or not re.fullmatch(r"[A-Za-z0-9_-]+", token):
+        return None, None
+    for rid, e in _load().items():
+        t = (e.get("odkaz") or {}).get("token") if isinstance(e.get("odkaz"), dict) else ""
+        if t and secrets.compare_digest(str(t), token):
+            return rid, e
+    return None, None
+
+
+_HOST_POSLAL = {}             # (token, ip) → [časy odeslání]
+
+
+def host_smi_poslat(token, ip):
+    """Nejvýš 6 zpráv za minutu z jedné adresy na jeden odkaz."""
+    ted = time.time()
+    k = (str(token)[:12], str(ip))
+    casy = [t for t in _HOST_POSLAL.get(k, []) if ted - t < 60]
+    if len(casy) >= 6:
+        _HOST_POSLAL[k] = casy
+        return False
+    casy.append(ted)
+    _HOST_POSLAL[k] = casy
+    if len(_HOST_POSLAL) > 2000:
+        _HOST_POSLAL.clear()
+    return True
 
 
 def zrusit(user, rid):

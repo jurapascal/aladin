@@ -1309,7 +1309,7 @@ async function sharedPost(body) {
 
 /* Okno s výběrem lidí (a názvem). Vrací {name, emails} nebo null. */
 function peopleDialog({title, note, withName, chosen, ok, withWrite, chosenWrite, hint,
-                       groups, chosenGroups, chosenGroupsWrite, people = sharedPeople}) {
+                       groups, chosenGroups, chosenGroupsWrite, people = sharedPeople, extra}) {
   return new Promise((resolve) => {
     const me = ((STATE.config && STATE.config.gateway_user) || {}).email || '';
     const wrap = document.createElement('div');
@@ -1413,6 +1413,14 @@ function peopleDialog({title, note, withName, chosen, ok, withWrite, chosenWrite
       list.appendChild(row);
     }
     const done = (value) => { wrap.remove(); resolve(value); };
+    if (extra) {
+      // Další volba vlevo v patičce (sdílení chatu: Odkaz pro kohokoli…).
+      const b = document.createElement('button');
+      b.className = 'btn ghost pd-extra';
+      b.textContent = extra.label;
+      b.onclick = () => { done(null); extra.run(); };
+      wrap.querySelector('.who-foot').prepend(b);
+    }
     for (const b of wrap.querySelectorAll('.pd-close')) b.onclick = () => done(null);
     wrap.addEventListener('click', (ev) => { if (ev.target === wrap) done(null); });
     wrap.querySelector('.pd-ok').onclick = () => {
@@ -2802,6 +2810,75 @@ function relaceTabu(tab) {
   return chat ? RELACE.moje.find((r) => r.chat === chat) : null;
 }
 
+/* Veřejný odkaz na chat (gateway/relace.py, odkaz): kdo ho má, chat vidí bez
+   přihlášení a — když je zaškrtnuté „smí psát“ — píše do něj pod jménem, které si
+   zadá. Zprávy zpracuje Claude majitele (Jura, 7. 11. 2026). */
+async function odkazChatu(tab) {
+  const chat = tab.chat || tab.resume;
+  if (!chat) return toast('Tenhle chat se ještě nedá sdílet — pošli v něm aspoň jednu zprávu.');
+  await loadRelace();
+  const rel = relaceTabu(tab);
+  const wrap = document.createElement('div');
+  wrap.className = 'onb set-modal vault-access-modal';
+  wrap.innerHTML = `
+    <div class="onb-box acc-box">
+      <div class="onb-head"><div><div class="onb-title">Odkaz pro kohokoli</div>
+        <div class="onb-sub">Kdo má odkaz, chat uvidí bez přihlášení. Když smí psát, píše pod jménem, které si zadá —
+        a jeho zprávy zpracuje tvůj Claude, s tvými právy a na tvoje předplatné. Posílej ho jen lidem, kterým věříš.</div></div>
+        <span class="spacer"></span><button class="set-x od-close" title="Zavřít">×</button></div>
+      <div class="acc-list">
+        <label class="who-write" style="display:flex;gap:8px;align-items:center;margin:6px 0 12px">
+          <input type="checkbox" class="od-psat"> smí psát (bez zaškrtnutí jen čtou)</label>
+        <div class="od-url" hidden><input class="set-input od-input" readonly style="width:100%"></div>
+      </div>
+      <div class="who-foot"><button class="btn ghost od-zrusit" hidden>Zrušit odkaz</button>
+        <button class="btn ghost od-novy" hidden>Nový odkaz</button>
+        <button class="btn od-ok"></button></div>
+    </div>`;
+  document.body.appendChild(wrap);
+  const q = (s) => wrap.querySelector(s);
+  const psat = q('.od-psat');
+  psat.checked = rel && rel.odkaz ? !!rel.odkaz.psat : true;
+  const zavri = () => wrap.remove();
+  wrap.addEventListener('click', (ev) => { if (ev.target === wrap) zavri(); });
+  q('.od-close').onclick = zavri;
+  let rid = rel ? rel.id : '';
+  const ukaz = (token) => {
+    const url = location.origin + '/s/' + token;
+    q('.od-url').hidden = false;
+    q('.od-input').value = url;
+    q('.od-zrusit').hidden = false;
+    q('.od-novy').hidden = false;
+    q('.od-ok').textContent = 'Kopírovat odkaz';
+    q('.od-ok').onclick = async () => { await copyText(url); toast('Odkaz zkopírovaný.'); };
+  };
+  const posli = async (novy) => {
+    try {
+      const r = await relacePost({akce: 'odkaz', chat, titulek: chatTitulek(tab), psat: psat.checked, novy: !!novy});
+      rid = r.id;
+      ukaz(r.token);
+      if (novy) toast('Nový odkaz — starý už nefunguje.');
+      loadRelace();
+      return r;
+    } catch (err) { toast(err.message); return null; }
+  };
+  if (rel && rel.odkaz && rel.odkaz.token) ukaz(rel.odkaz.token);
+  else {
+    q('.od-ok').textContent = 'Vytvořit odkaz';
+    q('.od-ok').onclick = async () => { const r = await posli(false); if (r) { await copyText(location.origin + '/s/' + r.token); toast('Odkaz vytvořený a zkopírovaný.'); } };
+  }
+  psat.onchange = () => { if (!q('.od-url').hidden) posli(false); };
+  q('.od-novy').onclick = () => posli(true);
+  q('.od-zrusit').onclick = async () => {
+    try {
+      const r = await relacePost({akce: 'odkaz-zrusit', id: rid});
+      toast(r.message || 'Odkaz je zrušený.');
+      loadRelace();
+      zavri();
+    } catch (err) { toast(err.message); }
+  };
+}
+
 /* Sdílení aktuálního chatu: výběr lidí, u každého zvlášť „smí psát". */
 async function sdiletChat(tab) {
   const chat = tab.chat || tab.resume;
@@ -2818,6 +2895,7 @@ async function sdiletChat(tab) {
     groups: RELACE.skupiny || [],
     chosenGroups: now ? (now.skupiny || []).map((g) => g.id) : [],
     chosenGroupsWrite: now ? (now.skupiny || []).filter((g) => g.pise).map((g) => g.id) : [],
+    extra: {label: 'Odkaz pro kohokoli…', run: () => odkazChatu(tab)},
   });
   if (!got) return;
   try {

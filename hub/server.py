@@ -1443,20 +1443,23 @@ class Handler(BaseHTTPRequestHandler):
                 body = payload if isinstance(payload, dict) else {}
                 chat = str(body.get("chat") or "")
                 if body.get("akce") in ("zalozit", "odkaz") and core.SESSION_ID.fullmatch(chat):
-                    m = misto.pro_chat(chat)
-                    if not m or m.get("kde") != "server":
-                        # Sdílet jde jen chat, který je i na serveru — odteď se tam kopíruje.
-                        misto.uloz_chat(chat, {"kde": "server", "server": account._base(), "prostor": 0})
-                    try:
-                        from . import zrcadlo
-                        zrcadlo.kolo()               # zkopírovat hned, ne až za 10 s
-                    except Exception as exc:
-                        core.log_error("kopie sdíleného chatu", exc)
+                    # Sdílený chat se kopíruje na server (i s vypnutou kopií chatů), jen on
+                    # a na pozadí — dřív se tu čekalo na kopii všech chatů a okno zamrzlo.
+                    from . import zrcadlo
+                    zrcadlo.sdilet(chat)
                 data, err, _kind = account._call("/gw/relace/pc", token=core.CONFIG.get("gw_token", ""),
                                                  payload=body, timeout=30)
             else:
                 data, err, _kind = account._call("/gw/relace/pc", token=core.CONFIG.get("gw_token", ""),
                                                  timeout=20)
+                # Chaty, které odsud sdílím, se kopírují na server (i ty sdílené dřív).
+                if data and isinstance(data.get("moje"), list):
+                    from . import prenos, zrcadlo
+                    zname = set(zrcadlo._nacti().get("sdilene") or [])
+                    for r in data["moje"]:
+                        cid = str((r or {}).get("chat") or "")
+                        if cid and cid not in zname and prenos.najdi(core.CLAUDE_DIR, cid)[0]:
+                            zrcadlo.sdilet(cid)
             if data is None:
                 return self._json({"error": err or "Server neodpověděl."}, 502)
             return self._json(data, 400 if data.get("error") else 200)

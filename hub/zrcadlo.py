@@ -91,6 +91,7 @@ def _nacti():
         data["od_v2"] = 1
     data.setdefault("server", [])          # chaty, které teď drží server
     data.setdefault("smazat", [])          # smazané chaty, které server ještě nemá odepsané
+    data.setdefault("sdilene", [])         # chaty sdílené z PC — kopírují se i s vypnutou kopií
     return data
 
 
@@ -141,8 +142,9 @@ def _nove_radky(path, ofset, limit):
     return out, ofset
 
 
-def _kandidati(data):
-    """Přepisy chatů změněné od posledního kopírování: [(id, cesta, velikost)]."""
+def _kandidati(data, jen=None):
+    """Přepisy chatů změněné od posledního kopírování: [(id, cesta, velikost)].
+    `jen` = jen tyhle chaty (sdílené); s vypnutou kopií se berou jen sdílené."""
     root = os.path.join(core.CLAUDE_DIR, "projects")
     out = []
     try:
@@ -150,6 +152,9 @@ def _kandidati(data):
     except OSError:
         return out
     server = set(data["server"])
+    sdilene = set(data.get("sdilene") or [])
+    if jen is None and not zapnuto():
+        jen = sdilene
     from . import misto
     mista = misto.vsechny_chaty()
     base = account._base()
@@ -162,8 +167,15 @@ def _kandidati(data):
             cid = f.name[:-6] if f.name.endswith(".jsonl") else ""
             if not SESSION_ID.fullmatch(cid) or cid in server or not f.is_file(follow_symlinks=False):
                 continue
+            if jen is not None and cid not in jen:
+                continue
             st = f.stat(follow_symlinks=False)
             known = data["chaty"].get(cid)
+            if cid in sdilene:
+                # Sdílený chat: na server vždycky (ostatní ho jinak neuvidí), celý.
+                if not (known and known.get("velikost") == st.st_size):
+                    out.append((cid, f.path, st.st_size, st.st_mtime))
+                continue
             # Místo chatu: na server jen chaty s místem na tomhle serveru; starší chat
             # bez místa jen když se kopíroval už dřív.
             m = mista.get(cid)
@@ -198,7 +210,7 @@ def _smycka():
     time.sleep(8)
     while True:
         try:
-            if zapnuto():
+            if zapnuto() or (pripojeno() and _nacti().get("sdilene")):
                 kolo()
         except Exception as exc:                  # smyčka nesmí umřít
             with _LOCK:
@@ -323,15 +335,44 @@ def uklid_sirotku():
         _uloz(data)
 
 
-def kolo():
-    """Jedno kopírování: nové řádky změněných chatů, uvolnění, co chce telefon."""
-    uklid_sirotku()
-    if _nacti().get("smazat"):
-        _posli_smazane()
+_KOLO = threading.Lock()
+
+
+def sdilet(chat):
+    """Chat sdílený z appky na PC: kopíruje se na server i s vypnutou kopií chatů
+    a hned teď (na pozadí, jen on) — okno sdílení na to nečeká."""
+    if not SESSION_ID.fullmatch(str(chat or "")) or not pripojeno():
+        return
+    with _LOCK:
+        data = _nacti()
+        if chat not in data["sdilene"]:
+            data["sdilene"] = (data["sdilene"] + [chat])[-300:]
+            _uloz(data)
+
+    def hned():
+        try:
+            kolo(jen={chat})
+        except Exception as exc:
+            core.log_error("kopie sdíleného chatu", exc)
+    threading.Thread(target=hned, daemon=True, name="zrcadlo-sdileny").start()
+
+
+def kolo(jen=None):
+    """Jedno kopírování: nové řádky změněných chatů, uvolnění, co chce telefon.
+    `jen` = zkopírovat jen tyhle chaty (sdílení), bez úklidu."""
+    with _KOLO:
+        return _kolo(jen)
+
+
+def _kolo(jen=None):
+    if jen is None:
+        uklid_sirotku()
+        if _nacti().get("smazat"):
+            _posli_smazane()
     data = _nacti()
-    pustit = _pust_taby(data)
+    pustit = _pust_taby(data) if jen is None else []
     davka, velikost, mapa = [], 0, {}
-    for cid, path, size, _mtime in _kandidati(data) + [(c, *_cesta_a_velikost(c)) for c in pustit]:
+    for cid, path, size, _mtime in _kandidati(data, jen) + [(c, *_cesta_a_velikost(c)) for c in pustit]:
         if cid in mapa or not path:
             continue
         k = data["chaty"].get(cid) or {"radky": 0, "ofset": 0}
@@ -395,6 +436,7 @@ def kolo():
             if cid not in data["server"]:
                 data["server"].append(cid)
     data["server"] = data["server"][-500:]
+    data["sdilene"] = _nacti().get("sdilene") or []     # mezitím mohl přibýt sdílený chat
     _uloz(data)
     with _LOCK:
         _BEH["uvolnit"] = set(res.get("uvolnit") or []) - set(hotove)

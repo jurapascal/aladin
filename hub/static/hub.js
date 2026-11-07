@@ -2887,7 +2887,17 @@ async function odkazChatu(tab) {
   if (rel && rel.odkaz && rel.odkaz.token) ukaz(rel.odkaz.token);
   else {
     q('.od-ok').textContent = 'Vytvořit odkaz';
-    q('.od-ok').onclick = async () => { const r = await posli(false); if (r) { await copyText(zaklad + '/s/' + r.token); toast('Odkaz vytvořený a zkopírovaný.'); } };
+    q('.od-ok').onclick = async () => {
+      const b = q('.od-ok');
+      if (b.disabled) return;
+      b.disabled = true;
+      b.textContent = 'Vytvářím…';
+      const r = await posli(false);
+      if (!r) { b.disabled = false; b.textContent = 'Vytvořit odkaz'; return; }
+      b.disabled = false;
+      try { await copyText(zaklad + '/s/' + r.token); toast('Odkaz vytvořený a zkopírovaný.'); }
+      catch (_) { toast('Odkaz je vytvořený — zkopíruj ho z pole.'); }
+    };
   }
   psat.onchange = () => { if (!q('.od-url').hidden) posli(false); };
   q('.od-novy').onclick = () => posli(true);

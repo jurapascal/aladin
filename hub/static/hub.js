@@ -2175,6 +2175,12 @@ function renderChats() {
       ];
       const p = prenosMoznost();
       if (p) items.push({icon: 'i-up', label: p.label, run: () => prenosPoslat(c.id, c.title, true)});
+      // Sdílení i z appky na PC (chat se kvůli tomu kopíruje na server).
+      if ((onServer() || naPcSeServerem()) && !c.server) {
+        const t = TABS.find((x) => tabPatriChatu(x, c)) || {chat: c.id, resume: c.id, title: c.title};
+        items.push({icon: 'i-user', label: mojeRelace(c) ? 'Sdílení chatu…' : 'Sdílet chat…', run: () => sdiletChat(t)});
+        items.push({icon: 'i-globe', label: 'Odkaz pro kohokoli…', run: () => odkazChatu(t)});
+      }
       if (window.HubHledani) items.push({icon: 'i-save', label: 'Exportovat do Markdownu', run: () => HubHledani.exportovat(c)});
       items.unshift({icon: 'i-star', label: jePripnuty(c.id) ? 'Odepnout' : 'Připnout', run: () => prepniPripnuti(c.id)});
       items.push({icon: 'i-check', label: 'Vybrat více chatů', run: () => vyberZapni(c.id)});
@@ -3309,14 +3315,21 @@ function prehledHtml(tab, box) {
   }
   /* Sdílení chatu s kolegy (jen na serveru): kdo ho vidí, kdo smí psát a kdo
      se právě dívá. */
-  if (onServer() && (tab.chat || tab.resume)) {
+  if ((onServer() || naPcSeServerem()) && (tab.chat || tab.resume)) {
     const rel = relaceTabu(tab);
     const s = sekce('Sdílení', rel ? String(rel.clenove.length + (rel.skupiny || []).length) : '');
+    // Veřejný odkaz (gateway/relace.py) — i z appky na PC (Jura, 7. 11. 2026).
+    const odkazBtn = () => {
+      const o = mk('button', 'btn ghost pr-sdilet', rel && rel.odkaz ? 'Odkaz pro kohokoli (zapnutý)…' : 'Odkaz pro kohokoli…');
+      o.onclick = () => odkazChatu(tab);
+      return o;
+    };
     if (!rel) {
       s.appendChild(mk('div', 'pr-napoveda', 'Kolega uvidí tenhle chat živě — i kód, který Claude píše.'));
       const b = mk('button', 'btn ghost pr-sdilet', 'Sdílet chat…');
       b.onclick = () => sdiletChat(tab);
       s.appendChild(b);
+      s.appendChild(odkazBtn());
       if ((RELACE.skupiny || []).length) {
         const u = mk('button', 'btn ghost pr-sdilet', 'Uložit do podkategorie…');
         u.title = 'Kopie chatu do podkategorie firmy — kdo tam vidí, v ní může pokračovat.';
@@ -3348,7 +3361,7 @@ function prehledHtml(tab, box) {
       e.onclick = () => sdiletChat(tab);
       const z = mk('button', 'btn ghost pr-sdilet', 'Přestat sdílet');
       z.onclick = () => zrusitSdileni(rel);
-      btns.append(e, z);
+      btns.append(e, odkazBtn(), z);
       if ((RELACE.skupiny || []).length) {
         const u = mk('button', 'btn ghost pr-sdilet', 'Uložit do podkategorie…');
         u.onclick = () => ulozitChat(tab);

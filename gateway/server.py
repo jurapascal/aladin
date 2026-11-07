@@ -1136,8 +1136,9 @@ class Handler(BaseHTTPRequestHandler):
             if route == "/gw/spotreba/stopka":
                 return self._spotreba_stopka()
             # Veřejný odkaz na sdílený chat (gateway/relace.py, odkaz): bez přihlášení.
-            if route.startswith("/s/"):
-                return self._verejny_chat_stranka(method)
+            # Telefon rád zvětší první písmeno („/S/…“) — i to je odkaz na chat.
+            if route[:3].lower() == "/s/":
+                return self._verejny_chat_stranka(method, route)
             if route in ("/gw/verejne/cteni", "/gw/verejne/poslat"):
                 return self._verejny_chat(route, method)
             # Sdílení chatu z appky na počítači (hub/server.py `relace`): token zařízení.
@@ -2220,9 +2221,18 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         return self._json(result)
 
     # ── Veřejný odkaz na sdílený chat ──────────────────────────────────────────
-    def _verejny_chat_stranka(self, method):
+    def _verejny_chat_stranka(self, method, route):
         if method not in ("GET", "HEAD"):
             return self._json({"error": "Jen GET."}, 405)
+        # Odkaz, který cestou poškodila aplikace nebo vyhledávač (velká písmena,
+        # tečka nebo „…“ za ním, uříznutá pomlčka u starého tvaru), přesměruj na
+        # čistý tvar — stránka i adresa v prohlížeči pak sedí.
+        surovy = urllib.parse.unquote(route[3:])
+        rid, entry = relace.podle_odkazu(surovy)
+        if entry:
+            platny = entry["odkaz"]["token"]
+            if surovy != platny:
+                return self._send(301, b"", extra={"Location": "/s/" + platny, "Cache-Control": "no-store"})
         try:
             with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "verejny_chat.html"),
                       encoding="utf-8") as fh:

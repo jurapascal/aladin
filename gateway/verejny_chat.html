@@ -61,7 +61,10 @@
 'use strict';
 /* Veřejný odkaz na sdílený chat (gateway/relace.py, odkaz). Jméno si prohlížeč
    pamatuje v localStorage; zprávy jdou Claudovi toho, kdo chat sdílí. */
-const TOKEN = location.pathname.split('/').filter(Boolean)[1] || '';
+const TOKEN = (() => {
+  const kus = location.pathname.split('/').filter(Boolean)[1] || '';
+  try { return decodeURIComponent(kus); } catch (_) { return kus; }   // server ho dočistí sám
+})();
 const KLIC = 'aladin-odkaz-jmeno';
 const $ = (id) => document.getElementById(id);
 let odkud = 0, psat = false, bezi = true, poslednich = 0, cekaPracuje = null;

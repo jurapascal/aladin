@@ -298,6 +298,38 @@ def zalozit(user, chat, titulek, emails, psat_emails=(), skupiny=(), skupiny_psa
 # (jeho předplatné, jeho práva), proto je token dlouhý a náhodný a majitel ho
 # může kdykoli zrušit nebo vyměnit.
 
+# Token odkazu (Jura, 7. 11. 2026): 16 znaků jen z malých písmen a číslic
+# (Crockfordova abeceda — bez i, l, o, u, ať se nedají splést s 1 a 0), ~80 bitů
+# náhody. Dřívější token_urlsafe(24) měl „-“ a „_“: WhatsApp z podtržítek dělá
+# kurzívu, koncovou pomlčku ořízne náhled a tečka za odkazem ve větě se přilepí —
+# odkaz pak „neplatil“. Nový přežije velká písmena, tečky, závorky i přepsání
+# z papíru. Záměrně je čistě náhodný, ne zakódovaný majitel + chat: z takového
+# by šlo vyrobit odkaz na cizí chat; kdo je majitel, ví server.
+_ABECEDA = "0123456789abcdefghjkmnpqrstvwxyz"
+_DELKA = 16
+_PREKLEP = str.maketrans({"o": "0", "i": "1", "l": "1"})
+
+
+def _novy_token():
+    return "".join(secrets.choice(_ABECEDA) for _ in range(_DELKA))
+
+
+def _je_novy(token):
+    return isinstance(token, str) and len(token) == _DELKA and all(c in _ABECEDA for c in token)
+
+
+def kanonicky(token):
+    """Token z odkazu očištěný od toho, co k němu přidaly aplikace a lidé
+    (velká písmena, tečka/závorka za ním, mezery, pomlčky, o/i/l místo 0/1).
+    Nový tvar vrátí normalizovaný, starý (s - a _) jen bez smetí kolem."""
+    t = str(token or "").strip()
+    nov = "".join(c for c in t.lower().translate(_PREKLEP) if c.isalnum())
+    if _je_novy(nov):
+        return nov
+    m = re.match(r"[A-Za-z0-9_-]+", t)
+    return m.group(0) if m else ""
+
+
 def odkaz(user, chat, titulek, psat=True, novy=False):
     """Založí / upraví veřejný odkaz na chat majitele. → {ok, id, token, psat}."""
     chat = _chat_id(chat)
@@ -312,9 +344,18 @@ def odkaz(user, chat, titulek, psat=True, novy=False):
         if titulek:
             rel[rid]["titulek"] = str(titulek)[:120]
         stary = rel[rid].get("odkaz") if isinstance(rel[rid].get("odkaz"), dict) else {}
-        token = (not novy and stary.get("token")) or secrets.token_urlsafe(24)
-        rel[rid]["odkaz"] = {"token": token, "psat": bool(psat),
-                             "vytvoreno": stary.get("vytvoreno") if stary.get("token") == token else int(time.time())}
+        token = (not novy and stary.get("token")) or _novy_token()
+        dalsi = {"token": token, "psat": bool(psat),
+                 "vytvoreno": stary.get("vytvoreno") if stary.get("token") == token else int(time.time())}
+        if not novy:
+            if stary.get("token") and not _je_novy(stary.get("token")):
+                # Odkaz ze staré doby: majitel dostane krátký, rozeslaný dlouhý platí dál.
+                dalsi["token"] = token = _novy_token()
+                dalsi["vytvoreno"] = int(time.time())
+                dalsi["stary"] = stary["token"]
+            elif stary.get("stary"):
+                dalsi["stary"] = stary["stary"]
+        rel[rid]["odkaz"] = dalsi
         _save(rel)
     _log(user, "odkaz", rid, psat=bool(psat), novy=bool(novy))
     return {"ok": True, "id": rid, "token": token, "psat": bool(psat)}
@@ -336,14 +377,22 @@ def odkaz_zrusit(user, rid):
 
 
 def podle_odkazu(token):
-    """(id relace, záznam) podle tokenu z odkazu, nebo (None, None)."""
-    token = str(token or "")
-    if len(token) < 20 or not re.fullmatch(r"[A-Za-z0-9_-]+", token):
+    """(id relace, záznam) podle tokenu z odkazu, nebo (None, None). Snese
+    smetí kolem tokenu (viz `kanonicky`) a u starých dlouhých tokenů i uříznuté
+    koncové „-“/„_“ — to dělají náhledy odkazů v aplikacích."""
+    token = kanonicky(token)
+    if len(token) < _DELKA:
         return None, None
+    oriznuty = token.rstrip("-_")
     for rid, e in _load().items():
-        t = (e.get("odkaz") or {}).get("token") if isinstance(e.get("odkaz"), dict) else ""
-        if t and secrets.compare_digest(str(t), token):
-            return rid, e
+        o = e.get("odkaz") if isinstance(e.get("odkaz"), dict) else {}
+        for t in (o.get("token"), o.get("stary")):
+            if not t:
+                continue
+            t = str(t)
+            if secrets.compare_digest(t, token) or (
+                    not _je_novy(t) and len(oriznuty) >= 20 and secrets.compare_digest(t.rstrip("-_"), oriznuty)):
+                return rid, e
     return None, None
 
 
@@ -353,7 +402,7 @@ _HOST_POSLAL = {}             # (token, ip) → [časy odeslání]
 def host_smi_poslat(token, ip):
     """Nejvýš 6 zpráv za minutu z jedné adresy na jeden odkaz."""
     ted = time.time()
-    k = (str(token)[:12], str(ip))
+    k = (kanonicky(token)[:12], str(ip))
     casy = [t for t in _HOST_POSLAL.get(k, []) if ted - t < 60]
     if len(casy) >= 6:
         _HOST_POSLAL[k] = casy

@@ -1914,7 +1914,7 @@ const DRUH_IKONA = {osobni: 'i-user', server: 'i-user', firma: 'i-firma', sdilen
 function druhChatu(c) {
   // Sdílený chat je zelený vždycky — i když vznikl jako firemní a sdílel se až potom
   // (Jura, 6. 11. 2026). Dřív zůstal fialový a sdílení nebylo na první pohled vidět.
-  if (onServer() && mojeRelace(c)) return 'sdileny';
+  if (mojeRelace(c)) return 'sdileny';
   if (!onServer() && c.sdileny) return 'sdileny';     // na počítači: sdílený na serveru
   // Místo chatu (hub/misto.py): chat z počítače s místem na serveru je modrý / fialový.
   if (!onServer() && c.misto && c.misto.kde === 'server') return c.misto.firma ? 'firma' : 'server';
@@ -1972,7 +1972,6 @@ function mojeRelace(c) {
 }
 
 function komuSdilim(c) {
-  if (!onServer()) return '';
   const r = mojeRelace(c);
   if (!r) return '';
   const lide = [...(r.clenove || []).map((m) => m.name || m.email), ...(r.skupiny || []).map((g) => g.nazev)];
@@ -2701,6 +2700,8 @@ let relaceOznameneLokalne = new Set();
 try { relaceOznameneLokalne = new Set(JSON.parse(localStorage.getItem('hub-relace-oznamene') || '[]')); } catch (_) { /* nic */ }
 
 async function relacePost(body) {
+  // Na počítači přes vlastní hub (token zařízení, gateway /gw/relace/pc).
+  if (!onServer()) return api('relace', body);
   const r = await fetch('/gw/relace', {
     method: 'POST', credentials: 'same-origin',
     headers: {'Content-Type': 'application/json', 'X-Hub-Account': '1'},
@@ -2712,7 +2713,20 @@ async function relacePost(body) {
 }
 
 async function loadRelace() {
-  if (!onServer()) return;
+  if (!onServer()) {
+    // Appka na PC: moje sdílení (barva v seznamu, okno Sdílet) a lidé, se kterými jde
+    // sdílet. Co sdílí ostatní mně, ukazuje loadRelacePc ze všech serverů.
+    if (!naPcSeServerem()) return;
+    try {
+      const d = await api('relace');
+      RELACE = {...RELACE, moje: d.moje || [], lide: d.lide || [], skupiny: d.skupiny || [], ulozene: []};
+      sharedPeople = RELACE.lide || sharedPeople;
+      chatsSig = '';
+      renderChatsSoon();
+      syncShareBtn();
+    } catch (_) { /* starší brána nebo bez spojení — sdílení z PC jen nepůjde */ }
+    return;
+  }
   try {
     const r = await fetch('/gw/relace', {credentials: 'same-origin'});
     if (!r.ok) return;                 // starší brána — přijde s aktualizací
@@ -2843,8 +2857,10 @@ async function odkazChatu(tab) {
   wrap.addEventListener('click', (ev) => { if (ev.target === wrap) zavri(); });
   q('.od-close').onclick = zavri;
   let rid = rel ? rel.id : '';
+  // Odkaz vede na server (na počítači není location.origin adresa, kam se dá poslat).
+  const zaklad = onServer() ? location.origin : String(STATE.config.gw_server || '').replace(/\/$/, '');
   const ukaz = (token) => {
-    const url = location.origin + '/s/' + token;
+    const url = zaklad + '/s/' + token;
     q('.od-url').hidden = false;
     q('.od-input').value = url;
     q('.od-zrusit').hidden = false;
@@ -2865,7 +2881,7 @@ async function odkazChatu(tab) {
   if (rel && rel.odkaz && rel.odkaz.token) ukaz(rel.odkaz.token);
   else {
     q('.od-ok').textContent = 'Vytvořit odkaz';
-    q('.od-ok').onclick = async () => { const r = await posli(false); if (r) { await copyText(location.origin + '/s/' + r.token); toast('Odkaz vytvořený a zkopírovaný.'); } };
+    q('.od-ok').onclick = async () => { const r = await posli(false); if (r) { await copyText(zaklad + '/s/' + r.token); toast('Odkaz vytvořený a zkopírovaný.'); } };
   }
   psat.onchange = () => { if (!q('.od-url').hidden) posli(false); };
   q('.od-novy').onclick = () => posli(true);
@@ -3153,7 +3169,7 @@ function paintSdileni() {
 function syncShareBtn() {
   const b = $('btn-sdilet');
   if (!b) return;
-  const ok = onServer() && ACTIVE && (ACTIVE.chat || ACTIVE.resume) && ACTIVE.kind !== 'shell';
+  const ok = (onServer() || naPcSeServerem()) && ACTIVE && (ACTIVE.chat || ACTIVE.resume) && ACTIVE.kind !== 'shell';
   b.hidden = !ok;
   if (!ok) return;
   const rel = relaceTabu(ACTIVE);
@@ -4765,8 +4781,9 @@ async function reload() {
     loadRelace();
   }
   if (!onServer() && !relacePcTimer && (STATE.config.gw_servers || []).length) {
-    relacePcTimer = setInterval(() => { if (!document.hidden) loadRelacePc(); }, 60000);
+    relacePcTimer = setInterval(() => { if (!document.hidden) { loadRelacePc(); loadRelace(); } }, 60000);
     setTimeout(loadRelacePc, 4000);
+    setTimeout(loadRelace, 5000);
   }
   if (!$('projekty-page').hidden) renderProjekty();
   renderMemory();
@@ -6010,7 +6027,7 @@ function topbarMenu(btn, opts) {
     items.push({icon: 'i-status', label: 'Průběh', color: 'var(--accent)', run: () => openPrehled(ACTIVE)});
   }
   // Sdílení chatu: na telefonu není lišta s tlačítkem, tak je to tady.
-  if (!zeSupliku && onServer() && ACTIVE && (ACTIVE.chat || ACTIVE.resume) && ACTIVE.kind !== 'shell') {
+  if (!zeSupliku && (onServer() || naPcSeServerem()) && ACTIVE && (ACTIVE.chat || ACTIVE.resume) && ACTIVE.kind !== 'shell') {
     const rel = relaceTabu(ACTIVE);
     items.push({icon: 'i-user', label: rel ? 'Sdílení chatu (' + (rel.clenove.length + (rel.skupiny || []).length) + ')…' : 'Sdílet chat…',
                 color: 'var(--accent)', run: () => sdiletChat(ACTIVE)});

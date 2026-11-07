@@ -178,7 +178,46 @@ def _platne_radky(radky):
 
 
 # ── počítač: kopie chatů a příkazy zpátky ────────────────────────────────────
-def sync(user, pocitac, jmeno, chaty, uvolneno=()):
+# ── Zprávy do sdíleného chatu, který běží na počítači ────────────────────────
+# Kolega nebo host z odkazu píše do chatu, který majitel sdílí z appky na PC:
+# zpráva čeká tady a počítač si ji vezme s další synchronizací (každých ~10 s),
+# vloží ji do běžícího chatu a potvrdí doručení (Jura, 7. 11. 2026).
+_ZPRAVY = {}                  # uid → [{"id", "chat", "text", "kdo", "ts"}]
+_ZPRAVY_LOCK = threading.Lock()
+ZPRAVA_MAX_S = 15 * 60        # starší nedoručené zprávy se zahodí
+
+
+def drzi_pocitac(user, chat):
+    """Běží chat teď na počítači majitele (a ten je online)?"""
+    with _zamek(user):
+        data = _nacti(user)
+    e = data["chaty"].get(str(chat or "")) or {}
+    return e.get("drzi") == "pc" and _online(data, e.get("pocitac"))
+
+
+def zprava_pro_pocitac(user, chat, text, kdo):
+    import secrets
+    z = {"id": secrets.token_hex(6), "chat": str(chat), "text": str(text)[:20000],
+         "kdo": str(kdo or "")[:60], "ts": time.time()}
+    with _ZPRAVY_LOCK:
+        fronta = [x for x in _ZPRAVY.get(int(user["id"]), []) if time.time() - x["ts"] < ZPRAVA_MAX_S]
+        fronta.append(z)
+        _ZPRAVY[int(user["id"])] = fronta[-100:]
+    return z["id"]
+
+
+def _zpravy_pro(user, data, pocitac, doruceno):
+    """Zprávy pro chaty, které drží tenhle počítač; doručené pryč."""
+    hotovo = {str(x) for x in (doruceno or [])}
+    moje = {cid for cid, e in data["chaty"].items() if e.get("drzi") == "pc" and e.get("pocitac") == pocitac}
+    with _ZPRAVY_LOCK:
+        fronta = [x for x in _ZPRAVY.get(int(user["id"]), [])
+                  if x["id"] not in hotovo and time.time() - x["ts"] < ZPRAVA_MAX_S]
+        _ZPRAVY[int(user["id"])] = fronta
+        return [x for x in fronta if x["chat"] in moje]
+
+
+def sync(user, pocitac, jmeno, chaty, uvolneno=(), doruceno=()):
     """Dávka z počítače. `chaty` = [{id, od, radky, titulek, cwd}], `uvolneno`
     = chaty, které počítač pustil (telefon si o ně řekl). Vrací
     {"chaty": {id: {"stav": "ok"|"od"|"server", "radky": n}}, "uvolnit": [id…]}."""
@@ -229,7 +268,8 @@ def sync(user, pocitac, jmeno, chaty, uvolneno=()):
         uvolnit = [cid for cid, e in data["chaty"].items()
                    if e.get("uvolnit") and e.get("drzi") == "pc" and e.get("pocitac") == pocitac]
         _uloz(user, data)
-    return {"ok": True, "chaty": vysledek, "uvolnit": uvolnit}
+        zpravy = _zpravy_pro(user, data, pocitac, doruceno)
+    return {"ok": True, "chaty": vysledek, "uvolnit": uvolnit, "zpravy": zpravy}
 
 
 def seznam(user):

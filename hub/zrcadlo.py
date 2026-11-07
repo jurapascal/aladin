@@ -37,7 +37,7 @@ SESSION_ID = prenos.SESSION_ID
 
 _LOCK = threading.Lock()
 _BEH = {"posledni": 0.0, "chyba": "", "pocet": 0, "uvolnit": set(), "pustene": [], "seznam": None,
-        "seznam_cas": 0.0}
+        "seznam_cas": 0.0, "doruceno": [], "videno": set()}
 _STARTED = False
 HUB = None                # server.HUB — taby (chat_tabs, close, broadcast)
 _OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -346,14 +346,21 @@ def kolo():
         if velikost >= DAVKA or len(davka) >= 40:
             break
     from . import pocitac
+    with _LOCK:
+        doruceno = list(_BEH["doruceno"])
     res, err, _kind = account._call("/gw/zrcadlo/sync", token=core.CONFIG.get("gw_token", ""),
                                     timeout=60, payload={
                                         "pocitac": pocitac.device_id(), "jmeno": socket.gethostname(),
-                                        "chaty": davka})
+                                        "chaty": davka, "doruceno": doruceno})
     if res is None:
         with _LOCK:
             _BEH["chyba"] = err
         return
+    with _LOCK:
+        _BEH["doruceno"] = [d for d in _BEH["doruceno"] if d not in doruceno]
+    for z in res.get("zpravy") or []:
+        if isinstance(z, dict):
+            _prijmi_zpravu(z)
     hotove = []                               # pouštěné chaty, které server má celé
     for cid, r in (res.get("chaty") or {}).items():
         if cid not in mapa:
@@ -396,6 +403,59 @@ def kolo():
         _BEH["pocet"] = len(data["chaty"])
         if pustit:
             _BEH["seznam_cas"] = 0.0
+
+
+# ── Zprávy od ostatních do chatu sdíleného z počítače ─────────────────────────
+def _prijmi_zpravu(z):
+    """Zpráva kolegy / hosta z odkazu (gateway/zrcadlo.py zprava_pro_pocitac) do
+    chatu, který běží tady. Zavřený chat se otevře. Doručení se potvrdí příště."""
+    zid, chat = str(z.get("id") or ""), str(z.get("chat") or "")
+    if not zid or not SESSION_ID.fullmatch(chat):
+        return
+    with _LOCK:
+        if zid in _BEH["videno"]:
+            return
+        _BEH["videno"].add(zid)
+        if len(_BEH["videno"]) > 500:
+            _BEH["videno"] = {zid}
+    threading.Thread(target=_dorucit, args=(zid, chat, str(z.get("text") or ""), str(z.get("kdo") or "")),
+                     daemon=True, name="sdileni-zprava").start()
+
+
+def _dorucit(zid, chat, text, kdo):
+    import re as _re
+    text = _re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text).strip()
+    if not text or not HUB:
+        return
+    _sid, session = _tab_chatu(chat)
+    if session is None:
+        path, _sub = prenos.najdi(core.CLAUDE_DIR, chat)
+        if not path:
+            return
+        cwd = prenos._cwd_z_prepisu(path)
+        if not cwd or not os.path.isdir(cwd):
+            cwd = core.HOME
+        try:
+            HUB.open("project", cwd, _titulek(path) or "Sdílený chat", 120, 32, agent="claude", resume=chat)
+        except Exception as exc:
+            core.log_error("sdílený chat se nepodařilo otevřít", exc)
+            return
+        for _ in range(40):
+            time.sleep(0.5)
+            _sid, session = _tab_chatu(chat)
+            if session is not None:
+                break
+        time.sleep(4)                         # ať Claude Code naběhne, než dostane text
+    if session is None or getattr(session, "exited", False):
+        return
+    kdo = _re.sub(r"[\r\n\[\]]", " ", kdo).strip()[:60]
+    body = (f"[{kdo}] " if kdo else "") + text
+    data = ("\x1b[200~" + body + "\x1b[201~") if "\n" in body else body
+    session.write(data.encode("utf-8"))
+    threading.Timer(0.25, lambda: None if session.exited else session.write(b"\r")).start()
+    with _LOCK:
+        _BEH["doruceno"].append(zid)
+    core.log(f"sdílení: zpráva od {kdo or '?'} doručena do chatu {chat[:8]}")
 
 
 def _cesta_a_velikost(chat):

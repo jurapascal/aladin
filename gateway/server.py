@@ -1140,6 +1140,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self._verejny_chat_stranka(method)
             if route in ("/gw/verejne/cteni", "/gw/verejne/poslat"):
                 return self._verejny_chat(route, method)
+            # Sdílení chatu z appky na počítači (hub/server.py `relace`): token zařízení.
+            if route == "/gw/relace/pc":
+                return self._relace_pc(method)
 
             user = self._user()
 
@@ -2084,6 +2087,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                 return self._json({"error": "Píšeš moc rychle, chvilku počkej."}, 429)
             tool, args = "sdilet_poslat", {"chat": entry["chat"], "text": str(form.get("text") or ""),
                                            "kdo": "" if _role == "majitel" else relace.jmeno(user)}
+            # Chat sdílený z appky na PC běží na počítači majitele — zpráva jde tam.
+            vlastnik = shared.ACCOUNTS.by_id(entry.get("owner")) if shared.ACCOUNTS else None
+            if vlastnik and args["text"].strip() and zrcadlo.drzi_pocitac(vlastnik, entry["chat"]):
+                zrcadlo.zprava_pro_pocitac(vlastnik, entry["chat"], args["text"].strip(), args["kdo"])
+                return self._json({"odeslano": True, "na_pocitac": True})
         else:
             if method != "GET":
                 return self._json({"error": "Jen GET."}, 405)
@@ -2175,6 +2183,42 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             conn.close()
         return None
 
+    def _relace_pc(self, method):
+        """Sdílení z appky na PC: seznam a správa (zalozit, odkaz, zrusit…) jako
+        /gw/relace, jen tokenem zařízení. Chat se na server kopíruje (zrcadlo);
+        zprávy ostatních jdou zpátky na počítač s další synchronizací."""
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Nepřihlášeno."}, 401)
+        if method != "POST":
+            data = relace.seznam(user)
+            data["lide"] = [p for p in shared.people() if p["email"] != user["email"]]
+            data["skupiny"] = firmy.skupiny_pro(user)
+            return self._json(data)
+        form = self._read_form()
+        akce = str(form.get("akce") or "")
+        try:
+            if akce == "zalozit":
+                result = relace.zalozit(user, form.get("chat"), form.get("titulek"),
+                                        form.get("emaily") or [], form.get("psat") or [],
+                                        form.get("skupiny") or [], form.get("skupiny_psat") or [])
+            elif akce == "odkaz":
+                result = relace.odkaz(user, form.get("chat"), form.get("titulek"),
+                                      form.get("psat") is not False, bool(form.get("novy")))
+                result["url"] = "https://" + (self.headers.get("Host") or "") + "/s/" + result["token"]
+            elif akce == "odkaz-zrusit":
+                result = relace.odkaz_zrusit(user, str(form.get("id") or ""))
+            elif akce == "zrusit":
+                result = relace.zrusit(user, str(form.get("id") or ""))
+            elif akce == "oznameno":
+                ids = form.get("ids")
+                result = relace.oznameno(user, [str(i) for i in ids][:200] if isinstance(ids, list) else [])
+            else:
+                return self._json({"error": "Neznámá akce."}, 400)
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        return self._json(result)
+
     # ── Veřejný odkaz na sdílený chat ──────────────────────────────────────────
     def _verejny_chat_stranka(self, method):
         if method not in ("GET", "HEAD"):
@@ -2257,6 +2301,11 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         if not relace.host_smi_poslat(token, self._client_ip()):
             return self._json({"error": "Píšeš moc rychle, chvilku počkej."}, 429)
         args = {"chat": entry["chat"], "text": text[:20000], "kdo": jmeno + " · odkaz"}
+        if zrcadlo.drzi_pocitac(owner, entry["chat"]):
+            # Chat sdílený z appky na PC: zprávu si počítač vezme s další synchronizací.
+            zrcadlo.zprava_pro_pocitac(owner, entry["chat"], args["text"], args["kdo"])
+            relace._log(owner, "odkaz-zprava", rid, jmeno=jmeno, ip=self._client_ip(), kam="pc")
+            return self._json({"ok": True, "na_pocitac": True})
         try:
             result = mcp._hub_call(self, owner, "sdilet_poslat", args, timeout=30)
         except mcp.ToolError as exc:
@@ -2966,8 +3015,10 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             if route == "/gw/zrcadlo/sync":
                 chaty = form.get("chaty") if isinstance(form.get("chaty"), list) else []
                 uvolneno = form.get("uvolneno") if isinstance(form.get("uvolneno"), list) else []
+                doruceno = form.get("doruceno") if isinstance(form.get("doruceno"), list) else []
                 return self._json(zrcadlo.sync(user, form.get("pocitac"), form.get("jmeno"),
-                                               chaty[:50], [str(c) for c in uvolneno][:50]))
+                                               chaty[:50], [str(c) for c in uvolneno][:50],
+                                               [str(c) for c in doruceno][:100]))
             if route == "/gw/zrcadlo/stahnout":
                 return self._json(zrcadlo.stahnout(user, form.get("chat"), form.get("od")))
             if route == "/gw/zrcadlo/smazat":

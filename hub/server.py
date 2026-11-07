@@ -1432,6 +1432,34 @@ class Handler(BaseHTTPRequestHandler):
             if guest:
                 return self._json({"error": "Historii konverzací smí číst jen vlastník prostoru."}, 403)
             return self._hledani(name, query, payload)
+        if name == "relace":
+            # Sdílení chatu z appky na PC (gateway /gw/relace/pc, token zařízení). Sdílený
+            # chat se kopíruje na server (zrcadlo) a zprávy ostatních přijdou zpátky sem.
+            if core.on_gateway():
+                return self._json({"error": "V prostoru na serveru se sdílí přes bránu."}, 400)
+            if not (core.CONFIG.get("gw_token") and account._base()):
+                return self._json({"error": "Appka není přihlášená k serveru (Nastavení → Účet)."}, 400)
+            if self.command == "POST":
+                body = payload if isinstance(payload, dict) else {}
+                chat = str(body.get("chat") or "")
+                if body.get("akce") in ("zalozit", "odkaz") and core.SESSION_ID.fullmatch(chat):
+                    m = misto.pro_chat(chat)
+                    if not m or m.get("kde") != "server":
+                        # Sdílet jde jen chat, který je i na serveru — odteď se tam kopíruje.
+                        misto.uloz_chat(chat, {"kde": "server", "server": account._base(), "prostor": 0})
+                    try:
+                        from . import zrcadlo
+                        zrcadlo.kolo()               # zkopírovat hned, ne až za 10 s
+                    except Exception as exc:
+                        core.log_error("kopie sdíleného chatu", exc)
+                data, err, _kind = account._call("/gw/relace/pc", token=core.CONFIG.get("gw_token", ""),
+                                                 payload=body, timeout=30)
+            else:
+                data, err, _kind = account._call("/gw/relace/pc", token=core.CONFIG.get("gw_token", ""),
+                                                 timeout=20)
+            if data is None:
+                return self._json({"error": err or "Server neodpověděl."}, 502)
+            return self._json(data, 400 if data.get("error") else 200)
         if name == "tab-misto":
             # Místo nového chatu (Počítač / prostor na serveru), dokud v něm nepadla
             # první zpráva — pak je pevné (hub/misto.py).

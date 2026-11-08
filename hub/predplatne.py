@@ -556,6 +556,15 @@ def host_action(action, payload, broadcast=None, prenacti=None):
 ZALOHA_CREDENTIALS = ".credentials.json.pred-predplatnym"
 
 
+def _zapsat(path, data):
+    """Atomický zápis JSONu s právy 0600 (soubor s přihlášením)."""
+    tmp = f"{path}.{secrets.token_hex(4)}.tmp"
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        json.dump(data, fh)
+    os.replace(tmp, path)
+
+
 def prihlaseni_do_souboru(token):
     """Token předplatného i do ~/.claude/.credentials.json.
 
@@ -565,7 +574,12 @@ def prihlaseni_do_souboru(token):
     `claude -p`, pak sáhly po starém prošlém přihlášení a padaly na „OAuth
     session expired" (Adam, 21. 10. 2026). Se souborem je přihlášený každý
     Claude v prostoru. Původní soubor (vlastní přihlášení) se jednou zazálohuje
-    a po odpojení předplatného se vrátí."""
+    a po odpojení předplatného se vrátí.
+
+    Mění se jen `claudeAiOauth`. Ostatní klíče souboru (hlavně `mcpOAuth` =
+    přihlášení napojení Freelo, PrintFlow, Wispr…) zůstávají: dřív je zápis
+    zahodil a napojení po zapnutí předplatného hlásila „Needs authentication"
+    (Tomáš, 3.–6. 11. 2026)."""
     path = os.path.join(core.CLAUDE_DIR, ".credentials.json")
     zaloha = os.path.join(core.CLAUDE_DIR, ZALOHA_CREDENTIALS)
     try:
@@ -577,8 +591,21 @@ def prihlaseni_do_souboru(token):
     nas = isinstance(oauth, dict) and oauth.get("hubPredplatne") is True
     if not token:
         if nas:                           # předplatné odpojené: náš zápis pryč
+            # Napojení přihlášená mezitím (mcpOAuth…) se přenesou do vráceného souboru.
+            zbytek = {k: v for k, v in stary.items() if k != "claudeAiOauth"}
             if os.path.exists(zaloha):
-                os.replace(zaloha, path)
+                try:
+                    with open(zaloha, encoding="utf-8") as fh:
+                        puvodni = json.load(fh)
+                except (OSError, ValueError):
+                    puvodni = None
+                if isinstance(puvodni, dict) and zbytek:
+                    _zapsat(path, {**puvodni, **zbytek})
+                    os.remove(zaloha)
+                else:
+                    os.replace(zaloha, path)
+            elif zbytek:
+                _zapsat(path, zbytek)
             else:
                 os.remove(path)
             core.log("předplatné: přihlášení v ~/.claude vrácené zpět")
@@ -588,16 +615,13 @@ def prihlaseni_do_souboru(token):
     if stary is not None and not nas and not os.path.exists(zaloha):
         os.replace(path, zaloha)
     os.makedirs(core.CLAUDE_DIR, exist_ok=True)
-    data = {"claudeAiOauth": {"accessToken": token, "refreshToken": None,
-                              # Token z `claude setup-token` platí rok a neobnovuje se.
-                              "expiresAt": int((time.time() + 365 * 86400) * 1000),
-                              "scopes": ["user:inference"], "subscriptionType": None,
-                              "hubPredplatne": True}}
-    tmp = f"{path}.{secrets.token_hex(4)}.tmp"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as fh:
-        json.dump(data, fh)
-    os.replace(tmp, path)
+    data = dict(stary) if isinstance(stary, dict) else {}
+    data["claudeAiOauth"] = {"accessToken": token, "refreshToken": None,
+                             # Token z `claude setup-token` platí rok a neobnovuje se.
+                             "expiresAt": int((time.time() + 365 * 86400) * 1000),
+                             "scopes": ["user:inference"], "subscriptionType": None,
+                             "hubPredplatne": True}
+    _zapsat(path, data)
     core.log("předplatné: přihlášení zapsané i do ~/.claude (pro hooky a skripty)")
 
 

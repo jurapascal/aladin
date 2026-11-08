@@ -851,8 +851,17 @@ try {
 # Bez přihlášení uvítá každý tab login obrazovka. Spustit `claude` rovnou tady je
 # nejrychlejší: uživatel projde /login a dá /exit.
 if ($ClaudeCli) {
-    $credFile = Join-Path $ClaudeDir '.credentials.json'
-    if ((Test-Path $credFile) -or $env:ANTHROPIC_API_KEY) {
+    # Samotná existence .credentials.json nestačí: Claude Code, kterému se
+    # nepovede obnovit přihlášení, v něm nechá prázdné tokeny — instalace pak
+    # hlásila „přihlášený“ a taby odpovídaly „OAuth session expired“.
+    $prihlasen = $false
+    try {
+        $st = (& $ClaudeCli auth status 2>$null | Out-String) | ConvertFrom-Json
+        $prihlasen = [bool]$st.loggedIn
+    } catch {
+        $prihlasen = Test-Path (Join-Path $ClaudeDir '.credentials.json')
+    }
+    if ($prihlasen -or $env:ANTHROPIC_API_KEY) {
         Write-Ok 'Claude Code je přihlášený'
     } elseif (Ask-YesNo 'Přihlásit se teď do Claude Code? (projdi /login a dej /exit)') {
         try { & $ClaudeCli } catch { Write-Warn 'claude se nepodařilo spustit — zkus ho z tabu v hubu' }

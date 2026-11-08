@@ -359,6 +359,22 @@ def to_shell_path(path):
     return p
 
 
+def shell_bin(path):
+    """Cesta k binárce agenta pro `bash -l` v tabu (agent-wrapper.sh).
+
+    shutil.which() na Windows vrací C:\\...\\npm\\claude.CMD. Git Bash takovou
+    cestu přes `command -v` nenajde — wrapper pak hlásil „nenalezeno v PATH“
+    a tab zůstal holým shellem, zpráva visela na „čeká na převzetí“ (2.137.3,
+    8. 11. 2026). Na Windows proto /c/... a u npm shimu (.cmd/.bat) bashový
+    shim vedle něj (bez přípony), který Git Bash spustí. Jinde beze změny."""
+    if not IS_WINDOWS or not path or not os.path.isabs(path):
+        return path
+    root, ext = os.path.splitext(path)
+    if ext.lower() in (".cmd", ".bat") and os.path.isfile(root):
+        path = root
+    return to_shell_path(path)
+
+
 class BashMissing(RuntimeError):
     """No usable bash on this machine — on Windows that means Git for Windows."""
 
@@ -3737,6 +3753,7 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
     script = (f'cd {p} && bash {w}{args}; '
               f'echo; echo "[ session ukončena — tab zůstává jako shell, claude + Enter ho spustí znovu ]"; exec bash')
     env = agents.env_for(spec, model)
+    env["HUB_AGENT_BIN"] = shell_bin(env.get("HUB_AGENT_BIN") or "")
     # Barva úvodní hlavičky v tabu říká totéž co tečka na tabu: KDE se píše.
     # Nad firemním trezorem fialově, v prostoru na serveru modře, na počítači
     # jantarově. Jiný než výchozí agent si drží svou barvu — podle ní se pozná.

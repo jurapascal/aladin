@@ -23,6 +23,16 @@ CONFIG="$CLAUDE_DIR/hub-config.json"
 
 AGENT_ID="${HUB_AGENT_ID:-claude}"
 AGENT_BIN="${HUB_AGENT_BIN:-claude}"
+# Windows cesta (C:\...\claude.CMD) od staršího hubu: Git Bash ji přes
+# `command -v` nenajde a tab by skončil holým shellem. Převést na /c/... a u npm
+# shimu (.cmd/.bat) vzít bashový shim vedle něj. Hub to dělá i sám (core.shell_bin).
+case "$AGENT_BIN" in
+    [A-Za-z]:*)
+        command -v cygpath >/dev/null 2>&1 && AGENT_BIN="$(cygpath -u "$AGENT_BIN")"
+        case "$AGENT_BIN" in
+            *.cmd|*.CMD|*.Cmd|*.bat|*.BAT) [ -f "${AGENT_BIN%.*}" ] && AGENT_BIN="${AGENT_BIN%.*}" ;;
+        esac ;;
+esac
 AGENT_LABEL="${HUB_AGENT_LABEL:-$AGENT_BIN}"
 AGENT_ANSI="${HUB_AGENT_ANSI:-208}"
 AGENT_INSTALL="${HUB_AGENT_INSTALL:-}"
@@ -192,6 +202,37 @@ resume_args() {
     done
     [ -n "$have" ]
 }
+
+# ── Odhlášený Claude Code ──
+# Claude Code, kterému se nepovede obnovit přihlášení, vyprázdní v
+# ~/.claude/.credentials.json accessToken i refreshToken. Tab pak naběhne, ale
+# na první zprávu odpoví jen „OAuth session expired“ a /login z pole na psaní
+# se v Aladinu nedá dokončit — na PC se to opakovalo po aktualizacích (8. 11.
+# 2026, všechny 3 počítače). Tady se to pozná dřív: když v souboru přihlášení
+# není ani jeden token a přihlášení nejde z prostředí, spustí se rovnou
+# `claude auth login` (otevře prohlížeč, stačí kliknout Authorize).
+claude_odhlaseny() {
+    [ "$AGENT_ID" = "claude" ] || return 1
+    [ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}${ANTHROPIC_API_KEY:-}${ANTHROPIC_AUTH_TOKEN:-}" ] && return 1
+    [ -n "$PY" ] && [ -f "$CLAUDE_DIR/.credentials.json" ] || return 1
+    "$PY" - "$CLAUDE_DIR/.credentials.json" <<'PYEOF' 2>/dev/null
+import json, sys
+try:
+    o = json.load(open(sys.argv[1], encoding="utf-8")).get("claudeAiOauth")
+except Exception:
+    sys.exit(1)
+sys.exit(0 if isinstance(o, dict) and not o.get("accessToken") and not o.get("refreshToken") else 1)
+PYEOF
+}
+
+if claude_odhlaseny; then
+    echo ""
+    echo -e "  ${Y}⚠ Claude Code na tomhle počítači není přihlášený${R}"
+    echo -e "  ${D}Otevírám přihlášení v prohlížeči — klikni na Authorize.${R}"
+    echo ""
+    "$AGENT_BIN" auth login --claudeai
+    echo ""
+fi
 
 # ── Main Loop ──
 FIRST_RUN=true

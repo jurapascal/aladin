@@ -5812,3 +5812,31 @@ html .welcome-greet .greet-ico { color: var(--kontrast); }
    (sloupce jsou v --chart, to nastavuje hub.js applyTheme). */
 html .st-box { --accent: var(--kontrast); }
 html .wst-tile:hover { border-color: var(--kontrast); }
+
+/* ── Čitelnost plných tlačítek a neutrální ikony (Jura, 10. 11. 2026) ─────────
+   V Nastavení, chatu a statistikách je `--accent` bílý (tmavý režim) nebo černý
+   (světlý), ale text plných tlačítek byl napevno bílý → bílé na bílém, třeba
+   tlačítko „Zavřít“. Text na takové ploše je vždy `--kontrast-na`. Firemní
+   chat (fialový) zůstává s bílým textem. */
+html .set-modal .btn.primary, html .set-modal .actionbtn.primary, html .set-modal .link-open.primary,
+html .pane:not(.firma) .btn.primary, html .pane:not(.firma) .actionbtn.primary,
+html .pane:not(.firma) .ask-nav, html .pane:not(.firma) .br-pomoc-ok,
+html .st-box .btn.primary, html .st-box .actionbtn.primary,
+html .set-modal .nav-plus, html .pane:not(.firma) .tab-br.pomoc,
+html .btn.primary.neutralni, html .actionbtn.primary.neutralni {
+  color: var(--kontrast-na);
+}
+html .set-modal .btn.primary:hover, html .set-modal .actionbtn.primary:hover,
+html .pane:not(.firma) .btn.primary:hover, html .pane:not(.firma) .actionbtn.primary:hover,
+html .st-box .btn.primary:hover, html .st-box .actionbtn.primary:hover {
+  color: var(--kontrast-na);
+}
+/* Nabídka Chaty / Projekty / Obsidian a lišta Prohlížeč: ikony neutrální, ne
+   v barvě prostředí (na počítači růžové). */
+html .nav-ico, html .nav-item.on .nav-ico { color: var(--dim); }
+html .nav-item:hover .nav-ico, html .nav-item.on .nav-ico { color: var(--fg-bright); }
+html .nav-item.firma .nav-ico { color: var(--firma); }
+html .br-pilulka .ico { color: var(--fg-bright); }
+html .br-pilulka.br-mrk { border-color: var(--kontrast); }
+html .nav-new { color: var(--fg-bright); }
+html .nav-plus { background: var(--kontrast); color: var(--kontrast-na); }

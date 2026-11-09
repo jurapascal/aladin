@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Aladin",
+  "short_name": "Aladin",
+  "version": "0.1.0",
+  "description": "Aladin vedle každé stránky: chat s Claudem v tvém prostoru (Obsidian, napojení), který vidí stránku, na které jsi.",
+  "default_locale": "cs",
+  "icons": {"16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "96": "icons/icon-96.png", "128": "icons/icon-128.png"},
+  "action": {"default_title": "Aladin", "default_icon": {"16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png"}},
+  "permissions": ["storage", "scripting", "activeTab", "tabs", "contextMenus"],
+  "host_permissions": ["<all_urls>"],
+  "commands": {
+    "_execute_action": {"suggested_key": {"default": "Alt+Shift+A"}, "description": "Otevřít Aladina"}
+  }
+}

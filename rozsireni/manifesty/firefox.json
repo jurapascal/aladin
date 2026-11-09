@@ -1,0 +1,11 @@
+{
+  "background": {"scripts": ["background.js"]},
+  "sidebar_action": {"default_panel": "panel.html", "default_title": "Aladin", "default_icon": "icons/icon-32.png", "open_at_install": false},
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "aladin@alba-rosa.cz",
+      "strict_min_version": "142.0",
+      "data_collection_permissions": {"required": ["websiteContent", "browsingActivity"]}
+    }
+  }
+}

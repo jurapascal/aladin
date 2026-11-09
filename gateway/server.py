@@ -3238,7 +3238,9 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
 
     # Co smí Claude z počítače v prostoru téhož člověka: vidět sessions, číst je a psát
     # do nich. Nic dalšího — soubory a příkazy v prostoru jdou přes jeho vlastní cestu.
-    _PROSTOR_NASTROJE = frozenset({"session_seznam", "sdilet_cteni", "sdilet_poslat"})
+    _PROSTOR_NASTROJE = frozenset({"session_seznam", "sdilet_cteni", "sdilet_poslat",
+                                   # rozšíření Aladin do prohlížeče (hub/rozsireni.py)
+                                   "stranka_poslat", "stranka_cteni", "stranka_chaty"})
 
     def _prostor_volani(self, method):
         """Claude na počítači (tools/server_mcp.py přes hub) sahá do sessions v prostoru

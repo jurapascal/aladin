@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aladin</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+<header class="hlava">
+  <img class="logo" src="icons/icon-32.png" alt="">
+  <button class="chat-volba" id="chat-volba" type="button" title="Vybrat chat">
+    <span id="chat-nazev">Nový chat</span><span class="caret">▾</span>
+  </button>
+  <button class="ikona" id="novy" type="button" title="Nový chat">＋</button>
+  <button class="ikona" id="otevrit" type="button" title="Otevřít v Aladinovi">↗</button>
+  <button class="ikona" id="nastaveni" type="button" title="Účty a nastavení">⚙</button>
+</header>
+
+<div class="seznam-chatu" id="seznam-chatu" hidden></div>
+
+<!-- Přihlášení -->
+<section class="karta" id="prihlaseni" hidden>
+  <h1>Přihlášení do Aladina</h1>
+  <p class="sub">Vyber server. Otevře se stránka Aladina, kde se přihlásíš (i s ověřením) a potvrdíš rozšíření.</p>
+  <div class="servery" id="servery"></div>
+  <details class="jiny">
+    <summary>Jiný server</summary>
+    <form id="jiny-form">
+      <input id="jiny-url" type="url" placeholder="https://aladin.firma.cz" required>
+      <button type="submit" class="btn">Přihlásit</button>
+    </form>
+  </details>
+  <p class="stav" id="prihlaseni-stav"></p>
+</section>
+
+<!-- Nastavení -->
+<section class="karta" id="ucty" hidden>
+  <h1>Účty</h1>
+  <div id="ucty-seznam"></div>
+  <button class="btn ghost" id="pridat-ucet" type="button">Přihlásit další server</button>
+  <label class="prepinac"><input type="checkbox" id="auto-stranka"> Ke každé zprávě přiložit stránku (adresu a text)</label>
+  <p class="pozn">Text stránky se uloží do tvého prostoru jako soubor a Claude ho dostane jako podklad. Banky a platební brány se nepřikládají.</p>
+  <button class="btn" id="ucty-zpet" type="button">Hotovo</button>
+</section>
+
+<!-- Chat -->
+<main class="chat" id="chat" hidden>
+  <div class="zpravy" id="zpravy" aria-live="polite"></div>
+  <div class="prace" id="prace" hidden><span class="tecka"></span><span id="prace-text">Aladin pracuje…</span></div>
+</main>
+
+<footer class="psani" id="psani" hidden>
+  <div class="stranka-chip" id="stranka-chip" title="Tahle stránka se přiloží ke zprávě">
+    <img id="stranka-ikona" alt=""><span id="stranka-nazev">—</span>
+    <button class="chip-x" id="stranka-vypnout" type="button" title="Tentokrát stránku nepřikládat">×</button>
+  </div>
+  <div class="bublina">
+    <textarea id="text" rows="2" placeholder="Napiš Aladinovi… (Enter odešle, Shift+Enter nový řádek)"></textarea>
+    <div class="radek">
+      <button class="chip" id="screenshot" type="button" title="Přiložit screenshot viditelné části stránky">📷 Screenshot</button>
+      <span class="ucet" id="ucet"></span>
+      <button class="poslat" id="poslat" type="button" title="Odeslat">↑</button>
+    </div>
+  </div>
+  <p class="chyba" id="chyba" hidden></p>
+</footer>
+
+<script src="panel.js"></script>
+</body>
+</html>

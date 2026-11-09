@@ -499,7 +499,19 @@ TOOLS = {
     "sdilet_priloha": sdilet_priloha,
     "sdilet_otevrit": sdilet_otevrit,
     "prenos_prijmout": prenos_prijmout,
+    "stranka_poslat": lambda a: _rozsireni("poslat", a),
+    "stranka_cteni": lambda a: _rozsireni("cteni_chatu", a),
+    "stranka_chaty": lambda a: _rozsireni("chaty", a),
 }
+
+
+def _rozsireni(fn, args):
+    """Rozšíření Aladin do prohlížeče (hub/rozsireni.py)."""
+    from . import rozsireni
+    try:
+        return getattr(rozsireni, fn)(args)
+    except (rozsireni.ChybaRozsireni, ValueError) as exc:
+        raise ToolError(str(exc)) from None
 
 
 def call(name, args):

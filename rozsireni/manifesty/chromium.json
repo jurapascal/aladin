@@ -1,0 +1,6 @@
+{
+  "minimum_chrome_version": "116",
+  "permissions": ["storage", "scripting", "activeTab", "tabs", "contextMenus", "sidePanel"],
+  "background": {"service_worker": "background.js"},
+  "side_panel": {"default_path": "panel.html"}
+}

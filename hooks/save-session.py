@@ -189,16 +189,20 @@ def sync_vault():
         return
     try:
         changed = subprocess.run([git, "status", "--porcelain"], cwd=brain,
-                                 capture_output=True, text=True, timeout=30)
+                                 capture_output=True, text=True, timeout=30,
+                                 creationflags=_NO_WINDOW)
         if not changed.stdout.strip():
             return
         stamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         subprocess.run([git, "add", "-A"], cwd=brain,
-                       capture_output=True, timeout=120)
+                       capture_output=True, timeout=120,
+                       creationflags=_NO_WINDOW)
         subprocess.run([git, "commit", "-q", "-m", f"paměť: {stamp}"], cwd=brain,
-                       capture_output=True, timeout=120)
+                       capture_output=True, timeout=120,
+                       creationflags=_NO_WINDOW)
         subprocess.run([git, "push", "-q", "origin", "HEAD"], cwd=brain,
-                       capture_output=True, timeout=180)
+                       capture_output=True, timeout=180,
+                       creationflags=_NO_WINDOW)
     except Exception:
         pass                      # záloha se nepovedla — session tím nekončí hůř
 

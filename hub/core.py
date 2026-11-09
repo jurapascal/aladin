@@ -195,19 +195,8 @@ HAS_BRAIN = os.path.isdir(MEMORY_DIR)  # no vault → the whole memory UI stays 
 # Hide the console window Windows would otherwise flash for every git call.
 _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if IS_WINDOWS else 0
 
-
-if IS_WINDOWS:
-    # Každý podproces bez příznaku „bez okna“ (claude mcp …, npx, .cmd skripty) ukáže na Windows
-    # vlastní černé okno cmd — Tomáš ho měl při každém novém chatu (5. 11. 2026). Hub je bez
-    # konzole, proto nový podproces dostane vlastní; tohle mu ji vezme. Kdo vyslovil vlastní
-    # příznaky (odpojený proces, nová konzole), tomu se nesahá.
-    _popen_init = subprocess.Popen.__init__
-
-    def _popen_bez_okna(self, *args, **kwargs):
-        if not kwargs.get("creationflags") and not kwargs.get("startupinfo"):
-            kwargs["creationflags"] = _NO_WINDOW
-        _popen_init(self, *args, **kwargs)
-    subprocess.Popen.__init__ = _popen_bez_okna
+# Hlídání „bez okna“ pro každý podproces je v hub/__init__.py — platí i pro
+# mosty v tools/, které si core.py neimportují.
 
 
 LOG_PATH = os.path.join(CLAUDE_DIR, "hub.log")

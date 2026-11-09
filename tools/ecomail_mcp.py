@@ -28,6 +28,11 @@ import subprocess
 import sys
 import threading
 
+# Windows: npx.cmd pouští CreateProcess přes cmd.exe a most běží bez konzole,
+# takže by si cmd.exe vzal vlastní — černé okno. Most hub neimportuje, příznak
+# si proto musí dát sám (v hubu to řeší hub/__init__.py).
+_NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+
 API = "https://api2.ecomailapp.cz"
 KEY = os.environ.get("ECOMAIL_API_KEY", "")
 TIMEOUT = 60
@@ -324,7 +329,8 @@ def main(argv):
         sys.stderr.write("usage: ecomail_mcp.py <command of the real server…>\n")
         return 2
     exe = shutil.which(argv[0]) or argv[0]          # npx.cmd on Windows
-    child = subprocess.Popen([exe, *argv[1:]], stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    child = subprocess.Popen([exe, *argv[1:]], stdin=subprocess.PIPE,
+                             stdout=subprocess.PIPE, creationflags=_NO_WINDOW)
     threading.Thread(target=_from_child, args=(child,), daemon=True).start()
     for raw in sys.stdin.buffer:
         try:

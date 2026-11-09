@@ -5840,3 +5840,18 @@ html .br-pilulka .ico { color: var(--fg-bright); }
 html .br-pilulka.br-mrk { border-color: var(--kontrast); }
 html .nav-new { color: var(--fg-bright); }
 html .nav-plus { background: var(--kontrast); color: var(--kontrast-na); }
+
+/* ── Žádná růžová ani modrá barva prostředí (Jura, 10. 11. 2026) ──────────────
+   Zvýraznění (rámečky, pruhy hlášek, tlačítko Chat v prohlížeči, tečky…) je
+   všude neutrální: bílé v tmavém, černé ve světlém režimu. Firma zůstává fialová.
+   Barvu prostředí si nechávají jen přepínač místa a ikona počítače (--pc, --cloud).
+   Text na takové ploše (`--na-akcentu`) je opačný, na fialové firmě bílý. */
+html, html[data-place="server"] { --accent: var(--kontrast); --na-akcentu: var(--kontrast-na); }
+html .pane.firma, html .vault-modal.firma, html .set-modal.firma { --accent: var(--firma); --na-akcentu: #fff; }
+html .footer-avatar, html .acc-avatar, html .cl-bublina, html .tv-otaznik, html .nav-plus,
+html .ask-nav, html .br-pomoc-ok, html .tab-br.pomoc, html .btn.primary, html .actionbtn.primary,
+html .actionbtn.primary:hover, html .ask-opt.check.sel .ask-box, html .link-open.primary {
+  color: var(--na-akcentu);
+}
+html .btn.primary.firma, html [data-prostor="firma"] #pp-new.btn.primary { color: #fff; }
+html .nav-item.firma .nav-plus { background: var(--firma); color: #fff; }

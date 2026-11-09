@@ -922,22 +922,29 @@
         ukolyNotice(io, data.ukoly);
         serverApprovals(io, list);
         if (list.some((c) => (c.pending || []).length)) wait = 2000;
+        // Hlásí se, ale v appce na PC má vypnutý přístup: oranžově, ne červeně.
+        const bezPristupu = (data.computers || []).filter((c) => c.online && !c.access);
         const titulek = list.length
           ? list.map((c) => 'Připojený počítač ' + c.name + ' (' + c.access_label + ')').join('\n')
-          : 'Žádný počítač není připojený';
+          : bezPristupu.length
+            ? 'Počítač ' + bezPristupu[0].name + ' je zapnutý, ale v appce na PC má vypnutý přístup (Nastavení → Počítač)'
+            : 'Žádný počítač není připojený';
         // Zvýraznit, když Claude na počítači právě něco dělá; mezitím se
         // ptát častěji, ať ikona nezaostává.
         const newest = list.length ? Math.min(...list.map((c) => (c.last ? c.last.ago : 1e9))) : 1e9;
         for (const b of tlacitka) {
+          b.hidden = false;                   // po výpadku serveru se ikona vrátí
           b.classList.toggle('pripojeno', list.length > 0);
+          b.classList.toggle('bez-pristupu', !list.length && bezPristupu.length > 0);
           b.classList.toggle('odpojeno', !list.length);
           b.classList.toggle('busy', newest < 10);
           b.title = titulek;
         }
         if (list.length && wait > 5000) wait = newest < 60 ? 5000 : 15000;
       } catch (_) {
-        for (const b of tlacitka) b.hidden = true;
-        wait = 5 * 60 * 1000;                 // starší brána most nezná
+        // Server se restartuje nebo na chvíli neodpovídá: ikona zůstane a zkusí
+        // se to znovu za 30 s (dřív zmizela na dobro až do obnovení stránky).
+        wait = 30 * 1000;
       }
       timer = setTimeout(tick, wait);
     }

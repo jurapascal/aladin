@@ -258,8 +258,8 @@ def smazano(chat):
     """Chat smazaný na počítači — kopie na serveru má zmizet taky. Zapíše se do
     fronty (přežije vypnutý počítač nebo server) a odešle se v dalším kole."""
     chat = str(chat or "")
-    if not SESSION_ID.fullmatch(chat) or not zapnuto():
-        return
+    if not SESSION_ID.fullmatch(chat) or not (zapnuto() or pripojeno()):
+        return False
     with _LOCK:
         data = _nacti()
         if chat not in data["smazat"]:
@@ -268,6 +268,7 @@ def smazano(chat):
         data["chaty"].pop(chat, None)
         _uloz(data)
     threading.Thread(target=_posli_smazane, daemon=True, name="zrcadlo-smazat").start()
+    return True
 
 
 def _posli_smazane():

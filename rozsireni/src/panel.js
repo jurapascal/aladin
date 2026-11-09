@@ -114,7 +114,7 @@ async function prihlasit(base) {
     if (info.app !== 'claude-code-hub') throw new Error('Na téhle adrese Aladin není.');
     const z = await gw(base, '/gw/zarizeni', {method: 'POST', body: {label: 'Rozšíření ' + nazevProhlizece()}});
     if (!z.n || !z.url) throw new Error('Server přihlášení nespustil.');
-    await B.tabs.create({url: base + z.url});
+    const karta = await B.tabs.create({url: base + z.url});
     stavPrihlaseni('Dokonči přihlášení na stránce, která se otevřela, a klikni na „Povolit“.');
     const konec = Date.now() + 10 * 60 * 1000;
     const id = Symbol('prihlaseni');
@@ -134,6 +134,8 @@ async function prihlasit(base) {
         S.aktivni = base;
         await uloz();
         stavPrihlaseni('');
+        // Back to the page the person was on: the login tab is no longer needed.
+        if (karta && karta.id) { try { await B.tabs.remove(karta.id); } catch (_) { /* closed already */ } }
         return zobraz();
       }
     }

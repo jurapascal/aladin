@@ -48,8 +48,11 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 
 
 def run(cmd, cwd=None, timeout=3):
     try:
+        # errors="replace": git ani claude nemusí na Windows mluvit UTF-8
+        # a dekódování ve čtecím vlákně by jinak skončilo výjimkou.
         r = subprocess.run(cmd, shell=True, capture_output=True, text=True,
-                           cwd=cwd, timeout=timeout, creationflags=_NO_WINDOW)
+                           errors="replace", cwd=cwd, timeout=timeout,
+                           creationflags=_NO_WINDOW)
         return r.stdout.strip()
     except Exception:
         return ""
@@ -140,7 +143,10 @@ def main():
     # Read existing state to preserve manual "Další kroky" if any
     next_steps = "- (auto-detected, no manual notes)"
     if os.path.isfile(STATE_FILE):
-        old = open(STATE_FILE).read()
+        # Bez vysloveného kódování se tu bere locale (na české Windows cp1250)
+        # a hook spadne na každém tahu, jen co se do souboru dostane jeden
+        # nečitelný bajt — session-state.md si navíc píše víc nástrojů.
+        old = open(STATE_FILE, encoding="utf-8", errors="replace").read()
         if "## Další kroky" in old:
             steps_section = old.split("## Další kroky")[-1].strip()
             lines = [l for l in steps_section.split("\n") if l.strip().startswith("- [")]

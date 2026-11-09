@@ -218,7 +218,7 @@
           seznam.appendChild(radek({
             druh: c ? io.druhChatu(c) : (t.vault ? 'firma' : 'osobni'), titulek,
             cas: c ? c.updated : 0, nahled: c ? io.chatNahled(c) : 'Otevřený chat',
-            stav: t.ceka ? 'Čeká na tebe' : t.pracuje ? 'Claude píše…' : '',
+            stav: t.ceka ? 'Čeká na tebe' : t.pracuje ? 'Aladin píše…' : '',
           }, () => posli({tab: t}, titulek)));
         }
       }

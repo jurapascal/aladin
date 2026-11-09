@@ -1948,7 +1948,7 @@ function chatStav(c) {
   if (!t) return '';
   if (t.ceka) return 'Čeká na tebe';
   const bg = pozadiText(t);
-  if (t.pracuje) return 'Claude píše…' + (bg ? ' · ' + bg : '');
+  if (t.pracuje) return 'Aladin píše…' + (bg ? ' · ' + bg : '');
   return bg;
 }
 /* „Běží 3 agenti · 1 na pozadí" — co v chatu pracuje, i když Claude sám už

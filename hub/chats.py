@@ -132,6 +132,11 @@ def _info(path, size):
     entries = list(_entries(head, False))
     if tail:
         entries += list(_entries(tail, True))
+    # Only metadata lines (ai-title, cost-state, last-prompt…) and no message:
+    # Claude Code flushed them while shutting down a chat that had just been
+    # deleted, which re-created the file — the deleted chat must not come back.
+    if size <= HEAD and not any(e.get("type") in ("user", "assistant") for e in entries):
+        return None
     for entry in entries:            # později zapsaný název vyhrává
         kind = entry.get("type")
         if kind == "ai-title" and isinstance(entry.get("aiTitle"), str):
@@ -293,7 +298,42 @@ def delete_chat(chat_id):
             moved += 1
             with _LOCK:
                 _CACHE.pop(src, None)
+    if moved:
+        # Claude Code may still be closing the chat and writes its final lines
+        # after the move — sweep such a re-created file to the bin as well.
+        for delay in (5, 30):
+            timer = threading.Timer(delay, _dosmazat, (chat_id,))
+            timer.daemon = True
+            timer.start()
     return moved
+
+
+def _dosmazat(chat_id):
+    """A transcript of a deleted chat that came back with no message in it
+    (only shutdown metadata) goes to the bin too; real messages are kept."""
+    root = _root()
+    kos = os.path.join(core.CLAUDE_DIR, "hub-kos", "chaty")
+    try:
+        folders = os.listdir(root)
+    except OSError:
+        return
+    for folder in folders:
+        src = os.path.join(root, folder, chat_id + ".jsonl")
+        try:
+            st = os.lstat(src)
+            if not stat.S_ISREG(st.st_mode) or st.st_size > HEAD:
+                continue
+            with open(src, "rb") as fh:
+                entries = list(_entries(fh.read(HEAD), False))
+            if any(e.get("type") in ("user", "assistant") for e in entries):
+                continue
+            dst_dir = os.path.join(kos, folder)
+            os.makedirs(dst_dir, exist_ok=True)
+            os.replace(src, os.path.join(dst_dir, time.strftime("%Y%m%d-%H%M%S-") + chat_id + ".dodatek.jsonl"))
+            with _LOCK:
+                _CACHE.pop(src, None)
+        except OSError:
+            continue
 
 
 def do_domova(chat_id):

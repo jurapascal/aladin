@@ -14,11 +14,14 @@ vedle každé webové stránky:
 • Ke každé zprávě se přiloží stránka, na které jsi: adresa, název, označený text
   a text stránky. Na kliknutí i screenshot viditelné části.
 • Chaty z panelu najdeš i v Aladinovi na počítači a v telefonu, a naopak.
+• Aladin se do prohlížeče umí podívat i sám (karty, text a kód stránky, screenshot)
+  a se tvým souhlasem klikat a psát — před každou akcí se zeptá.
 • Pravé tlačítko na textu: „Zeptat se Aladina…“. Zkratka Alt+Shift+A.
 • Bankovní a platební stránky se nikdy nepřikládají.
 
-Rozšíření potřebuje účet v Aladinovi (přihlášení stejně jako appka na počítači,
-s dvoufázovým ověřením nebo passkey).
+Rozšíření potřebuje účet na serveru Aladina — napíšeš jeho adresu a přihlásíš se
+stejně jako v appce na počítači (s dvoufázovým ověřením nebo passkey). Serverů jde
+mít víc a přepínat mezi nimi.
 
 ## Jediný účel (Chrome Web Store)
 
@@ -44,7 +47,10 @@ napíše zprávu, a zobrazit odpověď v bočním panelu.
 - Posílá se jen na server Aladina, který si uživatel vybral při přihlášení (a odtud
   modelu Claude od Anthropicu jako součást konverzace).
 
-## Zásady ochrany soukromí (návrh — je potřeba zveřejnit na adrese)
+## Zásady ochrany soukromí
+
+Zveřejněné: https://test.alba-rosa.cz/ochrana-soukromi#rozsireni
+(každý server Aladina má stejnou stránku na /ochrana-soukromi). Text:
 
 Rozšíření Aladin posílá na server Aladina, ke kterému se uživatel přihlásil, text
 zprávy a — pokud to uživatel nevypne — adresu, název, označený text a text aktuální

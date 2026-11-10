@@ -14,10 +14,21 @@
 
 const B = globalThis.browser ?? globalThis.chrome;
 
-const SERVERY = [
-  {base: 'https://test.alba-rosa.cz', nazev: 'Brněnská Buržoazie', popis: 'test.alba-rosa.cz'},
-  {base: 'https://aladin.tiskarnalancov.cz', nazev: 'Tiskárna Lančov', popis: 'aladin.tiskarnalancov.cz'},
-];
+// Servers are not built in: the person types their server's address and it is
+// remembered (S.ucty). Several servers can be saved and switched.
+const host = (base) => { try { return new URL(base).host; } catch (_) { return base; } };
+const nazevServeru = (base) => (S.ucty[base] && S.ucty[base].nazev) || host(base);
+
+function adresaServeru(raw) {
+  // „aladin.firma.cz“, „https://aladin.firma.cz/“, a pasted link into the app → https://aladin.firma.cz
+  let t = String(raw || '').trim();
+  if (!t) return '';
+  if (!/^[a-z]+:\/\//i.test(t)) t = (/^(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(t) ? 'http://' : 'https://') + t;
+  try {
+    const u = new URL(t);
+    return u.protocol + '//' + u.host;
+  } catch (_) { return ''; }
+}
 
 // Pages whose content never leaves the browser (banks, payment gateways).
 const CITLIVE = /(^|\.)(airbank|csob|kb|moneta|fio|rb|raiffeisen|unicredit|mbank|creditas|equa|revolut|wise|paypal|gopay|stripe|comgate|thepay|gpwebpay|adyen|paysafe|trustpay|twisto|skippay)\.|ibanking|internetbanking|bankovnictvi|3dsecure|3ds\./i;
@@ -113,10 +124,10 @@ function nazevProhlizece() {
   return 'Chrome';
 }
 
-async function prihlasit(base) {
-  base = base.trim().replace(/\/+$/, '');
-  if (!/^https:\/\/[^/]+$/.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base)) {
-    return stavPrihlaseni('Adresa serveru musí začínat https:// (bez cesty za doménou).');
+async function prihlasit(raw) {
+  const base = adresaServeru(raw);
+  if (!base || (!/^https:\/\/[^/]+$/.test(base) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(base))) {
+    return stavPrihlaseni('Tohle není adresa serveru. Napiš ji třeba takhle: aladin.firma.cz');
   }
   // Firefox: host permissions are opt-in in MV3 — ask now (we are in a click).
   if (B.permissions && B.permissions.request) {
@@ -124,8 +135,9 @@ async function prihlasit(base) {
   }
   stavPrihlaseni('Ověřuji server…');
   try {
-    const info = await gw(base, '/gw/info');
-    if (info.app !== 'claude-code-hub') throw new Error('Na téhle adrese Aladin není.');
+    let info;
+    try { info = await gw(base, '/gw/info'); } catch (_) { throw new Error('Na adrese ' + host(base) + ' Aladin neodpovídá. Zkontroluj ji.'); }
+    if (info.app !== 'claude-code-hub') throw new Error('Na adrese ' + host(base) + ' Aladin není.');
     const z = await gw(base, '/gw/zarizeni', {method: 'POST', body: {label: 'Rozšíření ' + nazevProhlizece()}});
     if (!z.n || !z.url) throw new Error('Server přihlášení nespustil.');
     const karta = await B.tabs.create({url: base + z.url});
@@ -144,7 +156,8 @@ async function prihlasit(base) {
       }
       if (s.stav === 'hotovo' && s.token) {
         const u = s.user || {};
-        S.ucty[base] = {token: s.token, email: u.email || '', jmeno: u.name || u.jmeno || ''};
+        S.ucty[base] = {token: s.token, email: u.email || '', jmeno: u.name || u.jmeno || '',
+          nazev: (S.ucty[base] && S.ucty[base].nazev) || info.nazev || info.name || host(base)};
         S.aktivni = base;
         await uloz();
         stavPrihlaseni('');
@@ -542,13 +555,12 @@ function vykresliUcty() {
   for (const [base, u] of Object.entries(S.ucty)) {
     const r = el('div', 'ucet-radek' + (base === S.aktivni ? ' aktivni' : ''));
     const info = el('div', 'info');
-    const sv = SERVERY.find((s) => s.base === base);
-    info.appendChild(el('b', '', sv ? sv.nazev : new URL(base).host));
-    info.appendChild(el('small', '', (u.email || '') + ' · ' + new URL(base).host));
+    info.appendChild(el('b', '', nazevServeru(base)));
+    info.appendChild(el('small', '', (u.email || '') + ' · ' + host(base)));
     r.appendChild(info);
     if (base !== S.aktivni) {
       const pouzit = el('button', 'mini', 'Používat');
-      pouzit.onclick = async () => { S.aktivni = base; S.od = 0; S.bloky = []; await uloz(); vykresliUcty(); };
+      pouzit.onclick = async () => { await prepniServer(base, false); vykresliUcty(); };
       r.appendChild(pouzit);
     }
     const odhlasit = el('button', 'mini', 'Odhlásit');
@@ -569,15 +581,52 @@ function vykresliUcty() {
 }
 
 function vykresliServery() {
-  const uzly = SERVERY.map((s) => {
-    const b = el('button', 'server');
+  // Login screen: the saved servers below the address field, one click to use.
+  const uzly = Object.entries(S.ucty).map(([base, u]) => {
+    const b = el('button', 'server' + (base === S.aktivni ? ' aktivni' : ''));
     b.type = 'button';
-    b.appendChild(el('b', '', s.nazev));
-    b.appendChild(el('small', '', s.popis + (S.ucty[s.base] ? ' · přihlášeno' : '')));
-    b.onclick = () => prihlasit(s.base);
+    b.appendChild(el('b', '', nazevServeru(base)));
+    b.appendChild(el('small', '', host(base) + (u.email ? ' · ' + u.email : '')));
+    b.onclick = () => prepniServer(base, true);
     return b;
   });
+  $('ulozene-box').hidden = !uzly.length;
   $('servery').replaceChildren(...uzly);
+  setTimeout(() => $('server-url').focus(), 50);
+}
+
+async function prepniServer(base, naChat) {
+  if (!S.ucty[base]) return;
+  S.aktivni = base;
+  S.od = 0; S.bloky = []; S.fronta = [];
+  await uloz();
+  mostOznam();
+  if (naChat) zobraz('chat');
+}
+
+function menuServeru() {
+  const box = $('servery-menu');
+  if (!box.hidden) { box.hidden = true; return; }
+  const uzly = [];
+  for (const [base, u] of Object.entries(S.ucty)) {
+    const b = el('button');
+    b.type = 'button';
+    b.appendChild(el('span', 'fajfka', base === S.aktivni ? '✓' : ''));
+    const t = el('span', 't', nazevServeru(base) + ' ');
+    t.appendChild(el('small', '', u.email || host(base)));
+    b.appendChild(t);
+    b.onclick = () => { box.hidden = true; if (base !== S.aktivni) prepniServer(base, true); };
+    uzly.push(b);
+  }
+  uzly.push(el('hr'));
+  const pridat = el('button');
+  pridat.type = 'button';
+  pridat.appendChild(el('span', 'fajfka', '+'));
+  pridat.appendChild(el('span', 't', 'Přidat server'));
+  pridat.onclick = () => { box.hidden = true; zobraz('prihlaseni'); };
+  uzly.push(pridat);
+  box.replaceChildren(...uzly);
+  box.hidden = false;
 }
 
 // ── screens ─────────────────────────────────────────────────────────────────
@@ -595,8 +644,7 @@ function zobraz(kam) {
   if (kam === 'ucty') vykresliUcty();
   if (kam === 'chat') {
     const u = ucet();
-    const sv = SERVERY.find((s) => s.base === S.aktivni);
-    $('ucet').textContent = (sv ? sv.nazev : new URL(S.aktivni).host) + (u && u.email ? ' · ' + u.email : '');
+    $('ucet').textContent = nazevServeru(S.aktivni) + (u && u.email ? ' · ' + u.email : '');
     if (!chatId()) $('chat-nazev').textContent = 'Nový chat';
     S.od = 0; S.bloky = []; S.fronta = [];
     vykresli();
@@ -643,10 +691,13 @@ function propoj() {
   $('nahlizet').onchange = async (ev) => { S.nahlizet = ev.target.checked; await uloz(); mostOznam(); };
   $('akce').onchange = async (ev) => { S.akce = ev.target.value; S.akceDo = 0; await uloz(); };
   addEventListener('pagehide', mostSbohem);
-  $('jiny-form').onsubmit = (ev) => { ev.preventDefault(); prihlasit($('jiny-url').value); };
+  $('server-form').onsubmit = (ev) => { ev.preventDefault(); prihlasit($('server-url').value); };
+  $('ucet').onclick = (ev) => { ev.stopPropagation(); menuServeru(); };
   document.addEventListener('click', (ev) => {
     const panel = $('seznam-chatu');
     if (!panel.hidden && !panel.contains(ev.target) && !$('chat-volba').contains(ev.target)) panel.hidden = true;
+    const menu = $('servery-menu');
+    if (!menu.hidden && !menu.contains(ev.target)) menu.hidden = true;
   });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && obrazovka === 'chat') { obnovChip(); planuj(100); }

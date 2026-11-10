@@ -75,6 +75,23 @@
   <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
   včetně požadavků Limited Use.</p>
 
+  <h2 id="rozsireni">Rozšíření Aladin do prohlížeče</h2>
+  <p>Rozšíření Aladin (Chrome, Edge, Opera, Firefox, Safari) se přihlašuje k serveru Aladina,
+  jehož adresu uživatel sám zadá, a posílá data jen na tento server:</p>
+  <ul>
+    <li><b>Když uživatel odešle zprávu</b>: text zprávy a — pokud to nevypne — adresu, název,
+    označený text, text a HTML kód aktuální stránky, na kliknutí i screenshot viditelné části.</li>
+    <li><b>Když má otevřený panel rozšíření</b> a nechá zapnuté „Aladin smí sám nahlížet do
+    prohlížeče“: na žádost asistenta seznam otevřených karet, obsah stránky a screenshot.
+    Klikání a psaní na stránkách jen se souhlasem uživatele u každé akce (nebo podle jeho
+    nastavení).</li>
+  </ul>
+  <p>Data se ukládají do pracovního prostoru uživatele na tomto serveru (stránky jako soubory,
+  které se po 14 dnech mažou) a zpracovává je asistent Claude (Anthropic) jako součást
+  konverzace. Rozšíření nesbírá historii prohlížení, na pozadí nic nečte, neposílá nic třetím
+  stranám kvůli reklamě a data neprodává. Obsah bankovních a platebních stránek a hodnoty polí
+  s hesly se neposílají nikdy. Odhlášením v nastavení rozšíření se smaže uložený token.</p>
+
   <h2>Kontakt</h2>
   <p><a href="mailto:boucnik.jiri@gmail.com">boucnik.jiri@gmail.com</a></p>
 
@@ -90,6 +107,12 @@
   Aladin's use and transfer of information received from Google APIs
   adheres to the Google API Services User Data Policy, including the Limited Use
   requirements. Contact: boucnik.jiri@gmail.com.</p>
+  <p lang="en" id="extension">The Aladin browser extension sends data only to the Aladin server the user
+  logs in to: the message and, unless turned off, the current page's address, title, selection,
+  text and HTML (and a screenshot on request); while its panel is open, the assistant may read
+  open tabs, page content and screenshots, and click or type only with the user's approval.
+  It does not collect browsing history, never reads banking or payment pages or password
+  fields, does not sell data or use it for advertising.</p>
 
   <footer>Aladin · <a href="/o-aplikaci">O aplikaci</a></footer>
 </main>

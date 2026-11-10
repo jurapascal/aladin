@@ -18,20 +18,22 @@
 </header>
 
 <div class="seznam-chatu" id="seznam-chatu" hidden></div>
+<div class="servery-menu" id="servery-menu" hidden></div>
 
 <!-- Přihlášení -->
 <section class="karta" id="prihlaseni" hidden>
   <h1>Přihlášení do Aladina</h1>
-  <p class="sub">Vyber server. Otevře se stránka Aladina, kde se přihlásíš (i s ověřením) a potvrdíš rozšíření.</p>
-  <div class="servery" id="servery"></div>
-  <details class="jiny">
-    <summary>Jiný server</summary>
-    <form id="jiny-form">
-      <input id="jiny-url" type="url" placeholder="https://aladin.firma.cz" required>
-      <button type="submit" class="btn">Přihlásit</button>
-    </form>
-  </details>
+  <p class="sub">Napiš adresu svého serveru Aladina. Otevře se jeho stránka, kde se přihlásíš (i s ověřením) a potvrdíš rozšíření.</p>
+  <form class="server-form" id="server-form">
+    <input id="server-url" type="text" inputmode="url" autocomplete="url" spellcheck="false"
+           placeholder="aladin.firma.cz" required>
+    <button type="submit" class="btn">Přihlásit</button>
+  </form>
   <p class="stav" id="prihlaseni-stav"></p>
+  <div id="ulozene-box" hidden>
+    <h2 class="mezititulek">Uložené servery</h2>
+    <div class="servery" id="servery"></div>
+  </div>
 </section>
 
 <!-- Nastavení -->
@@ -78,7 +80,7 @@
     <textarea id="text" rows="2" placeholder="Napiš Aladinovi… (Enter odešle, Shift+Enter nový řádek)"></textarea>
     <div class="radek">
       <button class="chip" id="screenshot" type="button" title="Přiložit screenshot viditelné části stránky">📷 Screenshot</button>
-      <span class="ucet" id="ucet"></span>
+      <button class="ucet" id="ucet" type="button" title="Přepnout server"></button>
       <button class="poslat" id="poslat" type="button" title="Odeslat">↑</button>
     </div>
   </div>

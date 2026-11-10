@@ -5,9 +5,10 @@ v tvém prostoru na serveru (Obsidian, napojení, skilly — všechno jako v Ala
 a ke každé zprávě dostane stránku, na které jsi: adresu, název, označený text
 a text stránky. Na kliknutí i screenshot.
 
-- **Přihlášení** jako appka na počítači: vybereš server (Brněnská Buržoazie,
-  Tiskárna Lančov nebo jiný), otevře se stránka Aladina, přihlásíš se (i s 2FA
-  nebo passkey) a klikneš na „Povolit“. Rozšíření dostane token zařízení.
+- **Přihlášení** jako appka na počítači: napíšeš adresu svého serveru (např.
+  `aladin.firma.cz`), otevře se stránka Aladina, přihlásíš se (i s 2FA nebo passkey)
+  a klikneš na „Povolit“. Rozšíření dostane token zařízení. Serverů jde uložit víc
+  a přepínat mezi nimi (dole v panelu u odesílání, nebo v ⚙).
 - **Chat** jde do tvého prostoru (`hub/rozsireni.py`, nástroje `stranka_poslat`,
   `stranka_cteni`, `stranka_chaty` přes `/gw/prostor/volani`). Je vidět i v Aladinovi
   na počítači a na telefonu; v panelu jde přepnout na kterýkoli nedávný chat.

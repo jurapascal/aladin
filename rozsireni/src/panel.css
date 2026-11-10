@@ -141,7 +141,12 @@ button { font: inherit; color: inherit; }
   font-size: 12.5px; cursor: pointer;
 }
 .chip.on { background: var(--kontrast); color: var(--kontrast-na); border-color: var(--kontrast); }
-.ucet { flex: 1; min-width: 0; font-size: 12px; color: var(--dim); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ucet {
+  flex: 1; min-width: 0; font-size: 12px; color: var(--dim); text-align: right; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; background: none; border: none; cursor: pointer; padding: 4px 6px; border-radius: 8px;
+}
+.ucet::after { content: " ▾"; }
+.ucet:hover { color: var(--fg); background: var(--bg2); }
 .poslat {
   width: 30px; height: 30px; border-radius: 8px; border: none; cursor: pointer; flex: none;
   background: var(--kontrast); color: var(--kontrast-na); font-size: 16px; font-weight: 700;
@@ -159,3 +164,26 @@ button { font: inherit; color: inherit; }
 .souhlas-tl .btn { flex: 1; min-width: 80px; padding: 6px 8px; font-size: 13px; }
 .pole { display: flex; flex-direction: column; gap: 4px; font-size: 13px; margin: 10px 0 4px; }
 .pole select { padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--fg); }
+
+.server-form { display: flex; gap: 6px; margin: 6px 0 4px; }
+.server-form input {
+  flex: 1; min-width: 0; background: var(--bg); color: var(--fg); border: 1px solid var(--border);
+  border-radius: 8px; padding: 9px 11px; font: inherit;
+}
+.server-form input:focus { outline: none; border-color: var(--kontrast); }
+.mezititulek { font-size: 13px; color: var(--dim); font-weight: 600; margin: 18px 0 8px; }
+.server.aktivni { border-color: var(--kontrast); }
+.servery-menu {
+  position: fixed; left: 10px; right: 10px; bottom: 112px; z-index: 6; max-height: 50vh; overflow: auto;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25); padding: 4px;
+}
+.servery-menu button {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; background: none; border: none;
+  border-radius: 8px; padding: 8px 10px; cursor: pointer; color: var(--fg); font: inherit; font-size: 13px;
+}
+.servery-menu button:hover { background: var(--kontrast); color: var(--kontrast-na); }
+.servery-menu .fajfka { width: 14px; flex: none; }
+.servery-menu .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.servery-menu small { opacity: .7; }
+.servery-menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 0; }

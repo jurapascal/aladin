@@ -41,6 +41,8 @@ const S = {
   chaty: {},         // base -> current chat id
   autoStranka: true,
   nahlizet: true,    // Aladin may look into the browser himself (gateway/prohlizece.py)
+  akce: 'ptat',      // clicking/typing: 'ptat' (ask every time), 'vzdy', 'nikdy'
+  akceDo: 0,         // "allow for 30 minutes" until (ms, this panel only)
   prohlizecId: '',
   // runtime
   od: 0, bloky: [], fronta: [], pracuje: false, timer: 0, posledniOdeslani: 0,
@@ -48,12 +50,13 @@ const S = {
 };
 
 async function nacti() {
-  const d = await B.storage.local.get(['ucty', 'aktivni', 'chaty', 'autoStranka', 'nahlizet', 'prohlizecId']);
+  const d = await B.storage.local.get(['ucty', 'aktivni', 'chaty', 'autoStranka', 'nahlizet', 'prohlizecId', 'akce']);
   S.ucty = d.ucty || {};
   S.aktivni = d.aktivni && S.ucty[d.aktivni] ? d.aktivni : (Object.keys(S.ucty)[0] || '');
   S.chaty = d.chaty || {};
   S.autoStranka = d.autoStranka !== false;
   S.nahlizet = d.nahlizet !== false;
+  S.akce = ['ptat', 'vzdy', 'nikdy'].includes(d.akce) ? d.akce : 'ptat';
   S.prohlizecId = d.prohlizecId || '';
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(S.prohlizecId)) {
     const b = new Uint8Array(12);
@@ -64,7 +67,7 @@ async function nacti() {
 }
 function uloz() {
   return B.storage.local.set({ucty: S.ucty, aktivni: S.aktivni, chaty: S.chaty, autoStranka: S.autoStranka,
-                              nahlizet: S.nahlizet});
+                              nahlizet: S.nahlizet, akce: S.akce});
 }
 const ucet = () => S.ucty[S.aktivni] || null;
 const chatId = () => S.chaty[S.aktivni] || '';
@@ -244,7 +247,12 @@ async function obnovChip() {
 function vytahniStranku() {
   const sel = String(window.getSelection ? window.getSelection() : '');
   const body = document.body ? document.body.innerText : '';
-  return {url: location.href, title: document.title, vyber: sel.slice(0, 4000), text: (body || '').slice(0, 400000)};
+  // The whole page as HTML (sent as an attachment); typed passwords stay out.
+  const kopie = document.documentElement.cloneNode(true);
+  for (const e of kopie.querySelectorAll('input[type=password]')) e.removeAttribute('value');
+  const dt = document.doctype ? '<!doctype ' + document.doctype.name + '>\n' : '';
+  return {url: location.href, title: document.title, vyber: sel.slice(0, 4000), text: (body || '').slice(0, 400000),
+          html: (dt + kopie.outerHTML).slice(0, 6000000)};
 }
 
 async function stranka(t) {
@@ -346,21 +354,26 @@ function planuj(ms) {
 }
 
 // ── rendering ───────────────────────────────────────────────────────────────
-const ZNACKA = '\n[Stránka v prohlížeči';
+const ZNACKA = /\n*\[Stránka(?: v prohlížeči —|, kterou má člověk teď otevřenou)/;
 
 function zprava(text) {
   // Our own message: what the person wrote; the page context only as a note.
-  const i = text.indexOf(ZNACKA);
+  const hit = ZNACKA.exec(text);
+  const i = hit ? hit.index : -1;
   const vlastni = (i >= 0 ? text.slice(0, i) : text).trim();
   const m = i >= 0 ? /Název: (.*)/.exec(text.slice(i)) || /Adresa: (.*)/.exec(text.slice(i)) : null;
-  return {vlastni, stranka: m ? m[1] : '', screenshot: /Screenshot/.test(text.slice(Math.max(0, i)))};
+  return {vlastni, stranka: m ? m[1] : '', screenshot: i >= 0 && /Screenshot/.test(text.slice(i)),
+    html: i >= 0 && /Celá stránka jako HTML/.test(text.slice(i))};
 }
 
-function bublinaMe(text, ceka) {
+function bublinaMe(text, ceka, blok) {
   const z = zprava(text);
+  // From the space's reader (hub/cteni.py) the page comes already split off.
+  if (blok && blok.stranka) { z.stranka = blok.stranka.title || blok.stranka.url || 'stránka'; z.html = !!blok.stranka.html; }
+  if (blok && blok.images && blok.images.length) z.screenshot = true;
   const d = el('div', 'z-me' + (ceka ? ' ceka' : ''), z.vlastni || '(stránka)');
   if (z.stranka || z.screenshot) {
-    d.appendChild(el('span', 'pril', '📄 ' + (z.stranka || 'stránka') + (z.screenshot ? ' · 📷 screenshot' : '')));
+    d.appendChild(el('span', 'pril', '🌐 ' + (z.stranka || 'stránka') + (z.html ? ' · HTML' : '') + (z.screenshot ? ' · 📷 screenshot' : '')));
   }
   if (ceka) d.appendChild(el('span', 'pril', 'Odesláno, Aladin si to za chvíli vezme…'));
   return d;
@@ -440,7 +453,7 @@ function vykresli() {
   }
   const videne = new Set();
   for (const b of S.bloky) {
-    if (b.kind === 'me') { uzly.push(bublinaMe(b.text || '', false)); videne.add((b.text || '').trim()); }
+    if (b.kind === 'me') { uzly.push(bublinaMe(b.text || '', false, b)); videne.add(zprava(b.text || '').vlastni); }
     else if (b.kind === 'say') uzly.push(markdown(b.text));
     else if (b.kind === 'tool') {
       const d = el('div', 'z-tool');
@@ -449,7 +462,7 @@ function vykresli() {
       uzly.push(d);
     }
   }
-  for (const f of S.fronta) if (!videne.has((f.text || '').trim())) uzly.push(bublinaMe(f.text || '', true));
+  for (const f of S.fronta) if (!videne.has(zprava(f.text || '').vlastni)) uzly.push(bublinaMe(f.text || '', true));
   box.replaceChildren(...uzly);
   $('prace').hidden = !(S.pracuje || S.fronta.length);
   $('prace-text').textContent = S.fronta.length && !S.pracuje ? 'Aladin se chystá…' : 'Aladin pracuje…';
@@ -552,6 +565,7 @@ function vykresliUcty() {
   box.replaceChildren(...uzly);
   $('auto-stranka').checked = S.autoStranka;
   $('nahlizet').checked = S.nahlizet;
+  $('akce').value = S.akce;
 }
 
 function vykresliServery() {
@@ -627,6 +641,7 @@ function propoj() {
   $('pridat-ucet').onclick = () => zobraz('prihlaseni');
   $('auto-stranka').onchange = async (ev) => { S.autoStranka = ev.target.checked; await uloz(); };
   $('nahlizet').onchange = async (ev) => { S.nahlizet = ev.target.checked; await uloz(); mostOznam(); };
+  $('akce').onchange = async (ev) => { S.akce = ev.target.value; S.akceDo = 0; await uloz(); };
   addEventListener('pagehide', mostSbohem);
   $('jiny-form').onsubmit = (ev) => { ev.preventDefault(); prihlasit($('jiny-url').value); };
   document.addEventListener('click', (ev) => {
@@ -692,7 +707,8 @@ function mostSbohem() {
 }
 
 const POPIS_UKOLU = {karty: 'Aladin se podíval na tvoje karty', stranka: 'Aladin si přečetl stránku',
-  snimek: 'Aladin si udělal screenshot'};
+  snimek: 'Aladin si udělal screenshot', klik: 'Aladin klikl', psat: 'Aladin psal do pole',
+  otevrit: 'Aladin otevřel stránku', posun: 'Aladin posunul stránku'};
 
 async function vyridUkol(base, token, ukol) {
   let vysledek;
@@ -747,6 +763,34 @@ function obsahStranky(co, selektor, cele) {
     }
     return Object.assign(zaklad, {obsah: radky.join('\n')});
   }
+  if (co === 'prvky') {
+    // Number the visible things one can click or type into; actions refer to them by number.
+    const vidit = (e) => {
+      const r = e.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return false;
+      const st = getComputedStyle(e);
+      return st.visibility !== 'hidden' && st.display !== 'none' && st.opacity !== '0';
+    };
+    for (const e of document.querySelectorAll('[data-aladin-id]')) e.removeAttribute('data-aladin-id');
+    const sel = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [contenteditable=""], [contenteditable=true], ' +
+      '[role=button], [role=link], [role=checkbox], [role=menuitem], [role=tab], [role=option], [role=switch], [role=textbox], [onclick]';
+    const radky = [];
+    let n = 0;
+    for (const e of koren.querySelectorAll(sel)) {
+      if (!vidit(e)) continue;
+      n += 1;
+      e.setAttribute('data-aladin-id', String(n));
+      const typ = e.tagName === 'INPUT' ? 'input ' + (e.type || 'text') : (e.getAttribute('role') || e.tagName.toLowerCase());
+      let text = (e.innerText || e.getAttribute('aria-label') || e.title || e.placeholder || e.value || e.name || '').replace(/\s+/g, ' ').trim().slice(0, 90);
+      if (e.type === 'password') text = (e.placeholder || e.name || 'heslo') + ' (heslo)';
+      const extra = e.tagName === 'A' ? ' → ' + e.href.slice(0, 120)
+        : (e.type === 'checkbox' || e.type === 'radio') ? (e.checked ? ' [zaškrtnuto]' : ' [nezaškrtnuto]')
+        : (e.tagName === 'INPUT' || e.tagName === 'TEXTAREA') && e.type !== 'password' && e.value ? ' = „' + e.value.slice(0, 60) + '“' : '';
+      radky.push(`${n}: [${typ}] ${text || '(bez textu)'}${extra}`);
+      if (n >= 800) break;
+    }
+    return Object.assign(zaklad, {obsah: radky.join('\n') || '(na stránce nejsou žádné prvky)'});
+  }
   if (co === 'formulare') {
     const radky = [];
     for (const e of koren.querySelectorAll('input, select, textarea, button')) {
@@ -780,7 +824,7 @@ async function provedUkol(op, args) {
     const t = await kartaPodleArgs(args);
     hlidejKartu(t);
     if (!(await maPristup())) throw new Error('Rozšíření zatím nemá povolený přístup ke stránkám — uživatel musí v panelu Aladina kliknout na „Povolit“.');
-    const co = ['text', 'html', 'odkazy', 'formulare'].includes(args.co) ? args.co : 'text';
+    const co = ['text', 'html', 'odkazy', 'formulare', 'prvky'].includes(args.co) ? args.co : 'text';
     let res;
     try {
       res = await B.scripting.executeScript({target: {tabId: t.id}, func: obsahStranky,
@@ -800,7 +844,185 @@ async function provedUkol(op, args) {
     const data = await B.tabs.captureVisibleTab(t.windowId, {format: 'jpeg', quality: 70});
     return {data, mime: 'image/jpeg', url: t.url, title: t.title};
   }
+  if (['klik', 'psat', 'otevrit', 'posun'].includes(op)) return akce(op, args);
   throw new Error('Tohle rozšíření zatím neumí: ' + op);
+}
+
+// Runs inside the page: find the element for an action, describe it, and (unless
+// only describing) do the action.
+function akceVeStrance(op, a, jenPopis) {
+  const vidit = (e) => {
+    const r = e.getBoundingClientRect();
+    const st = getComputedStyle(e);
+    return r.width > 1 && r.height > 1 && st.visibility !== 'hidden' && st.display !== 'none';
+  };
+  const popis = (e) => {
+    const t = (e.innerText || e.value || e.getAttribute('aria-label') || e.title || e.placeholder || e.name || '')
+      .replace(/\s+/g, ' ').trim().slice(0, 80);
+    const druh = e.tagName === 'A' ? 'odkaz' : e.tagName === 'BUTTON' || e.getAttribute('role') === 'button' ? 'tlačítko'
+      : e.tagName === 'INPUT' || e.tagName === 'TEXTAREA' || e.isContentEditable ? 'pole' : e.tagName === 'SELECT' ? 'výběr' : 'prvek';
+    return druh + (t ? ' „' + t + '“' : '');
+  };
+  if (op === 'posun' && (a.prvek === undefined || a.prvek === null)) {
+    if (jenPopis) return {popis: a.smer === 'nahoru' ? 'posunout stránku nahoru' : 'posunout stránku dolů'};
+    window.scrollBy({top: (a.smer === 'nahoru' ? -1 : 1) * innerHeight * 0.85, behavior: 'instant'});
+    return {hotovo: 'Posunuto ' + (a.smer === 'nahoru' ? 'nahoru' : 'dolů') + ' (pozice ' + Math.round(scrollY) + ' z ' +
+      Math.round(document.documentElement.scrollHeight - innerHeight) + ' px).'};
+  }
+  let e = null;
+  if (a.prvek !== undefined && a.prvek !== null && a.prvek !== '') {
+    e = document.querySelector('[data-aladin-id="' + Number(a.prvek) + '"]');
+    if (!e) return {chyba: 'Prvek ' + a.prvek + ' na stránce není — stránka se změnila. Načti prvky znovu (prohlizec_stranka co=prvky).'};
+  } else if (a.selektor) {
+    try { e = document.querySelector(a.selektor); } catch (_) { return {chyba: 'Neplatný selektor ' + a.selektor}; }
+  } else if (a.text && op === 'klik') {
+    const hledany = String(a.text).replace(/\s+/g, ' ').trim().toLowerCase();
+    const kandidati = [...document.querySelectorAll('a, button, input[type=submit], input[type=button], summary, label, ' +
+      '[role=button], [role=link], [role=menuitem], [role=tab], [role=option], [role=checkbox], [onclick]')].filter(vidit);
+    const text = (x) => (x.innerText || x.value || x.getAttribute('aria-label') || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    e = kandidati.find((x) => text(x) === hledany) || kandidati.find((x) => text(x).includes(hledany)) || null;
+  }
+  if (!e) return {chyba: 'Takový prvek jsem na stránce nenašel.'};
+  if (op === 'psat' && e.matches('input[type=password]')) return {chyba: 'Do pole na heslo Aladin nepíše — to musí vyplnit uživatel sám.'};
+  if (jenPopis) {
+    if (op === 'psat') return {popis: 'napsat „' + String(a.text).slice(0, 120) + '“ do: ' + popis(e) + (a.odeslat ? ' a odeslat formulář' : a.enter ? ' a stisknout Enter' : '')};
+    if (op === 'posun') return {popis: 'posunout stránku na ' + popis(e)};
+    return {popis: 'kliknout na ' + popis(e)};
+  }
+  e.scrollIntoView({block: 'center', inline: 'nearest'});
+  if (op === 'posun') return {hotovo: 'Posunuto na ' + popis(e) + '.'};
+  if (op === 'klik') {
+    const co = popis(e);
+    const r = e.getBoundingClientRect();
+    const o = {bubbles: true, cancelable: true, view: window, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, button: 0};
+    e.dispatchEvent(new PointerEvent('pointerdown', o));
+    e.dispatchEvent(new MouseEvent('mousedown', o));
+    if (e.focus) e.focus();
+    e.dispatchEvent(new PointerEvent('pointerup', o));
+    e.dispatchEvent(new MouseEvent('mouseup', o));
+    e.click();
+    return {hotovo: 'Kliknuto na ' + co + '.'};
+  }
+  // psat
+  const text = String(a.text);
+  if (e.focus) e.focus();
+  if (e.tagName === 'SELECT') {
+    const hledany = text.trim().toLowerCase();
+    const opt = [...e.options].find((o) => o.text.trim().toLowerCase() === hledany || o.value === text)
+      || [...e.options].find((o) => o.text.trim().toLowerCase().includes(hledany));
+    if (!opt) return {chyba: 'Ve výběru není možnost „' + text + '“. Možnosti: ' + [...e.options].map((o) => o.text.trim()).join(', ').slice(0, 500)};
+    e.value = opt.value;
+    e.dispatchEvent(new Event('input', {bubbles: true}));
+    e.dispatchEvent(new Event('change', {bubbles: true}));
+    return {hotovo: 'Vybráno „' + opt.text.trim() + '“.'};
+  }
+  if (e.isContentEditable) {
+    if (a.vymazat !== false) { document.execCommand('selectAll', false); document.execCommand('delete', false); }
+    document.execCommand('insertText', false, text);
+  } else if ('value' in e) {
+    const proto = e.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const nastav = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    nastav.call(e, (a.vymazat === false ? e.value : '') + text);
+    e.dispatchEvent(new Event('input', {bubbles: true}));
+    e.dispatchEvent(new Event('change', {bubbles: true}));
+  } else {
+    return {chyba: 'Do ' + popis(e) + ' se psát nedá.'};
+  }
+  if (a.enter) {
+    for (const typ of ['keydown', 'keypress', 'keyup']) {
+      e.dispatchEvent(new KeyboardEvent(typ, {key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true}));
+    }
+  }
+  if (a.odeslat && e.form) { if (e.form.requestSubmit) e.form.requestSubmit(); else e.form.submit(); }
+  return {hotovo: 'Napsáno do ' + popis(e) + (a.odeslat && e.form ? ', formulář odeslán' : a.enter ? ', Enter' : '') + '.'};
+}
+
+async function vStrance(t, op, args, jenPopis) {
+  let res;
+  try {
+    res = await B.scripting.executeScript({target: {tabId: t.id}, func: akceVeStrance, args: [op, args, jenPopis]});
+  } catch (err) {
+    throw new Error('Na stránce to nejde: ' + (err && err.message || err));
+  }
+  const v = res && res[0] && res[0].result;
+  if (!v) throw new Error('Stránka nic nevrátila.');
+  if (v.chyba) throw new Error(v.chyba);
+  return v;
+}
+
+async function dockej(tabId, ms) {
+  // Let a click or navigation settle, then report where the tab is now.
+  const konec = Date.now() + ms;
+  await spi(600);
+  while (Date.now() < konec) {
+    const t = await B.tabs.get(tabId).catch(() => null);
+    if (!t || t.status === 'complete') return t;
+    await spi(300);
+  }
+  return B.tabs.get(tabId).catch(() => null);
+}
+
+async function akce(op, args) {
+  if (S.akce === 'nikdy') throw new Error('Uživatel v rozšíření Aladin vypnul klikání a psaní. Když to chce, zapne to v nastavení panelu (⚙).');
+  if (op === 'otevrit') {
+    let url;
+    try { url = new URL(String(args.url || '')); } catch (_) { throw new Error('Neplatná adresa.'); }
+    if (!/^https?:$/.test(url.protocol)) throw new Error('Otevřít jde jen adresu http nebo https.');
+    if (citlive(url.href)) throw new Error('Bankovní a platební stránky Aladin neotevírá.');
+    await souhlas('otevřít ' + url.href + (args.nova_karta ? ' v nové kartě' : ''), url.host);
+    let t;
+    if (args.nova_karta) t = await B.tabs.create({url: url.href, active: true});
+    else {
+      const cil = await kartaPodleArgs(args);
+      t = await B.tabs.update(cil.id, {url: url.href});
+    }
+    const po = await dockej(t.id, 15000);
+    return {hotovo: 'Otevřeno.', url: po && po.url, title: po && po.title};
+  }
+  const t = await kartaPodleArgs(args);
+  hlidejKartu(t);
+  if (!(await maPristup())) throw new Error('Rozšíření zatím nemá povolený přístup ke stránkám — uživatel musí v panelu kliknout na „Povolit“.');
+  if (op !== 'posun') {
+    const {popis} = await vStrance(t, op, args, true);
+    await souhlas(popis, new URL(t.url).host);
+  }
+  const v = await vStrance(t, op, args, false);
+  const po = op === 'posun' ? t : await dockej(t.id, 8000);
+  return {hotovo: v.hotovo, url: po && po.url, title: po && po.title};
+}
+
+// ── consent for actions ─────────────────────────────────────────────────────
+const SOUHLASY = [];
+function souhlas(co, kde) {
+  if (S.akce === 'vzdy' || Date.now() < S.akceDo) return Promise.resolve();
+  return new Promise((ok, ne) => {
+    const zaznam = {co, kde, ok, ne};
+    zaznam.casovac = setTimeout(() => vyres(zaznam, 'cas'), 110000);
+    SOUHLASY.push(zaznam);
+    vykresliSouhlas();
+  });
+}
+function vyres(z, volba) {
+  clearTimeout(z.casovac);
+  const i = SOUHLASY.indexOf(z);
+  if (i >= 0) SOUHLASY.splice(i, 1);
+  if (volba === '30') S.akceDo = Date.now() + 30 * 60000;
+  if (volba === 'ano' || volba === '30') z.ok();
+  else z.ne(new Error(volba === 'cas' ? 'Uživatel akci nepotvrdil (nikdo nekliknul do dvou minut) — nic se nestalo.'
+    : 'Uživatel akci zamítl — nic se nestalo. Nezkoušej to jinak, zeptej se ho.'));
+  if (volba === '30') for (const dalsi of SOUHLASY.slice()) vyres(dalsi, 'ano');
+  vykresliSouhlas();
+}
+function vykresliSouhlas() {
+  const box = $('souhlas');
+  const z = SOUHLASY[0];
+  box.hidden = !z;
+  if (!z) return;
+  $('souhlas-co').textContent = 'Aladin chce ' + z.co + (z.kde ? ' (' + z.kde + ')' : '');
+  $('souhlas-ano').onclick = () => vyres(z, 'ano');
+  $('souhlas-30').onclick = () => vyres(z, '30');
+  $('souhlas-ne').onclick = () => vyres(z, 'ne');
+  box.scrollIntoView({block: 'nearest'});
 }
 
 (async () => {

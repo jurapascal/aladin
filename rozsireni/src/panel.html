@@ -42,7 +42,14 @@
   <label class="prepinac"><input type="checkbox" id="auto-stranka"> Ke každé zprávě přiložit stránku (adresu a text)</label>
   <p class="pozn">Text stránky se uloží do tvého prostoru jako soubor a Claude ho dostane jako podklad. Banky a platební brány se nepřikládají.</p>
   <label class="prepinac"><input type="checkbox" id="nahlizet"> Aladin smí sám nahlížet do prohlížeče (karty, text a kód stránek, screenshot)</label>
-  <p class="pozn">Jen dokud je tenhle panel otevřený a jen ke čtení. Banky, platební brány a stránky prohlížeče nikdy.</p>
+  <p class="pozn">Jen dokud je tenhle panel otevřený. Banky, platební brány a stránky prohlížeče nikdy.</p>
+  <label class="pole">Klikání a psaní na stránkách
+    <select id="akce">
+      <option value="ptat">Zeptat se mě pokaždé</option>
+      <option value="vzdy">Dovolit bez ptaní</option>
+      <option value="nikdy">Nikdy</option>
+    </select>
+  </label>
   <button class="btn" id="ucty-zpet" type="button">Hotovo</button>
 </section>
 
@@ -54,6 +61,14 @@
 </main>
 
 <footer class="psani" id="psani" hidden>
+  <div class="souhlas" id="souhlas" hidden role="alertdialog" aria-live="assertive">
+    <div class="souhlas-co" id="souhlas-co"></div>
+    <div class="souhlas-tl">
+      <button type="button" class="btn" id="souhlas-ano">Povolit</button>
+      <button type="button" class="btn ghost" id="souhlas-30">Na 30 min</button>
+      <button type="button" class="btn ghost" id="souhlas-ne">Zamítnout</button>
+    </div>
+  </div>
   <div class="stranka-chip" id="stranka-chip" title="Tahle stránka se přiloží ke zprávě">
     <img id="stranka-ikona" alt=""><span id="stranka-nazev">—</span>
     <button class="chip-povolit" id="stranka-povolit" type="button" hidden>Povolit</button>

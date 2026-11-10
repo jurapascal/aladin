@@ -10,20 +10,25 @@ pošle zpátky (`/gw/prohlizec/vysledek`). Prostor volá přes most na počíta�
 předá prohlížeči téhož účtu.
 
 Prohlížeč je „připojený“, jen dokud má člověk otevřený panel Aladina — zavřením
-panelu Claude přestane vidět. Úkoly jsou zatím jen ke čtení: karty, text a HTML
-stránky, screenshot viditelné části. Banky a platební brány rozšíření odmítne.
+panelu Claude přestane vidět. Čtení (karty, text a HTML stránky, screenshot)
+jde hned; akce (klik, psaní, otevření adresy, posun) jen se souhlasem člověka
+v panelu, podle jeho nastavení. Banky a platební brány rozšíření odmítne.
 """
 import re
 import secrets
 import threading
 import time
 
-OPS = frozenset({"karty", "stranka", "snimek"})
+CTENI = frozenset({"karty", "stranka", "snimek"})
+# Akce na stránce: rozšíření se před každou zeptá člověka (nebo podle jeho nastavení).
+AKCE = frozenset({"klik", "psat", "otevrit", "posun"})
+OPS = CTENI | AKCE
 POLL_WAIT = 25
 ONLINE_GRACE = 40
 FORGET_AFTER = 6 * 3600
 MAX_QUEUE = 16
 TIMEOUT = 45                # rozšíření odpovídá hned; déle = panel se mezitím zavřel
+TIMEOUT_AKCE = 160          # u akce čeká rozšíření až dvě minuty na souhlas člověka
 
 _ID = re.compile(r"[A-Za-z0-9_-]{8,64}")
 
@@ -135,7 +140,8 @@ class Broker:
             p.queue.append({"id": rid, "op": op, "args": args})
             p.last = {"op": op, "at": now}
             self._cond.notify_all()
-        done = slot["event"].wait(TIMEOUT)
+        limit = TIMEOUT_AKCE if op in AKCE else TIMEOUT
+        done = slot["event"].wait(limit)
         with self._cond:
             self._waiting.pop(rid, None)
             queued = any(t["id"] == rid for t in p.queue)
@@ -144,7 +150,7 @@ class Broker:
         if not done:
             return {"ok": False, "prohlizec": p.name, "error": (
                 "Prohlížeč úkol nepřevzal — panel Aladina se asi zavřel." if queued
-                else f"Prohlížeč neodpověděl do {TIMEOUT} s.")}
+                else f"Prohlížeč neodpověděl do {limit} s.")}
         result = slot["result"] or {}
         if result.get("ok"):
             return {"ok": True, "prohlizec": p.name, "result": result.get("result")}

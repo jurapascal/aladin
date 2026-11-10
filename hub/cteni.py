@@ -156,6 +156,9 @@ def _klic(text, obrazky=()):
     return hashlib.sha1(norm.encode("utf-8", "replace")).hexdigest()[:12]
 
 
+_STRANKA = re.compile(r"\n*\[Stránka(?: v prohlížeči —|, kterou má člověk teď otevřenou)")
+
+
 def _zprava_cloveka(obsah):
     """Blok `me` ze zadání (text i seznam kusů s obrázky), nebo None."""
     text, cesty = _obrazky(_text_cloveka(obsah))
@@ -164,6 +167,16 @@ def _zprava_cloveka(obsah):
         return None
     blok = {"kind": "me", "text": _zkrat(text, MAX_TEXT), "images": cesty,
             "key": _klic(text, cesty)}
+    # Zpráva z rozšíření do prohlížeče (hub/rozsireni.py): blok o stránce je pro
+    # Clauda; v bublině jen to, co člověk napsal, a stránka jako příloha.
+    stranka = _STRANKA.search(text)
+    if stranka:
+        blok["text"] = _zkrat(text[:stranka.start()].strip(), MAX_TEXT)
+        zbytek = text[stranka.start():]
+        blok["stranka"] = {k: (m.group(1).strip() if m else "") for k, m in (
+            ("title", re.search(r"^Název: (.*)$", zbytek, re.M)),
+            ("url", re.search(r"^Adresa: (.*)$", zbytek, re.M)),
+            ("html", re.search(r"^Celá stránka jako HTML \(příloha\): (.*)$", zbytek, re.M)))}
     if not cesty and text.strip().split(" ", 1)[0] in _TICHE_PRIKAZY:
         blok["tichy"] = True             # potvrdí se, ale bublina se nekreslí
     if vlozene:

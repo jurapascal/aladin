@@ -1408,6 +1408,18 @@
         bubble.appendChild(imgs);
       }
       if (b.text) bubble.appendChild(textSOdkazy(b.text));
+      // Stránka z rozšíření Aladin v prohlížeči (hub/rozsireni.py): příloha, ne text pro Clauda.
+      if (b.stranka && (b.stranka.title || b.stranka.url)) {
+        const p = el('a', 'cteni-stranka');
+        p.target = '_blank';
+        p.rel = 'noopener';
+        if (/^https?:/i.test(b.stranka.url || '')) p.href = b.stranka.url;
+        p.title = [b.stranka.url, b.stranka.html ? 'Celá stránka jako HTML: ' + b.stranka.html : ''].filter(Boolean).join('\n');
+        p.appendChild(el('span', 'cteni-stranka-ico', '🌐'));
+        p.appendChild(el('span', 'cteni-stranka-nazev', b.stranka.title || b.stranka.url));
+        if (b.stranka.html) p.appendChild(el('span', 'cteni-stranka-typ', 'HTML'));
+        bubble.appendChild(p);
+      }
       row.appendChild(bubble);
       if (stitek) row.appendChild(el('div', 'cteni-stitek', stitek));
       const kdy = !/fronta|ceka/.test(cls || '') && casZpravy(b.ts);

@@ -5864,3 +5864,15 @@ html .nav-item.firma .nav-plus { background: var(--firma); color: #fff; }
 html .chats-filtr button[data-f="prohlizec"] { color: var(--prohlizec); }
 html .chats-filtr button[data-f="prohlizec"]:hover,
 html .chats-filtr button[data-f="prohlizec"].on { color: #1a1400; background: var(--prohlizec); border-color: var(--prohlizec); }
+
+/* Stránka přiložená z rozšíření Aladin v prohlížeči (cteni.js, bublina). */
+.cteni-stranka {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 7px 10px;
+  border-radius: 10px; background: color-mix(in srgb, var(--prohlizec) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--prohlizec) 45%, transparent);
+  color: inherit; text-decoration: none; font-size: 13px; max-width: 360px;
+}
+.cteni-stranka:hover { background: color-mix(in srgb, var(--prohlizec) 26%, transparent); }
+.cteni-stranka-nazev { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cteni-stranka-typ { flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px;
+  border-radius: 6px; background: var(--prohlizec); color: #1a1400; }

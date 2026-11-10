@@ -5,7 +5,7 @@ import subprocess
 
 # Jediné místo, kde se čísluje verze. Aktualizace v aplikaci porovnává tohle
 # s nejnovější značkou na GitHubu, takže se to musí zvyšovat spolu s vydáním.
-__version__ = "2.141.0"
+__version__ = "2.142.0"
 
 
 # Windows: podproces bez příznaku „bez okna“ si vezme vlastní konzoli a appka

@@ -5876,3 +5876,24 @@ html .chats-filtr button[data-f="prohlizec"].on { color: #1a1400; background: va
 .cteni-stranka-nazev { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cteni-stranka-typ { flex: none; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px;
   border-radius: 6px; background: var(--prohlizec); color: #1a1400; }
+
+/* Filtr chatů jako rozbalovací nabídka (hub.js renderChatsFiltr, Jura 10. 11. 2026):
+   jedno tlačítko s tečkou v barvě místa, nabídka má názvy jako výběr místa u nového chatu. */
+html #chats-filtr-btn {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 150px;
+  border-color: color-mix(in srgb, currentColor 35%, transparent);
+}
+html #chats-filtr-btn .cf-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html #chats-filtr-btn .cf-tecka { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+html #chats-filtr-btn .misto-caret { font-size: 9px; opacity: .7; }
+html #chats-filtr-btn:hover, html #chats-filtr-btn.on { background: var(--card-hover); border-color: currentColor; }
+html #chats-filtr-btn:not(.on):hover { color: var(--fg-bright); }
+
+/* Barvy chatů v seznamu jako místa: počítač růžově, server osobní modře, firma fialově,
+   sdílené zeleně, prohlížeč žlutě. Osobní chat na serveru je modrý. */
+html .chat-wa.druh-osobni { --druh: var(--pc); }
+html[data-place="server"] .chat-wa.druh-osobni { --druh: var(--cloud); }
+html .chat-wa.druh-server { --druh: var(--cloud); }
+html .chat-wa.druh-firma { --druh: var(--firma); }
+html .chat-wa.druh-sdileny { --druh: var(--green); }
+html .chat-wa.druh-prohlizec { --druh: var(--prohlizec); }

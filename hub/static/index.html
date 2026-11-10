@@ -195,13 +195,11 @@
     </div>
     <div class="section section-head">
       <span id="list-head">Chaty</span>
-      <!-- Filtr seznamu: všechny / jen moje / jen sdílené / z rozšíření v prohlížeči (hub.js, chatsFiltr). -->
-      <span id="chats-filtr" class="chats-filtr" role="tablist" aria-label="Které chaty ukázat">
-        <button type="button" class="keep-drawer" data-f="" role="tab">Vše</button>
-        <button type="button" class="keep-drawer" data-f="moje" role="tab">Moje</button>
-        <button type="button" class="keep-drawer" data-f="sdilene" role="tab">Sdílené</button>
-        <button type="button" class="keep-drawer" data-f="prohlizec" role="tab"
-                title="Chaty z rozšíření Aladin v prohlížeči">Prohlížeč</button>
+      <!-- Filtr seznamu jako rozbalovací nabídka (hub.js, chatsFiltr): Vše, Moje a místa
+           pojmenovaná i obarvená jako ve výběru místa u nového chatu. -->
+      <span id="chats-filtr" class="chats-filtr">
+        <button type="button" id="chats-filtr-btn" class="keep-drawer" aria-haspopup="menu"
+                title="Které chaty ukázat"><span class="cf-tecka" hidden></span><span class="cf-val">Vše</span><span class="misto-caret">▾</span></button>
       </span>
       <span class="section-count" id="projects-count"></span>
       <span class="section-count" id="chats-count" hidden></span>

@@ -2021,26 +2021,97 @@ for (const el of [document.documentElement, document.body]) {
   el.addEventListener('scroll', () => { if (el.scrollLeft) el.scrollLeft = 0; }, {passive: true});
 }
 
-/* Filtr seznamu chatů: '' = vše, 'moje' = jen moje (bez cizích sdílených),
-   'sdilene' = sdílené se mnou i ty, které sdílím já. Pamatuje se v prohlížeči. */
+/* Filtr seznamu chatů jako rozbalovací nabídka (Jura, 10. 11. 2026). Hodnoty:
+   '' = vše, 'moje' = bez cizích sdílených, 'sdilene', 'prohlizec' (rozšíření),
+   'osobni' = Počítač (na serveru Osobní), 'firma:<zkratka>' = firma na serveru,
+   'misto:<server>|<prostor>|<firma>' = místo chatu na počítači (hub/misto.py).
+   Názvy a barvy jsou stejné jako ve výběru místa u nového chatu (mistoMenu):
+   Počítač růžově, server · Osobní modře, server · firma fialově, sdílené zeleně,
+   prohlížeč žlutě. Pamatuje se v prohlížeči. */
+let FILTR_PROSTORY = null;          // [{server, spaces}] z account/spaces, načtené jednou na pozadí
+let filtrProstoryNacitam = false;
+let filtrProstoryUplne = false;     // false = některý server neodpověděl, příště se zkusí znovu
 function chatsFiltr() {
   const v = lsGet('hub.chats-filtr') || '';
-  return ['moje', 'sdilene', 'prohlizec'].includes(v) ? v : '';
+  if (['moje', 'sdilene', 'prohlizec', 'osobni'].includes(v)) return v;
+  if (/^firma:/.test(v) && onServer()) return v;
+  if (/^misto:/.test(v) && !onServer()) return v;
+  return '';
+}
+function mistoKlic(server, prostor, firma) {
+  return 'misto:' + hostOfServer(server) + '|' + Number(prostor || 0) + '|' + (firma || '');
+}
+/* Místo chatu jako klíč filtru: chat z počítače s místem na serveru, nebo osobní chat ze serveru. */
+function chatMistoKlic(c) {
+  if (c.misto && c.misto.kde === 'server') return mistoKlic(c.misto.server, c.misto.prostor, c.misto.firma);
+  const cfg = (STATE && STATE.config) || {};
+  if (c.server && cfg.gw_server) return mistoKlic(cfg.gw_server, cfg.gw_space, cfg.gw_space ? '' : cfg.gw_firma);
+  return '';
+}
+function chatSediNaFiltr(c, f) {
+  if (f === 'osobni') return druhChatu(c) === 'osobni';
+  if (/^firma:/.test(f)) return prostorCesty(c.cwd) === f.slice(6);
+  if (/^misto:/.test(f)) return !c.prohlizec && chatMistoKlic(c) === f;
+  return true;
+}
+function chatsFiltrVolby() {
+  const v = [{f: '', label: 'Vše', icon: 'i-menu'}, {f: 'moje', label: 'Moje', icon: 'i-user'}];
+  if (onServer()) {
+    v.push({f: 'osobni', label: 'Osobní', icon: 'i-user', color: 'var(--cloud)'});
+    for (const fi of firmyList()) v.push({f: 'firma:' + fi.zkratka, label: fi.nazev, icon: 'i-folder', color: 'var(--firma)'});
+  } else {
+    v.push({f: 'osobni', label: 'Počítač', icon: 'i-laptop', color: 'var(--pc)'});
+    const cfg = (STATE && STATE.config) || {};
+    const servers = FILTR_PROSTORY || (cfg.gw_server ? [{server: cfg.gw_server, spaces: [{id: 0, name: ''}]}] : []);
+    for (const sv of servers) {
+      const jmeno = zkratkaServeru(sv.server);
+      for (const sp of sv.spaces) {
+        v.push({f: mistoKlic(sv.server, sp.id, sp.id ? '' : sp.firma), label: jmeno + ' · ' + (sp.firma || sp.id ? sp.name : 'Osobní'),
+                icon: sp.firma ? 'i-folder' : sp.id ? 'i-lock' : 'i-user', color: sp.firma ? 'var(--firma)' : 'var(--cloud)'});
+      }
+    }
+  }
+  v.push({f: 'sdilene', label: 'Sdílené', icon: 'i-users', color: 'var(--green)'});
+  v.push({f: 'prohlizec', label: 'Prohlížeč', icon: 'i-globe', color: 'var(--prohlizec)'});
+  return v;
+}
+/* Prostory všech přihlášených serverů (jako mistoMenu) — jednou, pak z paměti. */
+async function nactiFiltrProstory() {
+  const servers = ((STATE && STATE.config && STATE.config.gw_servers) || []).filter((sv) => sv.logged_in);
+  const res = await Promise.all(servers.map((sv) =>
+    vcas(api('account', {action: 'spaces', server: sv.server}).catch(() => null), 12000, null)));
+  filtrProstoryUplne = res.every((r) => r && r.spaces);
+  FILTR_PROSTORY = servers.map((sv, i) => ({server: sv.server,
+    spaces: (res[i] && res[i].spaces && res[i].spaces.length) ? res[i].spaces : [{id: 0, name: ''}]}));
 }
 function renderChatsFiltr() {
-  const box = $('chats-filtr');
-  if (!box) return;
-  const f = chatsFiltr();
-  for (const b of box.querySelectorAll('button')) {
-    b.classList.toggle('on', (b.dataset.f || '') === f);
-    b.setAttribute('aria-selected', String((b.dataset.f || '') === f));
-    b.onclick = (ev) => {
-      ev.stopPropagation();
-      lsSet('hub.chats-filtr', b.dataset.f || '');
-      chatsSig = '';
-      renderChats();
-    };
+  const btn = $('chats-filtr-btn');
+  if (!btn) return;
+  if (!onServer() && !filtrProstoryUplne && !filtrProstoryNacitam && STATE && STATE.config) {
+    filtrProstoryNacitam = true;
+    nactiFiltrProstory().catch(() => {}).finally(() => { filtrProstoryNacitam = false; renderChatsFiltr(); });
   }
+  const f = chatsFiltr();
+  const volby = chatsFiltrVolby();
+  const ted = volby.find((x) => x.f === f) || {f, label: f.startsWith('misto:') ? f.slice(6).split('|')[0] : 'Vše'};
+  btn.querySelector('.cf-val').textContent = ted.label;
+  const tecka = btn.querySelector('.cf-tecka');
+  tecka.hidden = !ted.color;
+  tecka.style.background = ted.color || '';
+  btn.style.color = ted.color || '';
+  btn.classList.toggle('on', !!f);
+  btn.onclick = async (ev) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!onServer() && !filtrProstoryUplne) await vcas(nactiFiltrProstory(), 3500, null);
+    const items = chatsFiltrVolby().map((x) => ({
+      icon: x.icon, label: x.label, color: x.color, on: x.f === chatsFiltr(),
+      run: () => { lsSet('hub.chats-filtr', x.f); chatsSig = ''; renderChats(); },
+    }));
+    const b = btn.getBoundingClientRect();
+    showMenu(b.left, b.bottom + 4, items);
+    renderChatsFiltr();               // název v tlačítku, až jsou prostory načtené
+  };
 }
 
 /* Kmen slova pro hledání (stejně jako hub/hledani.py, kmen): „faktury“ najde
@@ -2081,10 +2152,11 @@ function renderChats() {
     return words.every((w) => hay.includes(w));
   }) : CHATS) : list00;
   const list0 = filtr === 'sdilene' ? sdileneZ.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c))
-    : filtr === 'prohlizec' ? list00.filter((c) => !!c.prohlizec) : list00;
+    : filtr === 'prohlizec' ? list00.filter((c) => !!c.prohlizec)
+    : filtr && filtr !== 'moje' ? list00.filter((c) => chatSediNaFiltr(c, filtr)) : list00;
   // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
   // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
-  const extra = filtr === 'prohlizec' ? [] : relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
+  const extra = (filtr && filtr !== 'moje' && filtr !== 'sdilene') ? [] : relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
     (!words.length || words.every((w) => foldText(r.text).includes(w))));
   const list = list0.concat(extra).sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
@@ -2120,6 +2192,7 @@ function renderChats() {
     note.textContent = words.length ? 'Nic takového jsem nenašel.'
       : filtr === 'sdilene' ? 'Nikdo s tebou zatím nic nesdílí a ty taky nic nesdílíš.'
       : filtr === 'prohlizec' ? 'Zatím žádné chaty z prohlížeče. Vzniknou, když napíšeš Aladinovi z rozšíření v Chromu, Firefoxu…'
+      : filtr && filtr !== 'moje' ? 'Tady zatím žádné chaty nejsou.'
       : 'Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.';
     box.appendChild(note);
     toggle();

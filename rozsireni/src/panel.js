@@ -40,20 +40,31 @@ const S = {
   aktivni: '',       // base
   chaty: {},         // base -> current chat id
   autoStranka: true,
+  nahlizet: true,    // Aladin may look into the browser himself (gateway/prohlizece.py)
+  prohlizecId: '',
   // runtime
   od: 0, bloky: [], fronta: [], pracuje: false, timer: 0, posledniOdeslani: 0,
   screenshot: false, bezStranky: false, cilTab: null, odesila: false, prihlasovani: null,
 };
 
 async function nacti() {
-  const d = await B.storage.local.get(['ucty', 'aktivni', 'chaty', 'autoStranka']);
+  const d = await B.storage.local.get(['ucty', 'aktivni', 'chaty', 'autoStranka', 'nahlizet', 'prohlizecId']);
   S.ucty = d.ucty || {};
   S.aktivni = d.aktivni && S.ucty[d.aktivni] ? d.aktivni : (Object.keys(S.ucty)[0] || '');
   S.chaty = d.chaty || {};
   S.autoStranka = d.autoStranka !== false;
+  S.nahlizet = d.nahlizet !== false;
+  S.prohlizecId = d.prohlizecId || '';
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(S.prohlizecId)) {
+    const b = new Uint8Array(12);
+    crypto.getRandomValues(b);
+    S.prohlizecId = 'p' + Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+    await B.storage.local.set({prohlizecId: S.prohlizecId});
+  }
 }
 function uloz() {
-  return B.storage.local.set({ucty: S.ucty, aktivni: S.aktivni, chaty: S.chaty, autoStranka: S.autoStranka});
+  return B.storage.local.set({ucty: S.ucty, aktivni: S.aktivni, chaty: S.chaty, autoStranka: S.autoStranka,
+                              nahlizet: S.nahlizet});
 }
 const ucet = () => S.ucty[S.aktivni] || null;
 const chatId = () => S.chaty[S.aktivni] || '';
@@ -540,6 +551,7 @@ function vykresliUcty() {
   }
   box.replaceChildren(...uzly);
   $('auto-stranka').checked = S.autoStranka;
+  $('nahlizet').checked = S.nahlizet;
 }
 
 function vykresliServery() {
@@ -575,6 +587,7 @@ function zobraz(kam) {
     S.od = 0; S.bloky = []; S.fronta = [];
     vykresli();
     obnovChip();
+    mostOznam();
     if (chatId()) { cist(); planuj(1500); }
     prevzitCekajici();
   }
@@ -613,6 +626,8 @@ function propoj() {
   $('ucty-zpet').onclick = () => zobraz();
   $('pridat-ucet').onclick = () => zobraz('prihlaseni');
   $('auto-stranka').onchange = async (ev) => { S.autoStranka = ev.target.checked; await uloz(); };
+  $('nahlizet').onchange = async (ev) => { S.nahlizet = ev.target.checked; await uloz(); mostOznam(); };
+  addEventListener('pagehide', mostSbohem);
   $('jiny-form').onsubmit = (ev) => { ev.preventDefault(); prihlasit($('jiny-url').value); };
   document.addEventListener('click', (ev) => {
     const panel = $('seznam-chatu');
@@ -627,9 +642,172 @@ function propoj() {
   B.storage.onChanged.addListener((zmeny) => { if (zmeny.ceka && zmeny.ceka.newValue && obrazovka === 'chat') prevzitCekajici(); });
 }
 
+// ── Aladin looks into the browser himself ───────────────────────────────────
+// While this panel is open, Claude in the space can ask for the open tabs, the
+// text or HTML of a page and a screenshot (tools/pocitac_mcp.py prohlizec_* →
+// gateway/prohlizece.py). The panel long-polls the gateway for such requests and
+// answers them. Read-only; banks and payment pages are refused.
+const MOST = {bezi: false, base: '', posledni: ''};
+const spi = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function mostOznam(text) {
+  const e = $('most');
+  if (!e) return;
+  if (text) { MOST.posledni = text; }
+  e.hidden = !(S.nahlizet && ucet());
+  $('most-text').textContent = MOST.posledni || 'Aladin vidí tvůj prohlížeč, dokud je panel otevřený';
+}
+
+async function mostSmycka() {
+  if (MOST.bezi) return;
+  MOST.bezi = true;
+  let pauza = 0;
+  for (;;) {
+    if (pauza) { await spi(pauza); pauza = 0; }
+    const u = ucet();
+    if (!u || !S.nahlizet) { await spi(2000); continue; }
+    const base = S.aktivni;
+    MOST.base = base;
+    let r;
+    try {
+      r = await gw(base, '/gw/prohlizec/poll', {method: 'POST', token: u.token, body: {
+        prohlizec: {id: S.prohlizecId, name: nazevProhlizece(), browser: nazevProhlizece(), version: VERZE}, wait: 25}});
+    } catch (err) {
+      // Old server without the bridge (404), offline, logged out — try again later.
+      pauza = err instanceof Odhlaseno ? 30000 : /404|nic|Neznámý/.test(err.message) ? 120000 : 5000;
+      continue;
+    }
+    for (const t of r.tasks || []) vyridUkol(base, u.token, t);
+  }
+}
+
+function mostSbohem() {
+  const u = S.ucty[MOST.base];
+  if (!u || !MOST.base) return;
+  try {
+    fetch(MOST.base + '/gw/prohlizec/poll', {method: 'POST', keepalive: true, credentials: 'omit',
+      headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + u.token},
+      body: JSON.stringify({bye: true, prohlizec: {id: S.prohlizecId}})});
+  } catch (_) { /* closing anyway */ }
+}
+
+const POPIS_UKOLU = {karty: 'Aladin se podíval na tvoje karty', stranka: 'Aladin si přečetl stránku',
+  snimek: 'Aladin si udělal screenshot'};
+
+async function vyridUkol(base, token, ukol) {
+  let vysledek;
+  try {
+    vysledek = {ok: true, result: await provedUkol(ukol.op, ukol.args || {})};
+    const cas = new Date().toLocaleTimeString('cs-CZ', {hour: '2-digit', minute: '2-digit'});
+    mostOznam((POPIS_UKOLU[ukol.op] || 'Aladin se díval do prohlížeče') + ' · ' + cas);
+  } catch (err) {
+    vysledek = {ok: false, error: String(err && err.message || err)};
+  }
+  try {
+    await gw(base, '/gw/prohlizec/vysledek', {method: 'POST', token,
+      body: Object.assign({prohlizec: S.prohlizecId, id: ukol.id}, vysledek)});
+  } catch (_) { /* the space gets a timeout */ }
+}
+
+async function kartaPodleArgs(args) {
+  if (args.karta !== undefined && args.karta !== null && args.karta !== '') {
+    try { return await B.tabs.get(Number(args.karta)); } catch (_) { throw new Error('Karta ' + args.karta + ' už není otevřená.'); }
+  }
+  const t = await cilovyTab();
+  if (!t) throw new Error('V prohlížeči teď není otevřená žádná karta.');
+  return t;
+}
+
+function hlidejKartu(t) {
+  if (webova(t) && citlive(t.url)) throw new Error('Tohle je bankovní nebo platební stránka — tu Aladin z prohlížeče nečte.');
+  if (nelzeCist(t)) throw new Error('Tohle je stránka samotného prohlížeče (' + (t.url || '') + ') — tu žádné rozšíření číst nesmí.');
+}
+
+// Runs inside the page.
+function obsahStranky(co, selektor, cele) {
+  const koren = selektor ? document.querySelector(selektor) : document.documentElement;
+  if (!koren) return {chyba: 'Na stránce není nic pro selektor ' + selektor};
+  const zaklad = {url: location.href, title: document.title};
+  if (co === 'html') {
+    const kopie = koren.cloneNode(true);
+    if (!cele) {
+      for (const e of kopie.querySelectorAll('script, style, noscript, template')) e.remove();
+      for (const e of kopie.querySelectorAll('svg')) { while (e.firstChild) e.firstChild.remove(); }
+      for (const e of kopie.querySelectorAll('[style]')) e.removeAttribute('style');
+    }
+    for (const e of kopie.querySelectorAll('input[type=password]')) e.removeAttribute('value');
+    return Object.assign(zaklad, {obsah: kopie.outerHTML.slice(0, 2000000)});
+  }
+  if (co === 'odkazy') {
+    const radky = [];
+    for (const a of koren.querySelectorAll('a[href]')) {
+      const text = (a.innerText || a.getAttribute('aria-label') || a.title || '').replace(/\s+/g, ' ').trim().slice(0, 150);
+      radky.push((text || '(bez textu)') + ' → ' + a.href);
+      if (radky.length >= 2000) break;
+    }
+    return Object.assign(zaklad, {obsah: radky.join('\n')});
+  }
+  if (co === 'formulare') {
+    const radky = [];
+    for (const e of koren.querySelectorAll('input, select, textarea, button')) {
+      const typ = (e.type || e.tagName).toLowerCase();
+      if (typ === 'hidden') continue;
+      const label = (e.labels && e.labels[0] && e.labels[0].innerText) || e.getAttribute('aria-label') || e.placeholder || e.name || e.id || '';
+      let hodnota = typ === 'password' ? '(heslo — neposílá se)' : e.tagName === 'SELECT'
+        ? (e.selectedOptions[0] ? e.selectedOptions[0].text : '') : (typ === 'checkbox' || typ === 'radio') ? (e.checked ? 'zaškrtnuto' : 'nezaškrtnuto')
+        : e.tagName === 'BUTTON' ? (e.innerText || '') : (e.value || '');
+      hodnota = String(hodnota).replace(/\s+/g, ' ').trim().slice(0, 300);
+      radky.push(`[${typ}] ${String(label).replace(/\s+/g, ' ').trim().slice(0, 100)}${e.name ? ' (name=' + e.name + ')' : ''}: ${hodnota}`);
+      if (radky.length >= 1000) break;
+    }
+    return Object.assign(zaklad, {obsah: radky.join('\n') || '(na stránce nejsou žádná pole)'});
+  }
+  return Object.assign(zaklad, {obsah: (koren.innerText || '').slice(0, 2000000)});
+}
+
+async function provedUkol(op, args) {
+  if (!S.nahlizet) throw new Error('Uživatel v rozšíření vypnul, aby se Aladin díval do prohlížeče.');
+  if (op === 'karty') {
+    const tabs = await B.tabs.query({});
+    const aktivni = await cilovyTab();
+    return {karty: tabs.filter((t) => !nasePanel(t)).slice(0, 300).map((t) => ({
+      id: t.id, title: (t.title || '').slice(0, 200),
+      url: webova(t) && citlive(t.url) ? new URL(t.url).origin + '/… (banka/platba)' : (t.url || '').slice(0, 500),
+      aktivni: !!(aktivni && aktivni.id === t.id), okno: t.windowId,
+      lze_cist: !nelzeCist(t) && !(webova(t) && citlive(t.url))}))};
+  }
+  if (op === 'stranka') {
+    const t = await kartaPodleArgs(args);
+    hlidejKartu(t);
+    if (!(await maPristup())) throw new Error('Rozšíření zatím nemá povolený přístup ke stránkám — uživatel musí v panelu Aladina kliknout na „Povolit“.');
+    const co = ['text', 'html', 'odkazy', 'formulare'].includes(args.co) ? args.co : 'text';
+    let res;
+    try {
+      res = await B.scripting.executeScript({target: {tabId: t.id}, func: obsahStranky,
+        args: [co, String(args.selektor || ''), !!args.cele]});
+    } catch (err) {
+      throw new Error('Stránka nejde přečíst: ' + (err && err.message || err));
+    }
+    const v = res && res[0] && res[0].result;
+    if (!v) throw new Error('Stránka nic nevrátila (možná se ještě načítá).');
+    if (v.chyba) throw new Error(v.chyba);
+    return v;
+  }
+  if (op === 'snimek') {
+    const t = await cilovyTab();
+    if (!t) throw new Error('V prohlížeči teď není otevřená žádná karta.');
+    hlidejKartu(t);
+    const data = await B.tabs.captureVisibleTab(t.windowId, {format: 'jpeg', quality: 70});
+    return {data, mime: 'image/jpeg', url: t.url, title: t.title};
+  }
+  throw new Error('Tohle rozšíření zatím neumí: ' + op);
+}
+
 (async () => {
   document.documentElement.dataset.verze = VERZE;
   await nacti();
   propoj();
   zobraz();
+  mostOznam();
+  mostSmycka();
 })();

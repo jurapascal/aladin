@@ -41,12 +41,15 @@
   <button class="btn ghost" id="pridat-ucet" type="button">Přihlásit další server</button>
   <label class="prepinac"><input type="checkbox" id="auto-stranka"> Ke každé zprávě přiložit stránku (adresu a text)</label>
   <p class="pozn">Text stránky se uloží do tvého prostoru jako soubor a Claude ho dostane jako podklad. Banky a platební brány se nepřikládají.</p>
+  <label class="prepinac"><input type="checkbox" id="nahlizet"> Aladin smí sám nahlížet do prohlížeče (karty, text a kód stránek, screenshot)</label>
+  <p class="pozn">Jen dokud je tenhle panel otevřený a jen ke čtení. Banky, platební brány a stránky prohlížeče nikdy.</p>
   <button class="btn" id="ucty-zpet" type="button">Hotovo</button>
 </section>
 
 <!-- Chat -->
 <main class="chat" id="chat" hidden>
   <div class="zpravy" id="zpravy" aria-live="polite"></div>
+  <div class="most" id="most" hidden title="Aladin se může podívat na tvoje karty, text a kód stránek a udělat screenshot — jen ke čtení, jen dokud je panel otevřený. Vypnout jde v nastavení (⚙)."><span class="oko">👁</span><span id="most-text"></span></div>
   <div class="prace" id="prace" hidden><span class="tecka"></span><span id="prace-text">Aladin pracuje…</span></div>
 </main>
 

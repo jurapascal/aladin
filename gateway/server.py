@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from hub import __version__, qr
 
 from . import webauthn
-from . import mcp_pc, zrcadlo
+from . import mcp_pc, prohlizece, zrcadlo
 from . import (config, firmy, isolation, mcp, mcp_sdilene, pocitac, poznamky, pristup, relace, safefs, shared,
                slozky, totp, workspace)
 from .accounts import Accounts
@@ -1103,6 +1103,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._pocitac_schvaleni(method)
             if route == "/gw/pocitac/volani":
                 return self._pocitac_call(method)
+            # Most do prohlížeče (rozšíření Aladin, gateway/prohlizece.py): token zařízení.
+            if route == "/gw/prohlizec/poll":
+                return self._prohlizec_poll(method)
+            if route == "/gw/prohlizec/vysledek":
+                return self._prohlizec_reply(method)
             if route == "/gw/prostor/volani":
                 return self._prostor_volani(method)
             if route == "/gw/pocitac/ukol":
@@ -2890,7 +2895,7 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                            # Co brána umí navíc — appka podle toho pozná, jestli
                            # se má ptát třeba na most na počítač.
                            "features": ["pocitac", "predplatne", "ukoly", "schvalovani", "povoleni", "zrcadlo", "spotreba", "mcp-pc",
-                                        "sdilene-pc"],
+                                        "sdilene-pc", "prohlizec"],
                            "host": self._public_host()})
 
     def _gw_me(self):
@@ -3297,6 +3302,44 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
                                     str(form.get("level") or ""))
         return self._json(out, 200 if out.get("ok") else 400)
 
+    def _prohlizec_poll(self, method):
+        """Otevřený panel rozšíření Aladin čeká na úkoly (gateway/prohlizece.py)."""
+        if method != "POST":
+            return self._json({"error": "Jen POST."}, 405)
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Neplatný token."}, 401)
+        form = self._read_form()
+        info = form.get("prohlizec") if isinstance(form.get("prohlizec"), dict) else {}
+        broker = self.server.prohlizece
+        if form.get("bye") is True:
+            return self._json({"ok": broker.bye(user["id"], info.get("id"))})
+        try:
+            wait = float(form.get("wait", prohlizece.POLL_WAIT))
+        except (TypeError, ValueError):
+            wait = prohlizece.POLL_WAIT
+        try:
+            tasks = broker.poll(user["id"], info, wait)
+        except ValueError as exc:
+            return self._json({"error": str(exc)}, 400)
+        try:
+            return self._json({"tasks": tasks})
+        except OSError:
+            broker.requeue(user["id"], info.get("id"), tasks)
+            raise
+
+    def _prohlizec_reply(self, method):
+        if method != "POST":
+            return self._json({"error": "Jen POST."}, 405)
+        user = self._bearer()
+        if not user:
+            return self._json({"error": "Neplatný token."}, 401)
+        form = self._read_form()
+        result = {"ok": form.get("ok") is True, "result": form.get("result"),
+                  "error": str(form.get("error") or "")[:2000]}
+        return self._json({"ok": self.server.prohlizece.reply(user["id"], form.get("prohlizec"),
+                                                              form.get("id"), result)})
+
     def _pocitac_reply(self, method):
         if method != "POST":
             return self._json({"error": "Jen POST."}, 405)
@@ -3360,6 +3403,12 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             return self._json({"ok": True, "chaty": zrcadlo.stav(user)})
         if op == "zrcadlo-na-server":
             return self._json(zrcadlo.chci_na_server(user, args.get("chat"), bool(args.get("vynutit"))))
+        # Prohlížeč uživatele (rozšíření Aladin, gateway/prohlizece.py).
+        if op == "prohlizece":
+            return self._json({"ok": True, "prohlizece": self.server.prohlizece.list(user["id"])})
+        if op == "prohlizec":
+            return self._json(self.server.prohlizece.call(user["id"], str(args.get("op") or ""),
+                                                          args.get("args"), str(form.get("computer") or "")))
         return self._json(broker.call(user["id"], op, args, str(form.get("computer") or "")))
 
     def _mcp_shared(self, method, user):
@@ -3730,6 +3779,7 @@ class Gateway(ThreadingHTTPServer):
         self.hubs = hubs
         self.assume_https = assume_https
         self.pocitac = pocitac.Broker(config.POCITAC_UKOLY_DIR)
+        self.prohlizece = prohlizece.Broker()
 
 
 def _loopback_url():

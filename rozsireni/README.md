@@ -17,6 +17,10 @@ a text stránky. Na kliknutí i screenshot.
   jednorázově křížkem u názvu stránky.
 - **Pravé tlačítko** na označeném textu nebo stránce: „Zeptat se Aladina…“.
 - **Zkratka** Alt+Shift+A otevře panel.
+- **Aladin se dívá sám**: dokud je panel otevřený, Claude v prostoru má nástroje
+  `mcp__pocitac__prohlizec_karty`, `prohlizec_stranka` (text, html, odkazy, formulare)
+  a `prohlizec_snimek`. Panel se ptá brány (`/gw/prohlizec/poll`, gateway/prohlizece.py)
+  a odpovídá. Jen ke čtení; banky, platby a stránky prohlížeče nikdy. Vypíná se v ⚙.
 
 ## Sestavení
 

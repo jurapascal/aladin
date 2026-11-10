@@ -287,6 +287,14 @@ def seznam(user):
         sdilim = {r.get("chat") for r in relace.seznam(user).get("moje") or []}
     except Exception:                       # bez relací jen bez zelené
         sdilim = set()
+    # Chaty z rozšíření v prohlížeči (hub/rozsireni.py) — na počítači žlutě.
+    try:
+        with open(os.path.join(_claude_dir(user), "hub-prohlizec-chaty.json"), encoding="utf-8") as fh:
+            z_prohlizece = json.load(fh)
+        if not isinstance(z_prohlizece, dict):
+            z_prohlizece = {}
+    except (OSError, ValueError):
+        z_prohlizece = {}
     out = []
     try:
         slozky = [e for e in os.scandir(root) if e.is_dir(follow_symlinks=False)]
@@ -322,7 +330,9 @@ def seznam(user):
                         "cwd_pc": e.get("cwd_pc", ""),
                         "firma": (info.get("cwd") or "")[len(firmy_base):].split(os.sep)[0]
                                  if (info.get("cwd") or "").startswith(firmy_base) else "",
-                        "sdileny": info["id"] in sdilim})
+                        "sdileny": info["id"] in sdilim,
+                        "prohlizec": info["id"] in z_prohlizece
+                                     or any(p in z_prohlizece for p in info.get("parents", []))})
             if out[-1]["firma"]:
                 out[-1]["firma_nazev"] = _nazev_firmy(out[-1]["firma"])
     # Obnovená konverzace nahradí tu, ze které vznikla (stejně jako hub/chats.py).

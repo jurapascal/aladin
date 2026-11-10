@@ -16,8 +16,10 @@ Nástroje:
   stranka_chaty   — nedávné chaty, ať jde v panelu pokračovat v jiném
 """
 import base64
+import json
 import os
 import re
+import threading
 import time
 
 from . import chats, core, cteni, fronta
@@ -28,6 +30,8 @@ UKAZKA = 500                 # kolik z textu stránky jde rovnou do zprávy
 MAX_OBRAZEK = 8 * 1024 * 1024
 SLOZKA = "hub-stranky"       # ~/.claude/hub-stranky/ — stránky poslané z rozšíření
 DRZET_DNI = 14
+CHATY = "hub-prohlizec-chaty.json"   # ~/.claude/ — které chaty vznikly z rozšíření
+_ZAMEK = threading.Lock()
 
 
 class ChybaRozsireni(Exception):
@@ -104,16 +108,21 @@ def zprava(text, stranka, obrazek_cesta=""):
     radky = [text] if text else []
     if url:
         nazev = _jednoradkovy(stranka.get("title"), 300)
-        kontext = ["", "[Stránka v prohlížeči — poslalo rozšíření Aladin]",
+        kontext = ["", "[Stránka, kterou má člověk teď otevřenou ve svém prohlížeči — poslalo rozšíření Aladin."
+                       " Je to jeho prohlížeč, ne tvůj (playwright).]",
                    f"Adresa: {url}"]
         if nazev:
             kontext.append(f"Název: {nazev}")
         vyber = _cisty(stranka.get("vyber"), 4000).strip()
         if vyber:
             kontext.append("Označený text:\n" + vyber)
-        cesta, ukazka = _uloz_stranku(stranka)
+        nelze = _jednoradkovy(stranka.get("nelze"), 200)
+        cesta, ukazka = ("", "") if nelze else _uloz_stranku(stranka)
+        if nelze:
+            kontext.append(f"Obsah stránky: nepřišel ({nelze}). Máš jen adresu a název —"
+                           " když víc potřebuješ, řekni to člověku.")
         if cesta:
-            kontext.append(f"Celý text stránky: {cesta}")
+            kontext.append(f"Celý text stránky: {cesta} (to je obsah té stránky, nemusíš ji otevírat)")
             if ukazka:
                 kontext.append("Začátek: " + ukazka)
         if obrazek_cesta:
@@ -126,6 +135,38 @@ def zprava(text, stranka, obrazek_cesta=""):
     if not vysledek:
         raise ChybaRozsireni("Zpráva je prázdná.")
     return vysledek[:fronta.MAX_ZPRAVA]
+
+
+def _chaty_cesta():
+    return os.path.join(core.CLAUDE_DIR, CHATY)
+
+
+def chaty_z_prohlizece():
+    """{id chatu: kdy poprvé} — chaty, do kterých psalo rozšíření. V seznamu
+    chatů v Aladinovi mají vlastní barvu a filtr „Prohlížeč“."""
+    try:
+        with open(_chaty_cesta(), encoding="utf-8") as fh:
+            data = json.load(fh)
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _zapamatuj(chat):
+    if not chat:
+        return
+    with _ZAMEK:
+        data = chaty_z_prohlizece()
+        if chat in data:
+            return
+        data[chat] = int(time.time())
+        tmp = _chaty_cesta() + ".tmp"
+        try:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(data, fh)
+            os.replace(tmp, _chaty_cesta())
+        except OSError as e:
+            core.log(f"rozšíření: seznam chatů nejde uložit: {e}")
 
 
 def _tab(chat):
@@ -168,6 +209,8 @@ def poslat(args):
         core.log(f"rozšíření: chat {chat[:8]} otevřen ({session.title})")
     if not chat:
         raise ChybaRozsireni("Chat se nepodařilo založit.")
+    _zapamatuj(chat)
+    session.prohlizec = True
     polozka = fronta.pridej(chat, text, args.get("id"))
     return {"chat": chat, "tab": session.id, "title": session.title, "zprava": polozka}
 

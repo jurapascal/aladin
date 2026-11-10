@@ -570,6 +570,7 @@ class Session:
                 "chat": getattr(self, "chat_id", "") or self.resume or "",
                 "uspany": self.uspany,
                 "misto": getattr(self, "misto", None), "misto_pevne": bool(getattr(self, "misto_pevne", False)),
+                "prohlizec": bool(getattr(self, "prohlizec", False)),
                 "guest": (self.guest or {}).get("name") or (self.guest or {}).get("email") or ""}
 
 
@@ -1417,7 +1418,12 @@ class Handler(BaseHTTPRequestHandler):
             running = HUB.chat_tabs()
             # Místo chatu (hub/misto.py) — barva v seznamu a čip po otevření.
             mista = {} if core.on_gateway() else misto.vsechny_chaty()
-            seznam = [dict(c, tab=running.get(c["id"]), **({"misto": mista[c["id"]]} if c["id"] in mista else {}))
+            # Chaty z rozšíření do prohlížeče (hub/rozsireni.py) — žluté, filtr „Prohlížeč“.
+            from . import rozsireni
+            z_prohlizece = rozsireni.chaty_z_prohlizece()
+            seznam = [dict(c, tab=running.get(c["id"]), **({"misto": mista[c["id"]]} if c["id"] in mista else {}),
+                           **({"prohlizec": True} if c["id"] in z_prohlizece or
+                              any(p in z_prohlizece for p in c.get("predci", ())) else {}))
                       for c in chats.list_chats()]
             # Seznam má stovky kB a mění se zřídka: okno pošle otisk toho, co
             # už má, a když sedí, dostane jen „beze změny".

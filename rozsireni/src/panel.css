@@ -125,6 +125,12 @@ button { font: inherit; color: inherit; }
 .stranka-chip img { width: 14px; height: 14px; flex: none; }
 .stranka-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
 .stranka-chip.vyp span { text-decoration: line-through; }
+.stranka-chip.pozor { color: var(--fg); }
+.stranka-chip.pozor span::before { content: "⚠ "; }
+.chip-povolit {
+  flex: none; border: 1px solid var(--kontrast); background: var(--kontrast); color: var(--kontrast-na);
+  border-radius: 999px; padding: 1px 9px; font-size: 12px; cursor: pointer;
+}
 .chip-x { background: none; border: none; cursor: pointer; color: var(--dim); font-size: 14px; padding: 0 4px; }
 .bublina { border: 1px solid var(--border); border-radius: 14px; background: var(--card); padding: 8px; }
 .bublina textarea { width: 100%; border: none; resize: none; padding: 2px 4px; max-height: 40vh; background: transparent; }

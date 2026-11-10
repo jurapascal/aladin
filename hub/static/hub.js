@@ -257,6 +257,8 @@ function applyTheme() {
   // (a ikona v tlačítku naopak) — Jura, 6. 11. 2026.
   document.documentElement.style.setProperty('--kontrast', DARK ? '#ffffff' : '#000000');
   document.documentElement.style.setProperty('--kontrast-na', DARK ? '#000000' : '#ffffff');
+  // Chaty z rozšíření v prohlížeči: žlutá, ve světlém režimu tmavší kvůli čitelnosti.
+  document.documentElement.style.setProperty('--prohlizec', DARK ? '#f2c230' : '#c99700');
   $('btn-theme').firstElementChild.firstElementChild
     .setAttribute('href', DARK ? '#i-moon' : '#i-sun');
   // Rozbalené <select>, posuvníky a další ovládací prvky kreslí prohlížeč sám —
@@ -1835,6 +1837,7 @@ function slucZrcadlo(chats) {
       // Druh chatu podle serveru: sdílený tam / firemní tam (barva v seznamu).
       if (s.sdileny) m.sdileny = true;
       if (s.firma && !m.firma) m.firma = s.firma;
+      if (s.prohlizec) m.prohlizec = true;
       // Kopie našeho chatu, nebo náš chat, ve kterém server pokračoval.
       if (s.drzi === 'server' && (drziServer.has(s.id) || s.updated > m.updated + 5)) {
         Object.assign(m, {server: true, title: s.title, posledni: s.posledni,
@@ -1850,7 +1853,8 @@ function slucZrcadlo(chats) {
     }
     out.push({id: s.id, title: s.title, prompt: s.prompt, posledni: s.posledni,
               posledni_kdo: s.posledni_kdo, updated: s.updated, cwd: '', project: '',
-              exists: true, server: true, firma: s.firma || '', sdileny: !!s.sdileny});
+              exists: true, server: true, firma: s.firma || '', sdileny: !!s.sdileny,
+              prohlizec: !!s.prohlizec});
   }
   return out.filter((c) => !skryt.has(c.id));
 }
@@ -1909,13 +1913,16 @@ async function prevzitZPocitace(c) {
    Kulatá ikonka v barvě druhu chatu (osobní modrá, firemní fialová, sdílený
    zelená), název a čas poslední zprávy, pod tím začátek poslední odpovědi.
    Stejný řádek mají i chaty, které mi někdo sdílí (renderRelace). */
-const DRUH_IKONA = {osobni: 'i-user', server: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal'};
+const DRUH_IKONA = {osobni: 'i-user', server: 'i-user', firma: 'i-firma', sdileny: 'i-users', terminal: 'i-terminal',
+  prohlizec: 'i-globe'};
 
 function druhChatu(c) {
   // Sdílený chat je zelený vždycky — i když vznikl jako firemní a sdílel se až potom
   // (Jura, 6. 11. 2026). Dřív zůstal fialový a sdílení nebylo na první pohled vidět.
   if (mojeRelace(c)) return 'sdileny';
   if (!onServer() && c.sdileny) return 'sdileny';     // na počítači: sdílený na serveru
+  // Chat z rozšíření Aladin v prohlížeči (hub/rozsireni.py) — žlutý, filtr „Prohlížeč“.
+  if (c.prohlizec) return 'prohlizec';
   // Místo chatu (hub/misto.py): chat z počítače s místem na serveru je modrý / fialový.
   if (!onServer() && c.misto && c.misto.kde === 'server') return c.misto.firma ? 'firma' : 'server';
   if (prostorCesty(c.cwd) || (!onServer() && c.firma)) return 'firma';
@@ -2018,7 +2025,7 @@ for (const el of [document.documentElement, document.body]) {
    'sdilene' = sdílené se mnou i ty, které sdílím já. Pamatuje se v prohlížeči. */
 function chatsFiltr() {
   const v = lsGet('hub.chats-filtr') || '';
-  return ['moje', 'sdilene'].includes(v) ? v : '';
+  return ['moje', 'sdilene', 'prohlizec'].includes(v) ? v : '';
 }
 function renderChatsFiltr() {
   const box = $('chats-filtr');
@@ -2073,10 +2080,11 @@ function renderChats() {
     const hay = foldText([c.title, c.prompt, c.project, c.posledni].join(' '));
     return words.every((w) => hay.includes(w));
   }) : CHATS) : list00;
-  const list0 = filtr === 'sdilene' ? sdileneZ.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c)) : list00;
+  const list0 = filtr === 'sdilene' ? sdileneZ.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c))
+    : filtr === 'prohlizec' ? list00.filter((c) => !!c.prohlizec) : list00;
   // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
   // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
-  const extra = relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
+  const extra = filtr === 'prohlizec' ? [] : relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
     (!words.length || words.every((w) => foldText(r.text).includes(w))));
   const list = list0.concat(extra).sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
@@ -2111,6 +2119,7 @@ function renderChats() {
     note.className = 'empty';
     note.textContent = words.length ? 'Nic takového jsem nenašel.'
       : filtr === 'sdilene' ? 'Nikdo s tebou zatím nic nesdílí a ty taky nic nesdílíš.'
+      : filtr === 'prohlizec' ? 'Zatím žádné chaty z prohlížeče. Vzniknou, když napíšeš Aladinovi z rozšíření v Chromu, Firefoxu…'
       : 'Zatím tu nejsou žádné chaty — začni tlačítkem Nový chat.';
     box.appendChild(note);
     toggle();
@@ -5178,6 +5187,7 @@ function dotColor(tab, a) {
    je u něj zvolené, ne až po první zprávě (Jura, 6. 11. 2026). */
 function druhTabu(t) {
   if (t.kind === 'shell') return 'terminal';
+  if (t.prohlizec) return 'prohlizec';
   const m = !onServer() && t.misto;
   if (m) return m.kde === 'server' ? (m.firma ? 'firma' : 'server') : 'osobni';
   return prostorFirma() ? 'firma' : 'osobni';
@@ -6449,6 +6459,7 @@ function restore(list) {
     tab.chat = info.chat || tab.chat || '';
     tab.misto = info.misto || null;
     tab.mistoPevne = !!info.misto_pevne;
+    tab.prohlizec = !!info.prohlizec;
     prekresliMisto(tab);
     // Číslo konverzace je známé teprve teď — koncept a zprávy z fronty se
     // hledají až s ním (po reloadu nebo restartu serveru).

@@ -4875,6 +4875,8 @@ html[data-vpohyb="off"] .hriste { display: none !important; }
 .chat-wa.druh-sdileny { --druh: var(--green); }
 /* Na počítači: osobní chat ze serveru modře (chaty z počítače jsou v barvě prostředí, oranžově). */
 .chat-wa.druh-server { --druh: var(--cloud); }
+/* Chat z rozšíření Aladin v prohlížeči (hub/rozsireni.py) — žlutý. */
+.chat-wa.druh-prohlizec { --druh: var(--prohlizec, #d4a106); }
 .chat-av {
   flex: none; width: 38px; height: 38px; border-radius: 50%;
   display: inline-flex; align-items: center; justify-content: center;
@@ -5855,3 +5857,10 @@ html .actionbtn.primary:hover, html .ask-opt.check.sel .ask-box, html .link-open
 }
 html .btn.primary.firma, html [data-prostor="firma"] #pp-new.btn.primary { color: #fff; }
 html .nav-item.firma .nav-plus { background: var(--firma); color: #fff; }
+
+/* Chaty z prohlížeče (rozšíření Aladin): žlutá ikonka v seznamu a žlutý filtr
+   „Prohlížeč“, ať je hned vidět, co přišlo z Chromu nebo Firefoxu. */
+:root { --prohlizec: #c99700; }   /* hub.js applyTheme: v tmavém #f2c230 */
+html .chats-filtr button[data-f="prohlizec"] { color: var(--prohlizec); }
+html .chats-filtr button[data-f="prohlizec"]:hover,
+html .chats-filtr button[data-f="prohlizec"].on { color: #1a1400; background: var(--prohlizec); border-color: var(--prohlizec); }

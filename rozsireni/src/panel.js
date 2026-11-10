@@ -148,38 +148,83 @@ function stavPrihlaseni(t) { $('prihlaseni-stav').textContent = t; }
 
 // ── which tab is "the page" ──────────────────────────────────────────────────
 const webova = (t) => t && /^https?:/i.test(t.url || '');
+// Pages the browser never lets an extension read: its own settings, about:,
+// other extensions, the add-on stores, the built-in PDF viewer.
+const OBCHODY = /^https:\/\/(addons\.mozilla\.org|chromewebstore\.google\.com|chrome\.google\.com\/webstore|microsoftedge\.microsoft\.com\/addons|addons\.opera\.com)/i;
+const nelzeCist = (t) => !webova(t) || OBCHODY.test(t.url || '');
+const nasePanel = (t) => t && (t.url || '').startsWith(B.runtime.getURL(''));
+
+async function aktivniV(query) {
+  try {
+    const tabs = await B.tabs.query(query);
+    return tabs.find((t) => !nasePanel(t)) || null;
+  } catch (_) { return null; }
+}
 
 async function cilovyTab() {
-  let tabs = [];
-  if (OKNO && OKNO_W) {
-    tabs = await B.tabs.query({active: true, windowId: OKNO_W});
-  } else {
-    tabs = await B.tabs.query({active: true, currentWindow: true});
-    if (!webova(tabs[0])) tabs = await B.tabs.query({active: true, lastFocusedWindow: true});
+  // The tab the user is looking at — a web page if there is one, otherwise
+  // whatever is active (a browser page we can at least name).
+  let t = null;
+  if (OKNO && OKNO_W) t = await aktivniV({active: true, windowId: OKNO_W});
+  else {
+    t = await aktivniV({active: true, currentWindow: true});
+    if (!webova(t)) {
+      const jiny = await aktivniV({active: true, lastFocusedWindow: true});
+      if (webova(jiny) || !t) t = jiny;
+    }
   }
-  if (!webova(tabs[0]) && B.windows && B.windows.getLastFocused) {
+  if (!webova(t) && B.windows && B.windows.getLastFocused) {
     try {
       const w = await B.windows.getLastFocused({windowTypes: ['normal']});
-      tabs = await B.tabs.query({active: true, windowId: w.id});
+      const jiny = await aktivniV({active: true, windowId: w.id});
+      if (webova(jiny) || !t) t = jiny;
     } catch (_) { /* keep what we have */ }
   }
-  return webova(tabs[0]) ? tabs[0] : null;
+  return t;
 }
 
 function citlive(url) {
-  try { return CITLIVE.test(new URL(url).hostname); } catch (_) { return true; }
+  try { return CITLIVE.test(new URL(url).hostname); } catch (_) { return false; }
+}
+
+// Firefox (MV3) may install the extension without access to websites — the
+// user then has to allow it once. Chrome grants it at install time.
+async function maPristup() {
+  if (!B.permissions || !B.permissions.contains) return true;
+  try { return await B.permissions.contains({origins: ['<all_urls>']}); } catch (_) { return true; }
+}
+
+async function povolitPristup() {
+  try {
+    const ok = await B.permissions.request({origins: ['<all_urls>']});
+    if (!ok) chyba('Bez povolení Aladin stránky nevidí. Jde to povolit i v Doplňcích → Aladin → Oprávnění.');
+  } catch (err) { chyba('Povolení nešlo vyžádat: ' + err.message); }
+  obnovChip();
 }
 
 async function obnovChip() {
   const t = await cilovyTab();
   S.cilTab = t;
   const chip = $('stranka-chip');
+  const povolit = $('stranka-povolit');
+  povolit.hidden = true;
   if (!t || !S.autoStranka) { chip.hidden = true; return; }
   chip.hidden = false;
-  const zakazane = citlive(t.url);
+  const zakazane = webova(t) && citlive(t.url);
+  const nelze = nelzeCist(t);
+  const pristup = nelze || zakazane || await maPristup();
+  let popis = t.title || t.url || 'Stránka';
+  if (zakazane) popis = 'Nepřikládá se (banka/platba): ' + popis;
+  else if (nelze) popis = 'Stránka prohlížeče, obsah nejde číst: ' + popis;
+  else if (!pristup) popis = 'Aladin zatím nesmí číst stránky: ' + popis;
   chip.classList.toggle('vyp', S.bezStranky || zakazane);
-  $('stranka-nazev').textContent = (zakazane ? 'Nepřikládá se (banka/platba): ' : '') + (t.title || t.url);
-  chip.title = zakazane ? 'Obsah bankovních a platebních stránek se Aladinovi neposílá.' : t.url;
+  chip.classList.toggle('pozor', !zakazane && (nelze || !pristup));
+  $('stranka-nazev').textContent = popis;
+  chip.title = zakazane ? 'Obsah bankovních a platebních stránek se Aladinovi neposílá.'
+    : nelze ? 'Stránky prohlížeče (about:, nastavení, obchod s doplňky) rozšíření číst nesmí. Aladin dostane jen adresu a název.\n' + (t.url || '')
+    : !pristup ? 'Klikni na „Povolit“, ať Aladin vidí text stránky.'
+    : 'Tahle stránka se přiloží ke zprávě\n' + t.url;
+  povolit.hidden = pristup;
   const ikona = $('stranka-ikona');
   if (t.favIconUrl && /^https?:|^data:/.test(t.favIconUrl)) { ikona.src = t.favIconUrl; ikona.hidden = false; } else ikona.hidden = true;
 }
@@ -192,14 +237,19 @@ function vytahniStranku() {
 }
 
 async function stranka(t) {
-  const zaklad = {url: t.url, title: t.title || ''};
-  if (citlive(t.url)) return null;
+  const zaklad = {url: t.url || '', title: t.title || ''};
+  if (webova(t) && citlive(t.url)) return null;
+  if (nelzeCist(t)) return {...zaklad, nelze: 'stránka prohlížeče — rozšíření ji číst nesmí'};
   try {
     const res = await B.scripting.executeScript({target: {tabId: t.id}, func: vytahniStranku});
     const v = res && res[0] && res[0].result;
-    return v && v.url ? v : zaklad;
-  } catch (_) {
-    return zaklad;           // PDF viewer, store pages… — at least the address
+    if (v && v.url) return v;
+    return {...zaklad, nelze: 'stránka nic nevrátila'};
+  } catch (err) {
+    // No permission (Firefox before „Povolit“), PDF viewer, a page still loading…
+    const bezPristupu = !(await maPristup());
+    return {...zaklad, nelze: bezPristupu ? 'rozšíření zatím nemá povolený přístup ke stránkám'
+      : 'obsah nešel přečíst (' + String(err && err.message || err).slice(0, 120) + ')'};
   }
 }
 
@@ -221,11 +271,11 @@ async function odeslat() {
     const chat = chatId();
     if (chat) args.chat = chat;
     const t = await cilovyTab();
-    if (t && S.autoStranka && !S.bezStranky && !citlive(t.url)) {
+    if (t && S.autoStranka && !S.bezStranky) {
       const s = await stranka(t);
       if (s) args.stranka = s;
     }
-    if (t && S.screenshot && !citlive(t.url)) {
+    if (t && S.screenshot && !citlive(t.url || '')) {
       try { args.obrazek = await snimek(t); } catch (err) { throw new Error('Screenshot nešel udělat: ' + err.message); }
     }
     if (!args.stranka && t) args.title = t.title || '';
@@ -555,6 +605,7 @@ function propoj() {
   });
   $('screenshot').onclick = () => { S.screenshot = !S.screenshot; $('screenshot').classList.toggle('on', S.screenshot); };
   $('stranka-vypnout').onclick = () => { S.bezStranky = !S.bezStranky; obnovChip(); };
+  $('stranka-povolit').onclick = povolitPristup;
   $('chat-volba').onclick = seznamChatu;
   $('novy').onclick = novyChat;
   $('otevrit').onclick = otevritVAladinovi;

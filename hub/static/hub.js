@@ -6165,12 +6165,6 @@ function topbarMenu(btn, opts) {
     {icon: 'i-chart', label: 'Statistiky', run: () => HubStats.open(hubIO())},
     {icon: 'i-refresh', label: 'Načíst znovu', run: () => reload()},
   );
-  // Chyba / návrh přímo z nabídky (na telefonu není lišta s tlačítkem; nepotřebuje povolení pohybu).
-  const vxb = $('btn-verxee');
-  if (vxb && !vxb.hidden && window.matchMedia('(pointer: coarse)').matches) {
-    items.push({icon: 'i-phone', label: 'Nahlásit chybu / návrh', run: () => setTimeout(() => document.dispatchEvent(
-      new KeyboardEvent('keydown', {key: 'B', code: 'KeyB', altKey: true, shiftKey: true, bubbles: true})), 50)});
-  }
   // Zatřesení = nahlásit chybu (mobile.js): na iPhonu se o pohyb ptá jen po zapnutí tady.
   const zt = window.HubZatreseni && HubZatreseni.label();
   if (zt) items.push({icon: 'i-phone', label: zt, run: () => HubZatreseni.run(toast)});

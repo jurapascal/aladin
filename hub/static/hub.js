@@ -6165,6 +6165,9 @@ function topbarMenu(btn, opts) {
     {icon: 'i-chart', label: 'Statistiky', run: () => HubStats.open(hubIO())},
     {icon: 'i-refresh', label: 'Načíst znovu', run: () => reload()},
   );
+  // Zatřesení = nahlásit chybu (mobile.js): na iPhonu se o pohyb ptá jen po zapnutí tady.
+  const zt = window.HubZatreseni && HubZatreseni.label();
+  if (zt) items.push({icon: 'i-phone', label: zt, run: () => HubZatreseni.run(toast)});
   // Instalace na plochu (PWA) — jen v prohlížeči, ne když už hub běží z ikony.
   const inst = window.HubInstall && HubInstall.kind();
   if (inst) {

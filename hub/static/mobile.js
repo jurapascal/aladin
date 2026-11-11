@@ -473,79 +473,49 @@
 
   /* ── zatřesení = nahlásit chybu ───────────────────────────────────────────── */
   /* Na telefonu v liště není tlačítko Chyba / Návrh (Verxee Debug). Zatřesení
-     otevře formulář, ve kterém se dá přepnout na návrh.
-     iPhone si o pohyb říká systémovým oknem „žádá o přístup k datům pohybu
-     a orientace“ — a v aplikaci z plochy se ptá při každém spuštění. Proto se
-     tam nikdy neptá sám: zatřesení si člověk zapne v ⋯ (Zatřesení = chyba),
-     a jen pak se okno ukáže (při prvním klepnutí po spuštění). Bez klíče
-     Verxee Debug se nic nenabízí ani neptá. */
-  const ZATRES = 'hub-zatreseni';
-  const ulozene = () => { try { return localStorage.getItem(ZATRES) || ''; } catch (_) { return ''; } };
-  const uloz = (v) => { try { localStorage.setItem(ZATRES, v); } catch (_) { /* soukromé okno */ } };
-  const chybaJde = () => { const vx = $('btn-verxee'); return !!(vx && !vx.hidden); };
-  const ptaSe = touch && 'DeviceMotionEvent' in window && typeof DeviceMotionEvent.requestPermission === 'function';
-  let zapnuto = false;
-  let poslední = 0, trhnuti = 0;
-  const naPohyb = (ev) => {
-    const a = ev.accelerationIncludingGravity || ev.acceleration;
-    if (!a) return;
-    const g = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
-    const ted = Date.now();
-    const sila = ev.accelerationIncludingGravity ? Math.abs(g - 9.81) : g;
-    if (sila < 18) return;
-    if (ted - trhnuti > 900) trhnuti = 0;
-    if (!trhnuti) { trhnuti = ted; poslední = ted; return; }
-    if (ted - poslední < 120) return;
-    poslední = ted;
-    trhnuti = 0;
-    if (ted - (naPohyb.naposled || 0) < 4000) return;
-    naPohyb.naposled = ted;
-    if (!chybaJde()) return;                       // bez klíče (Verxee Debug) se nic neděje
-    document.dispatchEvent(new KeyboardEvent('keydown',
-      {key: 'B', code: 'KeyB', altKey: true, shiftKey: true, bubbles: true}));
-  };
-  // Vrací true, když se poslouchá. Na iPhonu jen z klepnutí (jinak Safari odmítne).
-  const zapni = async () => {
-    if (zapnuto) return true;
-    try {
-      if (ptaSe && await DeviceMotionEvent.requestPermission() !== 'granted') return false;
-      window.addEventListener('devicemotion', naPohyb);
-      zapnuto = true;
-      return true;
-    } catch (_) { return false; }               // bez povolení se jen netřese
-  };
-  const vypni = () => {
-    window.removeEventListener('devicemotion', naPohyb);
-    zapnuto = false;
-  };
+     otevře formulář, ve kterém se dá přepnout na návrh. iPhone si o pohyb
+     říká povolením — to se vyžádá při prvním klepnutí. */
   if (touch && 'DeviceMotionEvent' in window) {
-    if (!ptaSe) {
-      if (ulozene() !== 'ne') zapni();             // Android: bez dotazu, jako dřív
-    } else if (ulozene() === 'ano') {
-      document.addEventListener('touchend', () => { if (chybaJde()) zapni(); }, {once: true});
+    let poslední = 0, trhnuti = 0, zapnuto = false;
+    const otevri = () => {
+      const vx = $('btn-verxee');
+      if (!vx || vx.hidden) return;                // bez klíče (Verxee Debug) se nic neděje
+      document.dispatchEvent(new KeyboardEvent('keydown',
+        {key: 'B', code: 'KeyB', altKey: true, shiftKey: true, bubbles: true}));
+    };
+    const naPohyb = (ev) => {
+      const a = ev.accelerationIncludingGravity || ev.acceleration;
+      if (!a) return;
+      const g = Math.hypot(a.x || 0, a.y || 0, a.z || 0);
+      const ted = Date.now();
+      const sila = ev.accelerationIncludingGravity ? Math.abs(g - 9.81) : g;
+      if (sila < 18) return;
+      if (ted - trhnuti > 900) trhnuti = 0;
+      if (!trhnuti) { trhnuti = ted; poslední = ted; return; }
+      if (ted - poslední < 120) return;
+      poslední = ted;
+      trhnuti = 0;
+      if (ted - (naPohyb.naposled || 0) < 4000) return;
+      naPohyb.naposled = ted;
+      otevri();
+    };
+    const zapni = async () => {
+      if (zapnuto) return;
+      try {
+        if (typeof DeviceMotionEvent.requestPermission === 'function') {
+          const r = await DeviceMotionEvent.requestPermission();
+          if (r !== 'granted') return;
+        }
+        window.addEventListener('devicemotion', naPohyb);
+        zapnuto = true;
+      } catch (_) { /* bez povolení se jen netřese */ }
+    };
+    if (typeof DeviceMotionEvent.requestPermission === 'function') {
+      document.addEventListener('touchend', zapni, {once: true});
+    } else {
+      zapni();
     }
   }
-  window.HubZatreseni = {
-    // '' = nenabízet, jinak popisek položky v ⋯
-    label() {
-      if (!touch || !('DeviceMotionEvent' in window) || !chybaJde()) return '';
-      const on = ptaSe ? ulozene() === 'ano' : ulozene() !== 'ne';
-      return on ? 'Vypnout zatřesení = chyba' : 'Zapnout zatřesení = chyba';
-    },
-    async run(notice) {
-      const on = ptaSe ? ulozene() === 'ano' : ulozene() !== 'ne';
-      if (on) {
-        vypni();
-        uloz('ne');
-        if (notice) notice('Zatřesení vypnuté — telefon se už na pohyb nebude ptát.');
-        return;
-      }
-      const ok = await zapni();
-      uloz(ok ? 'ano' : 'ne');
-      if (notice) notice(ok ? 'Zatřesením telefonu teď nahlásíš chybu nebo návrh.'
-                            : 'Bez povolení pohybu zatřesení nefunguje.');
-    },
-  };
 
   /* ── service worker ───────────────────────────────────────────────────── */
   /* ── instalace na plochu ─────────────────────────────────────────────── */

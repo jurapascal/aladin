@@ -1,0 +1,15 @@
+{
+  "name": "wa-bridge",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "WhatsApp bridge for Claude Code Hub: pairs one number per company and relays events to the gateway. No permission logic lives here.",
+  "main": "bridge.mjs",
+  "scripts": { "start": "node bridge.mjs", "test": "node --test" },
+  "dependencies": {
+    "baileys": "6.7.24",
+    "pino": "^9.5.0",
+    "qrcode": "^1.5.4"
+  },
+  "engines": { "node": ">=20" }
+}

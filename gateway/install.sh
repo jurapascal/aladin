@@ -759,6 +759,62 @@ write_conf() {
     chmod 644 /etc/claude-hub/install.conf
 }
 
+# WhatsApp bridge: jedna Baileys session na firmu s číslem bota. O právech
+# nerozhoduje (to dělá brána), jen předává události přes loopback a tajemství.
+setup_whatsapp_bridge() {
+    step "WhatsApp bridge"
+    local dir="$REPO_DIR/gateway/wa-bridge" firmy="$HUB_HOME/firmy" unit new changed=false
+    if [ ! -f "$dir/package.json" ]; then
+        warn "gateway/wa-bridge chybí, WhatsApp bridge přeskakuji"
+        return 0
+    fi
+    install -d -m 700 -o "$HUB_USER" -g "$HUB_USER" "$firmy" "$firmy/whatsapp-auth"
+    # Tajemství musí existovat dřív, než se bridge poprvé ozve (brána ho jinak vytvoří až při prvním volání).
+    if [ ! -s "$firmy/.whatsapp-token" ]; then
+        (umask 077; head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' >"$firmy/.whatsapp-token")
+        chown "$HUB_USER:$HUB_USER" "$firmy/.whatsapp-token"
+        chmod 600 "$firmy/.whatsapp-token"
+    fi
+    if [ ! -d "$dir/node_modules/baileys" ] || $REPO_CHANGED; then
+        (cd "$dir" && quiet as_hub npm ci --omit=dev --no-audit --no-fund) \
+            || { warn "npm ci pro WhatsApp bridge selhalo, přeskakuji"; return 0; }
+        changed=true
+    fi
+
+    unit="$HUB_HOME/.config/systemd/user/wa-bridge.service"
+    new="$(cat <<EOF
+[Unit]
+Description=Claude Code Hub - WhatsApp bridge
+After=network-online.target claude-hub-gateway.service
+
+[Service]
+Type=simple
+WorkingDirectory=$dir
+Environment=WA_GATEWAY_URL=http://127.0.0.1:$PORT
+Environment=WA_TOKEN_FILE=$firmy/.whatsapp-token
+Environment=WA_AUTH_DIR=$firmy/whatsapp-auth
+ExecStart=$(command -v node) bridge.mjs
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+EOF
+)"
+    if [ ! -f "$unit" ] || [ "$(cat "$unit")" != "$new" ]; then
+        printf '%s\n' "$new" >"$unit"
+        chown "$HUB_USER:$HUB_USER" "$unit"
+        changed=true
+    fi
+    quiet as_hub systemctl --user daemon-reload
+    if as_hub systemctl --user is-active --quiet wa-bridge; then
+        # Restart zahodí jen spojení s WhatsAppem; přihlášení zůstává na disku.
+        if $changed; then quiet as_hub systemctl --user restart wa-bridge; else ok "bridge běží, beze změny"; fi
+    else
+        quiet as_hub systemctl --user enable --now wa-bridge
+    fi
+}
+
 setup_updater() {
     step "Automatická aktualizace"
     # Ze zdroje, aby se updater aktualizoval s ním; skript stažený samotný (curl)
@@ -923,6 +979,7 @@ main() {
     install_gh
     uklid_cache
     setup_service
+    setup_whatsapp_bridge
     setup_updater
     setup_ucty
     setup_zaloha

@@ -33,6 +33,8 @@
     ['ucet',       'Účet',      'i-user',     () => ucet()],
     // Firmy, lidé a přístupy ke klientům (gateway/firmy.py) — jen na bráně.
     ['firmy',      'Firmy',     'i-folder',   () => firmy(), 'server'],
+    // WhatsApp firmy: číslo bota, skupiny, blokace a ověření vlastního čísla (gateway/wa_provoz.py).
+    ['whatsapp',   'WhatsApp',  'i-bell',     () => whatsapp(), 'server'],
     ['hlas',       'Hlas',      'i-mic',      () => hlas()],
     // Co je v panelu vlevo a vedle tabů: Nový chat, Obsidian, Projekty (Klienti),
     // terminál — jedna sekce, každá věc jen jednou (dřív zvlášť i záložka Taby).
@@ -50,7 +52,7 @@
   let navHledat = '';
   // Skupiny v panelu vlevo (pořadí sekcí zůstává, mění se jen nadpisy).
   const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
-                   ucet: 'Předvolby', firmy: 'Předvolby', hlas: 'Předvolby',
+                   ucet: 'Předvolby', firmy: 'Předvolby', whatsapp: 'Předvolby', hlas: 'Předvolby',
                    panel: 'Přizpůsobit', rozsireni: 'Přizpůsobit', uloziste: 'Platforma', oznameni: 'Platforma',
                    aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
 
@@ -201,6 +203,192 @@
     panel.textContent = '';
     const build = (shown.find(([id]) => id === active) || shown[0])[3];
     panel.appendChild(build());
+  }
+
+  /* WhatsApp firmy (gateway/whatsapp.py, wa_provoz.py): každý si ověří své číslo
+     kódem; generál firmy spáruje číslo bota (QR), nastaví volby, skupiny a
+     blokace. Rozhoduje brána — tady se jen kreslí a posílá. */
+  function whatsapp() {
+    const box = section('WhatsApp',
+      'Firma má jedno číslo bota. Cizí čísla bot ignoruje; do skupiny ho smí přidat jen ověřený člen firmy. ' +
+      'Ve skupinách a hostům odpovídá Claude bez nástrojů a bez přístupu k Obsidianu.');
+    const body = el('div');
+    box.appendChild(body);
+    const gw = async (payload) => {
+      const r = await fetch('/gw/whatsapp', payload === undefined ? {credentials: 'same-origin'} : {
+        method: 'POST', credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json', 'X-Hub-Account': '1'},
+        body: JSON.stringify(payload),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Server teď neodpovídá, zkus to za chvíli.');
+      return data;
+    };
+    const run = async (payload, done) => {
+      try {
+        const out = await gw(payload);
+        if (done) io.toast(done);
+        await kresli();
+        return out;
+      } catch (e) { io.toast(e.message); return null; }
+    };
+    const input = (placeholder) => {
+      const i = el('input', 'set-input');
+      i.placeholder = placeholder;
+      return i;
+    };
+    const check = (text, value, onchange) => {
+      const row = el('label', 'set-row');
+      const cb = el('input');
+      cb.type = 'checkbox';
+      cb.checked = !!value;
+      cb.onchange = () => onchange(cb.checked);
+      row.append(cb, el('span', null, text));
+      return row;
+    };
+    let timer = null;
+
+    function moje(d) {
+      const sec = el('div');
+      sec.appendChild(el('div', 'set-title', 'Moje číslo'));
+      const m = d.moje || {};
+      if (m.overeno) {
+        const row = el('div', 'set-row');
+        row.append(el('span', null, '+' + m.telefon + ' je ověřené'), el('small', null, 'bot tě pozná a odpovídá ti'));
+        const b = el('button', 'btn ghost', 'Odpojit');
+        b.onclick = () => run({akce: 'zrusit-moje'}, 'Číslo je odpojené.');
+        row.appendChild(b);
+        sec.appendChild(row);
+        return sec;
+      }
+      if (!d.boty.length) {
+        sec.appendChild(el('div', 'set-note', 'Žádná z tvých firem zatím nemá číslo bota.'));
+        return sec;
+      }
+      const row = el('div', 'set-row');
+      const tel = input('Tvé číslo, např. +420 777 123 456');
+      const b = el('button', 'btn primary', 'Získat kód');
+      b.onclick = async () => {
+        const out = await run({akce: 'overit', telefon: tel.value.trim()});
+        if (out && out.kod) io.toast('Kód ' + out.kod + ' pošli botovi na WhatsApp jako: /kod ' + out.kod);
+      };
+      row.append(tel, b);
+      sec.appendChild(row);
+      const bots = d.boty.map((x) => x.nazev + ': +' + x.telefon).join(' · ');
+      sec.appendChild(el('div', 'set-note',
+        (m.ceka ? 'Kód čeká na odeslání (platí 10 minut). ' : '') +
+        'Kód pošli z tohoto čísla botovi (' + bots + ') ve tvaru /kod 123456.'));
+      return sec;
+    }
+
+    function firma(slug, p) {
+      const sec = el('div', 'firmy-firma');
+      sec.appendChild(el('div', 'set-title', p.firma + ' — číslo bota'));
+      const c = p.cislo;
+      const st = p.stav || {};
+      if (!c) {
+        const row = el('div', 'set-row');
+        const tel = input('Číslo bota (samostatná SIM / eSIM)');
+        const b = el('button', 'btn primary', 'Zapsat číslo');
+        b.onclick = () => run({akce: 'cislo', firma: slug, telefon: tel.value.trim()}, 'Číslo je zapsané, počkej na QR kód.');
+        row.append(tel, b);
+        sec.append(row, el('div', 'set-note',
+          'Číslo musí být jen pro bota. Po zapsání se tady objeví QR kód; naskenuj ho ve WhatsAppu v telefonu s tou SIM (Propojená zařízení).'));
+        return sec;
+      }
+      const row = el('div', 'set-row');
+      const stavText = !st.bridge ? 'služba bridge neběží'
+        : st.pripojeno ? 'připojeno' : st.qr ? 'čeká na naskenování QR' : (st.chyba || 'připojuji…');
+      row.append(el('span', null, '+' + c.telefon), el('small', null, stavText));
+      const off = el('button', 'btn ghost', 'Odpojit číslo');
+      off.onclick = () => { if (confirm('Odpojit číslo? Smaže se spárování, povolené skupiny i blokace.')) run({akce: 'odpojit', firma: slug}, 'Číslo je odpojené.'); };
+      row.appendChild(off);
+      sec.appendChild(row);
+      if (st.chyba && !st.pripojeno) sec.appendChild(el('div', 'set-warn', st.chyba));
+      if (st.qr && !st.pripojeno) {
+        const img = el('img');
+        img.src = st.qr;
+        img.alt = 'QR kód pro spárování WhatsAppu';
+        img.width = 240;
+        img.height = 240;
+        img.style.cssText = 'background:#fff;padding:8px;border-radius:8px;display:block;margin:8px 0';
+        sec.appendChild(img);
+      }
+      sec.appendChild(check('Do cizích skupin nevstupovat — když mě přidá někdo mimo firmu, odejdu', c.odejit_z_cizich !== false,
+        (v) => run({akce: 'volby', firma: slug, odejit_z_cizich: v}, 'Uloženo.')));
+      sec.appendChild(check('Ve skupinách odpovídat jen členům firmy', c.skupiny_jen_firma,
+        (v) => run({akce: 'volby', firma: slug, skupiny_jen_firma: v}, 'Uloženo.')));
+      const lim = el('div', 'set-row');
+      const h = input('za hodinu');
+      h.type = 'number';
+      h.value = c.limit_hodina || p.limity.hodina;
+      const dn = input('za den');
+      dn.type = 'number';
+      dn.value = c.limit_den || p.limity.den;
+      const lb = el('button', 'btn ghost', 'Uložit limity');
+      lb.onclick = () => run({akce: 'volby', firma: slug, limit_hodina: Number(h.value), limit_den: Number(dn.value)}, 'Uloženo.');
+      lim.append(el('span', null, 'Limit odpovědí'), h, dn, lb);
+      sec.appendChild(lim);
+
+      sec.appendChild(el('div', 'set-title firmy-sub', 'Povolené skupiny'));
+      if (!p.skupiny.length) sec.appendChild(el('div', 'set-note', 'Žádná. Skupinu povolí člen firmy tím, že bota přidá, nebo příkazem /povol.'));
+      for (const g of p.skupiny) {
+        const r = el('div', 'set-row');
+        r.append(el('span', null, g.jid), el('small', null, g.povolil ? 'povolil ' + g.povolil : ''));
+        const x = el('button', 'btn ghost', 'Vypnout');
+        x.onclick = () => run({akce: 'skupina-vypnout', firma: slug, jid: g.jid}, 'Skupina je vypnutá.');
+        r.appendChild(x);
+        sec.appendChild(r);
+      }
+
+      sec.appendChild(el('div', 'set-title firmy-sub', 'Blokace'));
+      const bl = p.blokace || {cisla: [], skupiny: []};
+      for (const [typ, list] of [['cislo', bl.cisla || []], ['skupina', bl.skupiny || []]]) {
+        for (const v of list) {
+          const r = el('div', 'set-row');
+          r.append(el('span', null, v), el('small', null, typ === 'cislo' ? 'číslo' : 'skupina'));
+          const x = el('button', 'btn ghost', 'Odblokovat');
+          x.onclick = () => run({akce: 'odblokovat', firma: slug, typ, hodnota: v}, 'Odblokováno.');
+          r.appendChild(x);
+          sec.appendChild(r);
+        }
+      }
+      const nr = el('div', 'set-row');
+      const val = input('Číslo nebo ID skupiny k zablokování');
+      const typ = select([['cislo', 'číslo'], ['skupina', 'skupina']], 'cislo');
+      const nb = el('button', 'btn ghost', 'Zablokovat');
+      nb.onclick = () => val.value.trim()
+        ? run({akce: 'zablokovat', firma: slug, typ: typ.value, hodnota: val.value.trim()}, 'Zablokováno.')
+        : io.toast('Vyplň číslo nebo skupinu.');
+      nr.append(val, typ, nb);
+      sec.appendChild(nr);
+      return sec;
+    }
+
+    const select = (options, value) => {
+      const sel = el('select', 'set-input');
+      for (const [v, label] of options) {
+        const o = el('option', null, label);
+        o.value = v;
+        o.selected = v === value;
+        sel.appendChild(o);
+      }
+      return sel;
+    };
+
+    async function kresli() {
+      clearTimeout(timer);
+      let d;
+      try { d = await gw(); } catch (e) { body.textContent = e.message; return; }
+      body.textContent = '';
+      body.appendChild(moje(d));
+      for (const [slug, p] of Object.entries(d.prehled || {})) body.appendChild(firma(slug, p));
+      // Dokud se páruje, QR se obnovuje; stránka se sama překreslí jen když je v dokumentu.
+      const ceka = Object.values(d.prehled || {}).some((p) => p.cislo && p.stav && !p.stav.pripojeno);
+      if (ceka) timer = setTimeout(() => { if (box.isConnected) kresli(); }, 4000);
+    }
+    kresli();
+    return box;
   }
 
   /* Firmy (gateway/firmy.py): kde jsem a s jakou rolí, založení firmy a pro

@@ -4959,8 +4959,12 @@ function newAgentMenu(ev) {
 }
 
 /* ── tabs ─────────────────────────────────────────────────────────────────── */
+// Běží obnova tabů po restartu: tab bez konverzace tu není nový chat, ale starý.
+let OBNOVA_TABU = false;
 function openTab({kind, path, title, agent, model, mode, resume, fork, vault, prompt, spici}) {
-  const tab = createTab({kind, path, title, agent, model, mode, resume, vault});
+  // Nový chat (bez konverzace, mimo obnovu) začíná vždy prázdný — viz konceptKlice.
+  const tab = createTab({kind, path, title, agent, model, mode, resume, vault,
+                         novy: !resume && !OBNOVA_TABU});
   const dims = measure(tab);
   send({t: 'open', ref: tab.ref, kind, path, title, agent: agent || '',
         model: model || '', resume: resume || '', fork: !!fork,
@@ -4974,7 +4978,7 @@ function openWith(agentId, {path, title}) {
   return openTab({kind: 'project', path, title, agent: agentId});
 }
 
-function createTab({kind, path, title, id, agent, model, background, bypass, mode, resume, vault}) {
+function createTab({kind, path, title, id, agent, model, background, bypass, mode, resume, vault, novy}) {
   const ref = ++refSeq;
   const pane = document.createElement('div');
   pane.className = 'pane';
@@ -5026,6 +5030,8 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
                bypass: !!bypass, wantMode: mode || '',
                // Ve které uložené konverzaci tab pokračuje (seznam konverzací).
                resume: resume || '',
+               // Právě otevřený chat: nesmí převzít cizí rozepsaný text.
+               novy: !!novy,
                // Nad kterým trezorem tab běží — firemní se kreslí fialově.
                vault: vault || ''};
   const toPty = (d) => {
@@ -6483,6 +6489,7 @@ async function restoreAfterRestart() {
   const hlavni = (key && key.chat && tabs.find((t) => (t.resume || '') === key.chat))
     || tabs.find((t) => tadyKoncil(t, true)) || tabs.find((t) => tadyKoncil(t, false))
     || tabs[tabs.length - 1];
+  OBNOVA_TABU = true;
   for (const t of tabs) {
     // `prompt`: připomínka úloh na pozadí, které restart zastavil (restart.py).
     const prompt = t.resume ? (t.prompt || '') : '';
@@ -6496,6 +6503,7 @@ async function restoreAfterRestart() {
       drafts.splice(at, 1);
     }
   }
+  OBNOVA_TABU = false;
   // A na tab, kde člověk skončil (ne na poslední otevřený).
   const last = findPlaceTab(LAST_PLACE.tab);
   if (last) activate(last);
@@ -7393,12 +7401,16 @@ function konceptKlice(tab) {
   const out = [];
   const chat = tab.chat || tab.resume;
   if (chat) out.push(KONCEPT_PREFIX + 'chat:' + chat);
-  out.push(KONCEPT_PREFIX + 'tab:' + (tab.kind || '') + '|' + (tab.path || '') + '|' + (tab.title || ''));
+  // Klíč podle složky a názvu sdílí všechny nové chaty v jedné složce — nový
+  // chat by si z něj vzal zapomenutou rozepsanou zprávu z jiného. Používá se
+  // jen u tabu, který se obnovuje, ne u čerstvě otevřeného.
+  if (!tab.novy) out.push(KONCEPT_PREFIX + 'tab:' + (tab.kind || '') + '|' + (tab.path || '') + '|' + (tab.title || ''));
   return out;
 }
 function ulozKoncept(tab, text, atts) {
   const prazdny = !String(text || '').trim() && !(atts && atts.length);
   const [hlavni, ...dalsi] = konceptKlice(tab);
+  if (!hlavni) return;                 // čerstvý chat, konverzace ještě nemá číslo
   try {
     if (prazdny) {
       for (const k of [hlavni, ...dalsi]) localStorage.removeItem(k);
@@ -7419,7 +7431,7 @@ function nactiKoncept(tab) {
   return null;
 }
 function odchoziKlic(tab) {
-  return konceptKlice(tab)[0].replace(KONCEPT_PREFIX, 'hub.odchozi.');
+  return (konceptKlice(tab)[0] || KONCEPT_PREFIX + 'novy:' + tab.ref).replace(KONCEPT_PREFIX, 'hub.odchozi.');
 }
 function ulozOdchozi(tab, list) {
   try {

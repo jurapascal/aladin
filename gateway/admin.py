@@ -63,7 +63,7 @@ import subprocess
 import sys
 import time
 
-from . import config, firmy, isolation, mcp_sdilene, poznamky, relace, shared, slozky, workspace
+from . import config, firmy, isolation, mcp_sdilene, poznamky, relace, shared, slozky, whatsapp, workspace
 from .accounts import Accounts
 
 
@@ -645,6 +645,7 @@ def cmd_remove(a, args):
     relace.forget_user(user["id"])
     poznamky.forget_user(user["id"])
     firmy.forget_user(user["id"])
+    whatsapp.forget_user(user["id"])
     mcp_sdilene.forget_user(user["id"])
     try:
         slozky.sync()                    # pryč i ze sdílených trezorů

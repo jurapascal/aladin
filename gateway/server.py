@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from hub import __version__, qr
 
 from . import webauthn
-from . import mcp_pc, prohlizece, zrcadlo
+from . import mcp_pc, prohlizece, zrcadlo, whatsapp, wa_provoz
 from . import (config, firmy, isolation, mcp, mcp_sdilene, pocitac, poznamky, pristup, relace, safefs, shared,
                slozky, totp, workspace)
 from .accounts import Accounts
@@ -1116,6 +1116,9 @@ class Handler(BaseHTTPRequestHandler):
             # zprávy žetonem prostoru, jen na loopback.
             if route == "/gw/mcp-sdilene/volani":
                 return self._mcp_shared_call(method)
+            # WhatsApp bridge (gateway/wa-bridge): jen loopback, společný klíč.
+            if route == "/gw/whatsapp/bridge":
+                return self._wa_bridge(method)
             # Přihlášení Clauda v prostoru: appka tokenem zařízení, prostor
             # (prohlížeč) cookie — obojí řeší _gw_claude.
             if route == "/gw/claude":
@@ -1168,6 +1171,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._firma_file(method, user, parsed.query)
             if route == "/gw/firmy":
                 return self._gw_firmy(method, user)
+            if route == "/gw/whatsapp":
+                return self._gw_whatsapp(method, user)
             if route == "/gw/firma/smazat":
                 return self._firma_delete(method, user)
             # Zabezpečení účtu z Nastavení → Účet (hub v prostoru o heslech nic neví).
@@ -1470,6 +1475,84 @@ class Handler(BaseHTTPRequestHandler):
             _errlog("smazání ve firmě", exc)
             return self._json({"error": MSG_SAVE}, 500)
         return self._json(result)
+
+    # ---- WhatsApp (gateway/whatsapp.py, gateway/wa_provoz.py) ----
+    def _wa_bridge(self, method):
+        """Volání z wa-bridge. Jen loopback (za nginxem 404) a jen s klíčem."""
+        if self.headers.get("X-Real-IP") or self.headers.get("X-Forwarded-For"):
+            return self._send(404, b"404")
+        if method != "POST":
+            return self._json({"error": "Jen POST."}, 405)
+        if not wa_provoz.token_ok(self.headers.get("X-WA-Token", "")):
+            return self._json({"error": "Neplatný klíč."}, 401)
+        form = self._read_form()
+        op = str(form.get("op") or "")
+        if op == "seznam":
+            return self._json({"ok": True, "firmy": wa_provoz.seznam_pro_bridge()})
+        slug = str(form.get("firma") or "")
+        if op == "stav":
+            wa_provoz.zapsat_stav(slug, form)
+            return self._json({"ok": True})
+        if op == "udalost":
+            try:
+                out = wa_provoz.udalost(slug, form.get("udalost") or {})
+            except Exception as exc:  # jedna zpráva nesmí shodit bránu
+                _errlog("whatsapp udalost", exc)
+                return self._json({"ok": False, "odpovedi": [], "opustit": ""})
+            return self._json({"ok": True, **out})
+        return self._json({"error": "Neznámá operace."}, 400)
+
+    def _gw_whatsapp(self, method, user):
+        """Nastavení → WhatsApp: vlastní číslo člověka a generálům číslo bota
+        firmy, skupiny a blokace. Změny jen ze stránky hubu."""
+        if method == "GET":
+            captain = [f["zkratka"] for f in firmy.firmy_for(user) if f["role"] == "kapitan"]
+            return self._json({"moje": wa_provoz.moje(user), "boty": wa_provoz.boty_pro_overeni(user),
+                               "prehled": {s: wa_provoz.prehled(user, s) for s in captain}})
+        if method != "POST":
+            return self._json({"error": "Jen GET nebo POST."}, 405)
+        form = self._read_form()
+        if not self._account_post_ok():
+            return self._json({"error": "WhatsApp jde nastavit jen v hubu."}, 403)
+        action = str(form.get("akce") or "")
+        slug = str(form.get("firma") or "")
+        try:
+            if action == "overit":
+                result = {"kod": whatsapp.zacit_overeni(user, form.get("telefon"))}
+            elif action == "zrusit-moje":
+                whatsapp.zrusit_propojeni(user)
+                result = {}
+            elif action == "cislo":
+                result = whatsapp.nastavit_cislo(user, slug, form.get("telefon"))
+            elif action == "odpojit":
+                whatsapp.odpojit_cislo(user, slug)
+                result = {}
+            elif action == "volby":
+                zmeny = {k: form[k] for k in ("odejit_z_cizich", "skupiny_jen_firma",
+                                              "limit_hodina", "limit_den") if k in form}
+                for k in ("odejit_z_cizich", "skupiny_jen_firma"):
+                    if k in zmeny:
+                        zmeny[k] = str(zmeny[k]).lower() in ("1", "true", "ano", "on")
+                result = whatsapp.nastaveni(user, slug, **zmeny)
+            elif action in ("zablokovat", "odblokovat"):
+                typ = "skupina" if str(form.get("typ")) == "skupina" else "cislo"
+                (whatsapp.zablokovat if action == "zablokovat" else whatsapp.odblokovat)(
+                    user, slug, form.get("hodnota"), typ)
+                result = {}
+            elif action == "skupina-vypnout":
+                whatsapp._kapitan(user, slug)
+                whatsapp.zakazat_skupinu(slug, str(form.get("jid") or ""))
+                result = {}
+            else:
+                return self._json({"error": "Neznámá akce."}, 400)
+        except PermissionError as exc:
+            return self._json({"error": str(exc)}, 403)
+        except (ValueError, TypeError) as exc:
+            return self._json({"error": str(exc)}, 400)
+        except OSError as exc:
+            _errlog("whatsapp " + action, exc)
+            return self._json({"error": MSG_SAVE}, 500)
+        return self._json({"ok": True, **result})
 
     # ---- firmy (gateway/firmy.py) ----
     def _gw_firmy(self, method, user):

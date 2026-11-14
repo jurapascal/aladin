@@ -1460,7 +1460,7 @@ class Handler(BaseHTTPRequestHandler):
                                                  timeout=20)
                 # Chaty, které odsud sdílím, se kopírují na server (i ty sdílené dřív).
                 if data and isinstance(data.get("moje"), list):
-                    from . import prenos, zrcadlo
+                    from . import zrcadlo  # prenos je importovaný nahoře; lokální import by z něj udělal lokální proměnnou celé funkce
                     zname = set(zrcadlo._nacti().get("sdilene") or [])
                     for r in data["moje"]:
                         cid = str((r or {}).get("chat") or "")

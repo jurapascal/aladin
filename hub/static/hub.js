@@ -7430,8 +7430,15 @@ function nactiKoncept(tab) {
   }
   return null;
 }
+/* Čerstvý chat ještě nemá číslo konverzace. Pořadové číslo tabu se po každém načtení stránky
+   počítá znovu od jedničky, takže samo klíč nestačí — nový chat by si z něj vzal neodeslané
+   zprávy z jiného chatu. Proto je v klíči i náhodné číslo tohoto načtení: čerstvý chat je vždy
+   prázdný. Zprávy čerstvého chatu se tak po reloadu neobnoví (konverzace ještě nevznikla). */
+const ODCHOZI_PREFIX = 'hub.odchozi.';
+const NACTENI_ID = Math.random().toString(36).slice(2, 10);
 function odchoziKlic(tab) {
-  return (konceptKlice(tab)[0] || KONCEPT_PREFIX + 'novy:' + tab.ref).replace(KONCEPT_PREFIX, 'hub.odchozi.');
+  const k = konceptKlice(tab)[0];
+  return k ? k.replace(KONCEPT_PREFIX, ODCHOZI_PREFIX) : ODCHOZI_PREFIX + 'novy:' + NACTENI_ID + ':' + tab.ref;
 }
 function ulozOdchozi(tab, list) {
   try {
@@ -7451,6 +7458,13 @@ function obnovKoncept(tab) {
   const v = nactiKoncept(tab);
   if (v) tab.composer.setDraft(v.text, v.atts);
 }
+// Zbytky z fronty čerstvých chatů (klíč `novy:`) po dřívějším načtení stránky už nikomu nepatří.
+try {
+  for (let i = localStorage.length - 1; i >= 0; i--) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(ODCHOZI_PREFIX + 'novy:') && !k.startsWith(ODCHOZI_PREFIX + 'novy:' + NACTENI_ID + ':')) localStorage.removeItem(k);
+  }
+} catch (_) { /* nic */ }
 // Úklid starých konceptů jednou při startu, ať úložiště neroste donekonečna.
 try {
   for (let i = localStorage.length - 1; i >= 0; i--) {

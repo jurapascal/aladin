@@ -439,6 +439,23 @@ Zabezpečení:
       claude-hub-admin mcp                          # kdo má napojení
       claude-hub-admin mcp zrusit jmeno@firma.cz    # zrušit (appka se přihlásí znovu)
 
+**Podklady pro jiné aplikace** (`gateway/podklady.py`, rozsah OAuth `podklady`):
+aplikace jako Přepis (telefonní asistent odpovídá z poznámek) se přihlásí
+stejně, ale na souhlasu člověk zaškrtne **složky svého osobního Obsidianu**.
+Token pak umí jen `podklady_zdroje` a `podklady_hledat` v těch složkách —
+žádný zápis, soubory, příkazy, konverzace, firemní ani sdílené Obsidiany.
+Poznámky se `soukrome: true` / `asistent: ne` ve frontmatteru nebo štítkem
+`#soukrome` (`#private`, `#citlive`, `#tajne`) se nečtou nikdy. Přihlášení
+s tímhle rozsahem chce kód z aplikace vždycky (i s `HUB_GW_REQUIRE_2FA=0`).
+Přepis (`https://alba-rosa.cz/prepis/aladin.php`) je povolený rovnou, takže
+se na každý server s touhle verzí napojí bez nastavování — v Přepisu člověk
+zadá adresu svého Aladinu. Další aplikace povolí, nebo vestavěnou vypne,
+správce (adresa dostane vždy jen tenhle rozsah):
+
+      claude-hub-admin aplikace                     # výpis
+      claude-hub-admin aplikace add <adresa>        # povolit (i vypnutou vestavěnou)
+      claude-hub-admin aplikace remove <adresa>     # zakázat (i vestavěnou)
+
 ## Sdílená napojení (MCP)
 
 Napojení na službu (WordPress, Ecomail s klíčem, cokoli s MCP) si nastaví

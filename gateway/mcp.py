@@ -27,6 +27,10 @@ Jak je to zabezpečené:
 * **Záznam**: každé volání nástroje jde do `mcp.jsonl` (kdo, čím, co —
   bez obsahu souborů a poznámek). Napojení vypíše a zruší
   `claude-hub-admin mcp`.
+* **Úzký rozsah `podklady`** (gateway/podklady.py) pro jiné aplikace (Přepis):
+  jen čtení složek osobního Obsidianu, které člověk zaškrtne na souhlasu.
+  Adresy pro návrat takových aplikací (`claude-hub-admin aplikace`) dostanou
+  jen tenhle rozsah, nikdy celý prostor.
 """
 import base64
 import hashlib
@@ -43,7 +47,7 @@ import urllib.parse
 
 from hub import __version__
 
-from . import config, firmy, shared, workspace
+from . import config, firmy, podklady, shared, workspace
 
 PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 MAX_BODY = 4 * 1024 * 1024
@@ -117,7 +121,8 @@ def _read_body(h):
     return h.rfile.read(length) if length > 0 else b""
 
 
-def _form(h):
+def _form(h, multi=()):
+    """Pole formuláře; klíče v `multi` jako seznam všech hodnot (zaškrtávátka)."""
     raw = _read_body(h)
     ctype = h.headers.get("Content-Type", "")
     if ctype.startswith("application/json"):
@@ -127,14 +132,14 @@ def _form(h):
             return {}
         return data if isinstance(data, dict) else {}
     parsed = urllib.parse.parse_qs(raw.decode("utf-8", "replace"), keep_blank_values=True)
-    return {k: v[0] for k, v in parsed.items()}
+    return {k: (v if k in multi else v[0]) for k, v in parsed.items()}
 
 
 # ── metadata (RFC 9728, RFC 8414) ────────────────────────────────────────────
 def protected_resource(h):
     base = base_url(h)
     h._json({"resource": base + "/mcp", "authorization_servers": [base],
-             "scopes_supported": ["prostor"], "bearer_methods_supported": ["header"],
+             "scopes_supported": ["prostor", podklady.SCOPE], "bearer_methods_supported": ["header"],
              "resource_name": "Aladin — tvůj prostor"})
 
 
@@ -150,7 +155,7 @@ def auth_server(h):
              "code_challenge_methods_supported": ["S256"],
              "token_endpoint_auth_methods_supported": ["none"],
              "revocation_endpoint_auth_methods_supported": ["none"],
-             "scopes_supported": ["prostor"]})
+             "scopes_supported": ["prostor", podklady.SCOPE]})
 
 
 # ── registrace klienta (RFC 7591) ────────────────────────────────────────────
@@ -178,7 +183,7 @@ def register(h, method):
         return h._json({"error": "invalid_client_metadata"}, 400)
     uris = data.get("redirect_uris")
     if (not isinstance(uris, list) or not uris or len(uris) > 5
-            or not all(redirect_ok(u) for u in uris)):
+            or not all(redirect_ok(u) or podklady.redirect_ok(u) for u in uris)):
         return h._json({"error": "invalid_redirect_uri",
                         "error_description": "Only the Claude app callback or a "
                                              "loopback address is allowed."}, 400)
@@ -269,6 +274,8 @@ def _form_page(h, rid, req, error=""):
 <button type=submit>Ověřit</button>
 {err}
 </form>"""
+    elif req.get("scope") == podklady.SCOPE:
+        body = _podklady_page(h, rid, req, who, where, err)
     else:
         user = h.accounts.by_id(req["uid"]) or {}
         level = h.accounts.company_level(user)
@@ -298,6 +305,37 @@ Napojení povede na <b>{where}</b>.</p>
                    _no_frame())
 
 
+def _podklady_page(h, rid, req, who, where, err):
+    """Souhlas s úzkým rozsahem: zaškrtnout složky osobního Obsidianu."""
+    user = h.accounts.by_id(req["uid"]) or {}
+    found = podklady.folders(user)
+    rows = "".join(
+        f'<label style="display:flex;gap:8px;align-items:center;font-weight:normal;margin:6px 0'
+        f'{";padding-left:22px" if "/" in f["cesta"] else ""}">'
+        f'<input type=checkbox name=slozka value="{html.escape(f["cesta"])}" style="width:auto">'
+        f'<span>{html.escape(f["cesta"])} <span class=hint>({f["poznamek"]})</span></span></label>'
+        for f in found) or "<p class=hint>V osobním Obsidianu zatím nejsou žádné složky s poznámkami.</p>"
+    return f"""
+<form class=card method=post action="/oauth/authorize">
+<h1>Povolit {who} číst podklady?</h1>
+<p class=sub>Přihlášen jako <b>{html.escape(user.get("email", ""))}</b>.
+Napojení povede na <b>{where}</b>.</p>
+<p><b>{who}</b> bude moct <b>jen číst</b> poznámky ve složkách tvého osobního
+Obsidianu, které tu zaškrtneš. Nic nezapíše, nic nespustí a neuvidí projekty,
+konverzace, soubory ani firemní a sdílené Obsidiany. Poznámky se štítkem
+<code>#soukrome</code> (nebo <code>soukrome: true</code>) nečte nikdy.</p>
+<div style="max-height:45vh;overflow:auto;margin:10px 0">{rows}</div>
+<p class=hint>Napojení zrušíš v aplikaci (Odpojit), změnou hesla, nebo ti ho zruší
+správce serveru. Další složky = napojit znovu.</p>
+<input type=hidden name=req value="{rid}">
+<input type=hidden name=krok value=souhlas>
+<button type=submit name=rozhodnuti value=povolit>Povolit vybrané složky</button>
+<button type=submit name=rozhodnuti value=zamitnout
+ style="background:none;border:1px solid #30363d;color:#c9d1d9">Zamítnout</button>
+{err}
+</form>"""
+
+
 def _back(h, req, **params):
     """Návrat do appky: kód (nebo chyba) na ověřenou adresu pro návrat."""
     params["state"] = req.get("state") or None
@@ -317,12 +355,19 @@ def authorize(h, method):
         redirect = q.get("redirect_uri") or (client["redirect_uris"][0]
                                              if len(client["redirect_uris"]) == 1 else "")
         # Dokud adresa pro návrat není ověřená, nikam se nepřesměrovává.
-        if redirect not in client["redirect_uris"] or not redirect_ok(redirect):
+        if redirect not in client["redirect_uris"] or not (
+                redirect_ok(redirect) or podklady.redirect_ok(redirect)):
             return _error_page(h, "Něco nesedí s aplikací, která se chce napojit. Přidej napojení v aplikaci Claude znovu.")
+        narrow = podklady.SCOPE in q.get("scope", "").split()
         req = {"client_id": client["client_id"], "client_name": client["name"],
-               "redirect_uri": redirect, "state": q.get("state", "")[:500]}
+               "redirect_uri": redirect, "state": q.get("state", "")[:500],
+               "scope": podklady.SCOPE if narrow else ""}
         if q.get("response_type") != "code":
             return _back(h, req, error="unsupported_response_type")
+        # Adresa jiné aplikace (aplikace.json) dostane jen úzký rozsah.
+        if not narrow and not redirect_ok(redirect):
+            return _back(h, req, error="invalid_scope",
+                         error_description="This client may only request scope podklady.")
         challenge = q.get("code_challenge", "")
         if q.get("code_challenge_method") != "S256" or not re.fullmatch(r"[A-Za-z0-9_-]{43}", challenge):
             return _back(h, req, error="invalid_request",
@@ -337,7 +382,7 @@ def authorize(h, method):
     if method != "POST":
         return _error_page(h, "Tahle stránka se takhle otevřít nedá. Spusť napojení v aplikaci Claude znovu.", 405)
     try:
-        form = _form(h)
+        form = _form(h, multi=("slozka",))
     except ValueError:
         h.close_connection = True
         return _error_page(h, "Tahle stránka se takhle otevřít nedá. Spusť napojení v aplikaci Claude znovu.", 413)
@@ -369,7 +414,9 @@ def authorize(h, method):
         state = h.accounts.twofa(user["id"])
         if state["enabled"]:
             req["stage"] = "kod"
-        elif config.REQUIRE_2FA:
+        elif config.REQUIRE_2FA or req.get("scope") == podklady.SCOPE:
+            # Podklady čte cizí aplikace: kód z aplikace vždycky, i když ho
+            # brána jinak nevyžaduje.
             _req_drop(rid)
             return _error_page(h, "Nejdřív se přihlas do Aladina v prohlížeči a nastav si "
                                   "ověření kódem z aplikace. Pak napojení zopakuj.")
@@ -401,15 +448,25 @@ def authorize(h, method):
         return _form_page(h, rid, req)
 
     # souhlas
-    _req_drop(rid)
     user = h.accounts.by_id(req["uid"])
     if not user:
+        _req_drop(rid)
         return _error_page(h, "Účet není aktivní.")
     if form.get("rozhodnuti") != "povolit":
+        _req_drop(rid)
         return _back(h, req, error="access_denied")
+    sources = []
+    if req.get("scope") == podklady.SCOPE:
+        chosen = form.get("slozka") or []
+        sources = podklady.granted_choice(user, chosen if isinstance(chosen, list) else [chosen])
+        if not sources:
+            return _form_page(h, rid, req, "Zaškrtni aspoň jednu složku.")
+    _req_drop(rid)
     code = h.accounts.oauth_code_new(user, req["client_id"], req["redirect_uri"],
-                                     req["challenge"], req["resource"])
-    _log(user, req["client_name"], "napojeni", True, kam=_host(req["redirect_uri"]))
+                                     req["challenge"], req["resource"],
+                                     req.get("scope", ""), sources)
+    _log(user, req["client_name"], "napojeni", True, kam=_host(req["redirect_uri"]),
+         rozsah=req.get("scope", ""), slozky=", ".join(sources)[:300])
     return _back(h, req, code=code)
 
 
@@ -451,14 +508,14 @@ def token(h, method):
             return _token_error(h, "invalid_grant")
         if not h.accounts.by_id(found["user_id"]):
             return _token_error(h, "invalid_grant")
-        out = h.accounts.oauth_issue(found["user_id"], client_id, found["resource"])
+        out = h.accounts.oauth_issue(found["user_id"], client_id, found["resource"],
+                                     found.get("scope") or "", found.get("sources") or "")
     elif grant == "refresh_token":
         out = h.accounts.oauth_refresh(form.get("refresh_token", ""), client_id)
         if not out:
             return _token_error(h, "invalid_grant")
     else:
         return _token_error(h, "unsupported_grant_type")
-    out["scope"] = "prostor"
     return h._send(200, json.dumps(out), "application/json; charset=utf-8",
                    {"Pragma": "no-cache"})
 
@@ -709,6 +766,7 @@ def _handle(h, user, msg):
     params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
     if mid is None:                               # notifikace — žádná odpověď
         return None
+    narrow = user.get("scope") == podklady.SCOPE
     if method == "initialize":
         want = params.get("protocolVersion")
         return _rpc_result(mid, {
@@ -716,16 +774,22 @@ def _handle(h, user, msg):
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": "claude-code-hub", "title": "Aladin",
                            "version": __version__},
-            "instructions": INSTRUCTIONS})
+            "instructions": podklady.INSTRUCTIONS if narrow else INSTRUCTIONS})
     if method == "ping":
         return _rpc_result(mid, {})
     if method == "tools/list":
-        return _rpc_result(mid, {"tools": TOOLS})
+        return _rpc_result(mid, {"tools": podklady.TOOLS if narrow else TOOLS})
     if method == "tools/call":
         name = str(params.get("name") or "")
         args = params.get("arguments") or {}
         try:
-            result = run_tool(h, user, name, args)
+            if narrow:
+                try:
+                    result = podklady.run_tool(user, name, args)
+                except podklady.Chyba as exc:
+                    raise ToolError(str(exc)) from None
+            else:
+                result = run_tool(h, user, name, args)
             _log(user, user.get("client_id"), name, True, **_log_args(name, args))
             return _rpc_result(mid, {"content": [{"type": "text", "text": json.dumps(
                 result, ensure_ascii=False, indent=1)}], "isError": False})

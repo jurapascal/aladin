@@ -63,7 +63,7 @@ import subprocess
 import sys
 import time
 
-from . import config, firmy, isolation, mcp_sdilene, poznamky, relace, shared, slozky, whatsapp, workspace
+from . import config, firmy, isolation, mcp_sdilene, podklady, poznamky, relace, shared, slozky, whatsapp, workspace
 from .accounts import Accounts
 
 
@@ -830,6 +830,27 @@ def cmd_mcp(a, args):
         seen = time.strftime("%d. %m. %H:%M", time.localtime(r["seen"])) if r["seen"] else "zatím nic"
         made = time.strftime("%d. %m. %Y", time.localtime(r["created"]))
         print(f"{r['email']:<32} {r['client'] or '?':<20} od {made}, naposled {seen}")
+        if r.get("scope") == podklady.SCOPE:
+            try:
+                slozky_ = ", ".join(json.loads(r.get("sources") or "[]"))
+            except ValueError:
+                slozky_ = "?"
+            print(f"    jen podklady (čtení): {slozky_ or '—'}")
+
+
+def cmd_aplikace(a, args):
+    """Aplikace, které se smí napojit s úzkým rozsahem podklady (gateway/podklady.py)."""
+    if args.action == "add":
+        podklady.app_add(args.adresa)
+        print(f"Přidáno: {args.adresa}")
+    elif args.action == "remove":
+        print("Odebráno." if podklady.app_remove(args.adresa) else "Taková adresa tu není.")
+    uris = sorted(podklady.redirects())
+    print("Adresy pro návrat (jen rozsah podklady):" if uris else "Žádná aplikace pro podklady.")
+    for u in uris:
+        print("  " + u + ("  (vestavěná)" if u in podklady.VYCHOZI else ""))
+    for u in sorted(set(podklady.VYCHOZI) - set(uris)):
+        print(f"  {u}  (vestavěná, vypnutá — zapne ji: aplikace add {u})")
 
 
 def _zamek_nebo_konec(akce):
@@ -1121,6 +1142,11 @@ def build_parser():
     mc.add_argument("action", nargs="?", default="status", choices=("status", "zrusit"))
     mc.add_argument("email", nargs="?", default="")
     mc.set_defaults(func=cmd_mcp)
+
+    ap = sub.add_parser("aplikace", help="aplikace s napojením jen na čtení podkladů (Přepis)")
+    ap.add_argument("action", nargs="?", default="list", choices=("list", "add", "remove"))
+    ap.add_argument("adresa", nargs="?", default="", help="adresa pro návrat (https://…)")
+    ap.set_defaults(func=cmd_aplikace)
 
     ul = sub.add_parser("uloziste", help="místo na disku po lidech, limity, co jde uvolnit")
     ul.add_argument("email", nargs="?", default="", help="e-mail účtu (rozbor jednoho)")

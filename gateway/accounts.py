@@ -132,7 +132,9 @@ CREATE TABLE IF NOT EXISTS oauth_codes (
     redirect_uri TEXT NOT NULL,
     challenge    TEXT NOT NULL,
     resource     TEXT NOT NULL DEFAULT '',
-    expires      REAL NOT NULL
+    expires      REAL NOT NULL,
+    scope        TEXT NOT NULL DEFAULT '',  -- '' = prostor, 'podklady' = gateway/podklady.py
+    sources      TEXT NOT NULL DEFAULT ''   -- JSON: složky povolené rozsahem podklady
 );
 -- Přístupové (hodina) a obnovovací (měsíc, při použití se vymění) tokeny.
 -- `family` spojuje jedno přihlášení: když přijde už vyměněný obnovovací token,
@@ -147,7 +149,9 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
     created     REAL NOT NULL,
     expires     REAL NOT NULL,
     used        INTEGER NOT NULL DEFAULT 0, -- obnovovací už vyměněný
-    seen        REAL NOT NULL DEFAULT 0
+    seen        REAL NOT NULL DEFAULT 0,
+    scope       TEXT NOT NULL DEFAULT '',
+    sources     TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS oauth_tokens_user ON oauth_tokens(user_id);
 CREATE INDEX IF NOT EXISTS oauth_tokens_family ON oauth_tokens(family);
@@ -257,6 +261,14 @@ class Accounts:
             # Tokeny z doby před 2FA mají 0 — s povinným ověřením neplatí.
             self.db.execute("ALTER TABLE tokens ADD COLUMN mfa INTEGER NOT"
                             " NULL DEFAULT 0")
+        # Úzký rozsah napojení pro aplikace (gateway/podklady.py): jen čtení
+        # vybraných složek. Prázdný = celý prostor jako dřív.
+        for table in ("oauth_codes", "oauth_tokens"):
+            cols = {r["name"] for r in self.db.execute(f"PRAGMA table_info({table})")}
+            for col in ("scope", "sources"):
+                if col not in cols:
+                    self.db.execute(f"ALTER TABLE {table} ADD COLUMN {col} TEXT NOT"
+                                    " NULL DEFAULT ''")
 
     # ── uživatelé ────────────────────────────────────────────────────────────
     def add(self, email, password, name="", role="user", vault="",
@@ -903,16 +915,19 @@ class Accounts:
         return {"client_id": row["client_id"], "name": row["name"],
                 "redirect_uris": [u for u in uris if isinstance(u, str)]}
 
-    def oauth_code_new(self, user, client_id, redirect_uri, challenge, resource):
+    def oauth_code_new(self, user, client_id, redirect_uri, challenge, resource,
+                       scope="", sources=None):
         code = secrets.token_urlsafe(32)
         now = time.time()
         with self._lock:
             self.db.execute("DELETE FROM oauth_codes WHERE expires < ?", (now,))
             self.db.execute(
                 "INSERT INTO oauth_codes (fingerprint, user_id, client_id, redirect_uri,"
-                " challenge, resource, expires) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                " challenge, resource, expires, scope, sources)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (_fingerprint(code), user["id"], client_id, redirect_uri, challenge,
-                 resource or "", now + CODE_TTL))
+                 resource or "", now + CODE_TTL, scope or "",
+                 json.dumps(list(sources or []), ensure_ascii=False) if scope else ""))
         return code
 
     def oauth_code_take(self, code):
@@ -928,7 +943,7 @@ class Accounts:
             return None
         return dict(row)
 
-    def _oauth_pair(self, user_id, client_id, family, resource):
+    def _oauth_pair(self, user_id, client_id, family, resource, scope="", sources=""):
         access = secrets.token_urlsafe(TOKEN_BYTES)
         refresh = secrets.token_urlsafe(TOKEN_BYTES)
         now = time.time()
@@ -936,16 +951,21 @@ class Accounts:
                                  (refresh, "refresh", REFRESH_TTL)):
             self.db.execute(
                 "INSERT INTO oauth_tokens (fingerprint, kind, user_id, client_id, family,"
-                " resource, created, expires) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                " resource, created, expires, scope, sources)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (_fingerprint(token), kind, user_id, client_id, family, resource or "",
-                 now, now + ttl))
+                 now, now + ttl, scope or "", sources or ""))
         return {"access_token": access, "refresh_token": refresh,
-                "token_type": "Bearer", "expires_in": ACCESS_TTL}
+                "token_type": "Bearer", "expires_in": ACCESS_TTL,
+                "scope": scope or "prostor"}
 
-    def oauth_issue(self, user_id, client_id, resource):
+    def oauth_issue(self, user_id, client_id, resource, scope="", sources=""):
+        """`scope`/`sources` přicházejí z kódu (oauth_code_take) — tak, jak je
+        člověk na souhlasu povolil; obnovení je jen přenese dál."""
         with self._lock:
             self.db.execute("DELETE FROM oauth_tokens WHERE expires < ?", (time.time(),))
-            return self._oauth_pair(user_id, client_id, secrets.token_hex(16), resource)
+            return self._oauth_pair(user_id, client_id, secrets.token_hex(16), resource,
+                                    scope, sources)
 
     def oauth_refresh(self, refresh, client_id):
         """Vymění obnovovací token za nový pár. Znovu použitý (už vyměněný)
@@ -969,7 +989,8 @@ class Accounts:
             # Předchozí přístupové tokeny z téhle rodiny končí s výměnou.
             self.db.execute("DELETE FROM oauth_tokens WHERE family = ? AND kind = 'access'",
                             (row["family"],))
-            return self._oauth_pair(row["user_id"], client_id, row["family"], row["resource"])
+            return self._oauth_pair(row["user_id"], client_id, row["family"], row["resource"],
+                                    row["scope"], row["sources"])
 
     def oauth_user(self, access, resource):
         """Komu přístupový token patří (a jen pro tenhle `resource`), nebo None."""
@@ -979,7 +1000,8 @@ class Accounts:
         with self._lock:
             row = self.db.execute(
                 "SELECT u.*, t.expires AS t_expires, t.resource AS t_resource,"
-                " t.client_id AS t_client, t.family AS t_family FROM oauth_tokens t"
+                " t.client_id AS t_client, t.family AS t_family, t.scope AS t_scope,"
+                " t.sources AS t_sources FROM oauth_tokens t"
                 " JOIN users u ON u.id = t.user_id"
                 " WHERE t.fingerprint = ? AND t.kind = 'access'", (fp,)).fetchone()
             if not row or row["disabled"] or row["t_expires"] < time.time():
@@ -991,6 +1013,13 @@ class Accounts:
         user = self._public(row)
         user["client_id"] = row["t_client"]
         user["family"] = row["t_family"]
+        user["scope"] = row["t_scope"] or "prostor"
+        try:
+            sources = json.loads(row["t_sources"] or "[]")
+        except ValueError:
+            sources = []
+        user["sources"] = [s for s in sources if isinstance(s, str)] \
+            if isinstance(sources, list) else []
         return user
 
     def oauth_revoke_token(self, token):
@@ -1006,7 +1035,8 @@ class Accounts:
     def oauth_logins(self, email=None):
         """Aktivní napojení (jedno na přihlášení) pro správu."""
         sql = ("SELECT u.email, c.name AS client, t.family, MIN(t.created) AS created,"
-               " MAX(t.seen) AS seen FROM oauth_tokens t JOIN users u ON u.id = t.user_id"
+               " MAX(t.seen) AS seen, MAX(t.scope) AS scope, MAX(t.sources) AS sources"
+               " FROM oauth_tokens t JOIN users u ON u.id = t.user_id"
                " LEFT JOIN oauth_clients c ON c.client_id = t.client_id"
                " WHERE t.expires > ? AND t.used = 0")
         args = [time.time()]

@@ -45,5 +45,5 @@ chmod +x "$TOOL"
 mkdir -p "$OUT"
 # Na CI není FUSE — nástroj se rozbalí a pustí bez připojení.
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH="$ARCH" "$TOOL" --no-appstream "$APPDIR" \
-    "$OUT/Claude-Code-Hub-$ARCH.AppImage"
-echo "hotovo: $OUT/Claude-Code-Hub-$ARCH.AppImage"
+    "$OUT/Aladin-$ARCH.AppImage"
+echo "hotovo: $OUT/Aladin-$ARCH.AppImage"

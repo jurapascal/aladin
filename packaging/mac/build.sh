@@ -75,5 +75,5 @@ mkdir -p "$DMGDIR" "$OUT"
 cp -R "$APP" "$DMGDIR/"
 ln -s /Applications "$DMGDIR/Applications"
 hdiutil create -volname "Aladin" -srcfolder "$DMGDIR" -ov -format UDZO \
-    "$OUT/Claude-Code-Hub-mac-$LABEL.dmg"
-echo "hotovo: $OUT/Claude-Code-Hub-mac-$LABEL.dmg"
+    "$OUT/Aladin-mac-$LABEL.dmg"
+echo "hotovo: $OUT/Aladin-mac-$LABEL.dmg"

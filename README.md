@@ -230,10 +230,10 @@ a pak naváže průvodce.
 
 | Systém | Soubor |
 |---|---|
-| **Windows** 10/11 | [Claude-Code-Hub-Setup.exe](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-Setup.exe) |
-| **macOS** Apple Silicon (M1–M4) | [Claude-Code-Hub-mac-apple-silicon.dmg](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-mac-apple-silicon.dmg) |
-| **macOS** Intel | [Claude-Code-Hub-mac-intel.dmg](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-mac-intel.dmg) |
-| **Linux** (x86_64) | [Claude-Code-Hub-x86_64.AppImage](https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-x86_64.AppImage) |
+| **Windows** 10/11 | [Aladin-Setup.exe](https://github.com/jurapascal/aladin/releases/latest/download/Aladin-Setup.exe) |
+| **macOS** Apple Silicon (M1–M4) | [Aladin-mac-apple-silicon.dmg](https://github.com/jurapascal/aladin/releases/latest/download/Aladin-mac-apple-silicon.dmg) |
+| **macOS** Intel | [Aladin-mac-intel.dmg](https://github.com/jurapascal/aladin/releases/latest/download/Aladin-mac-intel.dmg) |
+| **Linux** (x86_64) | [Aladin-x86_64.AppImage](https://github.com/jurapascal/aladin/releases/latest/download/Aladin-x86_64.AppImage) |
 
 Instalačky nejsou podepsané certifikátem Microsoftu ani Applu, takže poprvé
 se systém ohradí:
@@ -246,7 +246,7 @@ se systém ohradí:
   Když macOS napíše, že appku nejde ověřit: *Nastavení systému → Soukromí
   a zabezpečení* → dole *Přesto otevřít* (jen napoprvé).
 - **Linux:** soubor označ jako spustitelný (vlastnosti souboru → *Povolit
-  spouštění*, nebo `chmod +x Claude-Code-Hub-x86_64.AppImage`) a spusť.
+  spouštění*, nebo `chmod +x Aladin-x86_64.AppImage`) a spusť.
   Po instalaci je hub i v nabídce aplikací.
 
 Další aktualizace už jdou z appky (Nastavení → Aktualizace), instalačku znovu

@@ -27,7 +27,7 @@ jobs:
       - name: Zkouška — spouštěč v AppImage naběhne
         run: |
           chmod +x dist/*.AppImage
-          APPIMAGE_EXTRACT_AND_RUN=1 timeout 60 dist/Claude-Code-Hub-x86_64.AppImage --doctor > doctor.txt 2>&1 || true
+          APPIMAGE_EXTRACT_AND_RUN=1 timeout 60 dist/Aladin-x86_64.AppImage --doctor > doctor.txt 2>&1 || true
           cat doctor.txt
           grep -q "platforma" doctor.txt
       - uses: actions/upload-artifact@v4
@@ -66,7 +66,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: windows
-          path: dist/Claude-Code-Hub-Setup.exe
+          path: dist/Aladin-Setup.exe
           if-no-files-found: error
 
   mac:
@@ -125,15 +125,15 @@ jobs:
           case "$RUNNER_OS" in
             Linux)
               npx electron-builder --linux tar.gz --x64 --publish never
-              cp dist/*-linux-x64.tar.gz ../dist/Claude-Code-Hub-Okno-linux-x64.tar.gz
+              cp dist/*-linux-x64.tar.gz ../dist/Aladin-Okno-linux-x64.tar.gz
               node -p "JSON.stringify({version: require('./package.json').version})" > ../dist/okno.json ;;
             Windows)
               npx electron-builder --win zip --x64 --publish never
-              cp dist/*-win-x64.zip ../dist/Claude-Code-Hub-Okno-win-x64.zip ;;
+              cp dist/*-win-x64.zip ../dist/Aladin-Okno-win-x64.zip ;;
             macOS)
               npx electron-builder --mac zip --arm64 --x64 --publish never
-              cp dist/*-mac-arm64.zip ../dist/Claude-Code-Hub-Okno-mac-arm64.zip
-              cp dist/*-mac-x64.zip ../dist/Claude-Code-Hub-Okno-mac-x64.zip ;;
+              cp dist/*-mac-arm64.zip ../dist/Aladin-Okno-mac-arm64.zip
+              cp dist/*-mac-x64.zip ../dist/Aladin-Okno-mac-x64.zip ;;
           esac
           ls -la ../dist
       - uses: actions/upload-artifact@v4
@@ -156,6 +156,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
         run: |
+          # Stará jména příloh (Claude-Code-Hub-…) zůstávají vedle nových Aladin-…: starší hub si podle nich
+          # stahuje aktualizace appky a staré odkazy ke stažení dál fungují.
+          for f in dist/Aladin-*; do cp "$f" "dist/Claude-Code-Hub-${f#dist/Aladin-}"; done
           ls -la dist
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" \

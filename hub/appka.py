@@ -41,11 +41,11 @@ def balik():
     """Jméno přílohy vydání pro tenhle stroj, nebo '' (appka pro něj není)."""
     stroj = platform.machine().lower()
     if core.IS_WINDOWS:
-        return "Claude-Code-Hub-Okno-win-x64.zip" if stroj in ("amd64", "x86_64") else ""
+        return "Aladin-Okno-win-x64.zip" if stroj in ("amd64", "x86_64") else ""
     if core.IS_MAC:
-        return "Claude-Code-Hub-Okno-mac-%s.zip" % ("arm64" if stroj == "arm64" else "x64")
+        return "Aladin-Okno-mac-%s.zip" % ("arm64" if stroj == "arm64" else "x64")
     if sys.platform.startswith("linux") and stroj in ("x86_64", "amd64"):
-        return "Claude-Code-Hub-Okno-linux-x64.tar.gz"
+        return "Aladin-Okno-linux-x64.tar.gz"
     return ""
 
 

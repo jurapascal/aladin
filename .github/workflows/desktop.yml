@@ -74,9 +74,9 @@ jobs:
         run: |
           zdroj="$RUNNER_TEMP/zdroj"; mkdir -p "$zdroj" "$RUNNER_TEMP/claude"
           case "$RUNNER_OS" in
-            Linux)   cp dist/*-linux-x64.tar.gz "$zdroj/Claude-Code-Hub-Okno-linux-x64.tar.gz" ;;
-            Windows) cp dist/*-win-x64.zip "$zdroj/Claude-Code-Hub-Okno-win-x64.zip" ;;
-            macOS)   cp dist/*-mac-arm64.zip "$zdroj/Claude-Code-Hub-Okno-mac-arm64.zip" ;;
+            Linux)   cp dist/*-linux-x64.tar.gz "$zdroj/Aladin-Okno-linux-x64.tar.gz" ;;
+            Windows) cp dist/*-win-x64.zip "$zdroj/Aladin-Okno-win-x64.zip" ;;
+            macOS)   cp dist/*-mac-arm64.zip "$zdroj/Aladin-Okno-mac-arm64.zip" ;;
           esac
           node -p "JSON.stringify({version: require('./package.json').version})" > "$zdroj/okno.json"
           cd ..

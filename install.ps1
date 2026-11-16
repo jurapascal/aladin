@@ -48,7 +48,7 @@ $chybi = @('claude-hub.py', 'hub', 'tools', 'hooks') | Where-Object { -not (Test
 if ($chybi) {
     Write-Warn "Zdroj instalace v $Src je neúplný (chybí: $($chybi -join ', '))."
     Write-Warn 'Zavři Aladina (i ikonku u hodin → Ukončit appku) a spusť instalačku znovu:'
-    Write-Warn 'https://github.com/jurapascal/aladin/releases/latest/download/Claude-Code-Hub-Setup.exe'
+    Write-Warn 'https://github.com/jurapascal/aladin/releases/latest/download/Aladin-Setup.exe'
     exit 1
 }
 

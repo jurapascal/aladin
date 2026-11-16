@@ -9,7 +9,7 @@ Chrome). Postavené na [Electronu](https://www.electronjs.org/) — stejné jád
 
 Sama, aktualizací hubu — nic se nestahuje ručně. Instalačky přikládají appku
 ke každému vydání (`.github/workflows/instalacky.yml`, job `okno`) pod pevnými
-jmény (`Claude-Code-Hub-Okno-<systém>-<procesor>`, k tomu `okno.json` s verzí).
+jmény (`Aladin-Okno-<systém>-<procesor>`, k tomu `okno.json` s verzí).
 Hub od 2.78 si ji po startu stáhne do `~/.claude/appka/v<verze>/`
 (`hub/appka.py`) a okno pak otevírá v ní; poprvé stažená hned převezme okno
 v Chromu — na téže instanci, taby i rozdělaná práce Clauda běží dál.

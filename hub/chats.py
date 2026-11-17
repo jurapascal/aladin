@@ -389,3 +389,52 @@ def title_for(path):
         with _LOCK:
             _CACHE[path] = (st.st_size, st.st_mtime, info)
     return (info or {}).get("title", "") if info else ""
+
+
+# ── Archiv chatů ─────────────────────────────────────────────────────────────
+# Archivovaný chat zmizí z běžného seznamu (vidět je pod tlačítkem Archivované
+# u filtru druhu chatů). Ukládá se na hubu, ne v prohlížeči — počítač i telefon
+# vidí totéž. Hodnota = kdy se archivoval. Z archivu ho vrací jen člověk.
+_ARCHIV_LOCK = threading.Lock()
+ARCHIV_MAX = 5000
+
+
+def _archiv_path():
+    return os.path.join(core.CLAUDE_DIR, "hub-chaty-archiv.json")
+
+
+def archiv():
+    """{id chatu: čas archivace}"""
+    try:
+        with open(_archiv_path(), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(k): float(v) for k, v in data.items()
+            if isinstance(v, (int, float)) and core.SESSION_ID.fullmatch(str(k))}
+
+
+def nastav_archiv(ids, on):
+    """Archivovat (on=True) nebo vrátit z archivu. Vrací nový stav archivu."""
+    ids = [str(i) for i in (ids or []) if core.SESSION_ID.fullmatch(str(i or ""))]
+    if not ids:
+        raise ValueError("Žádný platný chat.")
+    with _ARCHIV_LOCK:
+        data = archiv()
+        ted = time.time()
+        for i in ids:
+            if on:
+                data[i] = ted
+            else:
+                data.pop(i, None)
+        if len(data) > ARCHIV_MAX:          # nejstarší archivace pryč
+            data = dict(sorted(data.items(), key=lambda kv: kv[1])[-ARCHIV_MAX:])
+        os.makedirs(core.CLAUDE_DIR, exist_ok=True)
+        tmp = _archiv_path() + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(data, fh)
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, _archiv_path())
+    return data

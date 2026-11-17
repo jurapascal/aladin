@@ -847,7 +847,7 @@
                                   odpovez = null, stahovani = null, znovu = null, jeOnline = null,
                                   pozastaveno = null, pozastavit = null, serverZnovu = null, serverIhned = null,
                                   serverSeznam = null, serverUprav = null, serverSmaz = null,
-                                  rozvetvit = null, odchozi = null} = {}) {
+                                  rozvetvit = null, odchozi = null, zahod = null} = {}) {
     const st = stahovani || vychoziStahovani();
     /* Odkaz v Markdownu je <a> bez href (vault.js) — sám nikam nevede,
        otevřít ho musí hub. V okně appky by holý odkaz stejně nic neudělal. */
@@ -1615,20 +1615,41 @@
        srovná podle skutečného stavu (i když mezitím zpráva odešla). */
     const hlaska = (t) => { if (notice) notice(t); };
     const MAX_UPRAVA = 20000;
+    /* Zpráva, kterou drží jen tohle okno a Claude ji nepřevzal (nedošla, čeká
+       na start, na spojení): smazat jde vždycky — přestane se zkoušet znovu
+       a z pole Claude Code se smaže, pokud v něm visí. */
+    const MISTNI_SMAZAT = new Set(['nedoslo', 'start', 'spojeni']);
     function ukazAkce(m) {
       let box = m.row.querySelector('.cteni-akce');
-      const lze = m.server && m.fid && serverUprav && (m.stav === 'server' || m.stav === 'zaseklo');
+      const mistniLze = !m.server && MISTNI_SMAZAT.has(m.stav);
+      if (mistniLze) {
+        if (box && !box.classList.contains('mistni')) { box.remove(); box = null; }
+        if (box) return;
+        box = el('div', 'cteni-akce mistni');
+        const smazBtn = el('button', 'cteni-pomoc-btn cteni-akce-smaz', 'Smazat');
+        smazBtn.type = 'button';
+        smazBtn.title = 'Zprávu už neposílat a smazat ji';
+        smazBtn.onclick = () => smazMistni(m);
+        box.append(smazBtn);
+        m.row.appendChild(box);
+        return;
+      }
+      if (box && box.classList.contains('mistni')) { box.remove(); box = null; }
+      // Nepřevzatou zprávu (nedoslo) server smaže, upravit už ne — je napsaná.
+      const lze = m.server && m.fid && serverUprav && (m.stav === 'server' || m.stav === 'zaseklo' || m.stav === 'nedoslo');
       if (!lze) { if (box) box.remove(); if (m.edit) zavriEditor(m); return; }
-      if (box) return;
-      box = el('div', 'cteni-akce');
-      const uprBtn = el('button', 'cteni-pomoc-btn cteni-akce-uprav', 'Upravit');
-      uprBtn.type = 'button';
-      uprBtn.onclick = () => otevriEditor(m);
-      const smazBtn = el('button', 'cteni-pomoc-btn cteni-akce-smaz', 'Smazat');
-      smazBtn.type = 'button';
-      smazBtn.onclick = () => smazZpravu(m);
-      box.append(uprBtn, smazBtn);
-      m.row.appendChild(box);
+      if (!box) {
+        box = el('div', 'cteni-akce');
+        const uprBtn = el('button', 'cteni-pomoc-btn cteni-akce-uprav', 'Upravit');
+        uprBtn.type = 'button';
+        uprBtn.onclick = () => otevriEditor(m);
+        const smazBtn = el('button', 'cteni-pomoc-btn cteni-akce-smaz', 'Smazat');
+        smazBtn.type = 'button';
+        smazBtn.onclick = () => smazZpravu(m);
+        box.append(uprBtn, smazBtn);
+        m.row.appendChild(box);
+      }
+      box.querySelector('.cteni-akce-uprav').hidden = m.stav === 'nedoslo';
     }
     function zmenText(m, text, odjinud) {
       m.text = String(text || '').trim();
@@ -1737,8 +1758,9 @@
       try {
         if (!bezPtani) {
           const dlg = global.HubDialog;
-          const ano = dlg ? await dlg.confirm('Smazat tuto zprávu z fronty? Claude ji nedostane.', {ok: 'Smazat', title: 'Smazat zprávu'})
-                          : global.confirm('Smazat tuto zprávu z fronty? Claude ji nedostane.');
+          const otazka = m.stav === 'nedoslo' ? 'Smazat zprávu, kterou Claude nepřevzal? Už se nebude posílat znovu.'
+                                              : 'Smazat tuto zprávu z fronty? Claude ji nedostane.';
+          const ano = dlg ? await dlg.confirm(otazka, {ok: 'Smazat', title: 'Smazat zprávu'}) : global.confirm(otazka);
           if (!ano) return;
         }
         const r = await serverSmaz(m.fid);
@@ -1746,6 +1768,23 @@
         else vysledekNeslo(m, r);
       } catch (_) {
         hlaska('Nepodařilo se spojit se serverem — zkus to za chvíli.');
+      } finally {
+        m.zamek = false;
+      }
+    }
+    async function smazMistni(m) {
+      if (m.zamek) return;
+      m.zamek = true;
+      try {
+        const dlg = global.HubDialog;
+        const otazka = 'Smazat zprávu, kterou Claude nepřevzal? Už se nebude posílat znovu.';
+        const ano = dlg ? await dlg.confirm(otazka, {ok: 'Smazat', title: 'Smazat zprávu'}) : global.confirm(otazka);
+        if (!ano || !mistni.includes(m)) return;
+        if (zahod && !zahod(m.text)) {
+          hlaska('Zpráva se právě posílá Claudovi — smazat ji už nejde.');
+          return;
+        }
+        potvrdMistni(m);
       } finally {
         m.zamek = false;
       }
@@ -2780,7 +2819,7 @@
       openLink: io.openLink, notice: io.notice, copy: io.copy, odpovez: io.odpovez,
       naPozadi: io.naPozadi || null,
       sdileny: io.sdileny || null,
-      znovu: io.znovu || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
+      znovu: io.znovu || null, zahod: io.zahod || null, jeOnline: io.jeOnline || null, serverZnovu: io.serverZnovu || null, serverIhned: io.serverIhned || null,
       serverSeznam: io.serverSeznam || null, serverUprav: io.serverUprav || null, serverSmaz: io.serverSmaz || null,
       pozastaveno: io.pozastaveno || null, pozastavit: io.pozastavit || null,
       odchozi: io.odchozi || null,

@@ -460,6 +460,14 @@ function mostMenu() {
     const item = Menu.getApplicationMenu() && Menu.getApplicationMenu().getMenuItemById(String(id));
     if (win && item && item.enabled !== false) item.click(undefined, win, e.sender);
   });
+  ipcMain.on('appka:ukaz', (e) => {
+    if (!zDuveryhodne(e)) return;
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+  });
   ipcMain.on('appka:menu-v-liste', (e, ano) => {
     const win = BrowserWindow.fromWebContents(e.sender);
     if (!win || IS_MAC) return;

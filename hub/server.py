@@ -1425,6 +1425,15 @@ class Handler(BaseHTTPRequestHandler):
                            **({"prohlizec": True} if c["id"] in z_prohlizece or
                               any(p in z_prohlizece for p in c.get("predci", ())) else {}))
                       for c in chats.list_chats()]
+            # Archiv (chats.archiv) — zůstává, dokud ho člověk sám nevrátí
+            # (jako ve WhatsAppu). Pokračování v chatu ho z archivu nevytáhne;
+            # otevřený tab okno ukáže i tak.
+            arch = chats.archiv()
+            if arch:
+                for c in seznam:
+                    t = arch.get(c["id"]) or next((arch[p] for p in c.get("predci", ()) if p in arch), None)
+                    if t:
+                        c["archiv"] = int(t)
             # Seznam má stovky kB a mění se zřídka: okno pošle otisk toho, co
             # už má, a když sedí, dostane jen „beze změny".
             import hashlib
@@ -1528,6 +1537,22 @@ class Handler(BaseHTTPRequestHandler):
             if not moved and not poslano:
                 return self._json({"error": "Konverzace už neexistuje."}, 404)
             return self._json({"ok": True})
+        if name == "chat-archiv":
+            # Archivovat / vrátit z archivu (chats.nastav_archiv): {ids: [...], on: bool}.
+            if self.command != "POST":
+                return self._json({"error": "Jen POST."}, 405)
+            if guest:
+                return self._json({"error": "Archiv chatů smí měnit jen vlastník prostoru."}, 403)
+            ids = payload.get("ids")
+            if not isinstance(ids, list):
+                ids = [payload.get("id")]
+            try:
+                data = chats.nastav_archiv(ids[:500], bool(payload.get("on", True)))
+            except ValueError as exc:
+                return self._json({"error": str(exc)}, 400)
+            except OSError as exc:
+                return self._json({"error": f"Archiv nejde uložit: {exc}"}, 500)
+            return self._json({"ok": True, "pocet": len(data)})
         if name == "chat-vetev":
             # Větvení konverzace (hub/vetev.py): nový přepis jen do zvoleného místa,
             # původní se nemění. Zdroj = konverzace podle id (`chat`) nebo tab (`id`).

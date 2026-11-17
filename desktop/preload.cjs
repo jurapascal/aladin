@@ -11,4 +11,6 @@ contextBridge.exposeInMainWorld('hubApp', {
   akce: (id) => ipcRenderer.send('appka:akce', String(id)),
   // Stránka menu nakreslila → appka schová nativní lištu (Alt ji ukáže).
   menuVListe: (ano) => ipcRenderer.send('appka:menu-v-liste', !!ano),
+  // Klik na oznámení → okno dopředu (i když je schované nebo minimalizované).
+  ukaz: () => ipcRenderer.send('appka:ukaz'),
 });

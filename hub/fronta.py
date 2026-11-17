@@ -194,20 +194,48 @@ def uprav(chat, id_, novy_text):
 
 
 def smaz(chat, id_):
-    """Smaže zprávu, která ještě čeká. Stejná pravidla jako `uprav`."""
+    """Smaže zprávu, která ještě čeká. Stejná pravidla jako `uprav` — navíc jde
+    smazat i zpráva, kterou Claude nepřevzal (stav „nedoslo“: napsaná, Enter
+    nevzal a v přepisu není). Ta se přestane hlídat a pokud text pořád stojí
+    v poli Claude Code, smaže se odtud."""
     _nacti()
     with _lock:
         p = _najdi(chat, id_)
-        duvod = _nejde(p)
+        nedosla = p is not None and p["stav"] == "nedoslo"
+        duvod = None if nedosla else _nejde(p)
         if duvod:
             return {"ok": False, "stav": _stav_p(p), "duvod": duvod}
         pozice = _polozky.index(p)
         _polozky.remove(p)
         if not _uloz():
             _polozky.insert(pozice, p)
-            return {"ok": False, "stav": "ceka", "duvod": "Smazání se nepodařilo uložit na server."}
-    _oznam(_session(chat), p, "smazano")
+            return {"ok": False, "stav": _stav_p(p), "duvod": "Smazání se nepodařilo uložit na server."}
+    s = _session(chat)
+    if nedosla and s:
+        _vymaz_z_pole(s, p["text"])
+    _oznam(s, p, "smazano")
     return {"ok": True, "stav": "smazano"}
+
+
+def _vymaz_z_pole(s, text):
+    """Text nepřevzaté zprávy, který zůstal stát v poli Claude Code, smazat
+    (Ctrl+E, Ctrl+U po řádcích). Jen když Claude nepracuje a nad polem
+    nevisí dialog — jinak by klávesy dostal on."""
+    try:
+        konec = _ANSI.sub("", bytes(s.buffer[-4000:]).decode("utf-8", "replace"))
+    except Exception:
+        return
+    nizko = konec.lower()
+    zacatek = text.split("\n")[0].strip()[:24]
+    vlozeni = "\n" in text or text.startswith("?")
+    v_poli = (zacatek and zacatek in konec[-1500:]) or (vlozeni and "[pasted text" in nizko[-1500:])
+    if not v_poli or "to interrupt" in nizko[-600:] or any(m in nizko[-600:] for m in _DIALOG):
+        return
+    radku = 1 if (vlozeni and len(text) > 800) else text.count("\n") + 1
+    try:
+        s.pty.write(("\x05\x15" + "\x7f\x15" * min(radku - 1, 200)).encode("utf-8"))
+    except Exception as exc:
+        core.log(f"fronta zpráv: smazání z pole selhalo ({exc})", "warn")
 
 
 def zrus(chat, id_):

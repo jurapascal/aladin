@@ -1739,7 +1739,7 @@ async function loadChats() {
      tlačítko pod prstem zmizí dřív, než klepnutí doběhne — na telefonu pak
      „nejde kliknout". Překresluje se jen při změně a ne pod prstem. */
   const sig = JSON.stringify([ACTIVE ? ACTIVE.id : 0, CHATS.map((c) => [c.id, c.title, c.updated, c.tab || '', c.exists, c.cwd, c.posledni || '',
-                                              c.server ? 1 : 0, zrcadloZnak(c), komuSdilim(c), druhChatu(c)])]);
+                                              c.server ? 1 : 0, zrcadloZnak(c), komuSdilim(c), druhChatu(c), c.archiv || 0])]);
   if (sig === chatsSig) return;
   chatsSig = sig;
   renderChatsSoon();
@@ -2106,7 +2106,7 @@ function renderChatsFiltr() {
     if (!onServer() && !filtrProstoryUplne) await vcas(nactiFiltrProstory(), 3500, null);
     const items = chatsFiltrVolby().map((x) => ({
       icon: x.icon, label: x.label, color: x.color, on: x.f === chatsFiltr(),
-      run: () => { lsSet('hub.chats-filtr', x.f); chatsSig = ''; renderChats(); },
+      run: () => { lsSet('hub.chats-filtr', x.f); archivRezim = false; chatsSig = ''; renderChats(); },
     }));
     const b = btn.getBoundingClientRect();
     showMenu(b.left, b.bottom + 4, items);
@@ -2122,6 +2122,42 @@ function kmenSlova(w) {
   if (w.length < 5 || !/^[a-z]+$/.test(w)) return w;
   for (const k of KONCOVKY) if (w.endsWith(k) && w.length - k.length >= 4) return w.slice(0, -k.length);
   return w;
+}
+
+/* ── Archiv chatů (hub/chats.py, nastav_archiv) ─────────────────────────────
+   Archivovaný chat v běžném seznamu není. Když je vybraný druh chatů (Osobní,
+   firma, Sdílené…), přibude tlačítko Archivované a ukáže archiv toho druhu.
+   Archiv je na hubu, takže ho počítač i telefon vidí stejně. Chat s otevřeným
+   tabem je vidět i tak — jinak by se ztratil, v čem se zrovna pracuje. */
+let archivRezim = false;
+async function archivovat(chaty, on) {
+  const ids = [];
+  for (const c of chaty) {
+    if (!c || !c.id) continue;
+    ids.push(c.id);
+    // Vrátit: i předky (chat obnovený pod novým id byl archivovaný pod starým).
+    if (!on) for (const p of c.predci || []) ids.push(p);
+  }
+  if (!ids.length) return false;
+  try {
+    await api('chat-archiv', {ids, on: !!on});
+  } catch (err) {
+    toast((on ? 'Nearchivováno: ' : 'Nevráceno z archivu: ') + err.message);
+    return false;
+  }
+  const set = new Set(ids);
+  const ted = Math.floor(Date.now() / 1000);
+  for (const c of CHATS.concat(chatsMistni || [])) {
+    if (set.has(c.id)) { if (on) c.archiv = ted; else delete c.archiv; }
+  }
+  chatsOtisk = '';                       // příští načtení vezme seznam celý
+  chatsSig = '';
+  renderChats();
+  const n = chaty.length;
+  toast(on ? (n === 1 ? 'Chat je v archivu. Najdeš ho pod filtrem druhu chatu → Archivované.'
+                      : `${n} ${n < 5 ? 'chaty jsou' : 'chatů je'} v archivu.`)
+           : (n === 1 ? 'Chat je zpátky v seznamu.' : `${n} ${n < 5 ? 'chaty jsou' : 'chatů je'} zpátky v seznamu.`));
+  return true;
 }
 
 function renderChats() {
@@ -2151,12 +2187,19 @@ function renderChats() {
     const hay = foldText([c.title, c.prompt, c.project, c.posledni].join(' '));
     return words.every((w) => hay.includes(w));
   }) : CHATS) : list00;
-  const list0 = filtr === 'sdilene' ? sdileneZ.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c))
+  const list0a = filtr === 'sdilene' ? sdileneZ.filter((c) => druhChatu(c) === 'sdileny' || !!komuSdilim(c))
     : filtr === 'prohlizec' ? list00.filter((c) => !!c.prohlizec)
     : filtr && filtr !== 'moje' ? list00.filter((c) => chatSediNaFiltr(c, filtr)) : list00;
+  // Archiv: tlačítko jen u vybraného druhu chatů; při hledání se najdou i archivované.
+  if (!filtr) archivRezim = false;
+  const archivPocet = list0a.filter((c) => c.archiv).length;
+  if (archivRezim && !archivPocet) archivRezim = false;
+  const maTab = (c) => TABS.some((t) => !t.exited && tabPatriChatu(t, c));
+  const list0 = archivRezim ? list0a.filter((c) => c.archiv)
+    : list0a.filter((c) => !c.archiv || words.length || maTab(c));
   // Nejnovější zpráva nahoře, jako ve WhatsAppu. Otevřením se chat nikam
   // nepřesune — dřív skočil na začátek a seznam pod prstem poposkočil.
-  const extra = (filtr && filtr !== 'moje' && filtr !== 'sdilene') ? [] : relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
+  const extra = (archivRezim || (filtr && filtr !== 'moje' && filtr !== 'sdilene')) ? [] : relaceRadky(filtr === 'sdilene').filter((r) => (filtr !== 'moje' || !r.sdileny) &&
     (!words.length || words.every((w) => foldText(r.text).includes(w))));
   const list = list0.concat(extra).sort((a, b) => b.updated - a.updated);
   $('chats-count').textContent = scope.length ? String(scope.length) : '';
@@ -2167,6 +2210,17 @@ function renderChats() {
     if ((t.el.dataset.vseznamu || '') !== v) t.el.dataset.vseznamu = v;
   }
   box.textContent = '';
+  if (filtr && (archivPocet || archivRezim)) {
+    const ab = document.createElement('button');
+    ab.type = 'button';
+    ab.className = 'chats-archiv-btn keep-drawer' + (archivRezim ? ' on' : '');
+    ab.innerHTML = '<svg class="ico"><use href="#' + (archivRezim ? 'i-back' : 'i-archiv') + '"/></svg><span></span><b></b>';
+    ab.querySelector('span').textContent = archivRezim ? 'Zpět na aktuální chaty' : 'Archivované';
+    ab.querySelector('b').textContent = archivRezim ? '' : String(archivPocet);
+    ab.title = archivRezim ? 'Ukázat zase chaty, které nejsou v archivu' : 'Ukázat archivované chaty tohoto druhu';
+    ab.onclick = (ev) => { ev.stopPropagation(); archivRezim = !archivRezim; chatsShown = CHATS_PAGE; chatsSig = ''; renderChats(); };
+    box.appendChild(ab);
+  }
   const toggle = () => {
     if (!filtrovat || !others) return;
     const b = document.createElement('button');
@@ -2190,6 +2244,7 @@ function renderChats() {
     const note = document.createElement('div');
     note.className = 'empty';
     note.textContent = words.length ? 'Nic takového jsem nenašel.'
+      : archivRezim ? 'V archivu tu nic není.'
       : filtr === 'sdilene' ? 'Nikdo s tebou zatím nic nesdílí a ty taky nic nesdílíš.'
       : filtr === 'prohlizec' ? 'Zatím žádné chaty z prohlížeče. Vzniknou, když napíšeš Aladinovi z rozšíření v Chromu, Firefoxu…'
       : filtr && filtr !== 'moje' ? 'Tady zatím žádné chaty nejsou.'
@@ -2226,6 +2281,12 @@ function renderChats() {
       const tag = document.createElement('span');
       tag.className = 'chat-prostor' + (kde ? ' firma' : '');
       tag.textContent = prostorNazev(kde);
+      item.querySelector('.chat-title').prepend(tag);
+    }
+    if (c.archiv && !archivRezim) {
+      const tag = document.createElement('span');
+      tag.className = 'chat-prostor chat-archiv-tag';
+      tag.textContent = 'Archiv';
       item.querySelector('.chat-title').prepend(tag);
     }
     item.title = [c.title, c.prompt && c.prompt !== c.title ? c.prompt : '', c.cwd].filter(Boolean).join('\n\n');
@@ -2266,6 +2327,10 @@ function renderChats() {
       if (window.HubHledani) items.push({icon: 'i-save', label: 'Exportovat do Markdownu', run: () => HubHledani.exportovat(c)});
       items.unshift({icon: 'i-star', label: jePripnuty(c.id) ? 'Odepnout' : 'Připnout', run: () => prepniPripnuti(c.id)});
       items.push({icon: 'i-check', label: 'Vybrat více chatů', run: () => vyberZapni(c.id)});
+      if (c.exists !== false || c.archiv) {
+        items.push(c.archiv ? {icon: 'i-archiv', label: 'Vrátit z archivu', run: () => archivovat([c], false)}
+                            : {icon: 'i-archiv', label: 'Archivovat', run: () => archivovat([c], true)});
+      }
       items.push({icon: 'i-trash', label: 'Smazat', color: 'var(--red)', run: () => deleteChat(c)});
       showMenu(ev.clientX, ev.clientY, items);
     };
@@ -2432,6 +2497,11 @@ async function vyberAkce(akce) {
     toast(vsechnyPripnute ? 'Odepnuto.' : 'Připnuto.');
     return vyberKonec();
   }
+  if (akce === 'archiv') {
+    // V archivu vybrané vrací, jinde archivuje.
+    if (await archivovat(co, !archivRezim)) return vyberKonec();
+    return;
+  }
   if (akce === 'export') {
     if (!window.HubHledani) return;
     for (const c of co) { await HubHledani.exportovat(c); await new Promise((r) => setTimeout(r, 400)); }
@@ -2472,8 +2542,34 @@ async function rozvetvitChat(zdroj, uuid, zavrit) {
   if (vetveniBezi) return;               // dvojklik / rychlé opakování
   vetveniBezi = true;
   try {
+    /* Původní chat pořád pracuje (nebo se ptá): bez zeptání by pak na tom
+       samém dělaly dva chaty najednou. Člověk vybere, jestli původní zastavit. */
+    const puvodni = zdroj.id ? TABS.find((t) => t.id === zdroj.id && !t.exited)
+      : TABS.find((t) => tabPatriChatu(t, {id: zdroj.chat}));
+    let zastavit = false;
+    if (puvodni && (puvodni.pracuje || puvodni.ceka) && window.HubDialog && HubDialog.vyber) {
+      const volba = await HubDialog.vyber({
+        title: 'Rozvětvit chat',
+        text: puvodni.ceka ? 'Aladin v tomhle chatu čeká na tvou odpověď. Kde má pokračovat?'
+                           : 'Aladin v tomhle chatu ještě pracuje. Kde má pokračovat?',
+        volby: [
+          {id: 'novy', label: 'Jen v novém chatu', primary: true,
+           popis: 'V tomhle chatu práci zastavím, ať na tom samém nedělají dva chaty. Konverzace tu zůstane.'},
+          {id: 'oba', label: 'V obou chatech',
+           popis: 'Tenhle chat dodělá, co dělá, a nový začne zvlášť od vybrané zprávy.'},
+        ],
+      });
+      if (!volba) return;
+      zastavit = volba === 'novy';
+    }
     const r = await api('chat-vetev', {...zdroj, uuid});
     if (!r || !r.id) throw new Error('Server nevrátil novou konverzaci.');
+    if (zastavit && puvodni && puvodni.id && !puvodni.exited) {
+      // Esc v Claude Code přeruší práci (i kartu s dotazem); zprávy, které
+      // v původním chatu ještě čekaly ve frontě, by se jinak poslaly potom.
+      send({t: 'in', id: puvodni.id, d: '\x1b'});
+      if (puvodni.composer && puvodni.composer.zahodFrontu) puvodni.composer.zahodFrontu();
+    }
     if (zavrit) zavrit();
     openTab({kind: 'project', path: r.cwd || (ACTIVE && ACTIVE.path) || '', title: (r.title || 'Větev').slice(0, 40),
              agent: 'claude', resume: r.id});
@@ -3020,6 +3116,20 @@ async function sdiletChat(tab) {
     toast(res.message || 'Chat je sdílený.');
   } catch (err) { toast(err.message); }
   loadRelace();
+}
+
+/* Claude v tabu dokončil práci → upozornění (upozorneni.js). Krátké tahy
+   (příkaz, hned zodpovězená věc) se nehlásí; dotaz má vlastní upozornění,
+   tak se chvíli počká, jestli tah neskončil kartou s otázkou. */
+const HOTOVO_MIN_MS = 6000;
+function upozorniHotovo(tab, od) {
+  if (!window.HubUpozorneni || !od || Date.now() - od < HOTOVO_MIN_MS) return;
+  setTimeout(() => {
+    if (tab.exited || tab.pracuje || tab.ceka) return;
+    const zadani = tab.cteni && tab.cteni.prehled && (tab.cteni.prehled().zadani || []).slice(-1)[0];
+    const text = zadani && zadani.text ? 'Hotovo: ' + zadani.text.slice(0, 140) : '';
+    HubUpozorneni.udalost('hotovo', {id: tab.id, title: chatTitulek(tab)}, text);
+  }, 1500);
 }
 
 // Chat se jmenuje „Chat“ — v seznamu kolegy by nic neřekl, tak první zadání.
@@ -4904,6 +5014,8 @@ async function reload() {
   for (const t of TABS) paintAgent(t);
   applyMotiv(STATE.motiv);           // motiv (barvy + CSS) a s ním applyTheme
   HubVerxee.apply(STATE);            // Nahlásit chybu / Podat návrh, jen s klíčem
+  if (window.HubUpozorneni) HubUpozorneni.init({toast, focusTab: (id) => focusTab(id),
+                                                 aktivni: () => (ACTIVE ? ACTIVE.id : '')});
   if (window.HubOznameni) HubOznameni.apply(hubIO());   // zvonek s oznámeními, jen na serveru
 }
 
@@ -5069,6 +5181,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
                                        aktivni: () => ACTIVE === tab,
                                        // Nepřevzatá zpráva se po restartu pošle sama znovu; odesílání jde pozastavit.
                                        znovu: (text) => !!(tab.composer && tab.composer.znovu && tab.composer.znovu(text)),
+                                       zahod: (text) => !tab.composer || !tab.composer.zahod || tab.composer.zahod(text),
                                        jeOnline: online,
                                        pozastaveno: () => !!tab.pozastaveno,
                                        pozastavit: (on) => {
@@ -5151,13 +5264,20 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
         }
         // Doběhl v tabu, na který se zrovna nekouká — ať je to na tabu vidět.
         if (pracoval && !tab.pracuje && tab !== ACTIVE) { tab.hotovo = true; oznacTab(tab); }
+        if (pracoval && !tab.pracuje) upozorniHotovo(tab, tab.pracovalOd);
+        if (!pracoval && tab.pracuje) tab.pracovalOd = Date.now();
         if (window.HubClaudici && tab.cteni && tab.cteni.hriste) tab.cteni.hriste.prace(tab.pracuje);
         if (tab.cteni) tab.cteni.prace(stav);
       },
       // Odeslaná zpráva — čtení ji ukáže hned, i s tím, jestli ji Claude už vidí.
       odeslano: (zprava, stav) => { if (tab.cteni) tab.cteni.odeslano(zprava, stav); },
       // Claude se ptá (karta s volbami) — tab svítí, dokud se neodpoví.
-      ceka: (on) => { tab.ceka = !!on; oznacTab(tab); },
+      ceka: (on, dotaz) => {
+        const novy = !!on && !tab.ceka;
+        tab.ceka = !!on;
+        oznacTab(tab);
+        if (novy && window.HubUpozorneni) HubUpozorneni.udalost('otazka', {id: tab.id, title: chatTitulek(tab)}, dotaz);
+      },
       // Agenti a úlohy na pozadí v tomhle chatu (cteni.js) — seznam chatů vlevo
       // to ukáže u řádku, i když se na chat nikdo nedívá.
       naPozadi: (st) => {
@@ -5167,7 +5287,10 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
         renderChatsSoon();
       },
       // Claude v tabu spadl (wrapper to napsal do terminálu).
-      upozorni: (text) => { if (tab.cteni) tab.cteni.upozorni(text); else toast(text); },
+      upozorni: (text) => {
+        if (tab.cteni) tab.cteni.upozorni(text); else toast(text);
+        if (window.HubUpozorneni) HubUpozorneni.udalost('chyba', {id: tab.id, title: chatTitulek(tab)}, text);
+      },
       agents: (ready) => agentList(!!ready),
       /* Přepnout agenta ani model v běžícím tabu nejde: je to jiný program,
          případně jiný startovací argument. Otevře se proto nový tab nad tímtéž

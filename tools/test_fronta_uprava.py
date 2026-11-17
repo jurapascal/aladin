@@ -141,9 +141,13 @@ class Uprava(Zaklad):
             self.assertFalse(r["ok"])
             self.assertEqual(r["stav"], "odeslano")
             self.assertTrue(r["duvod"])
+        # Nepřevzatou zprávu upravit nejde (je napsaná), smazat ano — přestane
+        # se hlídat a člověk ji nemusí mít ve frontě navždy.
         fronta._polozky[0].update(stav="nedoslo")
-        self.assertFalse(fronta.smaz("chat1", "a1")["ok"])
+        self.assertFalse(fronta.uprav("chat1", "a1", "x")["ok"])
         self.assertEqual(fronta.seznam("chat1")[0]["text"], "ahoj")
+        self.assertTrue(fronta.smaz("chat1", "a1")["ok"])
+        self.assertEqual(fronta.seznam("chat1"), [])
 
     def test_smaz_a_dvojklik(self):
         fronta.pridej("chat1", "ahoj", "a1")

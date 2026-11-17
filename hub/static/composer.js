@@ -1080,6 +1080,34 @@
       return true;
     }
 
+    /* Zahodit zprávu, kterou Claude nepřevzal (čtení → Smazat u neodeslané
+       zprávy). Co ještě čeká ve frontě bubliny, se z ní vyndá; co už stojí
+       v poli Claude Code a Enter nevzal, se z pole smaže (Ctrl+U po řádcích).
+       Zpráva, která se právě píše do terminálu, se nechá doběhnout — vrací
+       false, ať čtení řekne, že už je pozdě. */
+    function zahod(text) {
+      const body = String(text || '').replace(/\r/g, '');
+      // Zpráva čekající na start Claude Code (cekaZprava, víc zpráv po řádcích).
+      if (cekaZprava && cekaZprava.includes(body)) {
+        cekaZprava = cekaZprava === body ? '' : cekaZprava.replace('\n' + body, '').replace(body + '\n', '');
+        return true;
+      }
+      const i = fronta.indexOf(body);
+      if (i > 0 || (i === 0 && !pumpuje)) { fronta.splice(i, 1); return true; }
+      if (i === 0) return false;
+      const zacatek = body.split('\n')[0].trim().slice(0, 24);
+      const vlozit = body.includes('\n') || body.startsWith('?');
+      if (AG.full && zacatek && !konec() && vPoli(zacatek, vlozit) && !dialogDole()) {
+        const radku = vlozit && body.length > 800 ? 1 : body.split('\n').length;
+        toPty('\x05\x15' + '\x7f\x15'.repeat(Math.min(radku - 1, 200)));
+      }
+      return true;
+    }
+    /* Rozvětvení „jen v novém chatu": co tu ještě čeká, už neposílat. */
+    function zahodFrontu() {
+      fronta.splice(pumpuje ? 1 : 0);
+    }
+
     function submit(text, opts = {}) {
       const body = text.replace(/\r/g, '');
       if (!body.trim()) return;
@@ -1882,7 +1910,12 @@
       // Claude čeká na odpověď — tab svítí, i když je člověk jinde (hub.js).
       if (askingNow !== cekaHlaseno) {
         cekaHlaseno = askingNow;
-        if (io.ceka) io.ceka(askingNow);
+        // Text dotazu jde do upozornění (upozorneni.js) — ať je z oznámení
+        // poznat, na co se Claude ptá, bez otevírání chatu.
+        const dotaz = askingNow ? [title, ...blocks.filter((b) => !b.code).map((b) => b.lines.join(' '))]
+          .filter(Boolean).join(' — ').replace(/\s+/g, ' ').slice(0, 200) : '';
+        const povol = askingNow && rows.some((r) => r.perm);
+        if (io.ceka) io.ceka(askingNow, povol ? 'Chce povolení: ' + dotaz : dotaz);
       }
       if (sig === answerSig) return;
       answerSig = sig;
@@ -2788,6 +2821,8 @@
     schedule();
 
     return {
+      zahod,
+      zahodFrontu,
       insertPaths,
       /* Prohlížeč si obrázek ze schránky vzal sám (dostal ho v `clipboardData`
          jako soubor) a nahrává ho. Doptávat se ještě serveru by znamenalo

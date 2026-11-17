@@ -65,17 +65,27 @@
     const btn = document.getElementById('btn-zvonek');
     if (!btn) return;
     const st = io.state || {};
-    const on = !!(st.config && st.config.gateway_user) && !st.guest;
-    btn.hidden = !on;
-    if (!on) { zavritPanel(); return; }
-    if (zapnuto) return;
-    zapnuto = true;
+    // Zvonek je vidět všude (upozornění z chatů, upozorneni.js); oznámení od
+    // správce chodí jen na serveru. V cizím prostoru (host) zůstává schovaný.
+    const naServeru = !!(st.config && st.config.gateway_user) && !st.guest;
+    btn.hidden = !!st.guest;
+    if (st.guest) { zavritPanel(); return; }
     btn.onclick = (ev) => { ev.stopPropagation(); if (panel) zavritPanel(); else otevritPanel(); };
+    odznak();
+    if (!naServeru || zapnuto) return;
+    zapnuto = true;
     nacti(true);
     casovac = setInterval(() => { if (!document.hidden) nacti(); }, OBNOVA);
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') nacti();
     });
+  }
+
+  const U = () => global.HubUpozorneni;
+  /* Upozornění z chatů se změnila (upozorneni.js). */
+  function mistniZmena() {
+    odznak();
+    if (panel) kresli();
   }
 
   async function nacti(prvni) {
@@ -100,7 +110,7 @@
   function odznak() {
     const btn = document.getElementById('btn-zvonek');
     if (!btn) return;
-    const n = data.neprectene || 0;
+    const n = (data.neprectene || 0) + (U() ? U().neprectene() : 0);
     let b = btn.querySelector('.zvonek-pocet');
     if (!b) { b = el('span', 'zvonek-pocet'); btn.appendChild(b); }
     b.textContent = n > 9 ? '9+' : String(n);
@@ -120,6 +130,7 @@
       document.addEventListener('pointerdown', venku, true);
       document.addEventListener('keydown', esc, true);
     }, 0);
+    if (U()) U().precteno();
     // Otevřený zvonek = přečteno (admin to uvidí). Zavřít je dál na člověku.
     const ids = data.oznameni.filter((o) => !o.read_at).map((o) => o.id);
     if (ids.length) {
@@ -158,8 +169,20 @@
     panel.appendChild(hlava);
     const seznam = el('div', 'ozn-seznam');
     panel.appendChild(seznam);
-    if (!data.oznameni.length) {
-      seznam.appendChild(el('div', 'ozn-prazdno', 'Žádná nová oznámení. Až se na serveru něco bude týkat tebe, objeví se tady.'));
+    const zChatu = U() ? U().mistni() : [];
+    if (zChatu.length) {
+      const h = el('div', 'ozn-skupina');
+      h.appendChild(el('span', null, 'Z chatů'));
+      const vse = el('button', 'ozn-starsi-btn', 'Vymazat vše');
+      vse.onclick = () => U().smaz();
+      h.appendChild(vse);
+      seznam.appendChild(h);
+      for (const z of zChatu.slice(0, 15)) seznam.appendChild(polozkaChatu(z));
+      if (data.oznameni.length) seznam.appendChild(el('div', 'ozn-skupina', 'Od správce'));
+    }
+    if (!data.oznameni.length && !zChatu.length) {
+      seznam.appendChild(el('div', 'ozn-prazdno', 'Žádná oznámení. Až Aladin dokončí úkol nebo se na něco zeptá, ' +
+        'objeví se tady. Co a jak hlásit, nastavíš v Nastavení → Oznámení.'));
     }
     for (const o of data.oznameni) seznam.appendChild(polozka(o));
     if (data.starsi && data.starsi.length) {
@@ -172,6 +195,29 @@
         panel.appendChild(st);
       }
     }
+  }
+
+  /* Upozornění z chatu: klik otevře chat, × ho smaže. */
+  function polozkaChatu(z) {
+    const druh = z.druh === 'chyba' ? 'vazne' : z.druh === 'otazka' ? 'varovani' : 'info';
+    const box = el('div', 'ozn-polozka ozn-chat ' + druh + (z.precteno ? '' : ' neprectene'));
+    const hlava = el('div', 'ozn-titulek');
+    hlava.appendChild(el('span', 'ozn-tecka'));
+    hlava.appendChild(el('span', null, z.titul));
+    const x = el('button', 'iconbtn ozn-chat-x', '×');
+    x.title = 'Smazat';
+    x.setAttribute('aria-label', 'Smazat oznámení');
+    x.onclick = (ev) => { ev.stopPropagation(); U().smaz(z.id); };
+    hlava.appendChild(x);
+    box.appendChild(hlava);
+    box.appendChild(el('div', 'ozn-meta', kdy(z.cas)));
+    if (z.text) box.appendChild(el('div', 'ozn-text', z.text));
+    if (z.tab) {
+      box.classList.add('klikaci');
+      box.title = 'Otevřít chat';
+      box.onclick = () => { zavritPanel(); U().otevri(z.tab); };
+    }
+    return box;
   }
 
   function polozka(o, stara) {
@@ -217,5 +263,5 @@
     zavritPanel();
   }
 
-  global.HubOznameni = {apply, obnovit: () => nacti()};
+  global.HubOznameni = {apply, obnovit: () => nacti(), mistniZmena};
 })(window);

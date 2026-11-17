@@ -107,6 +107,23 @@ async function prijmiSdileni(req) {
   return Response.redirect(new URL('/?sdileno=' + encodeURIComponent(id), self.location.origin).href, 303);
 }
 
+/* Klik na upozornění z chatu (upozorneni.js): okno appky dopředu a otevřít
+ * ten chat. Když žádné okno neběží, otevře se nové s ?upozorneni=<tab>. */
+self.addEventListener('notificationclick', (ev) => {
+  ev.notification.close();
+  const tab = String((ev.notification.data && ev.notification.data.tab) || '');
+  ev.waitUntil((async () => {
+    const okna = await self.clients.matchAll({type: 'window', includeUncontrolled: true});
+    const okno = okna.find((c) => new URL(c.url).origin === self.location.origin);
+    if (okno) {
+      try { await okno.focus(); } catch (_) { /* nic */ }
+      okno.postMessage({t: 'upozorneni-klik', tab});
+      return;
+    }
+    await self.clients.openWindow('/' + (tab ? '?upozorneni=' + encodeURIComponent(tab) : ''));
+  })());
+});
+
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (ev) => ev.waitUntil(self.clients.claim()));
 

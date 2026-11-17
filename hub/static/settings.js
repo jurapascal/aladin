@@ -36,6 +36,8 @@
     // WhatsApp firmy: číslo bota, skupiny, blokace a ověření vlastního čísla (gateway/wa_provoz.py).
     ['whatsapp',   'WhatsApp',  'i-bell',     () => whatsapp(), 'server'],
     ['hlas',       'Hlas',      'i-mic',      () => hlas()],
+    // Upozornění z chatů: hotovo, otázka, chyba — v aplikaci i systémová (upozorneni.js).
+    ['upozorneni', 'Oznámení',  'i-bell',     () => upozorneni()],
     // Co je v panelu vlevo a vedle tabů: Nový chat, Obsidian, Projekty (Klienti),
     // terminál — jedna sekce, každá věc jen jednou (dřív zvlášť i záložka Taby).
     ['panel',      'Panel a lišta', 'i-menu', () => panelAPole()],
@@ -43,7 +45,7 @@
     ['rozsireni',  'Napojení a pluginy', 'i-hub', () => rozsireni()],
     // Místo na disku serveru a oznámení lidem (gateway/uloziste.py, oznameni.py; uloziste.js).
     ['uloziste',   'Úložiště',  'i-disk',     () => HubUloziste.uloziste({...io, zavrit: close}), 'server'],
-    ['oznameni',   'Oznámení',  'i-bell',     () => HubUloziste.oznameni(io), 'admin'],
+    ['oznameni',   'Oznámení lidem', 'i-bell', () => HubUloziste.oznameni(io), 'admin'],
     ['aktualizace','Aktualizace', 'i-up',     () => aktualizace()],
     ['logy',       'Logy',      'i-status',   () => logy(), 'dev'],
     ['ostatni',    'Ostatní',   'i-gear',     () => ostatni()],
@@ -52,7 +54,7 @@
   let navHledat = '';
   // Skupiny v panelu vlevo (pořadí sekcí zůstává, mění se jen nadpisy).
   const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
-                   ucet: 'Předvolby', firmy: 'Předvolby', whatsapp: 'Předvolby', hlas: 'Předvolby',
+                   ucet: 'Předvolby', firmy: 'Předvolby', whatsapp: 'Předvolby', hlas: 'Předvolby', upozorneni: 'Předvolby',
                    panel: 'Přizpůsobit', rozsireni: 'Přizpůsobit', uloziste: 'Platforma', oznameni: 'Platforma',
                    aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
 
@@ -1034,6 +1036,82 @@
     };
     box.appendChild(konec);
     box.appendChild(verxee());
+    return box;
+  }
+
+  /* Oznámení z chatů (upozorneni.js): kdy a jak dát vědět, že Aladin
+     dokončil úkol, ptá se nebo narazil na problém. Ukládá se na zařízení. */
+  function upozorneni() {
+    const U = global.HubUpozorneni;
+    const box = section('Oznámení',
+      'Dám vědět, když Aladin dokončí úkol nebo na tebe čeká — i když se zrovna díváš jinam. ' +
+      'Nastavení platí pro tohle zařízení (počítač a telefon si nastavíš zvlášť).');
+    if (!U) { box.appendChild(el('div', 'set-note', 'Oznámení teď nejsou k dispozici — obnov stránku.')); return box; }
+    const volba = (klic, text, popis, poZmene) => {
+      const r = el('label', 'onb-row');
+      const c = el('input');
+      c.type = 'checkbox';
+      c.checked = !!U.nastaveni()[klic];
+      c.onchange = async () => {
+        U.uloz({[klic]: c.checked});
+        if (poZmene) await poZmene(c);
+      };
+      r.appendChild(c);
+      const col = el('span', 'onb-col');
+      col.appendChild(el('span', null, text));
+      if (popis) col.appendChild(el('small', null, popis));
+      r.appendChild(col);
+      box.appendChild(r);
+      return c;
+    };
+
+    box.appendChild(el('div', 'set-title', 'Kdy'));
+    volba('hotovo', 'Aladin dokončil úkol', 'Když doběhne práce, která trvala déle než pár vteřin.');
+    volba('otazka', 'Aladin se ptá nebo chce povolení', 'Karta s volbami — bez tvé odpovědi nepokračuje.');
+    volba('chyba', 'Aladin narazil na problém', 'Chat spadl nebo se zasekl.');
+    volba('jenPryc', 'Jen když se na ten chat nedívám',
+      'Na chat, který máš otevřený před sebou, se upozorňovat nebude.');
+
+    box.appendChild(el('div', 'set-title', 'Jak'));
+    volba('aplikace', 'V aplikaci', 'Hláška dole a záznam ve zvonku nahoře. Klik na záznam otevře chat.');
+    const stavSystemu = el('div', 'set-note');
+    const kresliStav = () => {
+      const p = U.povoleni();
+      stavSystemu.textContent =
+        p === 'unsupported' ? 'Tenhle prohlížeč systémová oznámení neumí (na iPhonu jen v appce přidané na plochu).'
+        : p === 'denied' ? 'Systém oznámení pro Aladina zakázal. Povol je v nastavení prohlížeče (ikonka zámku vedle adresy) nebo systému a zapni znovu.'
+        : p === 'granted' ? 'Povoleno. Oznámení přijde, i když je okno schované nebo na pozadí — dokud appka běží.'
+        : 'Po zapnutí se prohlížeč (systém) zeptá na povolení.';
+    };
+    const sysCb = volba('system', 'Systémová oznámení (push)',
+      'Oznámení systému jako u zpráv — na počítači v rohu obrazovky, na telefonu v liště. Přijde, když je Aladin schovaný nebo na pozadí.',
+      async (c) => {
+        if (c.checked) {
+          const p = await U.pozadatOPovoleni();
+          if (p !== 'granted') { c.checked = false; U.uloz({system: false}); }
+        }
+        kresliStav();
+      });
+    if (U.povoleni() === 'denied' || U.povoleni() === 'unsupported') { sysCb.checked = false; }
+    box.appendChild(stavSystemu);
+    kresliStav();
+    volba('zvuk', 'Pípnout', 'Krátký tón — jiný pro hotovo, otázku a problém.');
+
+    const radek = el('div', 'onb-row');
+    const zkus = el('button', 'btn ghost', 'Vyzkoušet oznámení');
+    zkus.onclick = async () => {
+      const n = U.nastaveni();
+      if (n.system) {
+        const p = await U.pozadatOPovoleni();
+        kresliStav();
+        if (p === 'granted') U.zkouska();
+      }
+      if (n.aplikace) io.toast('✓ Takhle vypadá hláška v aplikaci. Systémové oznámení ' +
+        (n.system ? 'by mělo přijít taky.' : 'je vypnuté.'));
+      if (!n.aplikace && !n.system) io.toast('Oznámení jsou vypnutá — zapni „V aplikaci“ nebo „Systémová oznámení“.');
+    };
+    radek.appendChild(zkus);
+    box.appendChild(radek);
     return box;
   }
 

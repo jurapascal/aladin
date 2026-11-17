@@ -263,6 +263,20 @@ body { display: flex; flex-direction: column; }
   touch-action: manipulation;
 }
 .chats-more:hover, .chats-toggle:hover { background: var(--card-hover); color: var(--accent); }
+/* Archivované chaty (hub.js, archivRezim) — tlačítko nad seznamem u vybraného druhu chatů. */
+.chats-archiv-btn {
+  display: flex; align-items: center; gap: 8px; width: calc(100% - 16px);
+  margin: 4px 8px 6px; padding: 8px 12px; min-height: 40px; box-sizing: border-box;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: none; color: var(--dim); font: inherit; font-size: 12.5px; text-align: left; cursor: pointer;
+  touch-action: manipulation;
+}
+.chats-archiv-btn .ico { width: 16px; height: 16px; flex: none; }
+.chats-archiv-btn span { flex: 1; }
+.chats-archiv-btn b { font-weight: 600; color: var(--fg); }
+.chats-archiv-btn:hover { background: var(--card-hover); color: var(--fg-bright); }
+.chats-archiv-btn.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.chat-archiv-tag { color: var(--dim); }
 .chats-toggle-main { color: var(--accent); font-weight: 600; }
 .chats-toggle-sub { color: var(--dim); font-size: 11px; }
 /* Chat z jiného prostoru (celá historie): kam klepnutí přepne. */
@@ -4429,6 +4443,14 @@ button.pr-radek:hover { background: var(--card-hover); color: var(--fg-bright); 
   background: var(--bg); color: var(--fg-bright); font: inherit; }
 .hd-pole:focus { outline: none; border-color: var(--accent); }
 .hd-btns { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.hd-volby { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.hd-volba { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; width: 100%; padding: 11px 14px;
+  border: 1px solid var(--border); border-radius: 10px; background: none; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.hd-volba:hover, .hd-volba:focus-visible { background: var(--card-hover); border-color: var(--accent); outline: none; }
+.hd-volba.primary { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); }
+.hd-volba-nazev { font-weight: 600; font-size: 14px; color: var(--fg-bright); }
+.hd-volba.primary .hd-volba-nazev { color: var(--accent); }
+.hd-volba-popis { font-size: 12.5px; color: var(--dim); line-height: 1.45; }
 @keyframes hd-vstup { from { opacity: 0; } }
 @keyframes hd-box { from { transform: translateY(8px) scale(.98); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .hd-wrap, .hd-box { animation: none; } }
@@ -5161,6 +5183,13 @@ button.st-tym-limit.prazdny { color: var(--dim); }
   background: none; border: none; color: var(--dim); font: inherit; font-size: 12px; cursor: pointer;
 }
 .ozn-starsi-btn:hover { color: var(--fg-bright); }
+.ozn-skupina { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--dim); font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; padding: 6px 8px 0; }
+.ozn-skupina .ozn-starsi-btn { width: auto; margin: 0; text-transform: none; letter-spacing: 0; padding: 2px 4px; }
+.ozn-polozka.klikaci { cursor: pointer; }
+.ozn-polozka.klikaci:hover { background: var(--bg-hover, rgba(127,127,127,.08)); }
+.ozn-titulek > span:nth-child(2) { flex: 1; min-width: 0; }
+.ozn-chat-x { flex: none; font-size: 15px; width: 22px; height: 22px; opacity: .6; }
+.ozn-chat-x:hover { opacity: 1; }
 @media (max-width: 820px) {
   .ozn-panel { top: calc(56px + env(safe-area-inset-top)); left: 8px; right: 8px; width: auto; max-height: 72vh; }
   .ozn-akce .btn { padding: 9px 14px; font-size: 13.5px; }

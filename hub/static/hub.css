@@ -2478,12 +2478,55 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
   background: var(--bg); cursor: zoom-in; object-fit: contain;
 }
 .cteni-imgs .cteni-img:not(:only-child) { max-width: calc(50% - 3px); max-height: 180px; }
-.cteni-lupa {
-  position: fixed; inset: 0; z-index: 120;
-  display: flex; align-items: center; justify-content: center;
-  padding: 16px; background: rgba(0, 0, 0, .82); cursor: zoom-out;
+/* Lupa (lupa.js): obrázek přes celé okno, přiblížení kolečkem/prsty, posun tažením. */
+.lupa {
+  position: fixed; inset: 0; z-index: 9500; display: flex; flex-direction: column;
+  background: rgba(8, 10, 14, .92); color: #e6e6e6; outline: none;
+  -webkit-user-select: none; user-select: none;
 }
-.cteni-lupa img { max-width: 100%; max-height: 100%; border-radius: 6px; object-fit: contain; }
+.lupa-bar {
+  display: flex; align-items: center; gap: 4px; padding: 8px 10px;
+  padding-top: max(8px, env(safe-area-inset-top)); background: rgba(0, 0, 0, .35);
+}
+.lupa-nazev { font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lupa-pocet { font-size: 12px; color: #9aa4b2; white-space: nowrap; }
+.lupa-mezera { flex: 1; }
+.lupa-btn {
+  min-width: 34px; height: 34px; padding: 0 8px; border-radius: 8px; border: 1px solid transparent;
+  background: rgba(255, 255, 255, .08); color: #f0f0f0; font-size: 16px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; text-decoration: none;
+}
+.lupa-btn:hover { background: rgba(255, 255, 255, .18); }
+.lupa-btn[hidden] { display: none; }
+.lupa-proc { font-size: 12px; min-width: 58px; font-variant-numeric: tabular-nums; }
+.lupa-plocha { position: relative; flex: 1; overflow: hidden; touch-action: none; cursor: zoom-in; }
+.lupa.priblizeno .lupa-plocha { cursor: grab; }
+.lupa.tahne .lupa-plocha { cursor: grabbing; }
+.lupa-img {
+  position: absolute; left: 50%; top: 50%; max-width: none; max-height: none;
+  transform-origin: 50% 50%; image-rendering: auto; pointer-events: auto;
+  box-shadow: 0 4px 30px rgba(0, 0, 0, .5); background: repeating-conic-gradient(#2a2d33 0 25%, #1f2227 0 50%) 0 0 / 16px 16px;
+}
+.lupa.priblizeno .lupa-img { image-rendering: -webkit-optimize-contrast; }
+.lupa-img.plynule { transition: transform .18s ease-out; }
+.lupa.nacita .lupa-img { opacity: .3; }
+.lupa-sipka {
+  position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 64px;
+  font-size: 30px; background: rgba(0, 0, 0, .35);
+}
+.lupa-vlevo { left: 10px; }
+.lupa-vpravo { right: 10px; }
+.lupa-napoveda {
+  position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%);
+  padding: 7px 14px; border-radius: 999px; background: rgba(0, 0, 0, .6); font-size: 12px;
+  color: #cfd6df; pointer-events: none; transition: opacity .6s; text-align: center; max-width: calc(100% - 32px);
+}
+.lupa-napoveda.pryc { opacity: 0; }
+@media (max-width: 600px) {
+  .lupa-sipka { display: none; }
+  .lupa-btn { min-width: 32px; height: 32px; padding: 0 6px; }
+  .lupa-nazev { display: none; }
+}
 /* Co Claude napsal. Markdown kreslí prohlížeč poznámek, tak i vypadá stejně.
    Taky bublina — vlevo a neutrální, ať odpověď oddělí od řádků s nástroji. */
 /* Rychlé odpovědi pod odpovědí Clauda (cteni.js, rychleOdpovedi). */
@@ -2548,8 +2591,23 @@ select option { background-color: var(--bg-card); color: var(--fg-bright); }
 .cteni-tool + .cteni-google { margin: 4px 0 10px; }
 .cteni-html.cele .cteni-google-pozn { display: none; }
 .cteni-html.cele { position: fixed; inset: 0; z-index: 9000; margin: 0; border-radius: 0; display: flex; flex-direction: column; }
-.cteni-html.cele .cteni-html-ram { flex: 1; height: auto !important; }
-.cteni-html-ram { display: block; width: 100%; height: 320px; border: none; background: #fff; }
+/* Plocha s rámem: stránka v šířce zařízení (mobil/tablet) nebo místa,
+   zmenšená/zvětšená přes transform (cteni.js, nahledHtml → rozloz). */
+.cteni-html-plocha { position: relative; overflow: auto; background: #fff; }
+.cteni-html-plocha.zarizeni { background: repeating-linear-gradient(45deg, var(--bg) 0 10px, var(--bg-card) 10px 20px); padding: 12px 0; }
+.cteni-html-list { position: relative; margin: 0 auto; overflow: hidden; }
+.cteni-html-plocha.zarizeni .cteni-html-list { box-shadow: 0 2px 14px rgba(0, 0, 0, .35); border-radius: 6px; background: #fff; }
+.cteni-html.cele .cteni-html-plocha { flex: 1; min-height: 0; }
+.cteni-html-ram { display: block; width: 100%; height: 320px; border: none; background: #fff; transform-origin: 0 0; }
+.cteni-html-skupina { display: inline-flex; gap: 2px; margin-left: 6px; padding-left: 6px; border-left: 1px solid var(--border); }
+.cteni-html-skupina[hidden] { display: none; }
+.cteni-html-proc { min-width: 48px; font-variant-numeric: tabular-nums; }
+.cteni-html-bar { flex-wrap: wrap; align-items: center; }
+.cteni-soubor-misto.web .cteni-html { margin: 8px 0 2px; }
+@media (max-width: 600px) {
+  .cteni-html-skupina { margin-left: 2px; padding-left: 2px; }
+  .cteni-html-btn { padding-left: 6px; padding-right: 6px; }
+}
 .cteni-html-kod { margin: 0; border: none; border-radius: 0; max-height: 60vh; overflow: auto; }
 .cteni-html-otevrit { align-self: flex-start; margin: 2px 0 4px 22px; border-color: var(--border); }
 .cteni-tool > .cteni-html { margin: 2px 0 6px; }
@@ -5558,7 +5616,7 @@ html[data-misto-dole="1"] #btn-prostor { display: none !important; }
 .chats-filtr button.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 
 /* Obrázky přímo v chatu (cteni.js, nahledObrazku): pod odpovědí i v kartě
-   ke stažení. Klik zvětší přes celé okno (cteni-lupa). */
+   ke stažení. Klik otevře lupu s přibližováním (lupa.js). */
 .cteni-obrazky { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 4px; }
 .cteni-obrazek { margin: 0; display: flex; flex-direction: column; gap: 4px; max-width: min(100%, 560px); }
 .cteni-obrazek img {

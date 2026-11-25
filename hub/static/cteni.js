@@ -177,8 +177,9 @@
     img.alt = jmenoSouboru(cesta);
     img.title = cesta + ' — klikni pro zvětšení';
     img.src = src;
+    img.dataset.lupaCesta = cesta;
     img.onerror = () => fig.remove();
-    img.onclick = (ev) => { ev.stopPropagation(); zvetsit(src); };
+    img.onclick = (ev) => { ev.stopPropagation(); zvetsit(src, img); };
     fig.append(img, el('figcaption', 'cteni-obrazek-popis', jmenoSouboru(cesta)));
     return fig;
   }
@@ -190,7 +191,8 @@
     const out = [];
     for (const m of String(text || '').matchAll(CESTA_SOUBORU)) {
       const c = m[1];
-      if (OBRAZEK.test(c) || !VYSTUP.test(c) || c.length > 1000) continue;
+      // HTML zmíněné v textu je stránka k vyzkoušení (živý náhled na místě).
+      if (OBRAZEK.test(c) || !(VYSTUP.test(c) || /\.html?$/i.test(c)) || c.length > 1000) continue;
       if (!out.includes(c)) out.push(c);
       if (out.length >= 8) break;
     }
@@ -394,53 +396,266 @@
   function sestavStranku(kod, id, chart) {
     let k = String(kod);
     if (chart) k = k.replace(CHART_CDN, '');
-    // Rám sám změří a ohlásí výšku (rodič do něj nevidí).
+    /* Rám sám změří a ohlásí výšku (rodič do něj nevidí). Odkazy uvnitř:
+       #kotva se posune v téže stránce (base target=_blank by ji otevřel
+       prázdnou ve vedlejší kartě) a odkaz na sousední .html soubor ohlásí
+       rodiči, který ho načte do téhož rámu (data-aladin-jdi). */
     const mer = '<script>(function(){var id=' + JSON.stringify(id) + ';function p(){try{parent.postMessage({aladinRam:id,h:Math.max(' +
       'document.documentElement.scrollHeight,document.body?document.body.scrollHeight:0)},"*")}catch(e){}}' +
       'addEventListener("load",function(){p();setTimeout(p,300);setTimeout(p,1200)});' +
       'if(window.ResizeObserver)new ResizeObserver(p).observe(document.documentElement);' +
+      'document.addEventListener("click",function(e){var a=e.target&&e.target.closest?e.target.closest("a[href]"):null;' +
+      'if(!a||e.defaultPrevented)return;var h=a.getAttribute("href")||"";' +
+      'if(h.charAt(0)==="#"){e.preventDefault();var c=h.slice(1),t=c?document.getElementById(decodeURIComponent(c))||document.getElementsByName(c)[0]:null;' +
+      'if(t)t.scrollIntoView({behavior:"smooth"});else if(!c)scrollTo({top:0,behavior:"smooth"});return}' +
+      'var j=a.getAttribute("data-aladin-jdi");if(j){e.preventDefault();parent.postMessage({aladinRam:id,jdi:j},"*")}},true);' +
       'addEventListener("error",function(){});})()<\/script>';
     const lib = chart ? '<script>' + chart.replace(/<\/script/gi, '<\\/script') + '<\/script>' : '';
     return RAM_ZAKLAD + lib + k + mer;
   }
 
+  /* HTML soubor z prostoru jako živá stránka: styly, skripty a obrázky vedle
+     něj (relativní cesty) se stáhnou přes /api/soubor a vloží přímo do
+     stránky — rám je v sandboxu bez vlastního původu, sám by si pro ně
+     dojít nemohl. Odkaz na sousední .html dostane data-aladin-jdi. */
+  const ADR_VEN = /^(?:[a-z][a-z0-9+.-]*:|\/\/|#)/i;
+  function spojCestu(soubor, rel) {
+    const cista = String(rel).split(/[?#]/)[0];
+    if (!cista) return '';
+    let dily;
+    try { dily = decodeURIComponent(cista); } catch (_) { dily = cista; }
+    const zaklad = /^[\\/]/.test(dily) ? [] : String(soubor).split(/[\\/]/).slice(0, -1);
+    for (const d of dily.split(/[\\/]/)) {
+      if (!d || d === '.') continue;
+      if (d === '..') { if (zaklad.length > 1) zaklad.pop(); } else zaklad.push(d);
+    }
+    return zaklad.join('/');
+  }
+  /* Kam smí stránka sáhnout: složka souboru, u hlubších cest i o patro
+     výš (web/css/…, ../obrazky). Nikdy celý domov. */
+  function koren(soubor) {
+    const dily = String(soubor || '').split(/[\\/]/).slice(0, -1);
+    // Domov (~, /home/jméno, C:\\Users\\jméno) ani cesty kolem něj nikdy.
+    const doma = dily[0] === '~' ? 1 : /^(home|Users)$/.test(dily[1] || '') ? 3 : 0;
+    if (doma ? dily.length - doma >= 3 : dily.length - 1 >= 5) dily.pop();
+    if (dily.length - (doma || 1) < 1) return '';
+    return dily.join('/');
+  }
+  function vKoreni(puvodni, cesta) {
+    const k = koren(puvodni);
+    return !!k && String(cesta).replace(/\\/g, '/').startsWith(k.replace(/\\/g, '/') + '/') &&
+      !/(^|\/)\.[^/]/.test(String(cesta).slice(k.length));
+  }
+  const TYP_DAT = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
+                   svg: 'image/svg+xml', avif: 'image/avif', ico: 'image/x-icon', bmp: 'image/bmp',
+                   woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', otf: 'font/otf',
+                   mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg'};
+  async function slozStranku(html, soubor, st, puvodni) {
+    if (!soubor || !st || !st.url || typeof DOMParser === 'undefined') return html;
+    puvodni = puvodni || soubor;
+    const doc = new DOMParser().parseFromString(String(html), 'text/html');
+    let celkem = 0;
+    const LIMIT = 25 * 1024 * 1024;
+    const stahni = async (cesta, jakoText) => {
+      const pripona = (cesta.split('.').pop() || '').toLowerCase();
+      // Jen styly, skripty a média uvnitř webu — žádné jiné soubory z prostoru.
+      if (!vKoreni(puvodni, cesta) || (jakoText ? !/^(css|js|mjs)$/.test(pripona) : !TYP_DAT[pripona])) return null;
+      try {
+        const r = await fetch(st.url(cesta), {credentials: 'same-origin'});
+        if (!r.ok) return null;
+        if (jakoText) { const t = await r.text(); celkem += t.length; return celkem > LIMIT ? null : t; }
+        const b = await r.blob();
+        celkem += b.size;
+        if (celkem > LIMIT || b.size > 8 * 1024 * 1024) return null;
+        const typ = TYP_DAT[pripona];
+        return await new Promise((ok) => {
+          const fr = new FileReader();
+          fr.onload = () => ok(String(fr.result).replace(/^data:[^;,]*/, 'data:' + typ));
+          fr.onerror = () => ok(null);
+          fr.readAsDataURL(b);
+        });
+      } catch (_) { return null; }
+    };
+    const relativni = (u) => u && !ADR_VEN.test(u.trim());
+    // url(...) v CSS: obrázky a písma vedle stylu.
+    const urlVCss = async (css, cssSoubor) => {
+      const nalezy = [...css.matchAll(/url\(\s*(['"]?)([^'")]+)\1\s*\)/g)].filter((m) => relativni(m[2]));
+      for (const m of nalezy.slice(0, 60)) {
+        const data = await stahni(spojCestu(cssSoubor, m[2]), false);
+        if (data) css = css.split(m[0]).join('url("' + data + '")');
+      }
+      return css;
+    };
+    const prace = [];
+    for (const l of doc.querySelectorAll('link[rel~="stylesheet"][href]')) {
+      const href = l.getAttribute('href');
+      if (!relativni(href)) continue;
+      prace.push((async () => {
+        const cesta = spojCestu(soubor, href);
+        const css = await stahni(cesta, true);
+        if (css == null) return;
+        const st2 = doc.createElement('style');
+        st2.textContent = await urlVCss(css, cesta);
+        l.replaceWith(st2);
+      })());
+    }
+    for (const sc of doc.querySelectorAll('script[src]')) {
+      const src = sc.getAttribute('src');
+      if (!relativni(src)) continue;
+      prace.push((async () => {
+        const js = await stahni(spojCestu(soubor, src), true);
+        if (js == null) return;
+        const n = doc.createElement('script');
+        for (const a of sc.attributes) if (a.name !== 'src') n.setAttribute(a.name, a.value);
+        n.textContent = js;
+        sc.replaceWith(n);
+      })());
+    }
+    for (const st3 of doc.querySelectorAll('style')) {
+      if (/url\(/.test(st3.textContent)) prace.push(urlVCss(st3.textContent, soubor).then((c) => { st3.textContent = c; }));
+    }
+    const media = [...doc.querySelectorAll('img[src], source[src], video[src], audio[src], video[poster], input[type=image][src], link[rel~="icon"][href]')];
+    for (const n of media.slice(0, 200)) {
+      for (const atr of ['src', 'poster', 'href']) {
+        const v = n.getAttribute(atr);
+        if (!relativni(v) || (atr === 'href' && n.tagName !== 'LINK')) continue;
+        prace.push(stahni(spojCestu(soubor, v), false).then((d) => { if (d) n.setAttribute(atr, d); }));
+      }
+      if (n.hasAttribute('srcset') && n.getAttribute('src')) n.removeAttribute('srcset');
+    }
+    for (const n of doc.querySelectorAll('[style*="url("]')) {
+      prace.push(urlVCss(n.getAttribute('style'), soubor).then((c) => n.setAttribute('style', c)));
+    }
+    for (const a of doc.querySelectorAll('a[href]')) {
+      const h = a.getAttribute('href');
+      if (relativni(h) && /\.html?(?:[?#]|$)/i.test(h)) a.setAttribute('data-aladin-jdi', spojCestu(soubor, h));
+    }
+    await Promise.all(prace);
+    return '<!doctype html>' + doc.documentElement.outerHTML;
+  }
+
+  /* Velikosti obrazovky k vyzkoušení webu: šířka, ve které se stránka
+     vykreslí (0 = podle místa v chatu). */
+  const ZARIZENI = [
+    {k: 'pc', nazev: 'Počítač', title: 'Počítač — celá šířka', w: 0},
+    {k: 'tablet', nazev: 'Tablet', title: 'Tablet (820 px)', w: 820},
+    {k: 'mobil', nazev: 'Mobil', title: 'Mobil (390 px)', w: 390},
+  ];
+
+  /* volby: chart, cesta (soubor v prostoru → relativní styly a obrázky
+     fungují), st (stahování), nacti (async () => html místo `kod`),
+     cele (otevřít rovnou přes celé okno a po zavření rám zahodit). */
   function nahledHtml(kod, volby) {
     volby = volby || {};
     const box = el('div', 'cteni-html');
     const bar = el('div', 'cteni-html-bar');
     const zdroj = el('button', 'cteni-html-btn', 'Kód');
     const nahled = el('button', 'cteni-html-btn on', 'Náhled');
+    const zar = el('span', 'cteni-html-skupina');
+    const zarBtn = {};
+    for (const z of ZARIZENI) {
+      const b = el('button', 'cteni-html-btn' + (z.k === 'pc' ? ' on' : ''), z.nazev);
+      b.title = z.title;
+      b.onclick = () => nastavZarizeni(z.k);
+      zarBtn[z.k] = b;
+      zar.appendChild(b);
+    }
+    const zm = el('span', 'cteni-html-skupina');
+    const mensi = el('button', 'cteni-html-btn', '−');
+    mensi.title = 'Oddálit — ukáže víc ze stránky';
+    const proc = el('button', 'cteni-html-btn cteni-html-proc', '100 %');
+    proc.title = 'Zpět na 100 %';
+    const vetsi = el('button', 'cteni-html-btn', '+');
+    vetsi.title = 'Přiblížit';
+    zm.append(mensi, proc, vetsi);
     const znovu = el('button', 'cteni-html-btn cteni-html-vpravo', '↻');
     znovu.title = 'Načíst znovu';
     const velke = el('button', 'cteni-html-btn', '⤢');
     velke.title = 'Na celou obrazovku';
-    bar.append(nahled, zdroj, znovu, velke);
+    bar.append(nahled, zdroj, zar, zm, znovu, velke);
+    const plocha = el('div', 'cteni-html-plocha');
+    const list = el('div', 'cteni-html-list');
     const ram = el('iframe', 'cteni-html-ram');
     // Skripty ano, ale jen v cizím původu: bez allow-same-origin.
-    ram.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-modals');
-    ram.setAttribute('loading', 'lazy');
+    ram.setAttribute('sandbox', 'allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox ' +
+      'allow-modals allow-downloads allow-pointer-lock allow-presentation');
+    ram.setAttribute('allow', 'fullscreen; clipboard-write; autoplay');
+    if (!volby.cele) ram.setAttribute('loading', 'lazy');
+    list.appendChild(ram);
+    plocha.appendChild(list);
     const id = 'r' + (++ramPoradi) + '-' + Math.random().toString(36).slice(2, 8);
+
+    let zarizeni = 'pc', z = 1, vyska = 0, cesta = volby.cesta || '';
+    const cele = () => box.classList.contains('cele');
+    function rozloz() {
+      const sirkaPlochy = plocha.clientWidth || box.clientWidth || 600;
+      const zd = ZARIZENI.find((x) => x.k === zarizeni);
+      // Šířka stránky v jejích pixelech: zařízení, nebo místo / přiblížení.
+      const w = zd.w || Math.max(200, Math.floor(sirkaPlochy / z));
+      ram.style.width = w + 'px';
+      ram.style.transform = z === 1 ? '' : 'scale(' + z + ')';
+      let h;
+      if (cele()) h = Math.max(200, (plocha.clientHeight - (zd.w ? 24 : 0)) / z);
+      else h = Math.max(40, Math.min(vyska || 320, Math.round(window.innerHeight * 0.85) / z)) + 4;
+      ram.style.height = h + 'px';
+      list.style.width = Math.floor(w * z) + 'px';
+      list.style.height = Math.ceil(h * z) + 'px';
+      plocha.classList.toggle('zarizeni', !!zd.w);
+      proc.textContent = Math.round(z * 100) + ' %';
+    }
+    function nastavZarizeni(k) {
+      zarizeni = k;
+      for (const [kk, b] of Object.entries(zarBtn)) b.classList.toggle('on', kk === k);
+      // Mobil/tablet, který se do chatu nevejde, se rovnou zmenší.
+      const zd = ZARIZENI.find((x) => x.k === k);
+      const misto = (plocha.clientWidth || 600) - 24;
+      z = zd.w && zd.w > misto ? Math.max(0.25, Math.floor((misto / zd.w) * 20) / 20) : 1;
+      rozloz();
+    }
+    const priblizit = (k) => { z = Math.max(0.25, Math.min(3, Math.round(z * k * 20) / 20)); rozloz(); };
+    mensi.onclick = () => priblizit(1 / 1.25);
+    vetsi.onclick = () => priblizit(1.25);
+    proc.onclick = () => { z = 1; rozloz(); };
+
     const poslouchej = (ev) => {
       const d = ev.data;
       if (!d || d.aladinRam !== id || ev.source !== ram.contentWindow) return;
-      if (!document.body.contains(box)) { removeEventListener('message', poslouchej); return; }
-      if (box.classList.contains('cele')) return;
-      const h = Math.max(40, Math.min(+d.h || 0, Math.round(window.innerHeight * 0.85)));
-      ram.style.height = (h + 4) + 'px';
+      if (!box.isConnected) { removeEventListener('message', poslouchej); return; }
+      if (d.jdi) {
+        // Jen sousední .html stránky téhož webu (stránka v rámu je cizí kód).
+        if (volby.st && typeof d.jdi === 'string' && /\.html?$/i.test(d.jdi) && vKoreni(volby.cesta, d.jdi)) {
+          cesta = d.jdi;
+          kresli();
+        }
+        return;
+      }
+      vyska = +d.h || 0;
+      if (!cele()) rozloz();
     };
     addEventListener('message', poslouchej);
-    const kresli = async () => {
-      const chart = (volby.chart || POUZIVA_CHART.test(kod)) ? await nactiChart() : '';
-      ram.srcdoc = sestavStranku(kod, id, chart);
-    };
-    kresli();
-    znovu.onclick = kresli;
+    let poradi = 0;
+    async function kresli() {
+      const moje = ++poradi;
+      let html = kod || '';
+      if (volby.st && cesta && (volby.nacti || cesta !== volby.cesta)) {
+        try {
+          const r = await fetch(volby.st.url(cesta), {credentials: 'same-origin'});
+          html = r.ok ? await r.text() : '<p style="color:#b00">Stránku ' + jmenoSouboru(cesta).replace(/</g, '&lt;') + ' se nepovedlo načíst.</p>';
+        } catch (_) { html = '<p style="color:#b00">Stránku se nepovedlo načíst.</p>'; }
+      }
+      pre.firstChild.textContent = html.length > 400000 ? html.slice(0, 400000) + '\n…' : html;
+      if (volby.st && cesta) html = await slozStranku(html, cesta, volby.st, volby.cesta);
+      const chart = (volby.chart || POUZIVA_CHART.test(html)) ? await nactiChart() : '';
+      if (moje === poradi) ram.srcdoc = sestavStranku(html, id, chart);
+    }
+    znovu.onclick = () => kresli();
     const pre = el('pre', 'vault-code cteni-html-kod');
     pre.hidden = true;
-    pre.appendChild(el('code', '', kod));
+    pre.appendChild(el('code', '', kod || ''));
     const prepni = (jeKod) => {
-      ram.hidden = jeKod;
+      plocha.hidden = jeKod;
       pre.hidden = !jeKod;
+      zar.hidden = zm.hidden = jeKod;
       zdroj.classList.toggle('on', jeKod);
       nahled.classList.toggle('on', !jeKod);
     };
@@ -448,21 +663,40 @@
     nahled.onclick = () => prepni(false);
     // Celá obrazovka: stejný rám, jen roztažený (Esc nebo ⤡ vrátí zpět).
     const zpet = () => {
+      document.removeEventListener('keydown', naEsc, true);
+      if (volby.cele) { box.remove(); removeEventListener('message', poslouchej); return; }
       box.classList.remove('cele');
       velke.textContent = '⤢';
-      document.removeEventListener('keydown', naEsc, true);
-      ram.style.height = '';
+      velke.title = 'Na celou obrazovku';
+      rozloz();
     };
     function naEsc(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zpet(); } }
-    velke.onclick = () => {
-      if (box.classList.contains('cele')) return zpet();
+    const naCele = () => {
       box.classList.add('cele');
-      velke.textContent = '⤡';
+      velke.textContent = volby.cele ? '✕' : '⤡';
+      velke.title = volby.cele ? 'Zavřít (Esc)' : 'Zmenšit zpět (Esc)';
       prepni(false);
       document.addEventListener('keydown', naEsc, true);
+      requestAnimationFrame(rozloz);
     };
-    box.append(bar, ram, pre);
+    velke.onclick = () => (cele() ? zpet() : naCele());
+    if (global.ResizeObserver) new ResizeObserver(() => { if (box.isConnected) rozloz(); }).observe(plocha);
+    box.append(bar, plocha, pre);
+    if (volby.cele) { document.body.appendChild(box); naCele(); }
+    // Stránka ze souboru se stáhne, až na ni člověk doscrolluje.
+    if (volby.nacti && !volby.cele && global.IntersectionObserver) {
+      const io = new IntersectionObserver((z) => {
+        if (z.some((x) => x.isIntersecting)) { io.disconnect(); kresli(); }
+      }, {rootMargin: '400px'});
+      io.observe(box);
+    } else kresli();
+    rozloz();
     return box;
+  }
+
+  /* HTML soubor z prostoru přes celé okno (karta ke stažení → „Náhled“). */
+  function otevriStranku(cesta, st) {
+    return nahledHtml('', {cesta, st, nacti: true, cele: true});
   }
 
   /* ```chart — krátký zápis grafu: JSON s tím, co bere Chart.js
@@ -639,18 +873,22 @@
     return box;
   }
 
-  /* Obrázek přes celé okno — klepnutí nebo Esc ho zavře. */
-  function zvetsit(src) {
-    const box = el('div', 'cteni-lupa');
-    const img = el('img');
-    img.src = src;
-    img.alt = '';
-    box.appendChild(img);
-    const zavrit = () => { box.remove(); document.removeEventListener('keydown', naKlavesu, true); };
-    function naKlavesu(ev) { if (ev.key === 'Escape') { ev.stopPropagation(); zavrit(); } }
-    box.onclick = zavrit;
-    document.addEventListener('keydown', naKlavesu, true);
-    document.body.appendChild(box);
+  /* Obrázek přes celé okno s přibližováním (lupa.js). Když je v konverzaci
+     obrázků víc, jde mezi nimi listovat — v pořadí, jak jsou v chatu. */
+  function zvetsit(src, img) {
+    if (!global.HubLupa) { global.open(src, '_blank', 'noopener'); return; }
+    const kde = img && img.closest ? (img.closest('.cteni-flow') || img.parentNode) : null;
+    const vsechny = kde ? [...kde.querySelectorAll('.cteni-obrazek img, img.cteni-img')]
+      .filter((n) => n.src && n.isConnected) : [];
+    const polozky = [];
+    let index = 0;
+    for (const n of vsechny) {
+      if (polozky.some((p) => p.src === n.src)) { if (n === img) index = polozky.findIndex((p) => p.src === n.src); continue; }
+      if (n === img) index = polozky.length;
+      polozky.push({src: n.src, cesta: n.dataset.lupaCesta || '', nazev: n.dataset.lupaCesta ? '' : (n.alt || '')});
+    }
+    if (!polozky.length) polozky.push({src});
+    global.HubLupa.otevri(polozky, index);
   }
 
   /* ── agenti ──────────────────────────────────────────────────────────────
@@ -927,7 +1165,16 @@
         txt.append(el('span', 'cteni-ks-jmeno', jmenoSouboru(cesta)),
                    el('span', 'cteni-ks-cesta', cesta.replace(/[\\/][^\\/]*$/, '')));
         txt.title = cesta;
-        r.append(el('span', 'cteni-ks-ico', '⤓'), txt, tlacitkoStahnout(cesta, st, notice, 'hlavni', 'Stáhnout'));
+        r.append(el('span', 'cteni-ks-ico', '⤓'), txt);
+        // Stránka (.html) jde vyzkoušet živě přes celé okno.
+        if (/\.html?$/i.test(cesta)) {
+          const n = el('button', 'cteni-stahnout', '▶ Náhled');
+          n.type = 'button';
+          n.title = 'Otevřít stránku živě — klikat, psát, zkoušet na mobilu i počítači';
+          n.onclick = (ev) => { ev.stopPropagation(); otevriStranku(cesta, st); };
+          r.appendChild(n);
+        }
+        r.appendChild(tlacitkoStahnout(cesta, st, notice, 'hlavni', 'Stáhnout'));
         k.appendChild(r);
         // Obrázek je vidět rovnou v kartě, ne až po stažení.
         if (OBRAZEK.test(cesta)) {
@@ -981,7 +1228,8 @@
                  el('span', 'cteni-ks-cesta', (info && info.size ? velikost(info.size) + ' · ' : '') +
                     cesta.replace(/[\\/][^\\/]*$/, '')));
       txt.title = cesta;
-      hlava.append(el('span', 'cteni-ks-ico', TABULKA.test(cesta) || /\.(xlsx?|ods)$/i.test(cesta) ? '📊' : '📄'),
+      const jeWeb = /\.html?$/i.test(cesta);
+      hlava.append(el('span', 'cteni-ks-ico', TABULKA.test(cesta) || /\.(xlsx?|ods)$/i.test(cesta) ? '📊' : jeWeb ? '🌐' : '📄'),
                    txt, tlacitkoStahnout(cesta, st, notice, 'hlavni', 'Stáhnout'));
       if (st.otevri) {
         const ot = el('button', 'cteni-stahnout', 'Otevřít');
@@ -990,6 +1238,10 @@
         hlava.appendChild(ot);
       }
       box.appendChild(hlava);
+      if (jeWeb && (!info || !info.size || info.size < 5 * 1024 * 1024)) {
+        box.classList.add('web');
+        box.appendChild(nahledHtml('', {cesta, st, nacti: true}));
+      }
       if (TABULKA.test(cesta) && (!info || !info.size || info.size < 2 * 1024 * 1024)) {
         fetch(st.url(cesta), {credentials: 'same-origin'}).then((r) => (r.ok ? r.text() : ''))
           .then((text) => {
@@ -1319,7 +1571,7 @@
         let ukazka = null;
         nahled.onclick = () => {
           if (!ukazka) {
-            ukazka = nahledHtml(b.detail);
+            ukazka = nahledHtml(b.detail, b.soubor ? {cesta: b.soubor, st} : {});
             box.appendChild(ukazka);
             nahled.textContent = 'Skrýt náhled';
           } else {
@@ -1402,7 +1654,7 @@
           img.src = src;
           img.alt = 'obrázek';
           img.loading = 'lazy';
-          img.onclick = () => zvetsit(src);
+          img.onclick = () => zvetsit(src, img);
           imgs.appendChild(img);
         }
         bubble.appendChild(imgs);
@@ -3511,6 +3763,6 @@
     return {close: zavrit, wake: () => tik(true)};
   }
 
-  global.HubCteni = {install, open, openSdilene, claudik, paleta, _flow: flow};   // _flow: zkoušky (tools)
+  global.HubCteni = {install, open, openSdilene, claudik, paleta, _flow: flow, _nahledHtml: nahledHtml};   // _flow, _nahledHtml: zkoušky (tools)
 
 })(typeof window !== 'undefined' ? window : globalThis);

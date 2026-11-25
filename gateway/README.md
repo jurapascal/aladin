@@ -404,6 +404,11 @@ dál nosí Claude návrhem; soubory nahrává **jen člověk v prohlížeči**.
   `smtp test <e-mail>`, `smtp status`, `smtp remove`. Bez schránky se účet
   založí taky a správce dostane odkaz k poslání sám. „Poslat pozvánku znovu“
   zneplatní starou.
+- **Nastavení → Účet → E-mail serveru** (jen admin, 2.147.0): totéž co
+  `claude-hub-admin smtp` z prohlížeče — předvolby (WEDOS `wes1-smtp.wedos.net`,
+  Seznam, Gmail, Microsoft 365), uložit, zkušební e-mail na adresu správce,
+  odebrat. `POST /gw/tym` s `akce` posta-ulozit / posta-test / posta-smazat;
+  heslo se stránce nevrací, prázdné pole při úpravě nechá uložené.
 - **Sdílené poznámky** v panelu: `POST /gw/sdilene` s `akce` zalozit / clenove /
   odejit / smazat — stejná pravidla jako přes Clauda (`shared.py`).
 - **Jednoduchý režim:** v prostorech je výchozí `dev_mode` vypnutý (hub/core.py),

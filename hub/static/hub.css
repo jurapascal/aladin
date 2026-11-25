@@ -5993,3 +5993,14 @@ html .chat-wa.druh-server { --druh: var(--cloud); }
 html .chat-wa.druh-firma { --druh: var(--firma); }
 html .chat-wa.druh-sdileny { --druh: var(--green); }
 html .chat-wa.druh-prohlizec { --druh: var(--prohlizec); }
+
+/* Nastavení → Účet → E-mail serveru (settings.js, postaServeru). */
+.posta-stav { margin: 4px 0 8px; }
+.posta-form { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.posta-pole { display: flex; flex-direction: column; gap: 3px; max-width: 420px; }
+.posta-popis { font-size: 12px; color: var(--dim); }
+.posta-form .set-input { width: 100%; }
+.posta-tlacitka { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; margin: 6px 0 4px; }
+.posta-tlacitka .btn { flex: 0 0 auto; }
+.posta-pole .set-note { font-weight: 400; }
+.posta-popis { font-weight: 600; }

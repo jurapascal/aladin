@@ -200,6 +200,38 @@ def _target(accounts, form):
     return row
 
 
+def posta_akce(admin, action, form):
+    """Nastavení → Účet → E-mail serveru: schránka, ze které chodí pozvánky.
+    Heslo se stránce nevrací; prázdné pole při úpravě nechá to uložené."""
+    if action == "posta-smazat":
+        posta.smaz()
+        _log(admin, "", "posta-smazat")
+        return {"ok": True, "posta": None}
+    if action == "posta-test":
+        komu = str(form.get("komu") or admin.get("email") or "").strip()
+        if "@" not in komu or len(komu) > 200:
+            raise ValueError("Komu poslat zkušební e-mail?")
+        try:
+            posta.poslat(komu, "Aladin: zkušební e-mail",
+                         "Odesílání e-mailů z Aladina funguje. Pozvánky pro nové členy půjdou odsud.",
+                         odpovedet=admin.get("email"))
+        except RuntimeError as exc:
+            raise ValueError(str(exc)) from None
+        _log(admin, komu, "posta-test")
+        return {"ok": True, "komu": komu}
+    stare = posta.nastaveni() or {}
+    user = str(form.get("user") or "").strip()
+    heslo = str(form.get("heslo") or "")
+    if not heslo and stare.get("password") and user == (stare.get("user") or ""):
+        heslo = stare["password"]
+    if user and not heslo:
+        raise ValueError("Vyplň heslo ke schránce.")
+    od = str(form.get("od") or "").strip() or user
+    posta.uloz(form.get("host"), form.get("port"), user, heslo, od, form.get("jmeno") or "Aladin")
+    _log(admin, od, "posta-ulozit", host=str(form.get("host") or "").strip())
+    return {"ok": True, "posta": posta.verejne()}
+
+
 def act(accounts, admin, form, hubs=None, base=""):
     """Provede jednu akci z Nastavení → Tým. Vrací odpověď pro stránku."""
     action = str(form.get("akce") or "")
@@ -207,6 +239,8 @@ def act(accounts, admin, form, hubs=None, base=""):
         return pozvat_clena(accounts, admin, form, base)
     if action == "clen-znovu":
         return pozvanka_znovu(accounts, admin, form, base)
+    if action in ("posta-ulozit", "posta-test", "posta-smazat"):
+        return posta_akce(admin, action, form)
     if action == "pozvat":
         role = "admin" if form.get("role") == "admin" else "user"
         email, password = _novy_ucet(accounts, form, role)

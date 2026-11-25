@@ -1984,6 +1984,7 @@
       cards.appendChild(card(zabezpeceni(), 'i-lock'));
       cards.appendChild(card(pristup(), 'i-user'));
       if (u.role === 'admin') cards.appendChild(card(clenove(), 'i-user'));
+      if (u.role === 'admin') cards.appendChild(card(postaServeru(), 'i-mail'));
       if (u.role === 'admin') cards.appendChild(card(webyLidi(), 'i-folder'));
       body.appendChild(cards);
     }
@@ -2086,7 +2087,8 @@
         list.textContent = '';
         if (!d.posta) {
           list.appendChild(el('div', 'set-note',
-            'Server zatím e-maily neposílá — po přidání dostaneš odkaz, který člověku pošleš sám.'));
+            'Server zatím e-maily neposílá — nastav schránku v kartě E-mail serveru, jinak po přidání ' +
+            'dostaneš odkaz, který člověku pošleš sám.'));
         }
         const lide = (d.lide || []).slice().sort((a, b) =>
           (b.role === 'admin') - (a.role === 'admin') || (a.name || a.email).localeCompare(b.name || b.email, 'cs'));
@@ -2113,6 +2115,172 @@
         }
       }
       nacti();
+      return wrap;
+    }
+
+    /* E-mail serveru (gateway/tym.py posta_akce, gateway/posta.py): schránka,
+       ze které brána posílá pozvánky. Jen správce. Heslo se stránce nikdy
+       nevrací — prázdné pole při úpravě nechá uložené. Předvolby vyplní
+       server a port u nejčastějších poskytovatelů. */
+    const POSTA_PREDVOLBY = [
+      {k: 'wedos', nazev: 'WEDOS', host: 'wes1-smtp.wedos.net', port: 587},
+      {k: 'seznam', nazev: 'Seznam (Email Profi)', host: 'smtp.seznam.cz', port: 465},
+      {k: 'gmail', nazev: 'Gmail / Google Workspace', host: 'smtp.gmail.com', port: 587,
+       pozn: 'Gmail chce heslo aplikace (myaccount.google.com/apppasswords), ne běžné heslo.'},
+      {k: 'm365', nazev: 'Microsoft 365 / Outlook', host: 'smtp.office365.com', port: 587},
+      {k: 'jine', nazev: 'Jiný server', host: '', port: 587},
+    ];
+    function postaServeru() {
+      const wrap = el('div', 'acc-sec');
+      wrap.appendChild(el('div', 'set-title', 'E-mail serveru'));
+      wrap.appendChild(el('div', 'set-note',
+        'Schránka, ze které Aladin posílá pozvánky novým členům. Odpovědi na pozvánku chodí tomu, kdo zval.'));
+      const gw = async (payload) => {
+        const r = await fetch('/gw/tym', payload === undefined ? {credentials: 'same-origin'} : {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-Hub-Account': '1'},
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'Server teď neodpovídá, zkus to za chvíli.');
+        return data;
+      };
+      const stav = el('div', 'posta-stav');
+      const form = el('div', 'clen-form posta-form');
+      form.hidden = true;
+      const pole = (ph, typ) => {
+        const i = el('input', 'set-input');
+        i.placeholder = ph;
+        if (typ) i.type = typ;
+        i.autocomplete = typ === 'password' ? 'new-password' : 'off';
+        i.spellcheck = false;
+        return i;
+      };
+      const radek = (popis, prvek, napoveda) => {
+        const r = el('label', 'posta-pole');
+        r.appendChild(el('span', 'posta-popis', popis));
+        r.appendChild(prvek);
+        if (napoveda) r.appendChild(el('span', 'set-note', napoveda));
+        return r;
+      };
+      const predvolba = el('select', 'set-input');
+      for (const p of POSTA_PREDVOLBY) {
+        const o = el('option', null, p.nazev);
+        o.value = p.k;
+        predvolba.appendChild(o);
+      }
+      const od = pole('aladin@firma.cz', 'email');
+      const jmeno = pole('Aladin');
+      const host = pole('smtp.firma.cz');
+      const port = pole('587');
+      port.inputMode = 'numeric';
+      const user = pole('většinou stejné jako adresa');
+      const heslo = pole('heslo ke schránce', 'password');
+      const predPozn = el('div', 'set-note');
+      const ulozit = el('button', 'btn primary', 'Uložit');
+      const zrusit = el('button', 'btn ghost', 'Zrušit');
+      const acts = el('div', 'set-row');
+      acts.append(ulozit, zrusit);
+      form.append(radek('Poskytovatel', predvolba), predPozn, radek('Adresa odesílatele', od),
+        radek('Jméno odesílatele', jmeno), radek('SMTP server', host), radek('Port', port, '587 (STARTTLS) nebo 465 (SSL)'),
+        radek('Přihlašovací jméno', user), radek('Heslo', heslo), acts);
+      const tlacitka = el('div', 'posta-tlacitka');
+      const upravit = el('button', 'btn', 'Nastavit schránku');
+      const zkouska = el('button', 'btn ghost', 'Poslat zkušební e-mail');
+      const odebrat = el('button', 'btn ghost', 'Odebrat');
+      tlacitka.append(upravit, zkouska, odebrat);
+      wrap.append(stav, tlacitka, form);
+
+      let ted = null, mujEmail = '';
+      const vyberPredvolbu = (k) => {
+        const p = POSTA_PREDVOLBY.find((x) => x.k === k) || POSTA_PREDVOLBY[POSTA_PREDVOLBY.length - 1];
+        if (p.host) { host.value = p.host; port.value = String(p.port); }
+        predPozn.textContent = p.pozn || '';
+        predPozn.hidden = !p.pozn;
+      };
+      predvolba.onchange = () => vyberPredvolbu(predvolba.value);
+      // Login se většinou rovná adrese — doplní se, dokud ho člověk nezměnil sám.
+      let userRucne = false;
+      user.oninput = () => { userRucne = true; };
+      od.oninput = () => { if (!userRucne) user.value = od.value.trim(); };
+
+      function kresli() {
+        stav.textContent = '';
+        if (ted) {
+          stav.appendChild(el('div', null, 'Pozvánky chodí z ' + ted.od + (ted.jmeno ? ' (' + ted.jmeno + ')' : '')));
+          stav.appendChild(el('div', 'set-note', ted.host + ':' + ted.port + (ted.user ? ' · přihlášení ' + ted.user : '')));
+        } else {
+          stav.appendChild(el('div', 'set-warn', 'Zatím nenastaveno'));
+          stav.appendChild(el('div', 'set-note', 'Bez schránky dostane správce po přidání člena odkaz, který pošle sám.'));
+        }
+        upravit.textContent = ted ? 'Změnit' : 'Nastavit schránku';
+        zkouska.hidden = odebrat.hidden = !ted;
+      }
+      function otevri() {
+        const t = ted || {};
+        od.value = t.od || '';
+        jmeno.value = t.jmeno || 'Aladin';
+        user.value = t.user || '';
+        userRucne = !!t.user && t.user !== t.od;
+        heslo.value = '';
+        heslo.placeholder = t.heslo ? 'nechat uložené heslo' : 'heslo ke schránce';
+        const znama = POSTA_PREDVOLBY.find((p) => p.host && p.host === t.host);
+        predvolba.value = znama ? znama.k : (t.host ? 'jine' : 'wedos');
+        if (t.host) { host.value = t.host; port.value = String(t.port || 587); predPozn.hidden = true; }
+        else vyberPredvolbu(predvolba.value);
+        form.hidden = false;
+        od.focus();
+      }
+      upravit.onclick = () => (form.hidden ? otevri() : (form.hidden = true));
+      zrusit.onclick = () => { form.hidden = true; heslo.value = ''; };
+      ulozit.onclick = async () => {
+        if (!od.value.includes('@')) { io.toast('Vyplň adresu odesílatele.'); od.focus(); return; }
+        if (!host.value.trim()) { io.toast('Vyplň SMTP server.'); host.focus(); return; }
+        ulozit.disabled = true;
+        try {
+          const out = await gw({akce: 'posta-ulozit', od: od.value.trim(), jmeno: jmeno.value.trim(),
+            host: host.value.trim(), port: port.value.trim(), user: user.value.trim(), heslo: heslo.value});
+          heslo.value = '';
+          ted = out.posta;
+          form.hidden = true;
+          kresli();
+          io.toast('Uloženo — pošli si zkušební e-mail.');
+        } catch (err) {
+          io.toast(err.message);
+        } finally {
+          ulozit.disabled = false;
+        }
+      };
+      zkouska.onclick = async () => {
+        zkouska.disabled = true;
+        const puvodni = zkouska.textContent;
+        zkouska.textContent = 'Posílám…';
+        try {
+          const out = await gw({akce: 'posta-test', komu: mujEmail});
+          io.toast('Zkušební e-mail odešel na ' + out.komu + '.');
+        } catch (err) {
+          io.toast(err.message);
+        } finally {
+          zkouska.disabled = false;
+          zkouska.textContent = puvodni;
+        }
+      };
+      odebrat.onclick = async () => {
+        const ok = global.HubDialog && global.HubDialog.confirm
+          ? await global.HubDialog.confirm('Pozvánky pak nepůjdou e-mailem, správce dostane jen odkaz.',
+            {title: 'Odebrat schránku?', ok: 'Odebrat', danger: true})
+          : confirm('Odebrat schránku? Pozvánky pak nepůjdou e-mailem, jen odkazem.');
+        if (!ok) return;
+        try { await gw({akce: 'posta-smazat'}); ted = null; kresli(); }
+        catch (err) { io.toast(err.message); }
+      };
+      gw().then((d) => {
+        ted = d.posta_nastaveni || null;
+        mujEmail = d.ja_email || '';
+        if (mujEmail) zkouska.title = 'Pošle zkušební e-mail na ' + mujEmail;
+        kresli();
+      }).catch((err) => { stav.textContent = err.message; tlacitka.hidden = true; });
+      kresli();
       return wrap;
     }
 

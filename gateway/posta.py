@@ -9,6 +9,7 @@ odkaz, který pošle sám.
 """
 import json
 import os
+import re
 import smtplib
 import ssl
 from email.message import EmailMessage
@@ -38,7 +39,8 @@ def verejne():
     if not s:
         return None
     return {"host": s["host"], "port": int(s.get("port") or 587), "od": s["from"],
-            "jmeno": s.get("name") or ""}
+            "jmeno": s.get("name") or "", "user": s.get("user") or "",
+            "heslo": bool(s.get("password"))}
 
 
 def uloz(host, port, user, password, odesilatel, jmeno=""):
@@ -46,7 +48,17 @@ def uloz(host, port, user, password, odesilatel, jmeno=""):
     odesilatel = (odesilatel or "").strip()
     if not host or "@" not in odesilatel:
         raise ValueError("Vyplň SMTP server a adresu odesílatele.")
-    data = {"host": host, "port": int(port or 587), "user": (user or "").strip(),
+    if not re.fullmatch(r"[A-Za-z0-9.-]{1,253}", host):
+        raise ValueError("SMTP server má být jen adresa, třeba smtp.firma.cz.")
+    if re.search(r"[\r\n<>]", odesilatel + (jmeno or "") + (user or "")) or len(odesilatel) > 200:
+        raise ValueError("Adresa odesílatele vypadá divně.")
+    try:
+        port = int(port or 587)
+    except (TypeError, ValueError):
+        raise ValueError("Port má být číslo (obvykle 587 nebo 465).") from None
+    if not 0 < port < 65536:
+        raise ValueError("Port má být číslo (obvykle 587 nebo 465).")
+    data = {"host": host, "port": port, "user": (user or "").strip(),
             "password": password or "", "from": odesilatel, "name": (jmeno or "").strip()}
     os.makedirs(os.path.dirname(SMTP_FILE), exist_ok=True)
     tmp = SMTP_FILE + ".tmp"

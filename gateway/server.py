@@ -2608,8 +2608,10 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
             return self._json({"error": "Tým spravují admini."}, 403)
         if method == "GET":
             from . import posta
+            nastaveni = posta.verejne()
             return self._json({"lide": tym.people(self.accounts, self.hubs), "ja": user["id"],
-                               "posta": posta.verejne() is not None})
+                               "posta": nastaveni is not None, "posta_nastaveni": nastaveni,
+                               "ja_email": user.get("email", "")})
         if method != "POST":
             return self._json({"error": "Jen GET nebo POST."}, 405)
         form = self._read_form()

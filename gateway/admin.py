@@ -53,6 +53,10 @@ přes `--password` (hodí se do skriptu, ale zůstane v historii shellu).
     python3 -m gateway.admin oznameni             # kdo dostal jaké oznámení a co s ním udělal
     python3 -m gateway.admin oznameni rozbor [--suchy]     # poslat oznámení o místě teď
     python3 -m gateway.admin oznameni poslat jmeno@firma.cz,dalsi@firma.cz "Nadpis" "Text"
+    python3 -m gateway.admin smtp set --host smtp.firma.cz --port 587 --user aladin@firma.cz \
+        --from aladin@firma.cz [--name "Aladin"] [--password-stdin]   # odkud chodí pozvánky
+    python3 -m gateway.admin smtp status | remove
+    python3 -m gateway.admin smtp test jmeno@firma.cz
 """
 import argparse
 import getpass
@@ -626,6 +630,35 @@ def cmd_verxee(a, args):
           "(stop <e-mail> to uspíší).")
 
 
+def cmd_smtp(a, args):
+    """Schránka, ze které brána posílá pozvánky (gateway/posta.py)."""
+    from . import posta
+    if args.action == "status":
+        v = posta.verejne()
+        print(f"Pozvánky chodí z {v['od']} přes {v['host']}:{v['port']}." if v
+              else "Odesílání e-mailů není nastavené — pozvánky se předávají odkazem.")
+        return
+    if args.action == "remove":
+        print("Smazáno." if posta.smaz() else "Nebylo nastavené.")
+        return
+    if args.action == "test":
+        if not args.komu:
+            raise ValueError("Komu poslat zkušební e-mail?")
+        try:
+            posta.poslat(args.komu, "Aladin: zkušební e-mail",
+                         "Odesílání pozvánek z Aladina funguje.")
+        except RuntimeError as exc:
+            raise ValueError(str(exc)) from None
+        print("Odesláno.")
+        return
+    if args.password_stdin:
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = getpass.getpass("Heslo ke schránce: ") if args.user else ""
+    posta.uloz(args.host, args.port, args.user, password, args.odesilatel or args.user, args.name)
+    print("Uloženo. Vyzkoušej: smtp test <e-mail>")
+
+
 def cmd_disable(a, args):
     a.set_disabled(args.email, True)
     print(f"{args.email} zablokován (a odhlášen).")
@@ -1088,6 +1121,17 @@ def build_parser():
     vx.add_argument("action", choices=("status", "set", "remove"))
     vx.add_argument("klic", nargs="?", default="", help="klíč vxd_… z alba-rosa.cz/debug")
     vx.set_defaults(func=cmd_verxee)
+
+    sm = sub.add_parser("smtp", help="schránka, ze které chodí pozvánky e-mailem")
+    sm.add_argument("action", choices=("status", "set", "test", "remove"))
+    sm.add_argument("komu", nargs="?", default="", help="u test: kam poslat zkušební e-mail")
+    sm.add_argument("--host", default="")
+    sm.add_argument("--port", type=int, default=587)
+    sm.add_argument("--user", default="")
+    sm.add_argument("--from", dest="odesilatel", default="")
+    sm.add_argument("--name", default="Aladin")
+    sm.add_argument("--password-stdin", action="store_true")
+    sm.set_defaults(func=cmd_smtp)
 
     di = sub.add_parser("disable", help="zablokovat účet")
     di.add_argument("email")

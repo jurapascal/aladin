@@ -1983,8 +1983,137 @@
       cards.appendChild(card(HubPocitac.serverBlock(io), 'i-laptop'));
       cards.appendChild(card(zabezpeceni(), 'i-lock'));
       cards.appendChild(card(pristup(), 'i-user'));
+      if (u.role === 'admin') cards.appendChild(card(clenove(), 'i-user'));
       if (u.role === 'admin') cards.appendChild(card(webyLidi(), 'i-folder'));
       body.appendChild(cards);
+    }
+
+    /* Členové serveru (gateway/tym.py, akce clen-pozvat / clen-znovu) — jen
+       správce. Přidá člověka e-mailem: brána založí účet a pošle mu pozvánku
+       s odkazem na nastavení hesla. Když server e-maily posílat neumí, vrátí
+       odkaz a správce ho pošle sám. */
+    function clenove() {
+      const wrap = el('div', 'acc-sec');
+      wrap.appendChild(el('div', 'set-title', 'Členové'));
+      wrap.appendChild(el('div', 'set-note',
+        'Přidej člověka e-mailem — dojde mu pozvánka s odkazem, přes který si nastaví heslo ' +
+        'a zapne ověření v telefonu. Pak má na serveru vlastní prostor.'));
+      const gw = async (payload) => {
+        const r = await fetch('/gw/tym', payload === undefined ? {credentials: 'same-origin'} : {
+          method: 'POST', credentials: 'same-origin',
+          headers: {'Content-Type': 'application/json', 'X-Hub-Account': '1'},
+          body: JSON.stringify(payload),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'Server teď neodpovídá, zkus to za chvíli.');
+        return data;
+      };
+      const pridat = el('button', 'btn primary', 'Přidat člena');
+      const form = el('div', 'clen-form');
+      form.hidden = true;
+      const email = el('input', 'set-input');
+      email.type = 'email';
+      email.placeholder = 'e-mail člověka';
+      email.autocomplete = 'off';
+      const jmeno = el('input', 'set-input');
+      jmeno.placeholder = 'jméno a příjmení (nepovinné)';
+      jmeno.autocomplete = 'off';
+      const poslat = el('button', 'btn primary', 'Poslat pozvánku');
+      const zrusit = el('button', 'btn ghost', 'Zrušit');
+      const acts = el('div', 'set-row');
+      acts.append(poslat, zrusit);
+      form.append(email, jmeno, acts);
+      const vysledek = el('div', 'clen-vysledek');
+      const list = el('div', 'clen-list');
+      const head = el('div', 'set-row');
+      head.appendChild(pridat);
+      wrap.append(head, form, vysledek, list);
+      pridat.onclick = () => {
+        form.hidden = !form.hidden;
+        if (!form.hidden) email.focus();
+      };
+      zrusit.onclick = () => { form.hidden = true; };
+
+      // Výsledek pozvání: odešlo, nebo odkaz k ručnímu poslání.
+      function ukaz(out, kdo) {
+        vysledek.textContent = '';
+        if (out.poslano) {
+          vysledek.appendChild(el('div', 'set-note', 'Pozvánka odešla na ' + out.email + '.'));
+          io.toast('Pozvánka odešla — ' + kdo);
+          return;
+        }
+        vysledek.appendChild(el('div', 'set-warn',
+          (out.chyba || 'E-mail neodešel.') + ' Pošli ' + kdo + ' tenhle odkaz sám (platí 7 dní):'));
+        const row = el('div', 'set-row');
+        const pole = el('input', 'set-input');
+        pole.readOnly = true;
+        pole.value = out.odkaz || '';
+        const kop = el('button', 'btn ghost', 'Kopírovat pozvánku');
+        kop.onclick = async () => {
+          try { await navigator.clipboard.writeText(out.text || out.odkaz); io.toast('Zkopírováno.'); }
+          catch (_) { pole.select(); io.toast('Zkopíruj odkaz z pole.'); }
+        };
+        row.append(pole, kop);
+        vysledek.appendChild(row);
+      }
+
+      poslat.onclick = async () => {
+        const e = email.value.trim();
+        if (!e || !e.includes('@')) { io.toast('Vyplň e-mail.'); email.focus(); return; }
+        poslat.disabled = true;
+        try {
+          const out = await gw({akce: 'clen-pozvat', email: e, jmeno: jmeno.value.trim()});
+          email.value = '';
+          jmeno.value = '';
+          form.hidden = true;
+          ukaz(out, out.email);
+          nacti();
+        } catch (err) {
+          io.toast(err.message);
+        } finally {
+          poslat.disabled = false;
+        }
+      };
+      email.onkeydown = jmeno.onkeydown = (ev) => { if (ev.key === 'Enter') poslat.click(); };
+
+      async function nacti() {
+        let d;
+        try { d = await gw(); } catch (err) {
+          list.textContent = '';
+          list.appendChild(el('div', 'set-note', err.message));
+          return;
+        }
+        list.textContent = '';
+        if (!d.posta) {
+          list.appendChild(el('div', 'set-note',
+            'Server zatím e-maily neposílá — po přidání dostaneš odkaz, který člověku pošleš sám.'));
+        }
+        const lide = (d.lide || []).slice().sort((a, b) =>
+          (b.role === 'admin') - (a.role === 'admin') || (a.name || a.email).localeCompare(b.name || b.email, 'cs'));
+        for (const c of lide) {
+          const row = el('div', 'set-row clen-row');
+          const kdo = el('div', 'clen-kdo');
+          kdo.appendChild(el('div', null, c.name || c.email));
+          const stav = c.blokovany ? 'zablokovaný'
+            : c.pozvanka ? 'pozvánka čeká na přijetí'
+            : (c.overeni ? 'aktivní' : 'ještě se nepřihlásil');
+          kdo.appendChild(el('div', 'set-note',
+            [c.name ? c.email : '', c.role === 'admin' ? 'správce' : 'člen', stav].filter(Boolean).join(' · ')));
+          row.appendChild(kdo);
+          if (!c.blokovany && !c.overeni && c.id !== d.ja) {
+            const znovu = el('button', 'btn ghost', 'Poslat pozvánku znovu');
+            znovu.onclick = async () => {
+              znovu.disabled = true;
+              try { ukaz(await gw({akce: 'clen-znovu', id: c.id}), c.name || c.email); nacti(); }
+              catch (err) { io.toast(err.message); znovu.disabled = false; }
+            };
+            row.appendChild(znovu);
+          }
+          list.appendChild(row);
+        }
+      }
+      nacti();
+      return wrap;
     }
 
     /* Web (FTP) pro lidi na bráně (gateway/tym.py, akce web / web-pryc) — jen

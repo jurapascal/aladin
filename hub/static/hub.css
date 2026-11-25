@@ -4708,6 +4708,15 @@ body:has(.pc-asks) #verxee-chyby { display: none; }
 }
 
 /* Nastavení → Účet → Weby lidí (settings.js webyLidi) */
+.clen-form { display: flex; flex-direction: column; gap: 8px; margin: 8px 0; }
+.clen-vysledek:empty { display: none; }
+.clen-vysledek { margin: 8px 0; }
+.clen-vysledek .set-row input { flex: 1; min-width: 0; }
+.clen-list { margin-top: 8px; max-height: 360px; overflow: auto; }
+.clen-row { align-items: center; gap: 8px; }
+.clen-kdo { flex: 1; min-width: 0; }
+.clen-kdo > div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.clen-kdo .set-note { margin: 0; }
 .web-clovek { align-items: center; gap: 8px; }
 .web-kdo { flex: 1; min-width: 0; }
 .web-kdo .set-note { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }

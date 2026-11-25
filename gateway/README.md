@@ -395,6 +395,15 @@ dál nosí Claude návrhem; soubory nahrává **jen člověk v prohlížeči**.
   poznámek, odemknout zámek přihlášení. Admin si nevezme roli ani se nezablokuje
   sám. Záznam `gateway/tym.jsonl` (bez hesel). Smazání účtu zůstává jen
   v `claude-hub-admin remove`.
+- **Nastavení → Účet → Členové** (jen admin, 2.145.0): „Přidat člena“ = e-mail
+  (a jméno). Brána založí účet s rolí `user` a pošle mu pozvánku s odkazem
+  `/pozvanka?t=…` (platí 7 dní, v databázi jen otisk, tabulka `invites`). Přes
+  odkaz si člověk nastaví heslo a pokračuje rovnou na zapnutí 2FA. E-mail jde
+  přes SMTP schránku serveru: `claude-hub-admin smtp set --host … --port 587
+  --user … --from …` (heslo skrytě nebo `--password-stdin`; `smtp.json` 0600),
+  `smtp test <e-mail>`, `smtp status`, `smtp remove`. Bez schránky se účet
+  založí taky a správce dostane odkaz k poslání sám. „Poslat pozvánku znovu“
+  zneplatní starou.
 - **Sdílené poznámky** v panelu: `POST /gw/sdilene` s `akce` zalozit / clenove /
   odejit / smazat — stejná pravidla jako přes Clauda (`shared.py`).
 - **Jednoduchý režim:** v prostorech je výchozí `dev_mode` vypnutý (hub/core.py),

@@ -837,6 +837,32 @@ def login_page(error=""):
 {PASSKEY_LOGIN_JS}""")
 
 
+def pozvanka_page(token, email, error=""):
+    """Nastavení hesla z pozvánky. Bez tokenu jen hláška a cesta na přihlášení."""
+    err = f'<div class=err>{html.escape(error)}</div>' if error else ''
+    if not token:
+        return _page("Pozvánka — Aladin", f"""
+<div class=card>
+<h1>Pozvánka</h1>
+{err}
+<a class=button href="/login">Na přihlášení</a>
+</div>""")
+    return _page("Pozvánka — Aladin", f"""
+<form class=card method=post action="/pozvanka">
+<h1>Vítej v Aladinovi</h1>
+<p class=sub>Nastav si heslo k účtu <b>{html.escape(email)}</b>. Pak si v mobilu zapneš
+ověření kódem a jsi uvnitř.</p>
+<input type=hidden name=t value="{html.escape(token)}">
+<input type=email name=email value="{html.escape(email)}" autocomplete=username hidden readonly>
+<label>Nové heslo (aspoň 10 znaků)</label>
+<input name=password type=password autocomplete=new-password minlength=10 autofocus required>
+<label>Heslo znovu</label>
+<input name=password2 type=password autocomplete=new-password minlength=10 required>
+<button type=submit>Nastavit heslo a pokračovat</button>
+{err}
+</form>""")
+
+
 PASSKEY_JS = """<script>
 (() => {
   const b64d = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4)), (c) => c.charCodeAt(0));
@@ -1073,6 +1099,8 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if route == "/login":
                 return self._login(method)
+            if route == "/pozvanka":
+                return self._pozvanka(method)
             if route == "/logout":
                 return self._logout()
             if route == "/login/2fa":
@@ -1680,6 +1708,11 @@ class Handler(BaseHTTPRequestHandler):
             if locked:
                 return self._login_error("Špatný e-mail nebo heslo. " + locked, 429)
             return self._login_error("Špatný e-mail nebo heslo. " + tries_left(left))
+        return self._po_hesle(user, label)
+
+    def _po_hesle(self, user, label):
+        """Heslo sedí (přihlášení nebo nově nastavené z pozvánky): dál na
+        druhý krok, nebo jeho zapnutí, když ho účet ještě nemá."""
         state = self.accounts.twofa(user["id"])
         if not state["enabled"] and not config.REQUIRE_2FA:
             return self._login_done(self.accounts.issue_token(user, label), user)
@@ -1726,6 +1759,44 @@ class Handler(BaseHTTPRequestHandler):
                   + ", ".join(locked), flush=True)
         note = (locked_now(wait) if locked else too_many(wait)) if wait else ""
         return note, left
+
+    def _pozvanka(self, method):
+        """Odkaz z pozvánky: nový člověk si nastaví heslo a pokračuje rovnou
+        na zapnutí ověření v telefonu (stejně jako při prvním přihlášení)."""
+        if method == "POST":
+            form = self._read_form()
+            token = str(form.get("t") or "")
+        else:
+            token = urllib.parse.parse_qs(
+                urllib.parse.urlparse(self.path).query).get("t", [""])[0]
+        keys = self._fail_keys()
+        wait = self.accounts.fail_wait(keys)
+        if wait:
+            return self._send(200, pozvanka_page("", "", too_many(wait)), HTML)
+        user = self.accounts.invite_user(token)
+        if not user:
+            if token:
+                self._failed(keys)
+            return self._send(200, pozvanka_page("", "", "Pozvánka už neplatí (vypršela, "
+                              "nebo už je využitá). Požádej správce o novou, nebo se "
+                              "přihlas, pokud už heslo máš."), HTML)
+        if method != "POST":
+            return self._send(200, pozvanka_page(token, user["email"]), HTML)
+        heslo = str(form.get("password") or "")
+        znovu = str(form.get("password2") or "")
+        if heslo != znovu:
+            return self._send(200, pozvanka_page(token, user["email"], "Hesla se neshodují."), HTML)
+        if len(heslo) < 10:
+            return self._send(200, pozvanka_page(token, user["email"],
+                              "Heslo musí mít aspoň 10 znaků."), HTML)
+        try:
+            user = self.accounts.invite_take(token, heslo)
+        except ValueError as exc:
+            return self._send(200, pozvanka_page(token, user["email"], str(exc)), HTML)
+        if not user:
+            return self._send(200, pozvanka_page("", "", "Pozvánka mezitím přestala platit."), HTML)
+        print(f"pozvánka využita: účet #{user['id']}", flush=True)
+        return self._po_hesle(user, self.headers.get("User-Agent", "")[:60])
 
     def _login_error(self, message, code=401):
         if self._wants_json():
@@ -2536,15 +2607,18 @@ chce být přihlášená jako <b>{html.escape(user["email"])}</b>.</p>
         if user.get("role") != "admin":
             return self._json({"error": "Tým spravují admini."}, 403)
         if method == "GET":
-            return self._json({"lide": tym.people(self.accounts, self.hubs), "ja": user["id"]})
+            from . import posta
+            return self._json({"lide": tym.people(self.accounts, self.hubs), "ja": user["id"],
+                               "posta": posta.verejne() is not None})
         if method != "POST":
             return self._json({"error": "Jen GET nebo POST."}, 405)
         form = self._read_form()
         if not self._account_post_ok():
             return self._json({"error": "Tým jde měnit jen v hubu."}, 403)
         try:
-            return self._json(tym.act(self.accounts, user, form, self.hubs))
-        except ValueError as exc:
+            base = ("https://" if self._https() else "http://") + self._public_host()
+            return self._json(tym.act(self.accounts, user, form, self.hubs, base))
+        except (ValueError, PermissionError) as exc:
             return self._json({"error": str(exc)}, 400)
 
     # ---- přístup do cizího prostoru (gateway/pristup.py) ----

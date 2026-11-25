@@ -17,7 +17,7 @@ import os
 import secrets
 import time
 
-from . import config, firmy, poznamky, pristup, workspace
+from . import config, firmy, posta, poznamky, pristup, workspace
 
 LOG = os.path.join(config.GATEWAY_DIR, "tym.jsonl")
 
@@ -45,9 +45,87 @@ def _log(admin, target, action, **extra):
         pass
 
 
+def _pozvanka_texty(odkaz, kdo, server, email):
+    """(předmět, text, html) pozvánky. `kdo` = jméno správce, který zve."""
+    import html as _h
+    predmet = f"Pozvánka do Aladina ({server})"
+    text = (f"Ahoj,\n\n{kdo} tě zve do Aladina na serveru {server}.\n\n"
+            f"1. Otevři odkaz a nastav si heslo:\n{odkaz}\n\n"
+            "2. Pak si v mobilu zapneš ověření kódem (Google Authenticator, Microsoft "
+            "Authenticator nebo na iPhonu aplikace Hesla) a jsi uvnitř.\n\n"
+            f"Přihlašuješ se e-mailem {email}. Odkaz platí 7 dní; kdyby vypršel, "
+            f"ozvi se správci ({kdo}), pošle ti nový.\n\nAladin")
+    e = _h.escape
+    html_text = f"""<!doctype html><html lang=cs><body style="margin:0;background:#f4f5f7;padding:24px;
+font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328">
+<div style="max-width:30rem;margin:0 auto;background:#fff;border-radius:12px;padding:28px;border:1px solid #e1e4e8">
+<h1 style="font-size:20px;margin:0 0 12px">Pozvánka do Aladina</h1>
+<p style="margin:0 0 16px"><b>{e(kdo)}</b> tě zve do Aladina na serveru <b>{e(server)}</b>.</p>
+<p style="margin:0 0 20px"><a href="{e(odkaz)}" style="display:inline-block;background:#4c97f0;color:#fff;
+text-decoration:none;font-weight:600;padding:11px 20px;border-radius:8px">Nastavit heslo a vstoupit</a></p>
+<p style="margin:0 0 10px;color:#57606a;font-size:14px">Pak si v mobilu zapneš ověření kódem
+(Google Authenticator, Microsoft Authenticator nebo na iPhonu aplikace Hesla).</p>
+<p style="margin:0;color:#57606a;font-size:14px">Přihlašuješ se e-mailem <b>{e(email)}</b>.
+Odkaz platí 7 dní — kdyby vypršel, ozvi se správci ({e(kdo)}), pošle ti nový.</p>
+<p style="margin:18px 0 0;color:#8b949e;font-size:12px;overflow-wrap:anywhere">Tlačítko nefunguje? Zkopíruj
+do prohlížeče: {e(odkaz)}</p>
+</div></body></html>"""
+    return predmet, text, html_text
+
+
+def pozvat_clena(accounts, admin, form, base):
+    """Správce přidá člena: založí účet (role user, heslo nikdo nezná) a pošle
+    mu e-mailem odkaz na nastavení hesla. Když e-mail odejít nemůže, vrátí
+    odkaz, ať ho správce pošle sám. `base` = https://adresa-serveru."""
+    email = str(form.get("email") or "").strip().lower()
+    if "@" not in email or "." not in email.split("@")[-1] or len(email) > 200:
+        raise ValueError("Vyplň platný e-mail.")
+    if accounts.get(email):
+        raise ValueError(f"{email} už tu účet má.")
+    form = dict(form, email=email)
+    email, _heslo = _novy_ucet(accounts, form, "user")
+    user = accounts.get(email)
+    _log(admin, email, "pozvat-clena")
+    return _poslat_pozvanku(accounts, admin, user, base)
+
+
+def _poslat_pozvanku(accounts, admin, user, base):
+    token = accounts.invite_new(user["id"], admin.get("email", ""))
+    odkaz = base.rstrip("/") + "/pozvanka?t=" + token
+    kdo = admin.get("name") or admin.get("email") or "Správce"
+    server = base.split("://", 1)[-1].strip("/")
+    predmet, text, html_text = _pozvanka_texty(odkaz, kdo, server, user["email"])
+    out = {"ok": True, "email": user["email"], "poslano": False}
+    try:
+        posta.poslat(user["email"], predmet, text, html_text, odpovedet=admin.get("email"))
+        out["poslano"] = True
+        _log(admin, user["email"], "pozvanka-odeslana")
+    except RuntimeError as exc:
+        out["chyba"] = str(exc)
+        out["odkaz"] = odkaz          # pošle ho správce sám
+        out["text"] = text
+        _log(admin, user["email"], "pozvanka-neodesla", chyba=str(exc))
+    return out
+
+
+def pozvanka_znovu(accounts, admin, form, base):
+    """Nová pozvánka pro člověka, který se ještě nepřihlásil (stará přestane platit)."""
+    row = _target(accounts, form)
+    if row["disabled"]:
+        raise ValueError("Účet je zablokovaný.")
+    if row["id"] not in accounts.invites_pending() and _prihlasil_se(accounts, row):
+        raise ValueError("Tenhle člověk už se přihlásil — pozvánku nepotřebuje.")
+    return _poslat_pozvanku(accounts, admin, accounts.get(row["email"]), base)
+
+
+def _prihlasil_se(accounts, row):
+    return bool(row.get("twofa")) or bool(accounts.devices(row["email"]))
+
+
 def people(accounts, hubs=None):
     """Tým pro stránku: kdo je kdo a v jakém stavu."""
     managers = set(poznamky.managers())
+    pending = accounts.invites_pending()
     locked = {part[len("email:"):] for r in accounts.fail_list() if r["locked"]
               for part in r["key"].split("|") if part.startswith("email:")}
     out = []
@@ -65,6 +143,8 @@ def people(accounts, hubs=None):
             "zakladatel": firmy.muze_zakladat(dict(r)),
             "zamceny": r["email"] in locked,
             "pracuje": running,
+            # Pozvánka odeslaná, člověk si ještě nenastavil heslo.
+            "pozvanka": (pending[r["id"]]["plati_do"] if r["id"] in pending else None),
             # Web (FTP) od správce — bez hesla, jen že je nastavené.
             "web": workspace.web_public(dict(r)),
         })
@@ -120,9 +200,13 @@ def _target(accounts, form):
     return row
 
 
-def act(accounts, admin, form, hubs=None):
+def act(accounts, admin, form, hubs=None, base=""):
     """Provede jednu akci z Nastavení → Tým. Vrací odpověď pro stránku."""
     action = str(form.get("akce") or "")
+    if action == "clen-pozvat":
+        return pozvat_clena(accounts, admin, form, base)
+    if action == "clen-znovu":
+        return pozvanka_znovu(accounts, admin, form, base)
     if action == "pozvat":
         role = "admin" if form.get("role") == "admin" else "user"
         email, password = _novy_ucet(accounts, form, role)

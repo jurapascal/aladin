@@ -155,7 +155,17 @@ CREATE TABLE IF NOT EXISTS oauth_tokens (
 );
 CREATE INDEX IF NOT EXISTS oauth_tokens_user ON oauth_tokens(user_id);
 CREATE INDEX IF NOT EXISTS oauth_tokens_family ON oauth_tokens(family);
+-- Pozvánky (Nastavení → Účet → Členové): odkaz z e-mailu, přes který si nový
+-- člověk nastaví heslo. V databázi jen otisk; jedna platná na účet.
+CREATE TABLE IF NOT EXISTS invites (
+    fingerprint BLOB PRIMARY KEY,
+    user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    by_email    TEXT NOT NULL DEFAULT '',
+    created     REAL NOT NULL,
+    expires     REAL NOT NULL
+);
 """
+INVITE_TTL = 7 * 24 * 60 * 60
 COMPANY_LEVELS = ("none", "read", "write")
 # Bez záznamu: tak, jak to bylo před správou přístupů — každý čte a nahrává
 # přes potvrzovací kartu. Admini to pak lidem mění ve firemním Obsidianu.
@@ -430,6 +440,47 @@ class Accounts:
     def count(self):
         with self._lock:
             return self.db.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
+    # ── pozvánky ─────────────────────────────────────────────────────────────
+    def invite_new(self, user_id, by_email="", ttl=INVITE_TTL):
+        """Nová pozvánka pro účet (předchozí tím přestane platit). Vrací token."""
+        token = secrets.token_urlsafe(TOKEN_BYTES)
+        now = time.time()
+        with self._lock:
+            self.db.execute("DELETE FROM invites WHERE user_id = ?", (user_id,))
+            self.db.execute(
+                "INSERT INTO invites (fingerprint, user_id, by_email, created, expires)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (_fingerprint(token), user_id, by_email or "", now, now + ttl))
+        return token
+
+    def invite_user(self, token):
+        """Účet, pro který pozvánka platí, nebo None (neplatná, prošlá, zablokovaný)."""
+        if not token or len(token) > 200:
+            return None
+        with self._lock:
+            row = self.db.execute(
+                "SELECT u.* FROM invites i JOIN users u ON u.id = i.user_id"
+                " WHERE i.fingerprint = ? AND i.expires > ? AND u.disabled = 0",
+                (_fingerprint(token), time.time())).fetchone()
+        return self._public(row) if row else None
+
+    def invite_take(self, token, password):
+        """Nastaví heslo z pozvánky a pozvánku spotřebuje. Vrací účet, nebo None."""
+        with self._lock:
+            user = self.invite_user(token)
+            if not user:
+                return None
+            self.set_password(user["email"], password)
+            self.db.execute("DELETE FROM invites WHERE user_id = ?", (user["id"],))
+        return user
+
+    def invites_pending(self):
+        """{user_id: {"vytvoreno", "plati_do", "od"}} — kdo pozvánku ještě nevyužil."""
+        with self._lock:
+            rows = self.db.execute("SELECT user_id, by_email, created, expires FROM invites")
+            return {r["user_id"]: {"vytvoreno": r["created"], "plati_do": r["expires"],
+                                   "od": r["by_email"]} for r in rows}
 
     # ── přihlášení ───────────────────────────────────────────────────────────
     def verify(self, email, password):

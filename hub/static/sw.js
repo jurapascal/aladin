@@ -33,7 +33,7 @@ if (pc) {
   document.getElementById('t').innerHTML = 'Nejspíš se restartuje po aktualizaci — chvilku počkej, okno se připojí samo. ' +
     'Když se nic neděje: zavři okno, u hodin klikni pravým na ikonu Aladina → Ukončit appku a otevři Aladina znovu ze zástupce. ' +
     'A když ani to nepomůže, přeinstaluj ho (PowerShell):' +
-    '<code>irm https://raw.githubusercontent.com/jurapascal/aladin/main/get.ps1 | iex</code>';
+    '<code>irm https://raw.githubusercontent.com/IT-Brno/aladin/main/get.ps1 | iex</code>';
 }
 var n = 0;
 function zkus(rucne) {

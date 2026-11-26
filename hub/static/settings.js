@@ -4588,7 +4588,7 @@
     const gh = el('button', 'actionbtn', 'Co je nového');
     gh.hidden = !advanced();
     gh.onclick = () => io.open('https://github.com/' +
-      ((state.version && state.version.repo) || 'jurapascal/aladin') + '/releases');
+      ((state.version && state.version.repo) || 'IT-Brno/aladin') + '/releases');
 
     btns.appendChild(check);
     btns.appendChild(doIt);

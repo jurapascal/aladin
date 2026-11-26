@@ -2375,7 +2375,7 @@ def vault_git_push(message="paměť: automatická záloha"):
 # „Aktualizovat" a „načíst znovu" jsou dvě různé věci: ⟳ v hlavičce jen přečte
 # projekty a paměť, tohle mění samotnou aplikaci. Proto se to jmenuje jinak
 # a proto se tu drží číslo verze, ať je vidět, co je nainstalované.
-REPO = "jurapascal/aladin"
+REPO = "IT-Brno/aladin"
 SRC_DIR = os.path.join(CLAUDE_DIR, "hub-src")
 
 

@@ -385,7 +385,7 @@ def cmd_apikey(a, args):
           " běžící zastavíš: stop <e-mail>.")
 
 
-SKILLS_REPO = os.environ.get("HUB_SKILLS_REPO", "jurapascal/aladin-marketplace")
+SKILLS_REPO = os.environ.get("HUB_SKILLS_REPO", "IT-Brno/aladin-marketplace")
 
 
 def _skill_count(root):

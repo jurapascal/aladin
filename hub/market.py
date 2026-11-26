@@ -4,7 +4,7 @@ a pluginy → Aladin Market). Vedle Claude Code Marketplace (hub/pluginy.py),
 který obsluhuje `claude plugin …`, tohle je obchod se vším, co patří appce:
 
 - **Pluginy appky** a **motivy** z GitHub repa katalogu (`market_repo`
-  v hub-config, výchozí jurapascal/aladin-marketplace). V kořeni repa leží
+  v hub-config, výchozí IT-Brno/aladin-marketplace). V kořeni repa leží
   `katalog.json`, každá položka má svou složku:
 
     {"verze": 1,
@@ -40,7 +40,7 @@ ID_RE = pluginy.ID_RE
 REPO_RE = re.compile(r"^[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}$")
 CAST_RE = re.compile(r"^[A-Za-z0-9._-]{1,100}$")
 HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-VYCHOZI_REPO = "jurapascal/aladin-marketplace"
+VYCHOZI_REPO = "IT-Brno/aladin-marketplace"
 VETEV = "main"
 KATALOG_TTL = 600
 KATALOG_MAX = 2 * 1024 * 1024

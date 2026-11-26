@@ -48,7 +48,7 @@ $chybi = @('claude-hub.py', 'hub', 'tools', 'hooks') | Where-Object { -not (Test
 if ($chybi) {
     Write-Warn "Zdroj instalace v $Src je neúplný (chybí: $($chybi -join ', '))."
     Write-Warn 'Zavři Aladina (i ikonku u hodin → Ukončit appku) a spusť instalačku znovu:'
-    Write-Warn 'https://github.com/jurapascal/aladin/releases/latest/download/Aladin-Setup.exe'
+    Write-Warn 'https://github.com/IT-Brno/aladin/releases/latest/download/Aladin-Setup.exe'
     exit 1
 }
 
@@ -432,7 +432,7 @@ $ProjectDirsList = (@($cfg.project_dirs) | ForEach-Object { To-Slash $_ }) -join
 # Hotové postupy, ze kterých si Claude sám vybírá. Existující složku nikdy
 # nepřepisujeme — kdo si tam něco napsal, o to nesmí přijít.
 $SkillsRepo = if ($env:HUB_SKILLS_REPO) { $env:HUB_SKILLS_REPO }
-              else { 'jurapascal/aladin-marketplace' }
+              else { 'IT-Brno/aladin-marketplace' }
 
 function Count-Skills($path) {
     if (-not (Test-Path $path)) { return 0 }

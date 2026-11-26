@@ -3078,6 +3078,8 @@ def start():
     stopka.pri_startu()          # rychlé (jeden soubor) a dřív, než se otevře první tab
     from . import hlas
     hlas.uklid()                 # starý místní Whisper a Piper pryč (na pozadí)
+    from . import prohlizec_nastroje
+    prohlizec_nastroje.start()   # Lightpanda + agent-browser na počítači (na pozadí)
     connect.start_shared_sync()
     # Gemini jako pomocník Clauda: napojit/odpojit MCP podle toho, jestli je
     # agy nainstalovaný (hub/gemini.py). Zkušební hub nic nemění.

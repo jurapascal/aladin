@@ -3653,18 +3653,26 @@ OBRAZKY_PROMPT = (
 
 PROHLIZEC_PROMPT = (
     "## Lehký prohlížeč z příkazové řádky\n"
-    "Na serveru jsou `agent-browser-lp` (prohlížeč Lightpanda: 2,5–4× méně paměti a projde i část "
+    "Jsou tu `agent-browser-lp` (prohlížeč Lightpanda: 2,5–4× méně paměti a projde i část "
     "ochran proti botům, např. Cloudflare u Cotton Classics a L-Shop; neumí vzhled stránky) a "
     "`agent-browser` (totéž s headless Chromiem). Příkazy: `open <url>`, `get text body`, "
     "`snapshot -i`, `click @e3`, `fill @e5 \"text\"`, `screenshot /cesta.png` (jen Chromium), `close`. "
     "Na rychlé čtení stránky stačí `lightpanda fetch <url> --dump markdown`. Na čtení a hromadné "
     "procházení webů ber Lightpandu, na vzhled, screenshoty, PDF a přihlášené weby Chromium nebo "
     "Playwright MCP. Po práci `close`.")
+PROHLIZEC_PROMPT_CHROMIUM = (
+    "## Prohlížeč z příkazové řádky\n"
+    "Je tu `agent-browser` (headless Chromium, démon na pozadí): `open <url>`, `get text body`, "
+    "`snapshot -i`, `click @e3`, `fill @e5 \"text\"`, `screenshot /cesta.png`, `close`. Na rychlé "
+    "čtení a klikání je lehčí než Playwright MCP; na přihlášené weby ber Playwright MCP. Po práci `close`.")
 
 
 def prohlizec_prompt():
-    """Pokyn o lehkém prohlížeči — jen kde je nainstalovaný (brána, gateway/install.sh)."""
-    return PROHLIZEC_PROMPT if shutil.which("agent-browser-lp") else ""
+    """Pokyn o lehkém prohlížeči — jen kde je (server: gateway/install.sh,
+    počítač: hub/prohlizec_nastroje.py, Windows jen s Chromiem)."""
+    from . import prohlizec_nastroje
+    ab, lp = prohlizec_nastroje.dostupne()
+    return PROHLIZEC_PROMPT if lp else PROHLIZEC_PROMPT_CHROMIUM if ab else ""
 
 
 def navaznost_prompt(chat_id=""):

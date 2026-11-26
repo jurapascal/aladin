@@ -55,7 +55,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key><string>Aladin</string>
     <key>CFBundleDisplayName</key><string>Aladin</string>
-    <key>CFBundleIdentifier</key><string>com.github.jurapascal.claude-code-hub</string>
+    <key>CFBundleIdentifier</key><string>com.github.itbrno.claude-code-hub</string>
     <key>CFBundleVersion</key><string>$VERSION</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
     <key>CFBundlePackageType</key><string>APPL</string>

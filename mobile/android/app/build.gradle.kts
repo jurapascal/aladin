@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.jurapascal.claudehub"
+    namespace = "io.github.itbrno.claudehub"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.github.jurapascal.claudehub"
+        applicationId = "io.github.itbrno.claudehub"
         minSdk = 26                 // WebView s ES2020, tedy vše, co hub v JS používá
         targetSdk = 35
         versionCode = 2

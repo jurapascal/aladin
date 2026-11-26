@@ -1,4 +1,4 @@
-package io.github.jurapascal.claudehub
+package io.github.itbrno.claudehub
 
 import android.content.Intent
 import android.os.Bundle
@@ -19,7 +19,7 @@ import com.journeyapps.barcodescanner.ScanOptions
 class SetupActivity : AppCompatActivity() {
 
     companion object {
-        const val FORGET = "io.github.jurapascal.claudehub.FORGET"
+        const val FORGET = "io.github.itbrno.claudehub.FORGET"
     }
 
     private val scanner = registerForActivityResult(ScanContract()) { result ->

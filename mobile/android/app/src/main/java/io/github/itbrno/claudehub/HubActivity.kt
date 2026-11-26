@@ -1,4 +1,4 @@
-package io.github.jurapascal.claudehub
+package io.github.itbrno.claudehub
 
 import android.annotation.SuppressLint
 import android.app.DownloadManager

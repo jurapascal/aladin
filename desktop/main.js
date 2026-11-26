@@ -555,7 +555,7 @@ if (!app.requestSingleInstanceLock()) {
     // Okna jsou jinde (prostor na serveru, jiný běžící hub) → nové okno jako dřív.
     otevriOkno(url);
   });
-  app.setAppUserModelId('com.github.jurapascal.claude-code-hub.desktop');
+  app.setAppUserModelId('com.github.itbrno.claude-code-hub.desktop');
 
   app.whenReady().then(async () => {
     app.setName('Aladin');

@@ -7,8 +7,8 @@
         android:enabled="true"
         android:shortcutShortLabel="@string/menu_forget">
         <intent
-            android:action="io.github.jurapascal.claudehub.FORGET"
-            android:targetPackage="io.github.jurapascal.claudehub"
-            android:targetClass="io.github.jurapascal.claudehub.SetupActivity"/>
+            android:action="io.github.itbrno.claudehub.FORGET"
+            android:targetPackage="io.github.itbrno.claudehub"
+            android:targetClass="io.github.itbrno.claudehub.SetupActivity"/>
     </shortcut>
 </shortcuts>

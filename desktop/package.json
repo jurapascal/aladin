@@ -19,7 +19,7 @@
     "playwright": "1.63.0"
   },
   "build": {
-    "appId": "com.github.jurapascal.claude-code-hub.desktop",
+    "appId": "com.github.itbrno.claude-code-hub.desktop",
     "productName": "Aladin",
     "directories": {
       "buildResources": "build",

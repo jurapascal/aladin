@@ -335,7 +335,7 @@ fetch_repo() {
     local before=""
     if [ -d "$REPO_DIR/.git" ]; then
         before="$(git -C "$REPO_DIR" rev-parse HEAD)"
-        quiet git -C "$REPO_DIR" fetch --tags origin
+        quiet git -C "$REPO_DIR" fetch --tags --force origin
         quiet git -C "$REPO_DIR" checkout "$REF"
         # Větev dotáhnout; značka je pevná (detached HEAD).
         if git -C "$REPO_DIR" symbolic-ref -q HEAD >/dev/null; then

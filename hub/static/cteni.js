@@ -3132,7 +3132,7 @@
           } catch (_) { /* příště */ }
         }
         hlidejUlohy();
-      }, (!io.aktivni || io.aktivni()) ? 4000 : 15000);
+      }, (!document.hidden && (!io.aktivni || io.aktivni())) ? 4000 : 15000);
     }
     hlidejUlohy();
 
@@ -3178,7 +3178,8 @@
           // Tab, na který není vidět, se doptává zvolna — přibýt v něm může
           // hodně, ale nikdo to zrovna nečte.
           const rychle = !document.hidden && prazdnych < KLID_PO && (!io.aktivni || io.aktivni());
-          timer = setTimeout(tik, rychle ? POLL : POLL_KLID);
+          const videt = !document.hidden && (!io.aktivni || io.aktivni());
+          timer = setTimeout(tik, rychle ? POLL : videt ? POLL_KLID : 10000);
         }
       }
     }

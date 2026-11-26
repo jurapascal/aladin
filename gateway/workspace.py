@@ -781,6 +781,11 @@ def session_env(user):
     # vycházel všem stejný: hub jednoho člověka viděl Chromium druhého,
     # hlídač nečinnosti ho druhému zavíral a ten pak „padal“ (4. 11. 2026).
     env["HUB_BROWSER_PORT"] = str(browser_port(user))
+    # Dočasné soubory Claude Code (scratchpad agentů, výstupy úloh na pozadí)
+    # do domova, ne do /tmp: /tmp je v sandboxu tmpfs (isolation._bwrap), každé
+    # uspání či restart prostoru ho smaže a jeho obsah se počítá do stropu
+    # paměti prostoru. Claude Code si podsložky zakládá sám (mkdir -p).
+    env["CLAUDE_CODE_TMPDIR"] = os.path.join(home_for(user), ".cache", "claude-tmp")
     # Web od správce: vždycky, i prázdný — prázdný říká hubu „web už nemáš“
     # (hub/web.py pri_startu ho zapíše nebo smaže a proměnnou zahodí).
     env["HUB_WEB"] = web_env(user)

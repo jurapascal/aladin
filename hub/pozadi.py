@@ -345,12 +345,6 @@ def ikonka(zapnout):
         _ikonka["proc"] = None
 
 
-def ikonka_znovu():
-    """Nový název nebo ikona appky → ikonka v liště se pustí znovu."""
-    ikonka(False)
-    ikonka(core.CONFIG.get("tray", True) is not False)
-
-
 def sync():
     """Srovná běžící stav s nastavením (po startu a po změně nastavení)."""
     spanek(bool(core.CONFIG.get("bez_spanku")))

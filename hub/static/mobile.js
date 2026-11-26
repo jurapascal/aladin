@@ -88,13 +88,6 @@
     q.value = hledatPole.value;
     q.dispatchEvent(new Event('input', {bubbles: true}));
   }
-  function hledatOtevri() {
-    if (!hledatPole) return;
-    document.body.classList.add('drawer-hledani');
-    const sidebar = document.querySelector('.sidebar');
-    if (sidebar) sidebar.scrollTop = 0;
-    hledatPole.focus();
-  }
   function hledatZavri() {
     if (!document.body.classList.contains('drawer-hledani')) return;
     document.body.classList.remove('drawer-hledani');

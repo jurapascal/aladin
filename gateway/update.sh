@@ -145,24 +145,19 @@ main() {
 
     # 1. Připravit — běžícím prostorům nic nevadí. Stahuje se jen do .git,
     #    pracovní strom zdroje (a tím brána) zůstává, jak je.
-    if ! { git -C "$REPO_DIR" fetch --tags --quiet origin && pripravit "$latest"; } >>"$LOG" 2>&1; then
+    # --force: značky bere brána vždycky z GitHubu. Bez něj by po přepsání
+    # historie (smazání úniku z repa) fetch odmítl změněné značky a brána by
+    # se přestala aktualizovat.
+    if ! { git -C "$REPO_DIR" fetch --tags --force --quiet origin && pripravit "$latest"; } >>"$LOG" 2>&1; then
         status false "Novou verzi ${latest#v} se nepodařilo připravit — podrobnosti v $LOG."
         return 1
     fi
     uklidit
 
-    # 2. Bránu přepnout, až neběží žádný prostor. S --hned je zastaví správce
-    # sám — otevřený prohlížeč si prostor hned spustí znovu, proto dokola,
-    # dokud nejsou všechny dole, a hned potom přepnutí (install.sh je krátký).
-    if [ "$HNED" = 1 ]; then
-        local pokus
-        for pokus in 1 2 3 4 5; do
-            claude-hub-admin sessions 2>/dev/null | awk '/^claude-hub-/{print $NF}' |
-                while read -r email; do claude-hub-admin stop "$email" >/dev/null 2>&1; done
-            [ "$(claude-hub-admin sessions 2>/dev/null | grep -c '^claude-hub-' || true)" -eq 0 ] && break
-            sleep 1
-        done
-    fi
+    # 2. Bránu přepnout, až neběží žádný prostor. S --hned se prostory
+    # nezastavují tady (`claude-hub-admin stop` = bez uložení tabů a otevřený
+    # prohlížeč si prostor hned pustí znovu — 25. 11. 5 startů za 15 s):
+    # zastaví je restart brány níž, a ta si předtím u každého uloží taby.
     running="$(claude-hub-admin sessions 2>/dev/null | grep -c '^claude-hub-' || true)"
     if [ "${running:-0}" -gt 0 ] && [ "$HNED" != 1 ]; then
         status true "Verze ${latest#v} je připravená — prostory se na ni přepnou, až je lidi aktualizují. Brána se přepne, až nepoběží žádný prostor (teď běží: $running)." "" "${latest#v}"
@@ -175,7 +170,7 @@ main() {
     [ -n "$EMAIL" ] && email=(--email "$EMAIL")
     if ! {
         echo "=== $(date '+%F %T') ${current:-?} → $latest"
-        git -C "$REPO_DIR" fetch --tags --quiet origin &&
+        git -C "$REPO_DIR" fetch --tags --force --quiet origin &&
             git -C "$REPO_DIR" checkout --quiet "$latest" &&
             bash "$REPO_DIR/gateway/install.sh" --domain "$DOMAIN" "${email[@]}" \
                 --ref "$latest" "${tls[@]}"

@@ -23,6 +23,7 @@ import http.client
 import json
 import os
 import secrets
+import signal
 import socket
 import subprocess
 import re
@@ -35,7 +36,7 @@ from hub import __version__, qr
 
 from . import webauthn
 from . import mcp_pc, prohlizece, zrcadlo, whatsapp, wa_provoz
-from . import (config, firmy, isolation, mcp, mcp_sdilene, pocitac, poznamky, pristup, relace, safefs, shared,
+from . import (config, firmy, isolation, mcp, mcp_sdilene, pocitac, poznamky, pristup, relace, shared,
                slozky, totp, workspace)
 from .accounts import Accounts
 
@@ -380,6 +381,14 @@ def hub_post(hub, name, payload, timeout=20):
         conn.close()
 
 
+def _pracuje(hub):
+    """Pracuje v prostoru Claude? Starý hub bez /api/prostor-pracuje = ne."""
+    try:
+        return int(hub_post(hub, "prostor-pracuje", {}, timeout=5).get("pracuje") or 0) > 0
+    except (TypeError, ValueError):
+        return False
+
+
 class HubManager:
     """Které instance hubu běží a kdo je čí. Uspává nečinné, drží strop počtu."""
 
@@ -415,6 +424,10 @@ class HubManager:
 
     # Jak dlouho musí být prostor bez práce, než ho smí uspat někdo jiný.
     EVICT_IDLE = 5 * 60
+    # Pracující Claude (noční agenti bez otevřeného prohlížeče) drží prostor
+    # vzhůru nejvýš tak dlouho po posledním kliknutí — pojistka proti tabu,
+    # který se tváří, že pracuje, a nikdy nepřestane.
+    WORK_HOLD = 12 * 3600
 
     def _make_room(self):
         """Uvolní místo, když je dosažen strop: uspí nejdéle nečinný prostor,
@@ -448,9 +461,22 @@ class HubManager:
             time.sleep(every)
             now = time.time()
             to_stop = []
+            idle = []
             with self._lock:
                 for uid, proc in list(self.procs.items()):
-                    if not proc.alive() or now - proc.last_active > self.idle:
+                    if not proc.alive():
+                        self.procs.pop(uid, None)
+                        to_stop.append(proc)
+                    elif now - proc.last_active > self.idle:
+                        idle.append((uid, proc))
+            # Bez prohlížeče neznamená bez práce: hub se zeptá (mimo zámek,
+            # odpověď může trvat), jestli v něm Claude nepracuje.
+            for uid, proc in idle:
+                if now - proc.last_active < self.idle + self.WORK_HOLD and _pracuje(proc):
+                    continue
+                with self._lock:
+                    if self.procs.get(uid) is proc and \
+                            time.time() - proc.last_active > self.idle:
                         self.procs.pop(uid, None)
                         to_stop.append(proc)
             # Zastavení může trvat pár vteřin (hub dostane čas skončit) —
@@ -518,11 +544,17 @@ class HubManager:
         return True
 
     def stop_all(self):
+        """Zastaví všechny prostory, každý ve vlastním vlákně — při vypnutí
+        brány (systemctl stop/restart) se musí stihnout uložit taby všech
+        dřív, než systemd po TimeoutStopSec sáhne po SIGKILL."""
         with self._lock:
             procs = list(self.procs.values())
             self.procs.clear()
-        for proc in procs:
-            proc.stop()
+        vlakna = [threading.Thread(target=proc.stop, daemon=True) for proc in procs]
+        for t in vlakna:
+            t.start()
+        for t in vlakna:
+            t.join(timeout=30)
 
 
 # ── stránky, které patří bráně (ne hubu) ─────────────────────────────────────
@@ -1274,22 +1306,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._fail(502, MSG_BROKEN)
             except Exception:
                 pass
-
-    _pwa_ids = {"at": 0, "map": {}}
-
-    def _pwa_user(self, pid):
-        """Účet podle kódu z adresy (workspace.pwa_id); seznam se přepočítá
-        nejvýš jednou za minutu."""
-        import re as _re
-        if not _re.fullmatch(r"[0-9a-f]{24}", pid or ""):
-            return None
-        cache = self._pwa_ids
-        if time.time() - cache["at"] > 60 or pid not in cache["map"]:
-            cache["map"] = {workspace.pwa_id(u): u["id"] for u in self.accounts.list()
-                            if not u.get("disabled")}
-            cache["at"] = time.time()
-        uid = cache["map"].get(pid)
-        return self.accounts.by_id(uid) if uid else None
 
     def _pwa_user_manifest(self, query):
         # Název a ikona jsou pro všechny stejné (hub/vzhled.py) — dřív uložené
@@ -3985,6 +4001,12 @@ def serve():
     spotreba.sledovani(accounts.list)
     # Noční úklid, rozbor místa a oznámení (běží v samostatném procesu).
     uloziste.hlidac()
+    # systemctl stop/restart posílá SIGTERM. Bez obsluhy Python skončí hned,
+    # `finally` níž se neprovede a prostory zůstanou běžet bez uložených tabů —
+    # nová brána je pak zabije v stop_orphans(). Takhle si je uloží a zastaví sama.
+    def _konec(_sig, _frame):
+        raise KeyboardInterrupt
+    signal.signal(signal.SIGTERM, _konec)
     where = f"{config.HOST}:{config.PORT}"
     print(f"brána poslouchá na {where}, izolace {config.ISOLATION}, "
           f"účtů {accounts.count()}", flush=True)

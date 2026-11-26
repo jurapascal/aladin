@@ -18,7 +18,6 @@ prostory, proto je tam okno vypnuté, dokud správce nenastaví HUB_PROHLIZEC=1
 """
 import base64
 import glob
-import hashlib
 import json
 import os
 import platform
@@ -846,7 +845,6 @@ def _ensure(wait, _znovu=False):
 
 # ── Minimální websocket klient (jen standardní knihovna) ─────────────────────
 
-SROVNAT_OKNO = False         # appka nemění velikost skutečného okna Chromia
 MIN_SIRKA = 1024             # užší panel nedostane mobilní web — stránka se jen zmenší
 
 class _WS:
@@ -1614,62 +1612,6 @@ class Okno:
                 self._emuluj()
                 self._spust_obraz()
         threading.Thread(target=obnov, name="prohlizec-obnova", daemon=True).start()
-
-    def _srovnej_okno(self, w, h):
-        """Skutečné okno Chromia dostane rozměr plochy, ať stránka vidí tu
-        velikost, kterou člověk vidí (responzivní web, nic neuříznutého, 1:1
-        bez zmenšování). Výška okna obsahuje i lištu prohlížeče, kterou
-        screencast nevidí, tak se její tloušťka změří a odečte. Běží
-        na vlastním spojení — Claude přitom nic nevidí a nic se nepřeruší.
-
-        VYPNUTO: skutečné okno Chromia se nechává na pokoji (člověk ho vidí
-        a nechce, aby mu appka měnila rozměry). Obraz v appce se přizpůsobí
-        velikosti okna Chromia — plátno zachovává poměr stran a myš se
-        přepočítává podle rozměrů snímku."""
-        if not SROVNAT_OKNO:
-            return
-        cil = self._target
-        if not cil:
-            return
-
-        def prace():
-            try:
-                cdp = _WS(f"ws://{HOST}:{port()}/devtools/page/{cil}")
-            except Exception:
-                return
-            try:
-                seq = [0]
-
-                def zavolej(method, **params):
-                    seq[0] += 1
-                    cdp.send(json.dumps({"id": seq[0], "method": method, "params": params}))
-                    while True:
-                        raw = cdp.recv()
-                        if raw is None:
-                            return None
-                        d = json.loads(raw)
-                        if d.get("id") == seq[0]:
-                            return d.get("result")
-                win = zavolej("Browser.getWindowForTarget")
-                if not win:
-                    return
-                wid = win["windowId"]
-                zavolej("Browser.setWindowBounds", windowId=wid, bounds={"windowState": "normal"})
-                zavolej("Browser.setWindowBounds", windowId=wid, bounds={"width": w + 0, "height": h + 140})
-                vnitrek = zavolej("Runtime.evaluate", expression="[innerWidth,innerHeight].join(',')")
-                try:
-                    iw, ih = [int(x) for x in vnitrek["result"]["value"].split(",")]
-                except Exception:
-                    return
-                if (iw, ih) != (w, h):
-                    # Okno = obsah + rámeček; dorovnat o naměřený rozdíl.
-                    zavolej("Browser.setWindowBounds", windowId=wid,
-                            bounds={"width": max(200, w + (w - iw) + 0), "height": h + 140 + (h - ih)})
-            except Exception:
-                pass
-            finally:
-                cdp.close()
-        threading.Thread(target=prace, daemon=True).start()
 
     def _nova(self, strany, vzit=True):
         """Stránka, která se objevila od posledního pohledu (`vzit` ji označí

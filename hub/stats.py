@@ -274,7 +274,10 @@ def project_usage():
     prázdná, je potřeba přepočítat (collect)."""
     cache = _load_cache()
     files = cache.get("files") or {}
-    pending = (not files) or any("models" not in f for f in files.values())
+    # Prázdná mezipaměť po doběhlém přepočtu (nový člověk, zatím žádný chat) už
+    # není „pending" — jinak se okno ptalo co 6 s a pokaždé pouštělo přepočet.
+    pending = ((not files and not os.path.exists(CACHE_PATH))
+               or any("models" not in f for f in files.values()))
     known = [p["path"] for p in core.get_projects()]
     result = {}
     for slug, u in usage_by_slug(files).items():

@@ -1,0 +1,56 @@
+name: Testy
+
+# Zkoušky v tools/test_*.py jsou bez sítě a bez skutečného ~/.claude, takže
+# běží i tady. Do 2.147.0 je nikdo automaticky nepouštěl: test_povoleni_karta
+# padal od 2.115.0 a nikdo si toho nevšiml. Běží na nejstarším podporovaném
+# Pythonu (3.9, README) i na tom, který mají instalačky.
+on:
+  push:
+    branches: ['**']
+    paths: ['**.py', '**.js', '**.mjs', '**.css', '.github/workflows/testy.yml']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testy:
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.9', '3.12']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: rclone pro test_cloud
+        run: sudo apt-get install -yq rclone
+
+      - name: Syntaxe (Python + JS)
+        run: |
+          git ls-files '*.py' | grep -v '^legacy/' | xargs python -m py_compile
+          fail=0
+          for f in $(git ls-files '*.js' '*.mjs' '*.cjs' | grep -v '/vendor/'); do
+            node --check "$f" || fail=1
+          done
+          exit $fail
+
+      - name: Nedefinovaná jména a chybné importy (ruff, jen chyby)
+        # F821 nedefinované jméno (2.147.0: _check_repo), F811 přepsaná
+        # funkce, F63/F7 nesmyslné porovnání a chybný kód, E9 syntaxe.
+        run: |
+          pip install -q ruff
+          ruff check --isolated --select F821,F811,F63,F7,E9 hub gateway tools claude-hub.py hooks packaging
+
+      - name: Unit testy
+        run: |
+          fail=0
+          for f in tools/test_*.py; do
+            echo "::group::$f"
+            python "$f" || { echo "::error file=$f::selhalo"; fail=1; }
+            echo "::endgroup::"
+          done
+          exit $fail

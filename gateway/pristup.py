@@ -74,7 +74,7 @@ VSEM_HOST = 0
 
 # Co v prostoru nesmí žádný host: vnitřní volání brány a obnova tabů po
 # restartu (čte se jednou — host by ji vlastníkovi „snědl“).
-DENY_ALL_GUESTS = {"prostor-snapshot", "restore", "mcp-tool", "predplatne-host", "web-host"}
+DENY_ALL_GUESTS = {"prostor-snapshot", "prostor-pracuje", "restore", "mcp-tool", "predplatne-host", "web-host"}
 
 # Správa předplatného: akce na /gw/pristup/predplatne (POST). Nic jiného.
 PREDPLATNE_AKCE = {"prihlasit", "kod", "zrusit", "odpojit"}
@@ -88,7 +88,7 @@ POMOCNIK_DENY = {
     "claude-ucet", "chat-delete", "chat-domu",
 }
 # … a tohle jen ke čtení (POST mění nastavení).
-POMOCNIK_READ_ONLY = {"app-vzhled", "pluginy", "pocitac", "agents", "auto-model-keep", "gemini"}
+POMOCNIK_READ_ONLY = {"pluginy", "pocitac", "agents", "auto-model-keep", "gemini"}
 # Akce v těle POSTu, které mažou.
 POMOCNIK_DENY_ACTIONS = {"project": {"remove"}, "firma": {"discard"}}
 

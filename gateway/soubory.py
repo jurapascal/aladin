@@ -29,7 +29,6 @@ import os
 import re
 import time
 
-from . import config
 
 UPLOAD_MAX = int(os.environ.get("HUB_GW_UPLOAD_MB", "20")) * 1024 * 1024
 COMPANY_QUOTA = int(os.environ.get("HUB_GW_COMPANY_QUOTA_MB", "5120")) * 1024 * 1024
@@ -132,7 +131,3 @@ def log(path, user, where, result, via="prohlížeč"):
             fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
     except OSError:
         pass
-
-
-def company_log():
-    return config.COMPANY_LOG

@@ -159,6 +159,34 @@ def muze_spat(session, klid):
     return True, os.path.basename(path)[:-6]
 
 
+def pracuje(session):
+    """Claude v tabu pracuje — uprostřed tahu, úlohy na pozadí (agenti,
+    Monitor), zprávy ve frontě nebo úkol ze serveru. Obrácená muze_spat bez
+    podmínky klidu: podle toho brána nesmí prostor uspat (gateway/server.py)."""
+    from . import cteni, restart
+    if session.exited or getattr(session, "uspany", False) or not bezi_claude(session):
+        return False
+    if getattr(session, "ukol", None):
+        return True
+    path = core.transcript_for(session)
+    if not path or not os.path.isfile(path):
+        return False
+    od_ms = int(session.started * 1000)
+    try:
+        if restart._uprostred_prace(path, od_ms) or cteni.pozadi(path, od_ms):
+            return True
+        fronta, _ = restart._fronta_a_prace(path, od_ms)
+        return bool(fronta)
+    except Exception as exc:
+        core.log_error("pracuje: stav tabu", exc)
+        return False
+
+
+def pracujicich(hub):
+    """Kolik tabů v prostoru právě pracuje."""
+    return sum(1 for s in list(hub.sessions.values()) if pracuje(s))
+
+
 # Hlídač paměti jednoho Claudea: proces, který přeroste tenhle strop (MB),
 # se v klidu uspí a tím vrátí paměť (po probuzení běží znovu od nuly, nad toutéž
 # konverzací). `claude_rss_mb` v hub-config.json nebo HUB_CLAUDE_RSS_MB;

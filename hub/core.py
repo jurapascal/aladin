@@ -233,9 +233,39 @@ def log(message, level="info"):
         pass          # log, který shodí aplikaci, je horší než žádný
 
 
+# Stejná chyba pořád dokola (okno se ptá každých pár vteřin) by log o 1 MB
+# přetočila za den a s ní i všechno ostatní: 25. 11. bylo 7 072 z 7 290 řádků
+# jedno a totéž. Opakování se proto píše nejvýš jednou za 10 minut, s počtem.
+_LOG_OPAKOVANI = {}
+LOG_OPAKOVANI_S = 600
+
+
+def _misto_chyby(exc):
+    """'soubor.py:řádek' nejhlubšího rámce v hubu, ať jde chybu z logu najít."""
+    tb, misto = getattr(exc, "__traceback__", None), ""
+    while tb is not None:
+        f = tb.tb_frame.f_code.co_filename
+        if os.sep + "hub" + os.sep in f or f.endswith("claude-hub.py"):
+            misto = f"{os.path.basename(f)}:{tb.tb_lineno}"
+        tb = tb.tb_next
+    return misto
+
+
 def log_error(message, exc=None):
     if exc is not None:
-        message = f"{message}: {type(exc).__name__}: {exc}"
+        misto = _misto_chyby(exc)
+        message = f"{message}: {type(exc).__name__}: {exc}" + (f" [{misto}]" if misto else "")
+    ted = time.time()
+    with _LOG_LOCK:
+        posledni, kolik = _LOG_OPAKOVANI.get(message, (0.0, 0))
+        if ted - posledni < LOG_OPAKOVANI_S:
+            _LOG_OPAKOVANI[message] = (posledni, kolik + 1)
+            return
+        _LOG_OPAKOVANI[message] = (ted, 0)
+        if len(_LOG_OPAKOVANI) > 500:
+            _LOG_OPAKOVANI.clear()
+    if kolik:
+        message += f" (a {kolik}× znovu za posledních {int((ted - posledni) // 60)} min)"
     log(message, "error")
 
 
@@ -1863,24 +1893,31 @@ def refresh():
     HAS_BRAIN = os.path.isdir(MEMORY_DIR)
 
 
+# Souběžné save_config (víc požadavků HTTP, vlákna na pozadí) si jinak
+# přepisovala společný .tmp: do hub-config.json se dostal rozbitý JSON,
+# load_config ho tiše vzal jako „nic" a další zápis smazal i gw_token.
+_CONFIG_LOCK = threading.RLock()
+
+
 def save_config(updates):
     """Zapíše změny do hub-config.json (jen předané klíče) a zavolá refresh()."""
-    cfg = dict(load_config())
-    cfg.update(updates)
-    zahod_cache()
-    if SETUP_MODE:
-        # Instalace v okně (hub/setup.py): konfig založí až instalačka — kdyby
-        # existoval dřív, nechala by ho být a nezjistila složky projektů.
-        return cfg
-    # Nechceme do souboru vrátit výchozí hodnoty, které tam uživatel nemá —
-    # zapisuje se to, co v něm bylo, plus změna.
-    os.makedirs(CLAUDE_DIR, exist_ok=True)
-    tmp = CONFIG_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as fh:
-        json.dump(cfg, fh, ensure_ascii=False, indent=2)
-        fh.write("\n")
-    os.replace(tmp, CONFIG_PATH)
-    refresh()
+    with _CONFIG_LOCK:
+        cfg = dict(load_config())
+        cfg.update(updates)
+        zahod_cache()
+        if SETUP_MODE:
+            # Instalace v okně (hub/setup.py): konfig založí až instalačka — kdyby
+            # existoval dřív, nechala by ho být a nezjistila složky projektů.
+            return cfg
+        # Nechceme do souboru vrátit výchozí hodnoty, které tam uživatel nemá —
+        # zapisuje se to, co v něm bylo, plus změna.
+        os.makedirs(CLAUDE_DIR, exist_ok=True)
+        tmp = f"{CONFIG_PATH}.{os.getpid()}.{threading.get_ident()}.tmp"
+        with open(tmp, "w", encoding="utf-8") as fh:
+            json.dump(cfg, fh, ensure_ascii=False, indent=2)
+            fh.write("\n")
+        os.replace(tmp, CONFIG_PATH)
+        refresh()
     return cfg
 
 
@@ -1937,10 +1974,6 @@ def save_projects(data):
     except OSError:
         pass
     os.replace(tmp, PROJECTS_PATH)
-
-
-def project_meta(path):
-    return load_projects().get(os.path.abspath(path), {})
 
 
 def set_project_meta(path, updates):
@@ -2156,6 +2189,21 @@ def link_memory(vault):
     return {"linked": link, "target": memory, "moved": moved, "how": how}
 
 
+_REPO_RE = re.compile(
+    r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"                         # owner/repo
+    r"|https://[A-Za-z0-9.-]+(:\d+)?/[A-Za-z0-9_.~/-]+"         # https://github.com/owner/repo(.git)
+    r"|git@[A-Za-z0-9.-]+:[A-Za-z0-9_.~/-]+")                  # git@github.com:owner/repo.git
+
+
+def _check_repo(repo):
+    """Adresa repa z okna: jen owner/repo, https:// nebo git@ — nic, co by git
+    vzal jako přepínač (`-…`) nebo jiný transport (`ext::`, `file://`)."""
+    repo = str(repo or "").strip()
+    if repo.startswith("-") or ".." in repo.split("/") or not _REPO_RE.fullmatch(repo):
+        raise ValueError("Adresa repa má být jmeno/repo nebo celý odkaz https://…")
+    return repo
+
+
 def clone_vault(repo, parent):
     """Naklonuje vault z gitu. repo = owner/repo nebo celá URL."""
     repo = _check_repo(repo)
@@ -2350,25 +2398,6 @@ def vault_git_setup(repo_name):
 
     save_config({"vault_autosync": True})
     return True, run([GIT, "remote", "get-url", "origin"], cwd=BRAIN)
-
-
-def vault_git_push(message="paměť: automatická záloha"):
-    """Commit + push vaultu. Používá to Stop hook, takže musí být tichý."""
-    if not GIT or not os.path.isdir(os.path.join(BRAIN, ".git")):
-        return False, "vault není git repo"
-    try:
-        if not run([GIT, "status", "--porcelain"], cwd=BRAIN):
-            return True, "beze změn"
-        subprocess.run([GIT, "add", "-A"], cwd=BRAIN, capture_output=True, timeout=120)
-        subprocess.run([GIT, "commit", "-q", "-m", message], cwd=BRAIN,
-                       capture_output=True, timeout=120)
-        r = subprocess.run([GIT, "push", "-q", "origin", "HEAD"], cwd=BRAIN,
-                           capture_output=True, text=True, timeout=300)
-        if r.returncode != 0:
-            return False, (r.stderr or "push selhal").strip()[:200]
-        return True, "posláno"
-    except Exception as exc:
-        return False, str(exc)[:200]
 
 
 # ── Verze a aktualizace ──────────────────────────────────────────────────────
@@ -3116,10 +3145,6 @@ def clipboard_write(text, which="clipboard"):
         return False
 
 
-def has_clipboard():
-    return _clipboard_tools("clipboard")[0] is not None
-
-
 def current_model():
     """Model, se kterým Claude Code startuje nové sessions.
 
@@ -3499,16 +3524,6 @@ def agent_spec(agent_id=""):
     if not spec:
         spec = agents.resolve(default_agent(), extra) or agents.resolve("claude")
     return spec
-
-
-def project_agent(path):
-    """Agent zapamatovaný u konkrétního projektu, jinak výchozí."""
-    saved = CONFIG.get("project_agents")
-    if isinstance(saved, dict) and path:
-        want = str(saved.get(path) or "").strip().lower()
-        if want and want in agents.catalog(_agents_extra()):
-            return want
-    return default_agent()
 
 
 def agents_state(with_version=True):

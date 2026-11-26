@@ -105,6 +105,11 @@ def poslat(komu, predmet, text, html_text=None, odpovedet=None):
                 if srv.has_extn("starttls"):
                     srv.starttls(context=ctx)
                     srv.ehlo()
+                elif s.get("user"):
+                    # Bez šifrování by heslo šlo sítí čitelně (a stačí, aby
+                    # STARTTLS z odpovědi serveru někdo cestou vyškrtl).
+                    raise RuntimeError("Schránka nenabízí šifrované spojení (STARTTLS) — "
+                                       "heslo se jí neposílá. Zkus port 465.")
             if s.get("user"):
                 srv.login(s["user"], s.get("password") or "")
             srv.send_message(msg)

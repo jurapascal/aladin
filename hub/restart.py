@@ -150,6 +150,10 @@ def _uprostred_prace(path, od_ms):
             continue
         if od_ms and cteni._ms(entry.get("timestamp")) < od_ms - 5000:
             return False
+        if entry.get("isCompactSummary"):
+            # Souhrn po zhuštění (i „Compacted while idle“) není výsledek
+            # nástroje — tah před ním skončil, Claude nepracuje.
+            return False
         if druh == "assistant":
             if entry.get("isApiErrorMessage"):
                 return False
@@ -224,6 +228,12 @@ def snapshot(hub, reason="restart", quiet=False):
     obnoví a co stránka řekne."""
     if core.TEST_MODE:
         return 0
+    if not _TAKEN and not any(not s.exited for s in list(hub.sessions.values())):
+        # Uložené taby z minula si ještě žádné okno nevzalo (prostor naběhl bez
+        # okna) — prázdný stav by je přepsal. 25. 11.: 00:14 uloženo 15 tabů,
+        # 03:01 start bez okna, 03:32 brána uspala prostor → „uloženo 0 tabů“.
+        core.log("restart: taby z minula ještě nikdo neotevřel — nechávám je uložené")
+        return 0
     tabs = []
     for session in list(hub.sessions.values()):
         if session.exited:
@@ -283,6 +293,8 @@ def take():
     """Přečte uložené taby a soubor smaže — obnovuje se jednou, ne pokaždé.
     Vrací (taby, důvod)."""
     global _TAKEN
+    if _TAKEN:
+        return [], ""                    # tahle instance už obnovovala (druhé okno)
     _TAKEN = True
     if core.TEST_MODE:
         return [], ""
@@ -291,10 +303,11 @@ def take():
             data = json.load(fh)
     except (OSError, ValueError):
         return [], ""
-    try:
-        os.remove(STATE_PATH)
-    except OSError:
-        pass
+    # Soubor se nemaže: přepíše ho keep_saving (do minuty) skutečným stavem.
+    # Dřív se tu mazal, a když prostor spadl nebo ho brána restartovala dřív,
+    # než keep_saving poprvé uložil (25. 11. 21:31:20 → 21:31:29), nová
+    # instance už neměla co obnovit a všechny taby zmizely. Podruhé v témže
+    # procesu se neobnovuje díky _TAKEN (viz začátek funkce).
     if not isinstance(data, dict):
         return [], ""
     reason = data.get("duvod") if data.get("duvod") in REASONS else "restart"

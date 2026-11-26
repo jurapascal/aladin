@@ -105,7 +105,7 @@ NODE = r"""
 const vm = require('vm'), fs = require('fs');
 const win = {};
 vm.runInNewContext(fs.readFileSync(process.argv[1], 'utf8'),
-  {window: win, document: {}, localStorage: {}, console});
+  {window: win, document: {documentElement: {dataset: {}}}, localStorage: {}, console});
 const t = win.HubComposer._test;
 const inp = JSON.parse(fs.readFileSync(0, 'utf8'));
 const out = inp.map((c) => {

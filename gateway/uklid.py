@@ -422,13 +422,3 @@ def _prava(dfd, name, prava):
         os.fchmod(fd, prava)
     finally:
         os.close(fd)
-
-
-def posledni_zaznam(n=50):
-    """Posledních `n` řádků záznamu sloučení (pro výpis v CLI)."""
-    try:
-        with open(LOG, encoding="utf-8") as fh:
-            radky = fh.readlines()[-n:]
-        return [json.loads(r) for r in radky if r.strip()]
-    except (OSError, ValueError):
-        return []

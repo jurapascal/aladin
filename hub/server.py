@@ -836,7 +836,7 @@ _OKNO_OTEVRIT = {"cas": 0.0}      # poslední klik na ikonku v liště (okno-ote
 # otevření 1,5 MB bez komprese a bez cache — na počítači to nevadí, ale telefon
 # přes Tailscale nebo bránu na tom čekal. `no-cache` = prohlížeč si soubor
 # nechá, ale před použitím se zeptá; nezměněný soubor je pak jen 304 bez těla
-# a po aktualizaci hubu se nový stáhne hned (ETag je z mtime a velikosti).
+# a po aktualizaci hubu se nový stáhne hned (ETag je z obsahu, _verze_souboru).
 _GZIP_TYPES = ("text/", "application/javascript", "application/json",
                "image/svg+xml", "application/manifest+json")
 _GZIP_MIN = 1024
@@ -856,8 +856,28 @@ def _gzipped(full, st, body):
     return packed
 
 
-def _verze_souboru(st):
-    return f"{st.st_mtime_ns:x}{st.st_size:x}"
+_VERZE_CACHE = {}         # cesta → (mtime_ns, velikost, verze z obsahu)
+_VERZE_LOCK = threading.Lock()
+
+
+def _verze_souboru(full, st):
+    """Verze statického souboru z obsahu (sha1, 10 znaků) — do `?v=` i ETagu.
+    Instalátor dává všem souborům stejný čas, takže verze z času a velikosti
+    po každé aktualizaci zahodila cache celého frontendu, i nezměněných
+    souborů. Hash se počítá znovu jen při změně času nebo velikosti."""
+    key = (st.st_mtime_ns, st.st_size)
+    with _VERZE_LOCK:
+        hit = _VERZE_CACHE.get(full)
+    if hit and hit[:2] == key:
+        return hit[2]
+    h = hashlib.sha1()
+    with open(full, "rb") as fh:
+        for kus in iter(lambda: fh.read(1 << 16), b""):
+            h.update(kus)
+    verze = h.hexdigest()[:10]
+    with _VERZE_LOCK:
+        _VERZE_CACHE[full] = key + (verze,)
+    return verze
 
 
 _ODKAZ = re.compile(rb'((?:src|href)=")/([A-Za-z0-9_./-]+\.(?:js|css))"')
@@ -868,11 +888,12 @@ def _verzuj(page):
     soubor = nová adresa, takže je prohlížeč smí držet natrvalo bez ptaní."""
     def nahrad(m):
         rel = posixpath.normpath("/" + m.group(2).decode()).lstrip("/")
+        full = os.path.join(STATIC_DIR, *rel.split("/"))
         try:
-            st = os.stat(os.path.join(STATIC_DIR, *rel.split("/")))
+            verze = _verze_souboru(full, os.stat(full))
         except OSError:
             return m.group(0)
-        return m.group(1) + b"/" + m.group(2) + b"?v=" + _verze_souboru(st).encode() + b'"'
+        return m.group(1) + b"/" + m.group(2) + b"?v=" + verze.encode() + b'"'
     return _ODKAZ.sub(nahrad, page)
 
 
@@ -1090,11 +1111,12 @@ class Handler(BaseHTTPRequestHandler):
             # odkazuje s verzí (`?v=`, viz _verzuj), si prohlížeč nechá
             # natrvalo a vůbec se neptá: dřív každé otevření okna znamenalo
             # 28 dotazů „změnilo se?", přes bránu po síti i 300 ms každý.
-            etag = f'"{st.st_mtime_ns:x}-{st.st_size:x}"'
+            verze = _verze_souboru(full, st)
+            etag = f'"{verze}"'
             extra["ETag"] = etag
             asked = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).get("v", [""])[0]
             extra["Cache-Control"] = ("public, max-age=31536000, immutable"
-                                      if asked and asked == _verze_souboru(st) else "no-cache")
+                                      if asked and asked == verze else "no-cache")
             if self.headers.get("If-None-Match") == etag:
                 self.send_response(304)
                 self.send_header("ETag", etag)
@@ -1304,12 +1326,6 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Nepovoleno."}, 403)
             from . import web
             return self._json(web.host_action(payload))
-        if name == "app-vzhled":
-            # Název a ikona appky (hub/vzhled.py) — jen ke čtení.
-            if self.command != "POST":
-                return self._json(vzhled.stav())
-            # Název i ikona jsou pro všechny stejné (Aladin) — měnit nejdou.
-            return self._json({"error": "Název a ikona appky se nemění."}, 403)
         if name.startswith("hlas"):
             # Diktování a předčítání (hub/hlas.py) — česky, na tomhle stroji.
             from . import eleven, hlas
@@ -1469,7 +1485,7 @@ class Handler(BaseHTTPRequestHandler):
                                                  timeout=20)
                 # Chaty, které odsud sdílím, se kopírují na server (i ty sdílené dřív).
                 if data and isinstance(data.get("moje"), list):
-                    from . import prenos, zrcadlo
+                    from . import zrcadlo  # prenos je importovaný nahoře; lokální import z něj dělal lokální proměnnou celé _api_inner (UnboundLocalError v prenos-stav a prenos/hotovo)
                     zname = set(zrcadlo._nacti().get("sdilene") or [])
                     for r in data["moje"]:
                         cid = str((r or {}).get("chat") or "")
@@ -2104,6 +2120,13 @@ class Handler(BaseHTTPRequestHandler):
             if core.on_gateway():
                 return self._json({"error": "Prostor na serveru restartuje server sám."}, 400)
             return self._json(restart.relaunch(HUB))
+        if name == "prostor-pracuje":
+            # Brána se ptá před uspáním prostoru bez připojeného prohlížeče:
+            # pracující Claude (noční agenti) se uspat nesmí.
+            if not core.on_gateway():
+                return self._json({"error": "Jen v prostoru na serveru."}, 400)
+            from . import uspavani
+            return self._json({"pracuje": uspavani.pracujicich(HUB)})
         if name == "prostor-snapshot":
             # Prostor na serveru se přepíná na novou verzi (restartuje ho brána,
             # /gw/restart). Před tím se uloží taby — nová instance je otevře

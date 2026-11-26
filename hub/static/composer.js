@@ -1266,7 +1266,8 @@
     const konceptTed = () => { if (konceptT) ulozKoncept(true); };
     window.addEventListener('pagehide', konceptTed);
     window.addEventListener('beforeunload', konceptTed);
-    document.addEventListener('visibilitychange', () => { if (document.hidden) konceptTed(); });
+    const konceptSkryto = () => { if (document.hidden) konceptTed(); };
+    document.addEventListener('visibilitychange', konceptSkryto);
 
     function autogrow() {
       ulozKoncept();
@@ -1433,7 +1434,13 @@
         .finally(() => { ctxBusy = false; });
     }
     // Přepis se dopisuje i bez překreslení terminálu — číslo proto hlídá i časovač.
-    const ctxHlidac = setInterval(() => { if (!document.hidden && !tab.exited) refreshContext(); }, 6000);
+    // Tab, na který se nekouká, stačí po 30 s (automatické /compact počká chvilku déle).
+    let ctxKolo = 0;
+    const ctxHlidac = setInterval(() => {
+      if (document.hidden || tab.exited) return;
+      if (io.aktivni && !io.aktivni() && ++ctxKolo % 5) return;
+      refreshContext();
+    }, 6000);
     ctxBtn.onclick = (ev) => {
       const [x, y] = anchor(ev);
       const items = [{icon: 'i-refresh', label: 'Zhustit konverzaci (/compact)', run: () => submit('/compact')}];
@@ -2903,6 +2910,8 @@
         konceptTed();
         window.removeEventListener('pagehide', konceptTed);
         window.removeEventListener('beforeunload', konceptTed);
+        // Bez odebrání držel dokument zavřený tab celý v paměti (bublina, přílohy).
+        document.removeEventListener('visibilitychange', konceptSkryto);
         fronta.length = 0;
         clearInterval(cekaHlidac);
         clearInterval(ctxHlidac);

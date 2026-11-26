@@ -24,8 +24,6 @@
 
   /* ── obsidianovská syntaxe pro parser ─────────────────────────────────── */
 
-  const CH = (s, i) => s.charCodeAt(i);
-
   // [[poznámka|popisek]] a vložení ![[obrázek.png]]
   const WikiLink = {
     defineNodes: [{name: 'WikiLink', style: tags.link}, {name: 'WikiLinkMark', style: tags.processingInstruction}],

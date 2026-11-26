@@ -107,26 +107,6 @@ def port():
 
 
 # ── tailscale serve ──────────────────────────────────────────────────────────
-def serve_target():
-    """The loopback port tailscaled is currently proxying to, or 0."""
-    ok, out, _ = _run(["serve", "status", "--json"], timeout=8)
-    if not ok or not out:
-        return 0
-    try:
-        data = json.loads(out) or {}
-    except Exception:
-        return 0
-    for handlers in (data.get("Web") or {}).values():
-        for handler in (handlers.get("Handlers") or {}).values():
-            proxy = handler.get("Proxy") or ""
-            if proxy.startswith("http://127.0.0.1:"):
-                try:
-                    return int(proxy.rsplit(":", 1)[1].split("/")[0])
-                except ValueError:
-                    return 0
-    return 0
-
-
 def serve_start(local_port):
     """Point tailscaled's https listener at our port. Returns (ok, message)."""
     ok, _, err = _run(["serve", "--bg", "--https=443",

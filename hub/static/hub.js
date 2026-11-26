@@ -779,6 +779,7 @@ let firmaCard = null;
 const firmaLater = new Set();          // „Později": do obnovení stránky se neukáže
 const firmaWarned = new Set();         // o zadrženém návrhu stačí říct jednou
 let firmaBusy = false;                 // nahrávání z firemního tabu běží
+let firmaDotaz = false;                // dotaz na návrhy (checkFirma) běží
 
 /* ── prostor okna: osobní, nebo firma (gateway/firmy.py) ─────────────────────
    Každé okno je buď v osobním prostoru, nebo v jedné firmě (přepínač vedle
@@ -1110,8 +1111,14 @@ function renderFirma() {
   if (!on) return;
   renderShared();
   if (!firmaTimer) {
-    firmaTimer = setInterval(checkFirma, 3000);
+    // Návrhy do firemního se hlídají po 30 s (dřív po 3 s v každém okně) —
+    // a hned při návratu do okna a když Claude v některém tabu doběhne
+    // (tools/firma.py navrh jen zapíše soubor, hubu nic nehlásí).
+    firmaTimer = setInterval(checkFirma, 30000);
     checkFirma();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkFirma(); });
+    window.addEventListener('focus', () => checkFirma());
+    document.addEventListener('hub-prace', (ev) => { if (ev.detail && !ev.detail.on) checkFirma(); });
   }
 }
 
@@ -1500,12 +1507,16 @@ async function restartSpace(why) {
 }
 
 async function checkFirma() {
-  if (document.hidden || firmaCard || !window.HubVault) return;
+  // firmaDotaz: návrat do okna pošle focus i visibilitychange naráz — stačí jeden dotaz.
+  if (document.hidden || firmaCard || !window.HubVault || firmaDotaz) return;
   let res;
+  firmaDotaz = true;
   try {
     res = await api('firma');
   } catch (err) {
     return;                            // starší hub v prostoru — po restartu to umí
+  } finally {
+    firmaDotaz = false;
   }
   const waiting = (res.pending || []).filter((p) => !firmaLater.has(p.id));
   // Z firemního tabu se nahrává rovnou. Co vypadá jako přihlašovací údaj, hub
@@ -1538,6 +1549,7 @@ async function publishFirma(p) {
   }
   firmaBusy = false;
   if (res.ok) {
+    setTimeout(checkFirma, 300);       // další návrh v řadě nečeká na 30s kolo
     return toast((res.message || `Nahráno do firemního Obsidianu: ${res.path}`) +
                  (p.prepise ? ' (přepsáno)' : ''));
   }
@@ -2914,7 +2926,11 @@ async function loadRelace() {
   try {
     const r = await fetch('/gw/relace', {credentials: 'same-origin'});
     if (!r.ok) return;                 // starší brána — přijde s aktualizací
-    RELACE = await r.json();
+    const text = await r.text();
+    // Beze změny nic nepřekreslovat: dřív se co 5 s stavěl znovu celý seznam chatů.
+    if (relaceHotovo && text === relaceText) return;
+    relaceText = text;
+    RELACE = JSON.parse(text);
   } catch (_) { return; }
   sharedPeople = RELACE.lide || sharedPeople;
   // Někdo mi něco nasdílel — řekne se to jednou, ne při každém otevření appky.
@@ -2948,6 +2964,7 @@ async function loadRelace() {
   }
 }
 let relaceHotovo = false;
+let relaceText = '';
 
 /* ── Sdílené chaty na počítači ze všech serverů ───────────────────────────
    Appka na počítači se zeptá každého serveru, kde je přihlášená (hub/account.py,
@@ -5208,6 +5225,7 @@ function createTab({kind, path, title, id, agent, model, background, bypass, mod
   if (kind === 'project' || kind.startsWith('slash:')) {
     tab.composer = HubComposer.install(tab, {
       send,
+      aktivni: () => ACTIVE === tab,
       // Průběžné uložení rozepsané zprávy (koncept) — přežije restart i reload.
       koncept: (text, atts) => ulozKoncept(tab, text, atts),
       pozastaveno: () => !!tab.pozastaveno,
@@ -7620,7 +7638,9 @@ function takeDrafts() {
    restart by mu práci utnul. Jde to i hned, ale jen výslovně. */
 async function applyServerUpdate(card, now) {
   const q = (sel) => card.querySelector(sel);
-  const busy = () => TABS.filter((t) => !t.exited && t.pracuje);
+  // Pracuje i chat, kde Claude dokončil tah a čeká na agenty nebo úlohy na
+  // pozadí (t.pozadi z cteni.js) — restart prostoru by je zabil uprostřed.
+  const busy = () => TABS.filter((t) => !t.exited && (t.pracuje || t.pozadi));
   if (!now && busy().length) {
     q('.srvupd-text').textContent = `Claude ještě pracuje (${busy().length} ${tabyWord(busy().length)}). ` +
       'Aktualizuju, jakmile doběhne — okno můžeš nechat otevřené.';

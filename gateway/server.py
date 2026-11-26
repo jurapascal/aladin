@@ -837,8 +837,9 @@ def login_page(error=""):
 {PASSKEY_LOGIN_JS}""")
 
 
-def pozvanka_page(token, email, error=""):
-    """Nastavení hesla z pozvánky. Bez tokenu jen hláška a cesta na přihlášení."""
+def pozvanka_page(token, email, error="", obnova=False):
+    """Nastavení hesla z pozvánky. Bez tokenu jen hláška a cesta na přihlášení.
+    `obnova` = účet se už používá, odkaz je na nové heslo (Členové → Spravovat)."""
     err = f'<div class=err>{html.escape(error)}</div>' if error else ''
     if not token:
         return _page("Pozvánka — Aladin", f"""
@@ -847,11 +848,14 @@ def pozvanka_page(token, email, error=""):
 {err}
 <a class=button href="/login">Na přihlášení</a>
 </div>""")
+    kdo = html.escape(email)
+    hlava = (f"<h1>Nové heslo</h1><p class=sub>Nastav si nové heslo k účtu <b>{kdo}</b>. "
+             "Pak se přihlásíš kódem z aplikace v mobilu jako vždycky.</p>") if obnova else (
+             f"<h1>Vítej v Aladinovi</h1><p class=sub>Nastav si heslo k účtu <b>{kdo}</b>. "
+             "Pak si v mobilu zapneš ověření kódem a jsi uvnitř.</p>")
     return _page("Pozvánka — Aladin", f"""
 <form class=card method=post action="/pozvanka">
-<h1>Vítej v Aladinovi</h1>
-<p class=sub>Nastav si heslo k účtu <b>{html.escape(email)}</b>. Pak si v mobilu zapneš
-ověření kódem a jsi uvnitř.</p>
+{hlava}
 <input type=hidden name=t value="{html.escape(token)}">
 <input type=email name=email value="{html.escape(email)}" autocomplete=username hidden readonly>
 <label>Nové heslo (aspoň 10 znaků)</label>
@@ -1780,21 +1784,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(200, pozvanka_page("", "", "Pozvánka už neplatí (vypršela, "
                               "nebo už je využitá). Požádej správce o novou, nebo se "
                               "přihlas, pokud už heslo máš."), HTML)
+        # Odkaz na nové heslo pro účet, který se už používá (má ověření v telefonu).
+        obnova = any(r["email"] == user["email"] and r["twofa"] for r in self.accounts.list())
         if method != "POST":
-            return self._send(200, pozvanka_page(token, user["email"]), HTML)
+            return self._send(200, pozvanka_page(token, user["email"], obnova=obnova), HTML)
         heslo = str(form.get("password") or "")
         znovu = str(form.get("password2") or "")
         if heslo != znovu:
-            return self._send(200, pozvanka_page(token, user["email"], "Hesla se neshodují."), HTML)
+            return self._send(200, pozvanka_page(token, user["email"], "Hesla se neshodují.", obnova), HTML)
         if len(heslo) < 10:
             return self._send(200, pozvanka_page(token, user["email"],
-                              "Heslo musí mít aspoň 10 znaků."), HTML)
+                              "Heslo musí mít aspoň 10 znaků.", obnova), HTML)
         try:
             user = self.accounts.invite_take(token, heslo)
         except ValueError as exc:
-            return self._send(200, pozvanka_page(token, user["email"], str(exc)), HTML)
+            return self._send(200, pozvanka_page(token, user["email"], str(exc), obnova), HTML)
         if not user:
             return self._send(200, pozvanka_page("", "", "Pozvánka mezitím přestala platit."), HTML)
+        # Nové heslo = staré zámky po překlepech pryč (jinak by čekal, i když heslo zná).
+        self.accounts.fail_unlock(user["email"])
         print(f"pozvánka využita: účet #{user['id']}", flush=True)
         return self._po_hesle(user, self.headers.get("User-Agent", "")[:60])
 

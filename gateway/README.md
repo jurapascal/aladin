@@ -404,6 +404,11 @@ dál nosí Claude návrhem; soubory nahrává **jen člověk v prohlížeči**.
   `smtp test <e-mail>`, `smtp status`, `smtp remove`. Bez schránky se účet
   založí taky a správce dostane odkaz k poslání sám. „Poslat pozvánku znovu“
   zneplatní starou.
+- **Členové → Spravovat** (jen admin, 2.148.0): u každého člena odemknout přihlášení
+  zamčené po špatných pokusech (`akce` odemknout), poslat odkaz na nové heslo e-mailem
+  (heslo-odkaz — stejný mechanismus jako pozvánka, `/pozvanka` pak ukáže „Nové heslo“,
+  staré platí, dokud se odkaz nepoužije, po nastavení se zámky zruší), vynulovat ověření
+  v telefonu (overeni) a zablokovat / odblokovat účet (blokovat).
 - **Nastavení → Účet → E-mail serveru** (jen admin, 2.147.0): totéž co
   `claude-hub-admin smtp` z prohlížeče — předvolby (WEDOS `wes1-smtp.wedos.net`,
   Seznam, Gmail, Microsoft 365), uložit, zkušební e-mail na adresu správce,

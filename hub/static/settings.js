@@ -2038,9 +2038,10 @@
       // Výsledek pozvání: odešlo, nebo odkaz k ručnímu poslání.
       function ukaz(out, kdo) {
         vysledek.textContent = '';
+        const co = out.obnova ? 'Odkaz na nové heslo' : 'Pozvánka';
         if (out.poslano) {
-          vysledek.appendChild(el('div', 'set-note', 'Pozvánka odešla na ' + out.email + '.'));
-          io.toast('Pozvánka odešla — ' + kdo);
+          vysledek.appendChild(el('div', 'set-note', co + ' odešel' + (out.obnova ? '' : 'a') + ' na ' + out.email + '.'));
+          io.toast(co + ' odešel' + (out.obnova ? '' : 'a') + ' — ' + kdo);
           return;
         }
         vysledek.appendChild(el('div', 'set-warn',
@@ -2097,12 +2098,15 @@
           const kdo = el('div', 'clen-kdo');
           kdo.appendChild(el('div', null, c.name || c.email));
           const stav = c.blokovany ? 'zablokovaný'
-            : c.pozvanka ? 'pozvánka čeká na přijetí'
+            : c.pozvanka ? (c.prihlasen ? 'čeká odkaz na nové heslo' : 'pozvánka čeká na přijetí')
             : (c.overeni ? 'aktivní' : 'ještě se nepřihlásil');
           kdo.appendChild(el('div', 'set-note',
             [c.name ? c.email : '', c.role === 'admin' ? 'správce' : 'člen', stav].filter(Boolean).join(' · ')));
+          if (c.zamceny) {
+            kdo.appendChild(el('div', 'set-warn clen-zamek', 'Přihlášení zamčené po špatných pokusech'));
+          }
           row.appendChild(kdo);
-          if (!c.blokovany && !c.overeni && c.id !== d.ja) {
+          if (!c.blokovany && !c.overeni && !c.prihlasen && c.id !== d.ja) {
             const znovu = el('button', 'btn ghost', 'Poslat pozvánku znovu');
             znovu.onclick = async () => {
               znovu.disabled = true;
@@ -2112,7 +2116,65 @@
             row.appendChild(znovu);
           }
           list.appendChild(row);
+          if (c.id !== d.ja) list.appendChild(spravovat(c, row));
         }
+      }
+
+      /* Spravovat účet člena: odemknout přihlášení, vynulovat ověření v telefonu,
+         odkaz na nové heslo, zablokovat. Brána: /gw/tym akce odemknout / overeni /
+         heslo-odkaz / blokovat (gateway/tym.py). */
+      function spravovat(c, row) {
+        const panel = el('div', 'clen-sprava');
+        panel.hidden = true;
+        const prepinac = el('button', 'btn ghost', 'Spravovat');
+        prepinac.onclick = () => { panel.hidden = !panel.hidden; prepinac.classList.toggle('on', !panel.hidden); };
+        row.appendChild(prepinac);
+        const kdo = c.name || c.email;
+        const akce = async (btn, payload, hotovo) => {
+          btn.disabled = true;
+          try {
+            const out = await gw(Object.assign({id: c.id}, payload));
+            if (hotovo) hotovo(out);
+            nacti();
+          } catch (err) {
+            io.toast(err.message);
+            btn.disabled = false;
+          }
+        };
+        const potvrd = async (text, ok) => (global.HubDialog && global.HubDialog.confirm
+          ? global.HubDialog.confirm(text, {title: kdo, ok, danger: true})
+          : confirm(text));
+        const radek = (popis, btn) => {
+          const r = el('div', 'clen-sprava-radek');
+          r.append(el('div', 'set-note', popis), btn);
+          panel.appendChild(r);
+        };
+        if (c.zamceny) {
+          const b = el('button', 'btn', 'Odemknout přihlášení');
+          b.onclick = () => akce(b, {akce: 'odemknout'}, () => io.toast('Odemčeno — ' + kdo + ' to může zkusit znovu.'));
+          radek('Po několika špatných heslech nebo kódech se přihlášení na chvíli zamkne.', b);
+        }
+        if (!c.blokovany && (c.overeni || !c.pozvanka)) {
+          const b = el('button', 'btn', 'Poslat odkaz na nové heslo');
+          b.onclick = () => akce(b, {akce: 'heslo-odkaz'}, (out) => ukaz(out, kdo));
+          radek('Zapomenuté heslo: přijde e-mail s odkazem, staré heslo platí, dokud ho nepoužije.', b);
+        }
+        if (c.overeni) {
+          const b = el('button', 'btn', 'Vynulovat ověření v telefonu');
+          b.onclick = async () => {
+            if (!(await potvrd('Ztracený nebo nový telefon: ověření kódem se smaže a ' + kdo +
+              ' bude odhlášen(a) ze všech zařízení. Při dalším přihlášení si ho nastaví znovu.', 'Vynulovat'))) return;
+            akce(b, {akce: 'overeni'}, () => io.toast('Ověření vynulováno — ' + kdo + ' si ho nastaví při přihlášení.'));
+          };
+          radek('Ověření kódem z aplikace v mobilu je zapnuté.', b);
+        }
+        const blok = el('button', 'btn ghost' + (c.blokovany ? '' : ' danger'), c.blokovany ? 'Odblokovat účet' : 'Zablokovat účet');
+        blok.onclick = async () => {
+          if (!c.blokovany && !(await potvrd('Účet se zablokuje a jeho prostor se zastaví. Data zůstanou.', 'Zablokovat'))) return;
+          akce(blok, {akce: 'blokovat', zapnout: !c.blokovany}, () => io.toast(c.blokovany ? 'Odblokováno.' : 'Zablokováno.'));
+        };
+        radek(c.blokovany ? 'Účet je zablokovaný, nepřihlásí se.' : 'Odchod z firmy nebo podezřelá aktivita.', blok);
+        return panel;
       }
       nacti();
       return wrap;

@@ -45,6 +45,33 @@ def _log(admin, target, action, **extra):
         pass
 
 
+def _obnova_texty(odkaz, kdo, server, email):
+    """(předmět, text, html) odkazu na nové heslo pro člověka, který už účet používá."""
+    import html as _h
+    predmet = f"Nové heslo do Aladina ({server})"
+    text = (f"Ahoj,\n\n{kdo} ti posílá odkaz na nastavení nového hesla do Aladina "
+            f"na serveru {server}.\n\nOtevři odkaz a nastav si nové heslo:\n{odkaz}\n\n"
+            "Pak se přihlásíš jako vždycky, kódem z aplikace v mobilu.\n\n"
+            f"Přihlašuješ se e-mailem {email}. Odkaz platí 7 dní a jde použít jednou. "
+            "Když jsi o nové heslo nežádal(a), dej vědět správci — staré heslo platí, "
+            "dokud odkaz nepoužiješ.\n\nAladin")
+    e = _h.escape
+    html_text = f"""<!doctype html><html lang=cs><body style="margin:0;background:#f4f5f7;padding:24px;
+font:15px/1.55 -apple-system,Segoe UI,Roboto,sans-serif;color:#1f2328">
+<div style="max-width:30rem;margin:0 auto;background:#fff;border-radius:12px;padding:28px;border:1px solid #e1e4e8">
+<h1 style="font-size:20px;margin:0 0 12px">Nové heslo do Aladina</h1>
+<p style="margin:0 0 16px"><b>{e(kdo)}</b> ti posílá odkaz na nové heslo na serveru <b>{e(server)}</b>.</p>
+<p style="margin:0 0 20px"><a href="{e(odkaz)}" style="display:inline-block;background:#4c97f0;color:#fff;
+text-decoration:none;font-weight:600;padding:11px 20px;border-radius:8px">Nastavit nové heslo</a></p>
+<p style="margin:0 0 10px;color:#57606a;font-size:14px">Pak se přihlásíš jako vždycky, kódem z aplikace v mobilu.</p>
+<p style="margin:0;color:#57606a;font-size:14px">Účet <b>{e(email)}</b>. Odkaz platí 7 dní a jde použít jednou.
+Když jsi o nové heslo nežádal(a), dej vědět správci — staré heslo platí, dokud odkaz nepoužiješ.</p>
+<p style="margin:18px 0 0;color:#8b949e;font-size:12px;overflow-wrap:anywhere">Tlačítko nefunguje? Zkopíruj
+do prohlížeče: {e(odkaz)}</p>
+</div></body></html>"""
+    return predmet, text, html_text
+
+
 def _pozvanka_texty(odkaz, kdo, server, email):
     """(předmět, text, html) pozvánky. `kdo` = jméno správce, který zve."""
     import html as _h
@@ -89,12 +116,12 @@ def pozvat_clena(accounts, admin, form, base):
     return _poslat_pozvanku(accounts, admin, user, base)
 
 
-def _poslat_pozvanku(accounts, admin, user, base):
+def _poslat_pozvanku(accounts, admin, user, base, obnova=False):
     token = accounts.invite_new(user["id"], admin.get("email", ""))
     odkaz = base.rstrip("/") + "/pozvanka?t=" + token
     kdo = admin.get("name") or admin.get("email") or "Správce"
     server = base.split("://", 1)[-1].strip("/")
-    predmet, text, html_text = _pozvanka_texty(odkaz, kdo, server, user["email"])
+    predmet, text, html_text = (_obnova_texty if obnova else _pozvanka_texty)(odkaz, kdo, server, user["email"])
     out = {"ok": True, "email": user["email"], "poslano": False}
     try:
         posta.poslat(user["email"], predmet, text, html_text, odpovedet=admin.get("email"))
@@ -116,6 +143,20 @@ def pozvanka_znovu(accounts, admin, form, base):
     if row["id"] not in accounts.invites_pending() and _prihlasil_se(accounts, row):
         raise ValueError("Tenhle člověk už se přihlásil — pozvánku nepotřebuje.")
     return _poslat_pozvanku(accounts, admin, accounts.get(row["email"]), base)
+
+
+def heslo_odkaz(accounts, admin, form, base):
+    """Odkaz na nové heslo e-mailem (zapomenuté heslo). Kdo se ještě nikdy
+    nepřihlásil, dostane místo toho obyčejnou pozvánku. Staré heslo platí,
+    dokud člověk odkaz nepoužije; po nastavení se mu zruší zámky přihlášení."""
+    row = _target(accounts, form)
+    if row["disabled"]:
+        raise ValueError("Účet je zablokovaný — nejdřív ho odblokuj.")
+    obnova = _prihlasil_se(accounts, row)
+    _log(admin, row["email"], "heslo-odkaz" if obnova else "pozvanka-znovu")
+    out = _poslat_pozvanku(accounts, admin, accounts.get(row["email"]), base, obnova=obnova)
+    out["obnova"] = obnova
+    return out
 
 
 def _prihlasil_se(accounts, row):
@@ -145,6 +186,9 @@ def people(accounts, hubs=None):
             "pracuje": running,
             # Pozvánka odeslaná, člověk si ještě nenastavil heslo.
             "pozvanka": (pending[r["id"]]["plati_do"] if r["id"] in pending else None),
+            # Už se někdy přihlásil (ověření v telefonu nebo zařízení) — pak je čekající
+            # odkaz „nové heslo“, ne pozvánka.
+            "prihlasen": _prihlasil_se(accounts, r),
             # Web (FTP) od správce — bez hesla, jen že je nastavené.
             "web": workspace.web_public(dict(r)),
         })
@@ -239,6 +283,8 @@ def act(accounts, admin, form, hubs=None, base=""):
         return pozvat_clena(accounts, admin, form, base)
     if action == "clen-znovu":
         return pozvanka_znovu(accounts, admin, form, base)
+    if action == "heslo-odkaz":
+        return heslo_odkaz(accounts, admin, form, base)
     if action in ("posta-ulozit", "posta-test", "posta-smazat"):
         return posta_akce(admin, action, form)
     if action == "pozvat":

@@ -5953,6 +5953,10 @@ html .actionbtn.primary:hover, html .ask-opt.check.sel .ask-box, html .link-open
 }
 html .btn.primary.firma, html [data-prostor="firma"] #pp-new.btn.primary { color: #fff; }
 html .nav-item.firma .nav-plus { background: var(--firma); color: #fff; }
+/* Plus v kolečku „Nový chat“ musí zůstat vidět i při najetí: `.nav-ico` se při
+   hoveru barví jako text, tedy stejně jako kolečko → bílé kolečko bez plus. */
+html .nav-item:hover .nav-plus, html .nav-item.on .nav-plus { color: var(--na-akcentu); }
+html .nav-item.firma:hover .nav-plus, html .nav-item.firma.on .nav-plus { color: #fff; }
 
 /* Chaty z prohlížeče (rozšíření Aladin): žlutá ikonka v seznamu a žlutý filtr
    „Prohlížeč“, ať je hned vidět, co přišlo z Chromu nebo Firefoxu. */
@@ -6004,3 +6008,12 @@ html .chat-wa.druh-prohlizec { --druh: var(--prohlizec); }
 .posta-tlacitka .btn { flex: 0 0 auto; }
 .posta-pole .set-note { font-weight: 400; }
 .posta-popis { font-weight: 600; }
+
+/* Členové → Spravovat (settings.js, spravovat). */
+.clen-zamek { font-size: 12px; margin-top: 2px; }
+.clen-sprava { margin: -4px 0 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 8px; }
+.clen-sprava[hidden] { display: none; }
+.clen-sprava-radek { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.clen-sprava-radek .set-note { flex: 1 1 220px; margin: 0; }
+.clen-sprava-radek .btn { flex: 0 0 auto; }

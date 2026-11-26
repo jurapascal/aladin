@@ -32,6 +32,10 @@ html, body { font-family: var(--font-sans); }
 /* „Nový chat“ jako „New“ na claude.ai: obyčejné plus, žádné barevné kolečko. */
 .nav-new { color: var(--fg-bright); font-weight: 500; }
 .nav-plus { background: none; color: var(--fg-bright); width: 20px; height: 20px; }
+/* `html` vpředu: základní styl hubu (html .nav-plus, html .nav-item:hover .nav-ico)
+   by jinak plus podbarvil kolečkem a při najetí obarvil stejně jako kolečko —
+   zůstalo jen bílé kolečko bez plus. */
+html .nav-plus, html .nav-item:hover .nav-plus, html .nav-item.on .nav-plus { background: none; color: var(--fg-bright); }
 .nav-plus .ico { width: 16px; height: 16px; }
 
 .section { color: var(--section); font-size: 12px; font-weight: 600; margin: 18px 18px 6px; }
@@ -65,6 +69,12 @@ html, body { font-family: var(--font-sans); }
 .footer-avatar {
   width: 24px; height: 24px; font-size: 11px; font-weight: 600;
   background: var(--claude-on); color: var(--fg-bright);
+}
+/* Kolečko s iniciálou musí být vidět: základní styl dává písmu barvu „na akcentu“
+   (černá v tmavém režimu) — na šedém kolečku pak skoro zmizelo. */
+html .footer-avatar {
+  background: color-mix(in srgb, var(--fg-bright) 22%, transparent); color: var(--fg-bright);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg-bright) 18%, transparent);
 }
 .footer-name { font-size: 14px; }
 

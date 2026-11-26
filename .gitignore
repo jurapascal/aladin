@@ -15,3 +15,8 @@ __pycache__/
 
 # chat exports saved by /export
 gateway/20*-*/
+
+# snímky a mezivýsledky nástrojů (Playwright MCP si je ukládá do aktuální složky)
+.playwright-mcp/
+# balíčky stažené při ladění — do repa nepatří, instalačky si je stahují samy
+*.whl

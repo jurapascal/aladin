@@ -79,7 +79,7 @@ def stage_source(dest):
     with tarfile.open(fileobj=io.BytesIO(archive)) as tf:
         tf.extractall(target, filter="data")
     # Do instalačky nepatří to, co se na počítači nepouští.
-    for sub in ("mobile", ".github"):
+    for sub in ("mobile", ".github", "legacy", ".playwright-mcp"):
         shutil.rmtree(os.path.join(target, sub), ignore_errors=True)
 
 

@@ -3651,6 +3651,22 @@ OBRAZKY_PROMPT = (
     "uložením statického PNG.")
 
 
+PROHLIZEC_PROMPT = (
+    "## Lehký prohlížeč z příkazové řádky\n"
+    "Na serveru jsou `agent-browser-lp` (prohlížeč Lightpanda: 2,5–4× méně paměti a projde i část "
+    "ochran proti botům, např. Cloudflare u Cotton Classics a L-Shop; neumí vzhled stránky) a "
+    "`agent-browser` (totéž s headless Chromiem). Příkazy: `open <url>`, `get text body`, "
+    "`snapshot -i`, `click @e3`, `fill @e5 \"text\"`, `screenshot /cesta.png` (jen Chromium), `close`. "
+    "Na rychlé čtení stránky stačí `lightpanda fetch <url> --dump markdown`. Na čtení a hromadné "
+    "procházení webů ber Lightpandu, na vzhled, screenshoty, PDF a přihlášené weby Chromium nebo "
+    "Playwright MCP. Po práci `close`.")
+
+
+def prohlizec_prompt():
+    """Pokyn o lehkém prohlížeči — jen kde je nainstalovaný (brána, gateway/install.sh)."""
+    return PROHLIZEC_PROMPT if shutil.which("agent-browser-lp") else ""
+
+
 def navaznost_prompt(chat_id=""):
     """Pokyn pro nový chat: poslední konverzace uživatele a co dělat, když
     zpráva navazuje na něco, co v tomhle chatu není.
@@ -3734,6 +3750,7 @@ def cmd_agent(path, agent_id="", slash="", model="", resume="", fork=False, vaul
         pokyny.append(firma_tab_prompt(vault, path))
     if (spec.get("id") or "") == "claude":
         pokyny.append(OBRAZKY_PROMPT)
+        pokyny.append(prohlizec_prompt())
         if not resume:
             pokyny.append(navaznost_prompt(session))
         try:

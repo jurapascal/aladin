@@ -572,6 +572,82 @@ setup_hlas() {
     fi
 }
 
+# Lehký prohlížeč pro Clauda v prostorech (zkouška Tomáše Pešky 26. 11. 2026):
+# Lightpanda bere 2,5–4× méně paměti než Chromium a prošla tam, kde headless
+# Chromium zastavil Cloudflare; agent-browser je malý ovladač prohlížeče
+# z příkazové řádky (démon 15–30 MB). Obojí jednou pro všechny prostory pod
+# /usr/local — sandbox to vidí jen ke čtení. Verze napevno, Lightpanda ověřená
+# otiskem. Lightpanda je AGPL: jen se spouští jako samostatný program, do
+# instalaček Aladina se nebalí.
+PROHLIZEC_DIR=/usr/local/lib/claude-hub-prohlizec
+LIGHTPANDA_VERZE=1.0.5
+LIGHTPANDA_SHA256=0ec21fa4867ab9e82b35285ff4ab0e7336c6c1d89f26fe991f27d73c8a678bd7
+AGENT_BROWSER_VERZE=0.43.0
+
+setup_prohlizec() {
+    step "Lehký prohlížeč pro Clauda (Lightpanda $LIGHTPANDA_VERZE, agent-browser $AGENT_BROWSER_VERZE)"
+    mkdir -p "$PROHLIZEC_DIR"
+    if [ "$(cat "$PROHLIZEC_DIR/lightpanda.verze" 2>/dev/null)" != "$LIGHTPANDA_VERZE" ]; then
+        local tmp="$PROHLIZEC_DIR/lightpanda.tmp"
+        if curl -fsSL -o "$tmp" "https://github.com/lightpanda-io/browser/releases/download/$LIGHTPANDA_VERZE/lightpanda-x86_64-linux" >>"$LOG" 2>&1 &&
+                echo "$LIGHTPANDA_SHA256  $tmp" | sha256sum -c - >>"$LOG" 2>&1; then
+            chmod 755 "$tmp" && mv -f "$tmp" "$PROHLIZEC_DIR/lightpanda" &&
+                echo "$LIGHTPANDA_VERZE" >"$PROHLIZEC_DIR/lightpanda.verze" && ok "Lightpanda $LIGHTPANDA_VERZE"
+        else
+            rm -f "$tmp"
+            warn "Lightpanda se nestáhla nebo nesedí otisk — podrobnosti v $LOG"
+        fi
+    fi
+    if [ "$(cat "$PROHLIZEC_DIR/agent-browser.verze" 2>/dev/null)" != "$AGENT_BROWSER_VERZE" ]; then
+        rm -rf "$PROHLIZEC_DIR/agent-browser.new"
+        if npm install --prefix "$PROHLIZEC_DIR/agent-browser.new" --no-fund --no-audit --omit=dev \
+                "agent-browser@$AGENT_BROWSER_VERZE" >>"$LOG" 2>&1 &&
+                [ -x "$PROHLIZEC_DIR/agent-browser.new/node_modules/agent-browser/bin/agent-browser-linux-x64" ]; then
+            rm -rf "$PROHLIZEC_DIR/agent-browser" && mv "$PROHLIZEC_DIR/agent-browser.new" "$PROHLIZEC_DIR/agent-browser" &&
+                echo "$AGENT_BROWSER_VERZE" >"$PROHLIZEC_DIR/agent-browser.verze" && ok "agent-browser $AGENT_BROWSER_VERZE"
+        else
+            rm -rf "$PROHLIZEC_DIR/agent-browser.new"
+            warn "agent-browser se nenainstaloval — podrobnosti v $LOG"
+        fi
+    fi
+    chmod -R a+rX "$PROHLIZEC_DIR"
+    # Spouštěče: lightpanda (bez telemetrie), agent-browser (náš headless
+    # Chromium z Playwrightu), agent-browser-lp (totéž s Lightpandou).
+    cat >/usr/local/bin/lightpanda <<'SKRIPT'
+#!/bin/bash
+# Lightpanda (AGPL, lehký prohlížeč bez vykreslování) — Aladin, gateway/install.sh.
+#   lightpanda fetch <url> --dump markdown --wait-until networkidle
+export LIGHTPANDA_DISABLE_TELEMETRY=true
+exec /usr/local/lib/claude-hub-prohlizec/lightpanda "$@"
+SKRIPT
+    cat >/usr/local/bin/agent-browser <<'SKRIPT'
+#!/bin/bash
+# agent-browser (Apache-2.0) s headless Chromiem z Playwrightu — Aladin, gateway/install.sh.
+#   agent-browser open <url> ; agent-browser snapshot -i ; agent-browser click @e3 ;
+#   agent-browser screenshot /cesta.png ; agent-browser close
+export AGENT_BROWSER_NO_VERSION_CHECK=1
+export AGENT_BROWSER_IDLE_TIMEOUT_MS="${AGENT_BROWSER_IDLE_TIMEOUT_MS:-300000}"
+export AGENT_BROWSER_SESSION="${AGENT_BROWSER_SESSION:-chromium}"
+if [ -z "${AGENT_BROWSER_EXECUTABLE_PATH:-}" ]; then
+    AGENT_BROWSER_EXECUTABLE_PATH="$(ls -d /usr/local/share/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | sort -V | tail -n1)"
+    export AGENT_BROWSER_EXECUTABLE_PATH
+fi
+exec /usr/local/lib/claude-hub-prohlizec/agent-browser/node_modules/agent-browser/bin/agent-browser-linux-x64 "$@"
+SKRIPT
+    cat >/usr/local/bin/agent-browser-lp <<'SKRIPT'
+#!/bin/bash
+# agent-browser s Lightpandou — 2,5–4× méně paměti, projde i některé ochrany proti botům.
+# Neumí vzhled stránky (screenshot je jen text): na čtení a jednoduché klikání.
+export AGENT_BROWSER_NO_VERSION_CHECK=1 LIGHTPANDA_DISABLE_TELEMETRY=true
+export AGENT_BROWSER_IDLE_TIMEOUT_MS="${AGENT_BROWSER_IDLE_TIMEOUT_MS:-300000}"
+export AGENT_BROWSER_SESSION="${AGENT_BROWSER_SESSION:-lightpanda}"
+export AGENT_BROWSER_ENGINE=lightpanda
+export AGENT_BROWSER_EXECUTABLE_PATH=/usr/local/lib/claude-hub-prohlizec/lightpanda
+exec /usr/local/lib/claude-hub-prohlizec/agent-browser/node_modules/agent-browser/bin/agent-browser-linux-x64 "$@"
+SKRIPT
+    chmod 755 /usr/local/bin/lightpanda /usr/local/bin/agent-browser /usr/local/bin/agent-browser-lp
+}
+
 # Míří doména na tenhle server? Bez toho Let's Encrypt certifikát nevydá.
 dns_points_here() {
     local here v4 v6
@@ -964,6 +1040,7 @@ main() {
     install_admin_tool
     setup_company_skills
     setup_hlas
+    setup_prohlizec
     setup_prohlizec
     install_agenti
     install_gh

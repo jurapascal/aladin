@@ -14,7 +14,7 @@ a aplikace i slash příkazy pak čtou odtud.
 
 📂 **Kolekce:** Ostatní
 🖥 **Platforma:** Linux · Windows 10/11 · macOS
-👤 **Autor:** [@jurapascal](https://github.com/jurapascal)
+👤 **Autor:** [IT Brno](https://github.com/IT-Brno)
 
 ---
 

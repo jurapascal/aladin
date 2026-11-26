@@ -628,6 +628,9 @@ SKRIPT
 export AGENT_BROWSER_NO_VERSION_CHECK=1
 export AGENT_BROWSER_IDLE_TIMEOUT_MS="${AGENT_BROWSER_IDLE_TIMEOUT_MS:-300000}"
 export AGENT_BROWSER_SESSION="${AGENT_BROWSER_SESSION:-chromium}"
+# Jako Playwright: vlastní sandbox Chromia na serveru nejde (uživatelské jmenné
+# prostory), prostor sám je ale izolovaný (bwrap).
+export AGENT_BROWSER_ARGS="${AGENT_BROWSER_ARGS:---no-sandbox}"
 if [ -z "${AGENT_BROWSER_EXECUTABLE_PATH:-}" ]; then
     AGENT_BROWSER_EXECUTABLE_PATH="$(ls -d /usr/local/share/ms-playwright/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell 2>/dev/null | sort -V | tail -n1)"
     export AGENT_BROWSER_EXECUTABLE_PATH

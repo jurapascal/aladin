@@ -769,22 +769,9 @@ else
     register_playwright_mcp && download_playwright_browser
 fi
 
-# ── 8a. Hlas (diktování a předčítání) ────────────────────────────────────────
-# faster-whisper + Piper do vlastního venvu (hub/hlas.py), i s modely. Dřív
-# jen tlačítkem v Nastavení → Hlas; instalačka ke stažení ho dá rovnou.
-echo ""
-HLAS_OK="$("$PY" -c "import sys; sys.path.insert(0, '$CLAUDE_DIR'); from hub import hlas; print(1 if hlas.root() else 0)" 2>/dev/null)"
-if $MINIMAL || $UPDATE; then
-    :
-elif [ "$HLAS_OK" = "1" ]; then
-    ok "hlas (diktování a předčítání)"
-elif $APP || ask "Nainstalovat hlas — diktování a předčítání česky (~2,5 GB, modely)?"; then
-    info "instaluju hlas ${D}(pár minut, stahují se modely ~2,5 GB)${R}…"
-    if (cd "$CLAUDE_DIR" && "$PY" -m hub.hlas install >/dev/null 2>&1); then ok "hlas připravený"
-    else warn "hlas se nenainstaloval — jde to i později: Nastavení → Hlas"; fi
-else
-    info "hlas přeskočen — jde doinstalovat v Nastavení → Hlas"
-fi
+# ── 8a. Hlas ─────────────────────────────────────────────────────────────────
+# Od 2.150.0 jen přes ElevenLabs (klíč v Nastavení → Hlas) — nic se neinstaluje.
+# Starý místní Whisper a Piper (~/.claude/hlas, ~2,5 GB) smaže hub při startu.
 
 # ── 8c. Další AI agenti a lokální modely ─────────────────────────────────────
 # Codex, Gemini, opencode, aider, Ollama (+ základní modely do Ollamy ~7 GB)

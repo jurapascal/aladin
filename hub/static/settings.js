@@ -4185,17 +4185,16 @@
     return box;
   }
 
-  /* Diktování a předčítání česky (hub/hlas.py, hlas.js). Na počítači se
-     instaluje odsud, na serveru ho připravuje správce pro všechny. */
+  /* Hlas: diktování, předčítání a hovor s Claudem — jen přes ElevenLabs
+     (hub/eleven.py, hlas.js). Kdo ho napojený nemá, mikrofon ani 🔊 nevidí. */
   function hlas() {
-    const box = section('Hlas', 'Mluv místo psaní a nech si odpovědi přečíst nahlas.');
-    const status = el('div', 'set-status', 'Zjišťuju…');
-    box.appendChild(status);
-    const btns = el('div', 'onb-btns');
-    box.appendChild(btns);
-    const ready = el('div', 'hlas-ready');
+    const box = section('Hlas', 'Diktuj místo psaní, nech si odpovědi číst nahlas a mluv s Claudem jako s hlasovým agentem.');
+    const cteniWrap = el('div', 'hlas-ready');
+    const UKAZKA = 'Ahoj, tady je Aladin. Tímhle hlasem ti budu číst odpovědi.';
+    const ELEVEN_SVG = '<svg class="hlas-ico" viewBox="0 0 24 24"><rect x="7" y="4" width="3.2" height="16" rx=".6"/>' +
+                       '<rect x="13.8" y="4" width="3.2" height="16" rx=".6"/></svg>';
+    let elevenForm = false;           // rozbalený formulář na klíč
 
-    // Dlaždice s ikonkou: nadpis a krátký popisek pod ním.
     function tile(ico, title, sub, on) {
       const t = el('button', 'onb-tile hlas-tile' + (on ? ' on' : ''));
       t.innerHTML = '<svg class="hlas-ico"><use href="#' + ico + '"/></svg>';
@@ -4204,46 +4203,6 @@
       t.appendChild(col);
       return t;
     }
-    function group(ico, title) {
-      const h = el('div', 'hlas-head');
-      h.innerHTML = '<svg class="ico"><use href="#' + ico + '"/></svg>';
-      h.appendChild(el('span', null, title));
-      ready.appendChild(h);
-      const tiles = el('div', 'onb-tiles');
-      ready.appendChild(tiles);
-      return tiles;
-    }
-
-    function drawReady(s) {
-      ready.textContent = '';
-      // Přesnost, nebo rychlost přepisu (hub/hlas.py, MODELY).
-      const prepis = group('i-mic', 'Diktování');
-      const moznosti = [
-        ['turbo', 'i-star', 'Přesně', 'méně chyb · asi 10 s'],
-        ['small', 'i-bolt', 'Rychle', 'asi 3 s · víc chyb'],
-      ];
-      for (const [id, ico, nazev, popis] of moznosti) {
-        const m = (s.models || {})[id] || {};
-        const t = tile(ico, nazev, m.installed ? popis : 'tady není', s.model === id);
-        t.disabled = !m.installed;
-        t.onclick = async () => {
-          await save({hlas_model: id});
-          s.model = id;
-          drawReady(s);
-          if (window.HubHlas) HubHlas.refresh();
-        };
-        prepis.appendChild(t);
-      }
-
-    }
-
-    /* Předčítání: místní Jirka, nebo hlas z ElevenLabs (hub/eleven.py).
-       Kreslí se vždycky — ElevenLabs jde i bez nainstalovaného hlasu. */
-    const cteniWrap = el('div', 'hlas-ready');
-    const UKAZKA = 'Ahoj, tady je hub. Tímhle hlasem ti budu číst odpovědi.';
-    const ELEVEN_SVG = '<svg class="hlas-ico" viewBox="0 0 24 24"><rect x="7" y="4" width="3.2" height="16" rx=".6"/>' +
-                       '<rect x="13.8" y="4" width="3.2" height="16" rx=".6"/></svg>';
-    let elevenForm = false;           // rozbalený formulář na klíč
 
     function playBtn(opts) {
       const play = el('span', 'hlas-play');
@@ -4265,7 +4224,7 @@
         const r = await io.api('hlas-eleven', Object.assign({action: 'vyber'}, body));
         if (r.ok === false) throw new Error(r.error || 'Nepovedlo se uložit.');
         s.eleven = r;
-        s.cteni = s.ready || r.active;
+        s.cteni = !!r.active;
       } catch (err) { io.toast(err.message); }
       drawCteni(s);
       if (window.HubHlas) HubHlas.refresh();
@@ -4274,47 +4233,39 @@
     function drawCteni(s) {
       cteniWrap.textContent = '';
       const ev = s.eleven || {};
-      const h = el('div', 'hlas-head');
-      h.innerHTML = '<svg class="ico"><use href="#i-speak"/></svg>';
-      h.appendChild(el('span', null, 'Předčítání'));
-      cteniWrap.appendChild(h);
       const tiles = el('div', 'onb-tiles');
       cteniWrap.appendChild(tiles);
-
-      // Jirka: místní hlas, zdarma, nic neodchází ven.
-      const jirka = tile('i-speak', 'Jirka', s.ready ? 'v počítači · zdarma' : 'tady není',
-                         s.ready && !ev.active);
-      jirka.classList.add('hlas-voice');
-      jirka.disabled = !s.ready;
-      jirka.onclick = () => { if (ev.active) elevenVyber({active: false}, s); };
-      if (s.ready) jirka.appendChild(playBtn({engine: 'piper'}));
-      tiles.appendChild(jirka);
-
-      // ElevenLabs: hlas z účtu, za kredity.
       const el11 = tile('i-speak', 'ElevenLabs',
                         ev.connected ? (ev.voice_name || 'vyber hlas') : 'napojit vlastním klíčem',
-                        !!ev.active);
+                        !!ev.connected);
       el11.classList.add('hlas-voice');
       el11.querySelector('.hlas-ico').outerHTML = ELEVEN_SVG;
-      el11.onclick = () => {
-        if (!ev.connected) { elevenForm = !elevenForm; drawCteni(s); return; }
-        if (!ev.active) elevenVyber({active: true}, s);
-      };
+      el11.onclick = () => { if (!ev.connected) { elevenForm = !elevenForm; drawCteni(s); } };
       if (ev.connected && ev.voice_id) el11.appendChild(playBtn({voice_id: ev.voice_id, model_id: ev.model_id}));
       tiles.appendChild(el11);
+
+      const umi = el('div', 'set-note hlas-umi');
+      umi.textContent = ev.connected
+        ? 'Zapnuté: 🎙 diktování do pole, 🔊 předčítání odpovědí a 🎧 hovor s Claudem — ' +
+          'klikni na sluchátka vedle mikrofonu, mluv, po chvilce ticha se to pošle a odpověď se přečte.'
+        : 'Bez ElevenLabs mikrofon, hovor ani předčítání nejsou. Napoj ho vlastním API klíčem ' +
+          '(platí se kredity tvého účtu ElevenLabs).';
+      cteniWrap.appendChild(umi);
 
       if (!ev.connected && elevenForm) cteniWrap.appendChild(elevenPripojit(s));
       if (ev.connected) cteniWrap.appendChild(elevenPanel(s));
 
-      const row = el('label', 'onb-row hlas-auto');
-      const cb = el('input');
-      cb.type = 'checkbox';
-      cb.checked = !!(window.HubHlas && HubHlas.auto.get());
-      cb.disabled = !s.cteni;
-      cb.onchange = () => { if (window.HubHlas) HubHlas.auto.set(cb.checked); };
-      row.append(cb, el('span', null, 'Číst nové odpovědi samy'));
-      row.title = 'Jen v tabu, na který se díváš, a jen na tomhle zařízení.';
-      cteniWrap.appendChild(row);
+      if (ev.connected) {
+        const row = el('label', 'onb-row hlas-auto');
+        const cb = el('input');
+        cb.type = 'checkbox';
+        cb.checked = !!(window.HubHlas && HubHlas.auto.get());
+        cb.disabled = !s.cteni;
+        cb.onchange = () => { if (window.HubHlas) HubHlas.auto.set(cb.checked); };
+        row.append(cb, el('span', null, 'Číst nové odpovědi samy'));
+        row.title = 'Jen v tabu, na který se díváš, a jen na tomhle zařízení. Při hovoru se čtou vždycky.';
+        cteniWrap.appendChild(row);
+      }
     }
 
     // Formulář na API klíč (jako u Jevu): klíč se ověří, uloží jen k tobě
@@ -4323,7 +4274,7 @@
       const form = el('div', 'eleven-form');
       const steps = el('div', 'set-note');
       steps.textContent = 'V ElevenLabs otevři Developers → API Keys → Create Key ' +
-        '(stačí práva Text to Speech a Voices: Read) a klíč vlož sem.';
+        '(stačí práva Text to Speech, Speech to Text a Voices: Read) a klíč vlož sem.';
       const open = el('button', 'btn ghost', 'Otevřít API klíče');
       open.onclick = () => io.open('https://elevenlabs.io/app/developers/api-keys');
       const row = el('label', 'mcp-field');
@@ -4335,7 +4286,7 @@
       key.spellcheck = false;
       row.appendChild(key);
       row.appendChild(el('small', null, 'Uloží se jen k tobě do ~/.claude/elevenlabs.json. ' +
-        'Text odpovědí se pak posílá na ElevenLabs a čerpá kredity účtu.'));
+        'Nahrávky z mikrofonu a text odpovědí se pak posílají na ElevenLabs a čerpají kredity účtu.'));
       const status = el('div', 'set-note');
       const btns = el('div', 'onb-btns');
       const go = el('button', 'btn primary', 'Ověřit a napojit');
@@ -4347,10 +4298,11 @@
           const r = await io.api('hlas-eleven', Object.assign({action: 'save'}, body));
           if (r.ok === false) throw new Error(r.error || 'Napojení se nepovedlo.');
           s.eleven = r;
-          s.cteni = true;
+          s.cteni = !!r.active;
+          s.ready = true;
           elevenForm = false;
           elevenSeznam = r;
-          io.toast('ElevenLabs napojený — odpovědi čte ' + (r.voice_name || 'vybraný hlas') + '.');
+          io.toast('ElevenLabs napojený — mikrofon a hovor s Claudem jsou zapnuté.');
           drawCteni(s);
           if (window.HubHlas) HubHlas.refresh();
         } catch (err) {
@@ -4388,11 +4340,12 @@
       const off = el('button', 'btn ghost', 'Odpojit');
       off.onclick = async () => {
         if (!(await HubDialog.confirm('Odpojit ElevenLabs? Klíč se z tohohle počítače smaže ' +
-            'a odpovědi bude číst zase místní hlas.', {title: 'Odpojit ElevenLabs', ok: 'Odpojit'}))) return;
+            'a mikrofon, hovor i předčítání zmizí.', {title: 'Odpojit ElevenLabs', ok: 'Odpojit'}))) return;
         try {
           const r = await io.api('hlas-eleven', {action: 'remove'});
           s.eleven = r;
-          s.cteni = s.ready;
+          s.cteni = false;
+          s.ready = false;
           elevenSeznam = null;
         } catch (err) { io.toast(err.message); }
         drawCteni(s);
@@ -4452,49 +4405,11 @@
       return panel;
     }
 
-    let poll = null;
     async function nacti() {
       let s;
-      try { s = await io.api('hlas'); } catch (_) { s = {ready: false}; }
-      btns.textContent = '';
+      try { s = await io.api('hlas'); } catch (_) { s = {ready: false, eleven: {}}; }
       drawCteni(s);
-      if (s.ready) {
-        status.hidden = true;
-        drawReady(s);
-        if (!ready.parentNode) box.insertBefore(ready, cteniWrap);
-        if (window.HubHlas) HubHlas.refresh();
-        return;
-      }
-      status.hidden = false;
-      if (ready.parentNode) ready.remove();
-      const job = s.job || {};
-      if (job.running || s.installing) {
-        status.className = 'set-status';
-        status.textContent = 'Instaluju: ' + (job.step || 'začínám…');
-        clearTimeout(poll);
-        poll = setTimeout(nacti, 2000);
-        return;
-      }
-      if (job.done && job.result && job.result.ok === false) {
-        status.className = 'set-status warn';
-        status.textContent = 'Instalace se nepovedla: ' + (job.result.detail || '');
-      } else if (!s.can_install) {
-        status.className = 'set-status warn';
-        status.textContent = 'Na serveru hlas ještě není — přibude s další ' +
-          'aktualizací serveru.';
-        return;
-      } else {
-        status.className = 'set-status';
-        status.textContent = 'Hlas tu zatím není. Instalace stáhne asi 1 GB ' +
-          '(knihovny a modely) a zabere pár minut.';
-      }
-      const go = el('button', 'actionbtn', 'Nainstalovat hlas');
-      go.onclick = async () => {
-        go.disabled = true;
-        try { await io.api('hlas-install', {}); } catch (err) { io.toast(err.message); }
-        nacti();
-      };
-      btns.appendChild(go);
+      if (window.HubHlas) HubHlas.refresh();
     }
     box.appendChild(cteniWrap);
     nacti();

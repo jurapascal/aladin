@@ -753,32 +753,9 @@ if (-not $ClaudeCli) {
     $ErrorActionPreference = $prevEap
 }
 
-# ── 11a. Hlas (diktování a předčítání) ───────────────────────────────────────
-# faster-whisper + Piper do vlastního venvu (hub/hlas.py), i s modely (~2,5 GB).
-# Dřív jen tlačítkem v Nastavení → Hlas; instalačka ke stažení (-App) ho dá rovnou.
-if (-not $Update) {
-    $prevEap = $ErrorActionPreference
-    $ErrorActionPreference = 'Continue'
-    try {
-        Push-Location $ClaudeDir
-        $hlasHotovo = (& $Python -c "from hub import hlas; print(1 if hlas.root() else 0)" 2>$null) -eq '1'
-        if ($hlasHotovo) {
-            Write-Ok 'hlas (diktování a předčítání)'
-        } elseif ($App -or (Ask-YesNo 'Nainstalovat hlas — diktování a předčítání česky (~2,5 GB, modely)?')) {
-            Write-Info 'instaluju hlas (pár minut, stahují se modely ~2,5 GB)…'
-            & $Python -m hub.hlas install *>$null
-            if ($LASTEXITCODE -eq 0) { Write-Ok 'hlas připravený' }
-            else { Write-Warn 'hlas se nenainstaloval — jde to i později: Nastavení → Hlas' }
-        } else {
-            Write-Info 'hlas přeskočen — jde doinstalovat v Nastavení → Hlas'
-        }
-    } catch {
-        Write-Warn "hlas: $($_.Exception.Message)"
-    } finally {
-        Pop-Location
-        $ErrorActionPreference = $prevEap
-    }
-}
+# ── 11a. Hlas ────────────────────────────────────────────────────────────────
+# Od 2.150.0 jen přes ElevenLabs (klíč v Nastavení → Hlas) — nic se neinstaluje.
+# Starý místní Whisper a Piper (~/.claude/hlas) smaže hub při startu.
 
 # ── 11c. Další AI agenti a lokální modely ────────────────────────────────────
 # Codex, Gemini, opencode, aider, Ollama (+ základní modely ~7 GB) — stejný

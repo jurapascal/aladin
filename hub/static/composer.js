@@ -620,7 +620,8 @@
                   title="Režim oprávnění (Shift+Tab) — normální / auto-accept / plán / auto / bypass">Režim: <span class="val"></span> ▾</button>
           </div>
           <button class="composer-chip ghost" data-act="esc" title="Přeruší, co Claude právě dělá (Esc)">Zastavit</button>
-          <button class="composer-mic" title="Diktovat česky — klikni, mluv, klikni znovu" hidden>${icon('i-mic')}</button>
+          <button class="composer-hovor" title="Hovor s Claudem — mluv, po pauze se to pošle a odpověď se přečte (klik nebo Esc ukončí)" hidden>${icon('i-hovor')}</button>
+          <button class="composer-mic" title="Diktovat — klikni, mluv, klikni znovu" hidden>${icon('i-mic')}</button>
           <button class="composer-send" title="Odeslat (Enter)">${icon('i-up')}</button>
         </div>
       </div>
@@ -652,8 +653,15 @@
     tab.pane.insertBefore(askRoot, root);
 
     const input = root.querySelector('.composer-input');
-    // Diktování česky (hlas.js) — tlačítko se ukáže, jen když je hlas nainstalovaný.
-    if (global.HubHlas) global.HubHlas.mic(root.querySelector('.composer-mic'), input, {notice: io.notice});
+    // Diktování a hovor s Claudem (hlas.js) — jen s napojeným ElevenLabs.
+    if (global.HubHlas) {
+      global.HubHlas.mic(root.querySelector('.composer-mic'), input, {notice: io.notice});
+      global.HubHlas.hovor(root.querySelector('.composer-hovor'), input, {
+        notice: io.notice,
+        odeslat: (text) => submit(text),
+        pracuje: () => !!tab.pracuje,
+      });
+    }
     const attBox = root.querySelector('.composer-atts');
     const picker = root.querySelector('input[type=file]');
     const modelBtn = root.querySelector('[data-act=model]');

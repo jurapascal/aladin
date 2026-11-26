@@ -27,7 +27,6 @@ import secrets
 import socket
 import socketserver
 import string
-import subprocess
 import struct
 import sys
 import threading
@@ -1327,15 +1326,13 @@ class Handler(BaseHTTPRequestHandler):
             from . import web
             return self._json(web.host_action(payload))
         if name.startswith("hlas"):
-            # Diktování a předčítání (hub/hlas.py) — česky, na tomhle stroji.
+            # Diktování, předčítání a hovor s Claudem — jen přes ElevenLabs
+            # (hub/eleven.py, klíč člověka). Bez něj mikrofon ani 🔊 nejsou.
             from . import eleven, hlas
             if name == "hlas":
-                st = hlas.state()
                 el = eleven.status()
-                return self._json({**st, "job": core.job_state("hlas"),
-                                   "prepis": hlas.dostupny(), "eleven": el,
-                                   # Předčítat jde místním hlasem, nebo přes ElevenLabs.
-                                   "cteni": st["ready"] or el["active"]})
+                return self._json({"ready": el["connected"], "prepis": el["connected"],
+                                   "cteni": el["active"], "eleven": el})
             if name == "hlas-proud":
                 # Zvuk z ElevenLabs proudem (hub/eleven.py): <audio> začne hrát
                 # s prvními bajty, nečeká se na celý kus.
@@ -1382,44 +1379,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json({"error": "Neznámá akce."}, 400)
             if self.command != "POST":
                 return self._json({"error": "Jen POST."}, 405)
-            if name == "hlas-install":
-                return self._json({"ok": hlas.start_install()})
             if name == "hlas-pripravit":
-                # Předčítání bez čekání: ElevenLabs → id pro hlas-proud. Bez
-                # ElevenLabs (nebo při chybě) {"proud": false} a čte se postaru.
+                # Předčítání bez čekání: ElevenLabs → id pro hlas-proud.
                 text = str(payload.get("text") or "").strip()[:hlas.MAX_TEXT]
                 voice = str(payload.get("voice_id") or "")
-                if text and payload.get("engine") != "piper" and (voice or eleven.aktivni()):
+                if text and (voice or eleven.aktivni()):
                     try:
                         return self._json({"proud": True, "id": eleven.priprav(
                             text, voice, str(payload.get("model_id") or ""))})
                     except (ValueError, RuntimeError) as exc:
                         return self._json({"proud": False, "error": str(exc)})
-                return self._json({"proud": False})
+                return self._json({"proud": False, "error": "Předčítání není zapnuté — vyber hlas v Nastavení → Hlas."})
             try:
                 if name == "hlas-prepis":
-                    wav = base64.b64decode(str(payload.get("wav") or ""), validate=False)
-                    return self._json({"text": hlas.prepis(wav)})
+                    # Nahrávka z prohlížeče (webm/ogg/mp4, starší okno WAV) → ElevenLabs.
+                    data = base64.b64decode(str(payload.get("audio") or payload.get("wav") or ""),
+                                            validate=False)
+                    return self._json({"text": eleven.prepis(hlas.check_audio(data))})
                 if name == "hlas-rec":
                     text = str(payload.get("text") or "").strip()[:hlas.MAX_TEXT]
                     if not text:
                         raise ValueError("Není co přečíst.")
-                    voice = str(payload.get("voice_id") or "")
-                    if payload.get("engine") != "piper" and (voice or eleven.aktivni()):
-                        try:
-                            return self._send(200, eleven.rec(text, voice, str(
-                                payload.get("model_id") or "")), "audio/mpeg")
-                        except RuntimeError as exc:
-                            # Ukázka konkrétního hlasu chybu ukáže; běžné čtení
-                            # přejde na místní hlas, když tu je.
-                            if voice or not hlas.root():
-                                raise
-                            core.log(f"hlas: ElevenLabs selhal ({exc}), čtu místním hlasem", "warn")
-                    return self._send(200, hlas.rec(text), "audio/wav")
+                    return self._send(200, eleven.rec(text, str(payload.get("voice_id") or ""),
+                                                      str(payload.get("model_id") or "")), "audio/mpeg")
             except (ValueError, RuntimeError) as exc:
                 return self._json({"error": str(exc)}, 400)
-            except subprocess.TimeoutExpired:
-                return self._json({"error": "Hlas to nestihl — zkus kratší kus."}, 504)
             return self._json({"error": "Neznámý požadavek."}, 404)
         if name == "mcp-tool":
             # Napojení z appky Claude: volá jen brána (gateway/mcp.py) po
@@ -2275,7 +2259,7 @@ class Handler(BaseHTTPRequestHandler):
                        "newtab", "extra_projects", "show_archived",
                        "agents", "default_agent", "project_agents",
                        "remote_keep_running", "dev_mode", "memory_autosave",
-                       "hlas_model", "theme", "prohlizec_okno", "na_pozadi", "bez_spanku", "tray",
+                       "theme", "prohlizec_okno", "na_pozadi", "bez_spanku", "tray",
                        "auto_update", "verxee_debug_klic", "panel", "novy_chat_agent", "muj_jmeno")
             updates = {k: v for k, v in payload.items() if k in allowed}
             if "panel" in updates:
@@ -2302,8 +2286,6 @@ class Handler(BaseHTTPRequestHandler):
                 updates["muj_jmeno"] = " ".join(str(updates["muj_jmeno"] or "").split())[:60]
             if "theme" in updates and updates["theme"] not in ("", "dark", "light"):
                 return self._json({"error": "Neznámé téma."}, 400)
-            if "hlas_model" in updates and updates["hlas_model"] not in ("turbo", "small"):
-                return self._json({"error": "Neznámý model pro přepis."}, 400)
             if not updates:
                 return self._json({"error": "Nic k uložení."}, 400)
             try:
@@ -3094,6 +3076,8 @@ def start():
     from . import spotreba_pc, stopka
     spotreba_pc.start()
     stopka.pri_startu()          # rychlé (jeden soubor) a dřív, než se otevře první tab
+    from . import hlas
+    hlas.uklid()                 # starý místní Whisper a Piper pryč (na pozadí)
     connect.start_shared_sync()
     # Gemini jako pomocník Clauda: napojit/odpojit MCP podle toho, jestli je
     # agy nainstalovaný (hub/gemini.py). Zkušební hub nic nemění.

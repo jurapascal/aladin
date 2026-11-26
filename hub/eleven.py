@@ -1,12 +1,13 @@
-"""ElevenLabs — předčítání odpovědí hlasem z ElevenLabs místo místního Jirky.
+"""ElevenLabs — jediný hlas hubu: diktování (Speech to Text, model Scribe),
+předčítání odpovědí (Text to Speech) a hovor s Claudem (hlas.js).
 
 Člověk vloží API klíč v Nastavení → Hlas, vybere hlas (i vlastní klon nebo
 hlas z knihovny, který má v „My Voices“) a model. Klíč leží v
 `~/.claude/elevenlabs.json` jen pro majitele a do prohlížeče se nikdy nevrací.
+Bez klíče hub mikrofon ani předčítání neukazuje.
 
-Text jde na ElevenLabs a účtuje se z kreditů účtu (znaky textu, u modelů
-Flash/Turbo poloviční). Když ElevenLabs selže (kredit, síť), hub přečte text
-místním hlasem, pokud je nainstalovaný (hub/hlas.py).
+Zvuk i text jdou na ElevenLabs a účtují se z kreditů účtu (minuty nahrávky,
+znaky textu — u modelů Flash/Turbo poloviční).
 """
 import json
 import os
@@ -90,12 +91,15 @@ def explain(code, data):
     if code == 0:
         return "ElevenLabs není dostupný: " + (msg or "chyba sítě")
     if st == "missing_permissions":
-        return ("Klíč nemá potřebné právo — v ElevenLabs mu povol Text to Speech "
-                "a Voices (čtení), nebo vytvoř klíč bez omezení.")
+        return ("Klíč nemá potřebné právo — v ElevenLabs mu povol Text to Speech, "
+                "Speech to Text a Voices (čtení), nebo vytvoř klíč bez omezení.")
+    if st in ("payment_issue", "payment_required") or (isinstance(detail, dict) and detail.get("type") == "payment_required"):
+        return ("Na účtu ElevenLabs je nezaplacená platba — doplať poslední fakturu "
+                "na elevenlabs.io (Subscription), pak hlas zase pojede.")
     if code == 401 or st in ("invalid_api_key", "needs_authorization"):
         return "Klíč neplatí — zkopíruj ho znovu z ElevenLabs (Developers → API Keys)."
     if st in ("quota_exceeded", "insufficient_credits") or "quota" in msg.lower():
-        return "Na účtu ElevenLabs došly kredity — dobij je, nebo přepni na místní hlas."
+        return "Na účtu ElevenLabs došly kredity — dobij je na elevenlabs.io."
     if "fine-tuned" in msg or "fine_tuned" in msg:
         return "Tenhle hlas ElevenLabs ještě dotrénovává — vyber zatím jiný."
     if st == "voice_not_found" or code == 404:
@@ -270,6 +274,57 @@ def rec(text, voice_id="", model_id=""):
     if code != 200 or not isinstance(data, bytes):
         raise RuntimeError(explain(code, data))
     return data
+
+
+# ── přepis řeči (diktování a hovor) ──────────────────────────────────────────
+STT_MODEL = "scribe_v1"
+STT_TIMEOUT = 120
+
+
+def _typ_zvuku(data):
+    """(přípona, MIME) podle prvních bajtů — prohlížeč nahrává webm, ogg nebo mp4."""
+    if data[:4] == b"\x1a\x45\xdf\xa3":
+        return "webm", "audio/webm"
+    if data[:4] == b"OggS":
+        return "ogg", "audio/ogg"
+    if data[:4] == b"RIFF":
+        return "wav", "audio/wav"
+    if data[4:8] == b"ftyp":
+        return "m4a", "audio/mp4"
+    return "webm", "application/octet-stream"
+
+
+def prepis(data):
+    """Text z nahrávky (česky) přes ElevenLabs Speech to Text. RuntimeError s větou."""
+    key = _key()
+    if not key:
+        raise RuntimeError("ElevenLabs není napojený — napoj ho v Nastavení → Hlas.")
+    pripona, mime = _typ_zvuku(data)
+    hranice = "----aladin" + secrets.token_hex(12)
+    casti = []
+    for jmeno, hodnota in (("model_id", STT_MODEL), ("language_code", "ces"),
+                           ("tag_audio_events", "false"), ("diarize", "false")):
+        casti.append((f'--{hranice}\r\nContent-Disposition: form-data; name="{jmeno}"\r\n\r\n'
+                      f"{hodnota}\r\n").encode("utf-8"))
+    casti.append((f'--{hranice}\r\nContent-Disposition: form-data; name="file"; '
+                  f'filename="nahravka.{pripona}"\r\nContent-Type: {mime}\r\n\r\n').encode("utf-8"))
+    telo = b"".join(casti) + data + f"\r\n--{hranice}--\r\n".encode("utf-8")
+    req = urllib.request.Request(
+        API + "/v1/speech-to-text", method="POST", data=telo,
+        headers={"xi-api-key": key, "Content-Type": f"multipart/form-data; boundary={hranice}",
+                 "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=STT_TIMEOUT) as res:
+            out = json.loads(res.read() or b"{}")
+    except urllib.error.HTTPError as exc:
+        try:
+            err = json.loads(exc.read() or b"{}")
+        except ValueError:
+            err = {}
+        raise RuntimeError(explain(exc.code, err)) from None
+    except (urllib.error.URLError, OSError, ValueError) as exc:
+        raise RuntimeError(explain(0, {"error": str(exc)})) from None
+    return str(out.get("text") or "").strip()
 
 
 # ── řeč proudem (předčítání bez čekání) ──────────────────────────────────────

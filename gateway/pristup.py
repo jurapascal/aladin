@@ -84,7 +84,7 @@ PREDPLATNE_AKCE = {"prihlasit", "kod", "zrusit", "odpojit"}
 POMOCNIK_DENY = {
     "config", "account", "connect", "mcp", "predplatne", "remote", "restart",
     "update", "quit", "bypass", "setup", "okno-otevrit", "log-clear",
-    "vault-delete", "vault", "hlas-install", "hlas-eleven", "jev", "clockify",
+    "vault-delete", "vault", "hlas-eleven", "jev", "clockify",
     "claude-ucet", "chat-delete", "chat-domu",
 }
 # … a tohle jen ke čtení (POST mění nastavení).

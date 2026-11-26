@@ -1,11 +1,12 @@
-/* Hlas — diktování do pole a předčítání odpovědí, česky (hub/hlas.py).
+/* Hlas — diktování do pole, předčítání odpovědí a hovor s Claudem.
  *
- * Nahrává se přes Web Audio rovnou do WAV (16 kHz, mono): žádné kodeky, takže
- * to jde stejně v okně appky (WebKitGTK), v Chrome i v Safari na iPhonu.
- * Přepis i hlas dělá hub na svém stroji — na počítači, nebo na serveru —
- * a nic neodchází ven.
+ * Všechno přes ElevenLabs (hub/eleven.py) vlastním klíčem člověka:
+ * přepis řeči (Scribe) a hlas (Text to Speech, proudem). Kdo ElevenLabs
+ * napojený nemá (Nastavení → Hlas), mikrofon, Hovor ani 🔊 nevidí.
  *
- * Tlačítka se ukážou, jen když je hlas na stroji nainstalovaný (/api/hlas).
+ * Hovor: klik na sluchátka → mluvíš, po chvilce ticha se řeč přepíše a sama
+ * odešle Claudovi, jeho odpověď se přečte nahlas a mikrofon se zase zapne.
+ * Jako hlasový agent, jen se mluví s Claudem v tomhle chatu.
  */
 'use strict';
 
@@ -32,6 +33,7 @@
   function ready() {
     if (!io) return Promise.resolve(false);
     if (!stavP) {
+      // ready = ElevenLabs napojený (diktování, hovor); cteni = navíc vybraný hlas.
       stavP = io.api('hlas').then((s) => { stav = s; return !!s.ready; })
         .catch(() => { stav = {ready: false}; return false; });
     }
@@ -44,9 +46,12 @@
   function refresh() {
     stav = null; stavP = null;
     stopVse();
+    if (hovorStav.on) hovorKonec();
     return ready().then((ok) => {
-      const lze = ok || !!(stav && stav.cteni);
+      const lze = !!(stav && stav.cteni);
       document.querySelectorAll('.hlas-cti').forEach((b) => { b.hidden = !lze; });
+      document.querySelectorAll('[data-hlas="mic"]').forEach((b) => { b.hidden = !ok || !umiMikrofon(); });
+      document.querySelectorAll('[data-hlas="hovor"]').forEach((b) => { b.hidden = !ok || !lze || !umiMikrofon(); });
       return ok;
     });
   }
@@ -72,13 +77,13 @@
      když selže, nahrává se dál. */
   const TYPY = ['audio/webm;codecs=opus', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/webm'];
 
-  async function nahravat(ctx, naUroven) {
+  async function nahravat(ctx, naUroven, hovor) {
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        // Potlačení ozvěny je pro hovor, ne pro diktování — hlas jím zbytečně
-        // trpí. Šum a hlasitost prohlížeč srovnat smí.
-        audio: {echoCancellation: false, noiseSuppression: true, autoGainControl: true}});
+        // Potlačení ozvěny je pro hovor (z reproduktoru mluví Claude), ne pro
+        // diktování — hlas jím zbytečně trpí. Šum a hlasitost srovnat smí.
+        audio: {echoCancellation: !!hovor, noiseSuppression: true, autoGainControl: true}});
     } catch (err) {
       ctx.close().catch(() => {});
       throw err;
@@ -151,7 +156,7 @@
     };
   }
 
-  /* Nahrávka jako WAV 16 kHz mono pro Whisper. Prohlížeč nahrává na 44,1
+  /* Nahrávka jako WAV 16 kHz mono (prohlížeč bez MediaRecorderu). Prohlížeč nahrává na 44,1
      nebo 48 kHz a převzorkovat se musí s filtrem: prosté „každý třetí
      vzorek“ zvuk zkreslí (aliasing) a přepis pak plete slova. */
   async function wav16(kusy, rate) {
@@ -196,7 +201,7 @@
         }
       }
     }
-    // Tichou nahrávku zesílit (nanejvýš 8×): Whisper slabý hlas snadno přeslechne.
+    // Tichou nahrávku zesílit (nanejvýš 8×): slabý hlas přepis snadno přeslechne.
     let spicka = 0;
     for (let i = 0; i < pcm.length; i++) { const a = Math.abs(pcm[i]); if (a > spicka) spicka = a; }
     const zisk = spicka > 0 ? Math.min(8, 0.9 / spicka) : 1;
@@ -228,9 +233,10 @@
   function mic(btn, input, opts = {}) {
     if (!btn || !input) return;
     btn.hidden = true;
+    btn.dataset.hlas = 'mic';
     if (!umiMikrofon()) return;
-    // Přepis jde i bez hlasu na tomhle stroji — počítač ho pošle na server.
-    ready().then((ok) => { btn.hidden = !(ok || (stav && stav.prepis)); });
+    // Jen s napojeným ElevenLabs (přepisuje ho Scribe).
+    ready().then((ok) => { btn.hidden = !ok; });
     let rec = null, timer = null, start = 0, busy = false;
     const puvodni = input.placeholder;
 
@@ -257,7 +263,7 @@
           if (opts.notice) opts.notice('Nahrávka byla moc krátká — podrž mikrofon zapnutý, dokud mluvíš.');
           return;
         }
-        const out = await io.api('hlas-prepis', {wav: base64(data)});
+        const out = await io.api('hlas-prepis', {audio: base64(data)});
         const text = (out.text || '').trim();
         if (!text) {
           if (opts.notice) opts.notice('Nic jsem nezachytil — zkus to znovu a blíž k mikrofonu.');
@@ -360,25 +366,21 @@
     return out;
   }
 
-  /* `opts` přebije, čím se čte: {engine: 'piper'} = místní hlas,
-     {voice_id, model_id} = ukázka hlasu z ElevenLabs.
-     S ElevenLabs jde zvuk proudem (<audio src> na hlas-proud): hraje se od
+  /* `opts` = {voice_id, model_id} přebije uložený hlas (ukázka v Nastavení).
+     Zvuk jde z ElevenLabs proudem (<audio src> na hlas-proud): hraje se od
      prvních bajtů a další kus se začne stahovat hned, jak se připraví.
+     Když proud nejde připravit, zkusí se celý kus najednou (hlas-rec).
      Vrací {audio, uklid}. */
   async function zvuk(text, opts) {
     const telo = JSON.stringify(Object.assign({text}, opts || {}));
-    try {
-      const r = await io.api('hlas-pripravit', JSON.parse(telo));
-      if (r && r.proud && r.id) {
-        const a = new Audio(io.url('hlas-proud') + '&id=' + encodeURIComponent(r.id));
-        a.preload = 'auto';
-        a.load();
-        return {audio: a, uklid() { a.removeAttribute('src'); try { a.load(); } catch (_) { /* nic */ } }};
-      }
-      if (r && r.error && opts && opts.voice_id) throw new Error(r.error);
-    } catch (err) {
-      if (opts && opts.voice_id) throw err;       // ukázka konkrétního hlasu chybu ukáže
+    const r = await io.api('hlas-pripravit', JSON.parse(telo));
+    if (r && r.proud && r.id) {
+      const a = new Audio(io.url('hlas-proud') + '&id=' + encodeURIComponent(r.id));
+      a.preload = 'auto';
+      a.load();
+      return {audio: a, uklid() { a.removeAttribute('src'); try { a.load(); } catch (_) { /* nic */ } }};
     }
+    if (r && r.error) throw new Error(r.error);
     const res = await fetch(io.url('hlas-rec'), {
       method: 'POST', headers: {'Content-Type': 'application/json'}, body: telo});
     if (!res.ok) {
@@ -436,10 +438,9 @@
           a.onpause = () => { if (ja.zruseno) dohrano(false); };
           a.play().catch(() => dohrano(true));
         });
-        // Proud z ElevenLabs nezahrál ani kousek (kredit, síť) → tenhle kus
-        // přečte místní hlas, když tu je.
-        if (await zahraj(z) && !ja.zruseno && stav && stav.ready && !(opts && opts.voice_id)) {
-          try { await zahraj(await zvuk(casti[i], {engine: 'piper'})); } catch (_) { /* nic */ }
+        // Proud z ElevenLabs nezahrál ani kousek (kredit, síť) → říct to, ne mlčet.
+        if (await zahraj(z) && !ja.zruseno) {
+          throw new Error('ElevenLabs nevrátil zvuk (kredit nebo síť).');
         }
       }
       if (ja.zruseno && pristi) pristi.then((z) => z.uklid(), () => {});
@@ -448,6 +449,7 @@
     }
     if (btn) btn.classList.remove('hraje', 'pripravuje');
     if (hraje === ja) hraje = null;
+    if (!fronta.length) document.dispatchEvent(new CustomEvent('hlas-docteno'));
     dalsi(notice);
   }
 
@@ -469,18 +471,160 @@
     b.innerHTML = '<svg class="ico hlas-i-cti"><use href="#i-speak"/></svg>' +
                   '<svg class="ico hlas-i-stop"><use href="#i-stop"/></svg>';
     b.hidden = true;
-    // Předčítat jde i bez místního hlasu, když je napojený ElevenLabs.
-    ready().then((ok) => { b.hidden = !(ok || (stav && stav.cteni)); });
+    // Jen s ElevenLabs a vybraným hlasem.
+    ready().then(() => { b.hidden = !(stav && stav.cteni); });
     b.onclick = (ev) => { ev.stopPropagation(); speak(text, b, notice); };
     box.appendChild(b);
     return b;
   }
 
   const auto = {
-    get() { try { return localStorage.getItem(KLIC_AUTO) === '1'; } catch (_) { return false; } },
+    // Během hovoru se odpovědi čtou vždycky.
+    get() {
+      if (hovorStav.on) return true;
+      try { return localStorage.getItem(KLIC_AUTO) === '1'; } catch (_) { return false; }
+    },
     set(on) { try { localStorage.setItem(KLIC_AUTO, on ? '1' : '0'); } catch (_) { /* nic */ } },
   };
 
-  global.HubHlas = {init, ready, refresh, mic, speak, stop: stopVse, tlacitko, auto, plain,
-                    stav: () => stav};
+  /* ── hovor s Claudem ─────────────────────────────────────────────────────
+     Jako hlasový agent: poslouchá → po tichu přepíše a pošle → Claude odpovídá
+     a odpověď se čte (cteni.js přes auto) → až dočte a Claude nepracuje,
+     poslouchá znovu. Druhý klik na sluchátka nebo Esc hovor ukončí. */
+  const TICHO_MS = 1300;               // tolik ticha po řeči = domluvil
+  const PRAH = 0.07;                   // úroveň z měřiče (0–1), nad ní je řeč
+  const MAX_VETA_S = 90;
+  const BEZ_RECI_S = 45;               // nikdo nemluví → hovor se ukončí
+  const hovorStav = {on: false, btn: null, input: null, opts: null, rec: null,
+                     faze: '', hlidac: null, poslano: 0, pracovalo: false, puvodni: ''};
+
+  function hovorFaze(f, text) {
+    const h = hovorStav;
+    h.faze = f;
+    if (h.btn) {
+      h.btn.classList.toggle('on', h.on);
+      h.btn.classList.toggle('posloucha', f === 'posloucha');
+      h.btn.classList.toggle('ceka', f === 'prepis' || f === 'odpoved');
+      if (f !== 'posloucha') h.btn.style.removeProperty('--uroven');
+    }
+    if (h.input) h.input.placeholder = text || h.puvodni;
+  }
+
+  function hovorKonec() {
+    const h = hovorStav;
+    if (!h.on) return;
+    h.on = false;
+    clearInterval(h.hlidac);
+    h.hlidac = null;
+    if (h.rec) { try { h.rec.zrusit(); } catch (_) { /* nic */ } h.rec = null; }
+    stopVse();
+    hovorFaze('', '');
+    document.removeEventListener('keydown', hovorEsc, true);
+  }
+
+  function hovorEsc(ev) {
+    if (ev.key === 'Escape' && hovorStav.on) { ev.preventDefault(); ev.stopPropagation(); hovorKonec(); }
+  }
+
+  async function hovorPoslouchej() {
+    const h = hovorStav;
+    if (!h.on || h.rec) return;
+    let rec;
+    let mluvil = 0, tichoOd = 0;
+    const start = Date.now();
+    const ctx = kontext();
+    try {
+      rec = await nahravat(ctx, (u) => {
+        if (!h.on || h.rec !== rec) return;
+        if (h.btn) h.btn.style.setProperty('--uroven', u.toFixed(2));
+        const ted = Date.now();
+        if (u > PRAH) { mluvil += 80; tichoOd = 0; } else if (mluvil >= 250 && !tichoOd) tichoOd = ted;
+        if (mluvil >= 250 && tichoOd && ted - tichoOd >= TICHO_MS) hovorVeta();
+        else if (ted - start > MAX_VETA_S * 1000 && mluvil) hovorVeta();
+        else if (!mluvil && ted - start > BEZ_RECI_S * 1000) {
+          hovorKonec();
+          if (h.opts.notice) h.opts.notice('Hovor jsem ukončil — dlouho nikdo nemluvil.');
+        }
+      }, true);
+    } catch (err) {
+      hovorKonec();
+      if (h.opts.notice) {
+        h.opts.notice(err && err.name === 'NotAllowedError'
+          ? 'Mikrofon není povolený — povol ho prohlížeči pro tuhle stránku.'
+          : chyba('Mikrofon se nepodařilo zapnout', err));
+      }
+      return;
+    }
+    if (!h.on) { rec.zrusit(); return; }
+    h.rec = rec;
+    hovorFaze('posloucha', 'Hovor: mluv, po chvilce ticha to pošlu Claudovi (Esc ukončí)');
+  }
+
+  async function hovorVeta() {
+    const h = hovorStav;
+    const rec = h.rec;
+    if (!rec) return;
+    h.rec = null;
+    hovorFaze('prepis', 'Hovor: přepisuju…');
+    let text = '';
+    try {
+      const data = await rec.stop();
+      if (data && data.length >= 1000) {
+        const out = await io.api('hlas-prepis', {audio: base64(data)});
+        text = (out.text || '').trim();
+      }
+    } catch (err) {
+      if (h.opts.notice) h.opts.notice(chyba('Přepis řeči se nepovedl', err));
+    }
+    if (!h.on) return;
+    if (!text) { hovorPoslouchej(); return; }
+    h.poslano = Date.now();
+    h.pracovalo = false;
+    hovorFaze('odpoved', 'Hovor: Claude odpovídá…');
+    try { h.opts.odeslat(text); } catch (err) {
+      if (h.opts.notice) h.opts.notice(chyba('Zprávu se nepodařilo odeslat', err));
+      hovorKonec();
+    }
+  }
+
+  /* Hlídač fáze „odpověď“: znovu poslouchat, až Claude doběhl a dočetlo se. */
+  function hovorHlidej() {
+    const h = hovorStav;
+    if (!h.on || h.faze !== 'odpoved') return;
+    const pracuje = !!(h.opts.pracuje && h.opts.pracuje());
+    if (pracuje) { h.pracovalo = true; return; }
+    const ted = Date.now();
+    // Claude se ještě nerozjel — chvilku počkat, než se uzná, že nic nedělá.
+    if (!h.pracovalo && ted - h.poslano < 8000) return;
+    if (hraje || fronta.length) return;
+    // Odpověď mohla dorazit těsně před koncem práce — dát předčítání šanci začít.
+    if (!h.klidOd) { h.klidOd = ted; return; }
+    if (ted - h.klidOd < 1200) return;
+    h.klidOd = 0;
+    hovorPoslouchej();
+  }
+
+  /* Tlačítko se sluchátky vedle mikrofonu. opts: {odeslat(text), pracuje(), notice}. */
+  function hovor(btn, input, opts = {}) {
+    if (!btn || !input || !opts.odeslat) return;
+    btn.hidden = true;
+    btn.dataset.hlas = 'hovor';
+    if (!umiMikrofon()) return;
+    ready().then((ok) => { btn.hidden = !(ok && stav && stav.cteni); });
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const h = hovorStav;
+      if (h.on && h.btn === btn) { hovorKonec(); return; }
+      if (h.on) hovorKonec();
+      Object.assign(h, {on: true, btn, input, opts, rec: null, poslano: 0, pracovalo: false,
+                        klidOd: 0, puvodni: input.placeholder});
+      stopVse();
+      document.addEventListener('keydown', hovorEsc, true);
+      h.hlidac = setInterval(hovorHlidej, 300);
+      hovorPoslouchej();
+    });
+  }
+
+  global.HubHlas = {init, ready, refresh, mic, hovor, speak, stop: stopVse, tlacitko, auto, plain,
+                    stav: () => stav, hovorBezi: () => hovorStav.on};
 })(window);

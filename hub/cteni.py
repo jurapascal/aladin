@@ -156,6 +156,7 @@ def _klic(text, obrazky=()):
     return hashlib.sha1(norm.encode("utf-8", "replace")).hexdigest()[:12]
 
 
+_IMAGE_TAG = re.compile(r"\[Image #\d+\]", re.I)
 _STRANKA = re.compile(r"\n*\[Stránka(?: v prohlížeči —|, kterou má člověk teď otevřenou)")
 
 
@@ -167,6 +168,15 @@ def _zprava_cloveka(obsah):
         return None
     blok = {"kind": "me", "text": _zkrat(text, MAX_TEXT), "images": cesty,
             "key": _klic(text, cesty)}
+    # Kolik obrázků zpráva nese, i když se do stránky nepošlou: Claude Code
+    # cestu k obrázku občas nahradí „[Image #1]“ a velkou fotku z mobilu dá
+    # jen jako base64 přes MAX_INLINE. Stránka podle toho páruje odeslanou
+    # zprávu s obrázkem (cteni.js, sedi), jinak visí na „Předáno Claudovi“.
+    casti = sum(1 for c in obsah if isinstance(c, dict) and c.get("type") == "image") \
+        if isinstance(obsah, list) else 0
+    obrazku = max(len(cesty), len(vlozene), casti, len(_IMAGE_TAG.findall(text)))
+    if obrazku:
+        blok["obrazku"] = obrazku
     # Zpráva z rozšíření do prohlížeče (hub/rozsireni.py): blok o stránce je pro
     # Clauda; v bublině jen to, co člověk napsal, a stránka jako příloha.
     stranka = _STRANKA.search(text)
@@ -244,7 +254,7 @@ def _zprava_od_session(text, jmeno=""):
 
 # Obrázek, který člověk přiložil v bublině: hub ho uloží do ~/.claude/hub-images
 # a Claudovi napíše jeho cestu. Ve čtení má být vidět obrázek, ne cesta.
-_OBRAZEK = re.compile(r"""['"]?(%s/[^\s'"]+?\.(?:png|jpe?g|gif|webp|bmp))['"]?"""
+_OBRAZEK = re.compile(r"""['"]?(%s/[^\s'"]+?\.(?:png|jpe?g|gif|webp|bmp|avif|svg))['"]?"""
                       % re.escape(core.IMAGE_DIR), re.I)
 # Obrázek vložený přímo do Claude Code (Ctrl+V v terminálu) je v přepisu jako
 # base64. Do stránky se pošle jen rozumně velký — obří by čtení zdržel.

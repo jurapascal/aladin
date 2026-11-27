@@ -2104,6 +2104,23 @@ class Handler(BaseHTTPRequestHandler):
             if core.on_gateway():
                 return self._json({"error": "Prostor na serveru restartuje server sám."}, 400)
             return self._json(restart.relaunch(HUB))
+        if name == "naplanovane":
+            # Naplánované úlohy (hub/naplanovane.py): bez těla seznam, s `akce` změna.
+            from . import naplanovane
+            akce = payload.get("akce") if isinstance(payload, dict) else ""
+            try:
+                if akce == "uloz":
+                    return self._json({"uloha": naplanovane.uloz(payload.get("uloha"))})
+                if akce == "smaz":
+                    return self._json(naplanovane.smaz(str(payload.get("id") or "")))
+                if akce == "prepni":
+                    return self._json({"uloha": naplanovane.prepni(str(payload.get("id") or ""),
+                                                                   payload.get("zapnuto"))})
+                if akce == "spust":
+                    return self._json(naplanovane.spust(str(payload.get("id") or "")))
+            except naplanovane.Chyba as exc:
+                return self._json({"error": str(exc)}, 400)
+            return self._json({"ulohy": naplanovane.seznam(), "domov": core.HOME})
         if name == "prostor-pracuje":
             # Brána se ptá před uspáním prostoru bez připojeného prohlížeče:
             # pracující Claude (noční agenti) se uspat nesmí.
@@ -3052,6 +3069,9 @@ def start():
         threading.Thread(target=prohlizec.hlidej_necinnost, args=(core.log,), daemon=True).start()
     threading.Thread(target=chats.warm_up, daemon=True).start()
     threading.Thread(target=HUB.hlidej_nazvy, name="nazvy-tabu", daemon=True).start()
+    # Naplánované úlohy: v nastavený čas nový tab s Claudem a zadáním (hub/naplanovane.py).
+    from . import naplanovane
+    naplanovane.start(HUB)
     # První /api/state chce doctor() (agenti v PATH) — ať je připravený, než
     # se okno rozjede, místo aby na něj čekalo první načtení stránky.
     threading.Thread(target=_zahrat_doctor, daemon=True).start()

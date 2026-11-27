@@ -117,8 +117,10 @@ def _okno(path, nalezeno, hint_1m, nastaveni):
         _JE_1M[path] = True
     if _JE_1M.get(path):
         return OKNO_1M, True
-    # Přepis nenese „[1m]". Bez důkazu se bere základní okno, ale jako odhad.
-    return OKNO_ZAKLAD, False
+    # Přepis nenese „[1m]". Bez důkazu je to odhad: Opus, Sonnet i Fable dnes
+    # jedou s oknem 1M, menší má jen Haiku. Odhad 200k u 1M okna hlásil
+    # „plno“ už u 160k a Aladin zbytečně zhušťoval (Tomáš, 27. 11. 2026).
+    return (OKNO_ZAKLAD if "haiku" in model.lower() else OKNO_1M), False
 
 
 def stav(path, hint_1m=False, nastaveni_1m=False):

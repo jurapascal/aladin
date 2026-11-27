@@ -38,6 +38,8 @@
     ['hlas',       'Hlas',      'i-mic',      () => hlas()],
     // Upozornění z chatů: hotovo, otázka, chyba — v aplikaci i systémová (upozorneni.js).
     ['upozorneni', 'Oznámení',  'i-bell',     () => upozorneni()],
+    // Opakované úlohy pro Clauda — v nastavený čas nový chat se zadáním (naplanovane.js).
+    ['naplanovane','Naplánované úlohy', 'i-clock', () => global.HubNaplanovane.sekce({...io, state})],
     // Co je v panelu vlevo a vedle tabů: Nový chat, Obsidian, Projekty (Klienti),
     // terminál — jedna sekce, každá věc jen jednou (dřív zvlášť i záložka Taby).
     ['panel',      'Panel a lišta', 'i-menu', () => panelAPole()],
@@ -54,7 +56,7 @@
   let navHledat = '';
   // Skupiny v panelu vlevo (pořadí sekcí zůstává, mění se jen nadpisy).
   const SKUPINY = {vzhled: 'Předvolby', projekty: 'Předvolby', agenti: 'Předvolby', pamet: 'Předvolby',
-                   ucet: 'Předvolby', firmy: 'Předvolby', whatsapp: 'Předvolby', hlas: 'Předvolby', upozorneni: 'Předvolby',
+                   ucet: 'Předvolby', firmy: 'Předvolby', whatsapp: 'Předvolby', hlas: 'Předvolby', upozorneni: 'Předvolby', naplanovane: 'Přizpůsobit',
                    panel: 'Přizpůsobit', rozsireni: 'Přizpůsobit', uloziste: 'Platforma', oznameni: 'Platforma',
                    aktualizace: 'Platforma', logy: 'Platforma', ostatni: 'Platforma'};
 

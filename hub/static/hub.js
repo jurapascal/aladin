@@ -7149,6 +7149,7 @@ async function main() {
   for (const b of document.querySelectorAll('#chats-vyber [data-akce]')) b.onclick = () => vyberAkce(b.dataset.akce);
   $('nav-hledat').onclick = () => { closeDrawer(); if (window.HubHledani) HubHledani.otevri(); };
   $('nav-customize').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'panel'});
+  $('nav-naplanovane').onclick = () => HubSettings.open({...hubIO(), state: STATE, tab: 'naplanovane'});
   $('nav-terminal').onclick = () => openTab({kind: 'shell', path: '', title: 'Terminál'});
   $('welcome-prompt-input').addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey && !ev.isComposing && !(window.HubIME && !window.HubIME.enterOdesle(ev))) {
@@ -7736,6 +7737,36 @@ function markAutoTried(version) {
   try { localStorage.setItem(AUTO_TRIED_KEY, JSON.stringify({version, at: Date.now()})); } catch (_) { /* nevadí */ }
 }
 
+/* Novou verzi nepřepínat uprostřed práce: restart prostoru (nebo hubu na
+ * počítači) by Claudovi utnul rozdělaný tah. Když v některém tabu Claude
+ * pracuje, aktualizace počká, až všechny taby dopracují a pár minut se
+ * na stránce nic neděje (Tomáš, 27. 11. 2026 — 25.–26. 11. naskočil hub
+ * 17× za den, pokaždé s rozdělanou prací). */
+const AUTO_KLID_MS = 3 * 60 * 1000;
+const AUTO_ZKUS_MS = 2 * 60 * 1000;
+let autoVstup = Date.now();
+let autoOdlozeno = null;
+for (const ev of ['keydown', 'pointerdown']) {
+  document.addEventListener(ev, () => { autoVstup = Date.now(); }, {capture: true, passive: true});
+}
+async function autoPracuje() {
+  try {
+    const r = await api('konec-info');
+    return (r && r.pracuje) || 0;
+  } catch (_) { return 0; }
+}
+function autoOdloz(verze) {
+  if (autoOdlozeno) return;
+  toast(`Nová verze ${verze} se nainstaluje sama, až Claude v tabech dopracuje.`);
+  autoOdlozeno = setInterval(async () => {
+    if (Date.now() - autoVstup < AUTO_KLID_MS) return;
+    if (await autoPracuje()) return;
+    clearInterval(autoOdlozeno);
+    autoOdlozeno = null;
+    autoUpdateAtStart();
+  }, AUTO_ZKUS_MS);
+}
+
 async function autoUpdateAtStart() {
   if (STATE.config && STATE.config.auto_update === false) return;
   /* Instalace v okně (Setup.exe) běží ze ~/.claude/hub-src — aktualizace by tu složku
@@ -7759,6 +7790,7 @@ async function autoUpdateAtStart() {
       } catch (_) { /* bez sítě se nic neděje */ }
       const newest = res && res.nejnovejsi ? bare(res.nejnovejsi) : '';
       if (!newest || !verNewer(newest, STATE.version.version) || autoTriedRecently(newest)) return finish();
+      if (await autoPracuje()) { autoOdloz(newest); return finish(); }
       markAutoTried(newest);
       splash.set('install', `Instaluji verzi ${newest}…`);
       saveDrafts();
@@ -7776,6 +7808,7 @@ async function autoUpdateAtStart() {
       new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 12000))]);
     if (!info || !info.update_available || !info.latest || autoTriedRecently(bare(info.latest))) return finish();
     const latest = bare(info.latest);
+    if (await autoPracuje()) { autoOdloz(latest); return finish(); }
     markAutoTried(latest);
     splash.set('download', `Stahuji verzi ${latest}…`);
     await api('update');

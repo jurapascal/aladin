@@ -89,6 +89,7 @@
   <symbol id="i-lock" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2a5 5 0 0 1 5 5v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h1V7a5 5 0 0 1 5-5zm0 2a3 3 0 0 0-3 3v3h6V7a3 3 0 0 0-3-3zm0 9.5a1.5 1.5 0 0 0-1 2.6V18h2v-1.9a1.5 1.5 0 0 0-1-2.6z"/></symbol>
   <symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 2L4.5 13.5H11L10 22l8.5-11.5H12L13 2z"/></symbol>
   <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5L8 5.5z"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle fill="none" stroke="currentColor" stroke-width="1.75" cx="12" cy="12" r="9"/><path fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3 2"/></symbol>
   <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
 </defs></svg>
 
@@ -183,6 +184,8 @@
         <span class="nav-ico"><svg class="ico"><use href="#i-search"/></svg></span> Hledat</button>
       <button id="nav-projekty" class="nav-item">
         <span class="nav-ico"><svg class="ico"><use href="#i-folder"/></svg></span> Projekty</button>
+      <button id="nav-naplanovane" class="nav-item nav-claude">
+        <span class="nav-ico"><svg class="ico"><use href="#i-clock"/></svg></span> Naplánované</button>
       <!-- Poznámky jsou jen v Obsidianu: jedna položka, osobní / firemní /
            sdílené se přepínají uvnitř (vault.js). -->
       <button id="btn-brain" class="nav-item" hidden>
@@ -397,6 +400,7 @@
 <script src="/panely.js"></script>
 <script src="/settings.js"></script>
 <script src="/uloziste.js"></script>
+<script src="/naplanovane.js"></script>
 <script src="/upozorneni.js"></script>
 <script src="/oznameni.js"></script>
 <script src="/pluginy.js"></script>

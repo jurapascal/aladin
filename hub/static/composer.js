@@ -62,6 +62,24 @@
      hledáním v terminálu. */
   const OPTION = /^[\s│|]*(❯|>)?\s*(\d+)[.)]\s+(\S.*?)[\s│|]*$/;
 
+  /* Je v řádcích dialog? Nad vstupním polem je jen text odpovědi — a v něm
+     smí být číslovaný seznam („1. Nahrát…“) i „Do you want“, aniž by to byl
+     dotaz Claude Code. Když je dole skutečné vstupní pole (šipka, která není
+     volbou, a pod ní nápověda k režimu), počítá se jen od něj dolů. Dřív se
+     číslovaný seznam v odpovědi bral jako dialog, bublina se schovala a
+     zpráva čekala (Tomáš, 27. 11. 2026). */
+  function jeDialog(lines, navic) {
+    let od = 0;
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (PROMPT.test(lines[i]) && !OPTION.test(lines[i]) &&
+          lines.slice(i + 1).some((l) => HINT.test(l))) { od = i; break; }
+    }
+    for (let i = od; i < lines.length; i++) {
+      if (DIALOG.test(lines[i]) || (navic && navic.test(lines[i]))) return true;
+    }
+    return false;
+  }
+
   // Výběr ze seznamu (historie promptů, volba modelu): ovládá se šipkami.
   const PICKER = /(↑\/↓|to navigate)/i;
   const YESNO = /\(y\/n\)|\[y\/N\]/i;
@@ -937,7 +955,7 @@
       return dole.some((l) => PROMPT.test(l) &&
         (l.includes(zacatek) || (vlozit && /\[Pasted text/i.test(l))));
     }
-    const dialogDole = () => visibleBottom(term, DIALOG_ROWS).some((l) => DIALOG.test(l) || CONFIRM.test(l));
+    const dialogDole = () => jeDialog(visibleBottom(term, DIALOG_ROWS), CONFIRM);
 
     function doruc(body) {
       fronta.push(body);
@@ -2382,7 +2400,7 @@
         lastLines = lines;
         return true;
       }
-      if (lines.some(l => DIALOG.test(l))) return false;
+      if (jeDialog(lines)) return false;
       if (!lines.some(l => PROMPT.test(l)) || !lines.some(l => HINT.test(l))) {
         return false;
       }

@@ -50,8 +50,13 @@ class Soucet(Zaklad):
                                       "cache_creation_input_tokens": 200, "output_tokens": 999})])
         r = kontext.stav(p)
         self.assertEqual(r["tokens"], 1203)          # výstup se nepočítá
-        self.assertEqual(r["window"], 200000)
+        self.assertEqual(r["window"], 1000000)       # Opus/Sonnet/Fable: odhad 1M
         self.assertFalse(r["sure"])                  # okno je odhad
+
+    def test_haiku_odhad_200k(self):
+        p = self.soubor([asi({"input_tokens": 1000}, model="claude-haiku-5-5")])
+        r = kontext.stav(p)
+        self.assertEqual((r["window"], r["sure"]), (200000, False))
 
     def test_posledni_vyhrava(self):
         p = self.soubor([asi({"input_tokens": 10}), asi({"input_tokens": 50})])

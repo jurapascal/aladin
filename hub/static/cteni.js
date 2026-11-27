@@ -1705,12 +1705,23 @@
     const RETRY_MAX = 4;
     const NEDOSLO_MS = 30000;   // bublina zkouší Enter ~25 s (composer.js, posliJednu)
     function norm(t) {
-      return String(t || '').replace(/<\/?pasted_content\b[^>]*>/g, '')
+      return String(t || '').replace(/<\/?pasted_content\b[^>]*>/g, '').replace(/\[image #\d+\]/gi, ' ')
         .replace(/\s+/g, ' ').trim().toLowerCase();
     }
+    /* Zpráva s obrázkem se páruje podle obrázku, ne podle textu: Claude Code
+       cestu k obrázku v přepisu občas nahradí „[Image #1]“ nebo ji vůbec
+       nevypíše (velká fotka z mobilu) — text pak nesedí a zpráva visela na
+       „Předáno Claudovi“, i když ji Claude dávno měl (Tomáš, 27. 11. 2026). */
     function sedi(m, b) {
+      const obr = m.obrazky || [];
+      if (obr.length) {
+        const bimg = b.images || [];
+        const txt = String(b.text || '');
+        if (obr.some((p) => bimg.includes(p) || txt.includes(String(p).split(/[\\/]/).pop()))) return true;
+        if (bimg.length || (b.inline || []).length || b.obrazku || /\[image #\d+\]/i.test(txt)) return true;
+      }
       if (m.norm) return norm(b.text).includes(m.norm.slice(0, 48));
-      return !!((b.images || []).length || (b.inline || []).length);
+      return !!((b.images || []).length || (b.inline || []).length || b.obrazku);
     }
     // Na terminál se neodkazuje nikde — lidé ho nevidí, radí se počkat.
     const STITEK = {
@@ -2080,7 +2091,7 @@
         return;
       }
       const m = {norm: norm(z.text), text: String(z.text || '').trim(), row: bublina(z, '', ' '),
-                 fid: z.fid || '', server: stav === 'server'};
+                 fid: z.fid || '', server: stav === 'server', obrazky: (z.images || []).slice()};
       mistni.push(m);
       fronta.appendChild(m.row);
       nastavMistni(m, stav === 'start' ? 'start' : stav === 'server' ? 'server' : 'odesila');

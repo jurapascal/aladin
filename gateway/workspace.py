@@ -792,6 +792,35 @@ def session_env(user):
     return env
 
 
+TMP_SLOZKA = os.path.join(".cache", "hub-tmp")
+
+
+def tmp_na_disku(home):
+    """Prázdná složka v domově, která bude v sandboxu jako /tmp; "" = nejde.
+
+    /tmp v paměti (tmpfs) se počítá do stropu paměti prostoru a velký soubor
+    v něm prostor shodil (Tomáš, 27. 11. 2026). Na disku zůstává stejné
+    chování jako dřív: každý start prostoru začíná s prázdným /tmp — stará
+    složka se odsune a smaže na pozadí, ať start nečeká."""
+    import shutil
+    import threading
+    cesta = os.path.join(home, TMP_SLOZKA)
+    try:
+        if os.path.isdir(cesta) and os.listdir(cesta):
+            stara = f"{cesta}.stara-{int(time.time())}"
+            os.rename(cesta, stara)
+            threading.Thread(target=shutil.rmtree, args=(stara, True), daemon=True).start()
+        os.makedirs(cesta, mode=0o700, exist_ok=True)
+        # Zbytky po minulých startech (rmtree nedoběhl, brána spadla).
+        for jmeno in os.listdir(os.path.dirname(cesta)):
+            if jmeno.startswith("hub-tmp.stara-") and not jmeno.endswith(str(int(time.time()))):
+                plna = os.path.join(os.path.dirname(cesta), jmeno)
+                threading.Thread(target=shutil.rmtree, args=(plna, True), daemon=True).start()
+        return cesta
+    except OSError:
+        return ""
+
+
 def pwa_id(user):
     """Tajný kód účtu do adres manifestu a ikon appky (vlastní název a ikona,
     hub/vzhled.py). Prohlížeč je stahuje bez přihlášení — podle kódu brána
@@ -1653,9 +1682,10 @@ def session_spec(user, isolation, mode):
     # Stará cesta u<id> vede v sandboxu na nový domov: cache (uv, npx) mají
     # absolutní cesty zapečené uvnitř a přepisovat je by bylo křehké.
     legacy = os.path.join(USERS_ROOT, slug(user))
+    tmp = tmp_na_disku(home) if mode == "bwrap" and not isolation.PER_USER else ""
     argv = isolation.wrap(mode, inner, home, extra_ro=extra_ro, unit=unit,
                           aliases=[legacy] if legacy != home else [],
-                          ucet=slug(user), masks=masks)
+                          ucet=slug(user), masks=masks, tmp=tmp)
     if argv[:1] not in (["systemd-run"], ["sudo"]):
         unit = ""                 # bez scope (docker, stroj bez systemd)
     return argv, home, unit, verze, skryte

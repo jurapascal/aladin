@@ -97,7 +97,7 @@ def check(mode, host):
 
 
 def wrap(mode, argv, home, extra_ro=(), extra_rw=(), limits=None, unit="",
-         aliases=(), ucet="", masks=()):
+         aliases=(), ucet="", masks=(), tmp=""):
     """argv, kterým se session doopravdy spustí.
 
     `home` je domov uživatele na bráně — jediné místo, kam smí zapisovat.
@@ -116,12 +116,14 @@ def wrap(mode, argv, home, extra_ro=(), extra_rw=(), limits=None, unit="",
     jména domova, na která ukazují cesty zapečené v cache. Jen u bwrap.
     `masks` jsou hotové argumenty bwrap po přivázání `extra_ro` — skryté
     poznámky firemního trezoru (gateway/poznamky.py). Jen u bwrap.
+    `tmp` je složka na disku, která bude v sandboxu jako /tmp; prázdné = /tmp
+    v paměti (tmpfs). Jen u bwrap.
     """
     limits = LIMITS if limits is None else limits
     if mode == "none":
         return _limited(list(argv), limits, unit)
     if mode == "bwrap":
-        sandbox = _bwrap(argv, home, extra_ro, extra_rw, aliases, masks)
+        sandbox = _bwrap(argv, home, extra_ro, extra_rw, aliases, masks, tmp)
         if PER_USER and ucet and unit:
             # Scope zakládá root ve SYSTÉMOVÉM manažeru (--uid), ne v uživatelském
             # manažeru účtu hub. Limity si spouštěč nastaví sám, proto `limits`
@@ -161,7 +163,10 @@ def _limited(argv, limits, unit=""):
     return scope + argv
 
 
-def _bwrap(argv, home, extra_ro, extra_rw=(), aliases=(), masks=()):
+def _bwrap(argv, home, extra_ro, extra_rw=(), aliases=(), masks=(), tmp=""):
+    # /tmp na disku (workspace.tmp_na_disku), jinak v paměti. Tmpfs se počítá
+    # do stropu paměti prostoru — velký soubor v /tmp ho uměl shodit.
+    tmp_args = ["--bind", tmp, "/tmp"] if tmp and os.path.isdir(tmp) else ["--tmpfs", "/tmp"]
     cmd = ["bwrap",
            # Systém ke čtení. Zápis nikam mimo domov: i kdyby session někoho
            # napadlo sáhnout na /usr, nemá kam.
@@ -169,7 +174,7 @@ def _bwrap(argv, home, extra_ro, extra_rw=(), aliases=(), masks=()):
            "--ro-bind", "/etc", "/etc",
            "--proc", "/proc",
            "--dev", "/dev",
-           "--tmpfs", "/tmp",
+           *tmp_args,
            "--tmpfs", "/run",
            # Domov uživatele je jediné zapisovatelné místo a je na stejné
            # cestě jako venku, aby si Claude Code nestěžoval na jinou realitu.

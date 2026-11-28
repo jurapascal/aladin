@@ -16,8 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.9', '3.12']
-    runs-on: ubuntu-latest
+        include:
+          # Ubuntu 26.04 už Python 3.9 v setup-python nemá → 3.9 na 24.04.
+          - python: '3.9'
+            os: ubuntu-24.04
+          - python: '3.12'
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
